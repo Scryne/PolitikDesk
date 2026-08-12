@@ -1,0 +1,12 @@
+kalem,tip,usd_ay
+iddia_cikarimi,sabit,20.81
+olay_ozetleme,sabit,11.7
+embedding,sabit,0.19
+altyapi,sabit,38.0
+taslak_uretimi,degisken_kullanici_basina,3.24
+brifingler,degisken_kullanici_basina,0.72
+
+kullanici_sayisi,usd_kullanici_ay,usd_toplam_ay
+10,11.03,110.31
+100,4.67,466.71
+1000,4.03,4030.71

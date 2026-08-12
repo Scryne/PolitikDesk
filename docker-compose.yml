@@ -1,0 +1,119 @@
+# PolitikDesk — geliştirme ortamı (F0-12)
+# Spec §11.1 (D12): tek VPS + Docker Compose. Kubernetes MVP'de yasak.
+#
+#   docker compose up -d db redis
+#   docker compose run --rm migrate
+#   docker compose up api
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: pd-db
+    environment:
+      POSTGRES_USER: politikdesk
+      POSTGRES_PASSWORD: politikdesk
+      POSTGRES_DB: politikdesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U politikdesk -d politikdesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: pd-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build: .
+    container_name: pd-migrate
+    command: ["python", "-m", "scripts.migrate", "up"]
+    environment:
+      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/app/migrations:ro
+
+  api:
+    build: .
+    container_name: pd-api
+    command:
+      ["uvicorn", "politikdesk.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
+      PD_REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health/live').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Ingestion, embedding ve varlık çıkarımı görevlerini çalıştırır (F1-05).
+  worker:
+    build: .
+    container_name: pd-worker
+    command:
+      ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
+       "--concurrency", "2"]
+    environment:
+      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
+      PD_REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["workers"]
+
+  # Zamanlayıcı: 5 dakikalık toplama döngüsü, embed, purge (F1-05, F1-12).
+  beat:
+    build: .
+    container_name: pd-beat
+    command:
+      ["celery", "-A", "politikdesk.worker.app", "beat", "-l", "info"]
+    environment:
+      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
+      PD_REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["workers"]
+
+volumes:
+  pgdata:
+  redisdata:

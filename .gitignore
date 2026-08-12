@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Ortam
+.env
+.env.local
+*.local
+
+# Docker / veri
+pgdata/
+redisdata/
+
+# Editör
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Node (Faz 3 — web/)
+node_modules/
+.next/
+out/
+
+# Geçici çıktılar
+/tmp/
+*.log
+eval/_runs/

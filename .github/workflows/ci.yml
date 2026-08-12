@@ -1,0 +1,102 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PD_ENV: test
+  PD_LOG_FORMAT: console
+  PD_DATABASE_URL: postgresql://politikdesk:politikdesk@localhost:5432/politikdesk
+  PD_REDIS_URL: redis://localhost:6379/0
+
+jobs:
+  quality:
+    name: Lint · Mimari kural · Test
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: politikdesk
+          POSTGRES_PASSWORD: politikdesk
+          POSTGRES_DB: politikdesk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U politikdesk -d politikdesk"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Bağımlılıkları kur
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Tip kontrolü (mypy)
+        run: mypy
+        continue-on-error: true # Faz 0'da uyarı; Faz 1'de zorunlu hale gelir
+
+      # --- F0-16: mimari kural. Bu adım kırmızıya dönerse CI kırılır. ---
+      - name: Mimari kural — evidence/ → llm/ import yasağı
+        run: python -m scripts.check_architecture
+
+      - name: Mimari korumanın canlı doğrulaması
+        run: python -m scripts.verify_arch_guard
+
+      # --- F0-15: migration'lar gerçek Postgres+pgvector üzerinde koşar ---
+      - name: Migration'ları uygula
+        run: python -m scripts.migrate up
+
+      - name: Migration'ların yeniden koşumu idempotent
+        run: python -m scripts.migrate up
+
+      - name: Testler
+        run: pytest -v
+
+  docker:
+    name: docker compose ayağa kalkıyor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Servisleri başlat
+        run: |
+          docker compose up -d db redis
+          docker compose run --rm migrate
+          docker compose up -d api
+
+      - name: API sağlık kontrolü
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health/ready; then
+              echo "" && echo "API hazır." && exit 0
+            fi
+            sleep 3
+          done
+          echo "API 90 saniyede hazır olmadı." >&2
+          docker compose logs api
+          exit 1
+
+      - name: Temizlik
+        if: always()
+        run: docker compose down -v

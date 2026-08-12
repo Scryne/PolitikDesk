@@ -1,0 +1,175 @@
+# PolitikDesk — MVP kaynak listesi (F0-08, F0-09)
+#
+# ⛔ SERT KURAL (Spec §9.2 / D6): MVP'de 8'DEN FAZLA KAYNAK EKLENMEZ.
+#    tests/test_sources_config.py bu kuralı zorlar.
+#
+# ⛔ tos_status='forbidden' kaynaktan ingestion kod seviyesinde engellidir
+#    (politikdesk/ingestion/guard.py, F1-06).
+#
+# Doğrulama durumu (12 Ağu 2026):
+#   ✅ akış canlı test edildi, gerçek veri döndü
+#   🔎 akış yerel ağdan doğrulanmalı: `python -m scripts.discover_feeds`
+#
+# REUTERS DÜŞÜRÜLDÜ: açık RSS ucu yok, içerik lisansa tabi. Spec §9.2'nin
+# "uluslararası çapraz teyit" rolü boşta; yerine iki Tier 3 yayın ile
+# çerçeveleme çeşitliliği güçlendirildi. Kaynak sayısı 8 -> 7.
+
+version: 2
+vertical: macro_economy
+max_sources: 8
+
+sources:
+  # ---------------------------------------------------------------- Tier 1
+  - slug: tcmb
+    name: "Türkiye Cumhuriyet Merkez Bankası"
+    tier: 1
+    kind: official
+    independence_group: "official-tcmb"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.tcmb.gov.tr"
+    feed_url: "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Bottom+Menu/Diger/RSS/Basin+Duyurulari"
+    extra_feeds:
+      - "https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB+TR/Bottom+Menu/Diger/RSS/PPK+Kararlari"
+    adapter: rss
+    verified: true                      # ✅ 12 Ağu 2026, gerçek öğe döndü
+    robots_txt: "User-agent: * / Disallow: */search+results — akış yolları serbest"
+    topics: [politika_faizi, enflasyon, kur_ve_rezervler]
+    produces_scheduled_events: true
+    notes: >-
+      RSS akışındaki <link> alanları GÖRELİ yoldur (/wps/wcm/...).
+      Normalizer base_url ile mutlaklaştırır.
+
+  - slug: tuik
+    name: "Türkiye İstatistik Kurumu"
+    tier: 1
+    kind: official
+    independence_group: "official-tuik"
+    access_method: official_feed
+    tos_status: allowed
+    base_url: "https://www.tuik.gov.tr"
+    feed_url: null
+    adapter: tuik
+    verified: false                     # 🔎 bülten listesi JS ile yükleniyor
+    robots_txt: "robots.txt yok (HTTP 404) — kısıt beyan edilmemiş"
+    topics: [enflasyon, issizlik_ve_istihdam, buyume]
+    produces_scheduled_events: true
+    probe:
+      calendar_url: "https://www.tuik.gov.tr/Kurumsal/Veri_Takvimi"
+      bulletin_index: "https://veriportali.tuik.gov.tr/Bulten/Index"
+      bulletin_url_pattern: "https://veriportali.tuik.gov.tr/Bulten/Index?p=<Slug>-<Donem>-<ID>"
+    notes: >-
+      RSS YOK. Bülten listesi veriportali.tuik.gov.tr üzerinde dinamik
+      yükleniyor; discover_feeds altındaki JSON ucunu arar.
+      Veri Yayımlama Takvimi F2-18'in girdisidir.
+
+  - slug: hazine
+    name: "T.C. Hazine ve Maliye Bakanlığı"
+    tier: 1
+    kind: official
+    independence_group: "official-hazine"
+    access_method: official_feed
+    tos_status: allowed
+    base_url: "https://www.hmb.gov.tr"
+    feed_url: null
+    adapter: generic_html
+    verified: false                     # 🔎 sayfa JS ile yükleniyor
+    robots_txt: null
+    topics: [butce_ve_hazine, kamu_borclanmasi, asgari_ucret_ve_zamlar, derecelendirme]
+    produces_scheduled_events: true
+    probe:
+      candidates:
+        - "https://www.hmb.gov.tr/duyurular"
+        - "https://www.hmb.gov.tr/haberler"
+        - "https://www.hmb.gov.tr/rss"
+
+  - slug: resmi-gazete
+    name: "Resmî Gazete"
+    tier: 1
+    kind: official
+    independence_group: "official-resmigazete"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.resmigazete.gov.tr"
+    feed_url: "https://www.resmigazete.gov.tr/rss"
+    adapter: rss
+    verified: false                     # 🔎 sandbox'tan ECONNRESET; yerelde teyit
+    robots_txt: null
+    topics: [vergi_ve_harclar, asgari_ucret_ve_zamlar]
+    produces_scheduled_events: false
+    keyword_filter:                     # RG günde onlarca kalem yayımlar
+      - vergi
+      - harç
+      - ÖTV
+      - KDV
+      - asgari ücret
+      - yeniden değerleme
+      - gümrük
+      - tarife
+      - katsayı
+      - borçlanma
+    notes: >-
+      Konu filtresi ZORUNLU: filtresiz ingestion articles tablosunu
+      alakasız kayıtla doldurur ve embedding maliyetini boşa harcar.
+
+  # ---------------------------------------------------------------- Tier 2
+  - slug: aa-ekonomi
+    name: "Anadolu Ajansı — Ekonomi"
+    tier: 2
+    kind: wire
+    independence_group: "wire-aa"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.aa.com.tr"
+    feed_url: "https://www.aa.com.tr/tr/rss/default?cat=ekonomi"
+    adapter: rss
+    verified: true                      # ✅ 12 Ağu 2026
+    robots_txt: null
+    topics: [enflasyon, politika_faizi, butce_ve_hazine, buyume, derecelendirme]
+    produces_scheduled_events: false
+    is_wire_reference: true             # F1-11 ajans kopyası tespitinin çıpası
+    notes: >-
+      Öğe alanları: guid, link, title, description, pubDate, image.
+      <category> YOK — konu ataması link yolundan (/tr/ekonomi/...) ve
+      başlık/açıklama eşleşmesinden türetilir.
+
+  # ---------------------------------------------------------------- Tier 3
+  - slug: dunya
+    name: "Dünya Gazetesi"
+    tier: 3
+    kind: media
+    independence_group: "media-dunya"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.dunya.com"
+    feed_url: "https://www.dunya.com/rss?dunya"
+    adapter: rss
+    verified: true                      # ✅ 12 Ağu 2026
+    robots_txt: null
+    topics: [enflasyon, butce_ve_hazine, buyume, kur_ve_rezervler]
+    produces_scheduled_events: false
+    notes: >-
+      Genel akış — ekonomi dışı içerik de geliyor (spor, turizm).
+      Konu filtresi normalizer'da uygulanır.
+
+  - slug: bloomberght
+    name: "BloombergHT"
+    tier: 3
+    kind: media
+    independence_group: "media-bloomberght"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.bloomberght.com"
+    feed_url: "https://www.bloomberght.com/rss"
+    adapter: rss
+    verified: true                      # ✅ 12 Ağu 2026
+    robots_txt: null
+    topics: [politika_faizi, kur_ve_rezervler, enflasyon, derecelendirme]
+    produces_scheduled_events: false
+    notes: "dunya'dan farklı yayın grubu ve farklı çerçeveleme — D17 koşulu sağlandı."
+
+# ---------------------------------------------------------------------------
+# Tier 4 (sosyal) yapılandırılmış kaynak YOKTUR (Spec §9.4 / D7).
+# Tier 4 içerik yalnızca kullanıcı-tetikli içe aktarma ile girer (F1-04)
+# ve R7 gereği azami single_source (🟠) olabilir.
+# ---------------------------------------------------------------------------
