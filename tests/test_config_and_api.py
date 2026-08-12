@@ -25,10 +25,25 @@ def test_cluster_thresholds_must_be_ordered() -> None:
         Settings(cluster_t_high=0.70, cluster_t_low=0.90)
 
 
-def test_defaults_match_spec_thresholds() -> None:
+def test_defaults_match_calibrated_thresholds() -> None:
+    """D20 — F2-14'te kalibre edilmiş eşikler (`eval/threshold_report.md`).
+
+    Spec §11.4'ün tahminleri 0,86 / 0,78 idi; Golden Set üzerinde bu
+    değerler false merge oranını %10,7 veriyordu ve G2'nin pazarlıksız
+    koşulu (≤ %5) tutmuyordu. 0,92 / 0,88 ile oran %2,6'ya iniyor.
+
+    Bu test bir "sabit doğrulama"dan fazlasıdır: eşikleri sessizce
+    değiştiren bir commit, kalibrasyon raporunu güncellemeye zorlanır.
+    """
     s = Settings()
-    assert s.cluster_t_high == 0.86
-    assert s.cluster_t_low == 0.78
+    assert s.cluster_t_high == 0.92
+    assert s.cluster_t_low == 0.88
+
+
+def test_threshold_ordering_is_enforced() -> None:
+    """T_LOW < T_HIGH — denetim bandı ters çevrilemez."""
+    with pytest.raises(ValueError, match="t_low"):
+        Settings(cluster_t_high=0.80, cluster_t_low=0.90)
 
 
 def test_logs_are_json_formatted(capsys: pytest.CaptureFixture[str]) -> None:

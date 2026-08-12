@@ -9,7 +9,8 @@
 |---|---|
 | Spesifikasyon | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.1 donduruldu** |
 | Yol haritası | [`PolitikDesk_Yol_Haritasi_v1.md`](PolitikDesk_Yol_Haritasi_v1.md) — "ne zaman ve nasıl" |
-| Mevcut faz | **Faz 2 — Olay Zekâsı** ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md)) |
+| Mevcut faz | **Faz 2 — Olay Zekâsı** ✅ 19/21 görev ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md)) |
+| Ölçüm | [`eval/eval_report.md`](eval/eval_report.md) · [eşik kalibrasyonu](eval/threshold_report.md) · [embedding kararı](docs/embedding-benchmark.md) |
 | Kapsam | Tek kullanıcılı **kişisel araç** — beta/ücretlendirme/hukuk adımları kapsam dışı |
 | MVP dikeyi | Makro ekonomi / para politikası (D4) |
 
@@ -56,12 +57,16 @@ politikdesk/
 │   ├── dedup.py   content_hash + simhash + n-gram içermesi
 │   └── topics.py  MVP konu + Türkiye bağlamı filtresi
 ├── nlp/         embedding, ANN, NER, alias çözümleme              [Faz 1 ✓]
-├── clustering/  olay kümeleme + merge/split                       [Faz 2 🚧]
+├── clustering/  olay kümeleme + merge/split                       [Faz 2 ✓]
 │   ├── assigner.py      saf karar mantığı (DB'ye dokunmaz)
 │   ├── centroid.py      artımlı merkez — üyelerinden yeniden hesaplanabilir
-│   └── numeric_guard.py "faiz %40" vs "%42" -> needs_review
-├── evidence/    ⛔ DETERMİNİSTİK — llm/ import edemez             [Faz 2]
-├── context/     olay-olay ilişkileri, tarihsel bağlam             [Faz 2]
+│   ├── numeric_guard.py "faiz %40" vs "%42" -> needs_review
+│   └── merger.py        merge/split — %100 geri alınabilir
+├── evidence/    ⛔ DETERMİNİSTİK — llm/ import edemez             [Faz 2 ✓]
+│   ├── independence.py  Spec §8.2 bağımsız sayım (3 kural)
+│   ├── rules.py         R0–R7 kural motoru
+│   └── salience.py      global 0–90 + kişisel 0–10
+├── context/     olay-olay ilişkileri, tarihsel bağlam             [Faz 2 ✓]
 ├── editorial/   taslak üretimi, pre-publish check                 [Faz 3]
 ├── briefing/    sabah/akşam brifingi                              [Faz 3]
 ├── llm/         sağlayıcı-agnostik adapter + bütçe sayacı         [Faz 0 ✓]
@@ -89,6 +94,10 @@ Bunlar yorum değil, kodda ve şemada zorlanan sözleşmelerdir:
 | Manuel içe aktarmada SSRF | `adapters/manual.py::validate_url` |
 | Kaynak sayısı sert sınırı (8) | `tests/test_sources_config.py` |
 | Olay merkezi üyelerinden yeniden hesaplanabilir kalır | `tests/test_clustering.py::test_remove_member_reverses_add_member` |
+| Merge/split %100 geri alınabilir | `tests/test_merger.py` (canlı DB) |
+| Salience'ta etkileşim (beğeni/paylaşım) girdisi yok | `tests/test_evidence.py::test_salience_has_no_engagement_input` (AST taraması) |
+| LLM çıktısı `evidence_status` üretemez | `nlp/claims.py::CLAIMS_SCHEMA` + `FORBIDDEN_FIELDS` |
+| Kanıt alıntısı kaynak metinde birebir geçmeli | `nlp/claims.py::verify_quote` |
 
 Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm artışı gerektirir.
 

@@ -13,6 +13,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
 from politikdesk import __version__
+from politikdesk.admin.calendar import router as admin_calendar_router
+from politikdesk.admin.events import router as admin_events_router
 from politikdesk.admin.router import router as admin_router
 from politikdesk.api.ingest import router as ingest_router
 from politikdesk.config import get_settings
@@ -40,6 +42,8 @@ app = FastAPI(
 
 # Faz 1 router'ları
 app.include_router(admin_router)
+app.include_router(admin_events_router)
+app.include_router(admin_calendar_router)
 app.include_router(ingest_router)
 
 

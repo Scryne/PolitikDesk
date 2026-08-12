@@ -146,6 +146,39 @@ def cmd_cluster(limit: int) -> int:
     return 0
 
 
+def cmd_claims(limit: int) -> int:
+    """Olaylardan iddia cikarir (F2-06). ANTHROPIC_API_KEY gerekir."""
+    from politikdesk.nlp.claims_pipeline import run
+
+    stats = run(limit)
+    print("Iddia cikarimi tamamlandi:")
+    for key, value in stats.as_dict().items():
+        print(f"  {key:18s}: {value}")
+    return 0
+
+
+def cmd_evidence(limit: int) -> int:
+    """Kanit durumu ve salience hesaplar (F2-12, F2-13, F2-15)."""
+    from politikdesk.evidence.pipeline import run
+
+    stats = run(limit)
+    print("Kanit motoru turu tamamlandi:")
+    for key, value in stats.as_dict().items():
+        print(f"  {key:18s}: {value}")
+    return 0
+
+
+def cmd_context(limit: int) -> int:
+    """Tarihsel baglam baglari kurar (F2-17)."""
+    from politikdesk.context.related import run
+
+    stats = run(limit)
+    print("Baglam turu tamamlandi:")
+    for key, value in stats.items():
+        print(f"  {key:18s}: {value}")
+    return 0
+
+
 def main() -> int:
     configure_logging()
 
@@ -168,6 +201,15 @@ def main() -> int:
     cluster = sub.add_parser("cluster", help="Bekleyen makaleleri olaylara ata")
     cluster.add_argument("--limit", type=int, default=200)
 
+    claims = sub.add_parser("claims", help="Olaylardan iddia cikar (LLM)")
+    claims.add_argument("--limit", type=int, default=5)
+
+    evidence = sub.add_parser("evidence", help="Kanit durumu + salience")
+    evidence.add_argument("--limit", type=int, default=200)
+
+    context = sub.add_parser("context", help="Tarihsel baglam baglari")
+    context.add_argument("--limit", type=int, default=50)
+
     sub.add_parser("health", help="Kaynak saglik raporu")
     sub.add_parser("purge", help="Suresi gecmis govdeleri sil")
 
@@ -183,6 +225,12 @@ def main() -> int:
         return cmd_entities(args.limit)
     if args.command == "cluster":
         return cmd_cluster(args.limit)
+    if args.command == "claims":
+        return cmd_claims(args.limit)
+    if args.command == "evidence":
+        return cmd_evidence(args.limit)
+    if args.command == "context":
+        return cmd_context(args.limit)
     if args.command == "health":
         return cmd_health()
     if args.command == "purge":

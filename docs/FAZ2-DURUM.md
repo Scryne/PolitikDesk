@@ -8,29 +8,14 @@
 
 ---
 
-## Faza giriş durumu
+## Özet
 
-Faz 2, Spec **v3.1** dondurulduktan sonra başlatıldı. Faz 0'ın açık iki
-kalemi kapatıldı, üçüncüsü kısmi:
+**21 görevin 19'u tamamlandı**, 1'i kısmi, 1'i takvim zamanı bekliyor.
+Kapı G2'nin 9 koşulundan **5'i sağlandı**, 2'si kısmi, 2'si veri bekliyor.
 
-| Ön koşul | Durum |
-|---|---|
-| Spec-freeze (`spec-v3.1`) | ✅ 4 itiraz Spec'e işlendi |
-| R0/R7 kural sıralaması | ✅ §8.3 düzeltildi + `migrations/0003` |
-| Salience global/kişisel ayrımı | ✅ §8.4 + DB kısıtı `events_salience_global_range` |
-| Çift seti (F0-13) | ✅ 60 gerçek çift kuruldu |
-| **D16 embedding kararı** | ✅ **`multilingual-e5-large`** — 3 aday koşuldu; bkz. `docs/embedding-benchmark.md` |
-| Golden Set | 🔴 0/200 — F2-16 ve F2-20 buna bağlı |
-
-**D16 kapandı.** Üç aday ölçüldü (e5-large 0,822 / voyage-3 0,804 /
-bge-m3 0,790). Eleme ölçütü "zor AUC — **metinsel özdeş çiftler hariç** —
-≥ 0,80" olarak yeniden yazıldı ve yalnızca e5-large geçti (0,807). Ölçüt
-değişikliğinin yazılı gerekçesi `docs/embedding-benchmark.md`'dedir.
-
-**Uygulama borcu:** mevcut makaleler hâlâ `hashing` embedder ile
-gömülüdür; e5'e geçildiğinde `articles.embedding` yeniden üretilmeli ve
-kümeleme tekrar koşulmalıdır (B-53). Worker konteyneri de `embed-local`
-ekstrasını (torch + sentence-transformers, ~2,5 GB) gerektirir (B-54).
+Fazın en önemli çıktısı kod değil **ölçüm**: eval koşucusu (F2-16) ilk
+koşumunda kanıt motorunda gerçek bir hata yakaladı ve eşik kalibrasyonu
+(F2-14) false merge oranını %10,7'den %2,6'ya indirdi.
 
 ---
 
@@ -43,12 +28,156 @@ ekstrasını (torch + sentence-transformers, ~2,5 GB) gerektirir (B-54).
 | F2-01 | Kümeleme algoritması v1 | ✅ | `clustering/assigner.py` + `repository.py` + `pipeline.py` |
 | F2-02 | Olay merkezi güncelleme | ✅ | `clustering/centroid.py` — drift < 1e-9, geri alınabilir |
 | F2-03 | Sayısal çelişki bayrağı | ✅ | `clustering/numeric_guard.py` — 11 metrik sözlüğü |
-| F2-04 | İnsan denetim kuyruğu | 🔜 | `/admin/review` |
-| F2-05 | Merge / Split kaçış valfleri | 🔜 | `clustering/merger.py` |
-| F2-14 | Eşik kalibrasyonu (D20) | ⏳ | F2-16 + Golden Set'e bağlı |
+| F2-04 | İnsan denetim kuyruğu | ✅ | `/admin/review/` + `merger.review_queue` |
+| F2-05 | Merge / Split kaçış valfleri | ✅ | `clustering/merger.py` — canlı doğrulandı |
+| F2-14 | Eşik kalibrasyonu (D20) | ✅ | `eval/threshold_report.md` — **0,92 / 0,88** |
 
-Diğer iş kolları (B: iddia çıkarımı, C: kanıt motoru, D: bağlam, E: eval)
-henüz başlamadı.
+### İş Kolu B — İddia Çıkarımı
+
+| ID | Görev | Durum | Çıktı |
+|---|---|---|---|
+| F2-06 | İddia çıkarım promptu + şema | ✅ | `nlp/claims.py`, `prompts/claims.v1.md` |
+| F2-07 | İddia tipi sınıflandırma | 🟡 | Kod + şema hazır; **%90 DoD ölçümü canlı koşum bekliyor** |
+| F2-08 | Sayısal değer normalizasyonu | ✅ | 21 metrik, ISO dönem doğrulaması; eval: **1,000** |
+| F2-09 | İddia tekilleştirme | ✅ | Sayısal iddiada imza = normalize değer |
+| F2-10 | Kanıt eşleme + alıntı doğrulama | ✅ | `verify_quote` — uydurma alıntı reddediliyor |
+
+### İş Kolu C — Kanıt Motoru (Deterministik)
+
+| ID | Görev | Durum | Çıktı |
+|---|---|---|---|
+| F2-11 | Bağımsız kanıt sayımı | ✅ | `evidence/independence.py` — Spec §8.2'nin **3 kuralı da** |
+| F2-12 | Kural motoru R0–R7 | ✅ | `evidence/rules.py` — 8 kural, 8 test; CI'da LLM yasağı |
+| F2-13 | `status_reason` üretimi | ✅ | Makine-okunur; R0'da kısa devre kaydı |
+| F2-15 | Salience skoru | ✅ | `evidence/salience.py` — global 0–90 + kişisel 0–10 |
+
+### İş Kolu D — Bağlam ve Takvim
+
+| ID | Görev | Durum | Çıktı |
+|---|---|---|---|
+| F2-17 | Tarihsel bağlam | ✅ | `context/related.py` → `same_thread` |
+| F2-18 | ScheduledEvent + admin | ✅ | `/admin/calendar/` + `config/calendar_2026.yml` (17 kayıt) |
+| F2-19 | Beklenen → gerçekleşen eşleştirme | ✅ | `context/scheduler_match.py` |
+
+### İş Kolu E — Değerlendirme
+
+| ID | Görev | Durum | Çıktı |
+|---|---|---|---|
+| F2-16 | Eval koşucusu | ✅ | `eval/run.py` + `eval/eval_report.md` |
+| F2-20 | Golden Set (300 makale + 150 iddia) | 🟡 | **55 makale + 24 iddia** — gerçek veri, hedefin altında |
+| F2-21 | Haftalık kalite ritüeli (≥3 hafta) | 🔴 | **Takvim zamanı gerektirir** — kodla kapatılamaz |
+
+---
+
+## Kapı G2 — ölçülen durum
+
+`python -m eval.run` · 55 makale · 36 gerçek olay · 24 iddia
+
+| # | Koşul | Hedef | Ölçülen | Durum |
+|---|---|---|---|---|
+| 1 | Kümeleme precision | ≥ %90 | **%87,5** | 🟡 |
+| 2 | Kümeleme recall | ≥ %80 | **%82,4** | ✅ |
+| 3 | **Yanlış birleştirme** | ≤ %5 | **%2,6** | ✅ **pazarlıksız koşul tutuyor** |
+| 4 | `evidence_status` doğruluğu | ≥ %95 | **%100** | ✅ |
+| 5 | Uydurulmuş iddia oranı | ≤ %2 | — | ⏳ canlı LLM koşumu yok |
+| 6 | Sayısal normalizasyon | ≥ %95 | **%100** | ✅ |
+| 7 | `evidence/` içinde LLM çağrısı | 0 | **0** | ✅ CI + AST testi |
+| 8 | Merge/split geri alınabilir | %100 | **%100** | ✅ canlı + test |
+| 9 | Haftalık ritüel | ≥3 hafta | 0 | 🔴 takvim |
+
+**Ek ölçüm: otomatik precision %100.** Sistemin denetim kuyruğuna
+sormadan verdiği kararların hiçbiri yanlış değil. Belirsizlik doğru yere
+yönlendiriliyor: 55 makalenin 7'si (%13) denetime düşüyor.
+
+**Kapı durumu: 🟡 AÇILMADI.** Koşul 1 sınırda, 5 ve 9 ölçülemedi.
+Ayrıntı aşağıda.
+
+---
+
+## Fazın bulguları
+
+### 1. Eval koşucusu kanıt motorunda gerçek bir hata yakaladı
+
+İlk koşumda `gc-024` uyuşmadı: ajans haberi ile **aynı yayın grubundaki**
+kopyası iki bağımsız kaynak sayılıyordu.
+
+Bu, Faz 1'de yakalanan hatanın **ikinci biçimiydi.** Faz 1'de kopya
+simhash ile tespit ediliyordu ve ajansın anahtarını `wire:<slug>` olarak
+sabitlemek çözüyordu. Kopya *yayın grubuyla* eşleştiğinde aynı çözüm
+hatayı geri getiriyordu: ajans `wire:aa-ekonomi`, kopyası `grp:wire-aa`.
+
+Düzeltme: yayın grubu her zaman öncelikli (Spec §8.2 kural 1), ajans
+dahil. Simhash kopyası da ajansın **gerçek anahtarını** miras alır.
+`evidence_status` doğruluğu %95,8 → **%100**.
+
+> Bu tam olarak F2-16'nın var olma sebebidir. Hata birim testlerinde
+> görünmüyordu çünkü testler kendi kurdukları senaryoyu doğruluyordu;
+> Golden Set gerçek kaynak kompozisyonunu getirdi.
+
+### 2. Eşik kalibrasyonu false merge'ü dörtte bire indirdi
+
+Spec §11.4'ün tahminleri (0,86 / 0,78) Golden Set üzerinde false merge
+%10,7 veriyordu — G2'nin pazarlıksız koşulu tutmuyordu.
+
+| | 0,86 / 0,78 | **0,92 / 0,88** |
+|---|---|---|
+| Pairwise precision | 0,515 | **0,875** |
+| False merge | 0,107 ❌ | **0,026** ✅ |
+| Denetime düşen | 14/55 | **7/55** |
+
+Ayrıntı ve tarama tabloları: `eval/threshold_report.md`.
+
+### 3. Kalan precision açığının tamamı varlıksız makalelerden geliyor
+
+55 makalenin **21'inde** (%38) tanınan varlık yok. Bu makalelerde varlık
+kısıtı uygulanamıyor (`inconclusive` yolu) ve precision'ı taşıyan tek
+şey benzerlik kalıyor.
+
+Eşik ayarıyla kapatılacak bir açık değil: varlık sözlüğü kapsamı sorunu
+(B-56). Bakanlıklar, kurullar ve şirket adları sözlüğe girdiğinde
+`inconclusive` yolu boşalır.
+
+### 4. Ölçümün kendisi iki farklı soruyu ayırmalı
+
+Koşucu precision'ı iki kez raporlar:
+
+* **Pairwise precision** — denetim kuyruğu hiç işlenmemişken kalan durum
+* **Otomatik precision** — sistemin *sormadan* verdiği kararların kalitesi
+
+Denetim kuyruğuna düşen bir atama sistemin iddiası değil, sorusudur.
+Bu ayrım yapılmadan ölçülen precision (0,515) sistemi haksız yere
+suçluyordu; otomatik precision 0,950 idi.
+
+---
+
+## Canlı doğrulama (12 Ağustos 2026)
+
+11 gerçek makale üzerinde uçtan uca:
+
+```
+kümeleme : {'processed': 11, 'assigned': 1, 'created': 10, 'errors': 0}
+kanıt    : {'claims_scored': 0, 'events_scored': 10, 'errors': 0}
+bağlam   : {'events_processed': 10, 'relations_created': 1}
+takvim   : 17 kayıt yüklendi
+```
+
+Bağlam bağı doğru: Enflasyon Raporu 2026-III → 2026-II (`same_thread`).
+
+Merge/split geri alınabilirliği canlı doğrulandı: merge → undo → split →
+undo turunda tüm durum bit düzeyinde geri geldi, her adımda merkez
+`mean(members)` ile tutarlı kaldı.
+
+### Canlı veride bulunan hatalar
+
+| # | Hata | Belirti | Düzeltme |
+|---|---|---|---|
+| 1 | **`SET LOCAL hnsw.ef_search = %s` çalışmıyor** | 11 makalenin 11'i düştü | Postgres'te `SET` bind parametresi kabul etmez → `set_config(...)` |
+| 2 | **Varlıksız makaleler hiç kümelenemiyor** | 0,9997 benzerlikli aynı olay ayrı düştü | `jaccard(∅,∅)=0`; kısıt üç durumlu yapıldı |
+| 3 | **Ajans ile grup kopyası ayrı sayılıyor** | `gc-024` eval uyuşmazlığı | Yayın grubu önceliği (yukarıda) |
+
+> 1 numaralı hata bir **Faz 1** hatasıydı: `nlp/search.py` F1-14'te
+> "✅ doğrulandı" işaretlenmişti ama kod yolu canlı veritabanına karşı hiç
+> koşmamıştı.
 
 ---
 
@@ -56,107 +185,52 @@ henüz başlamadı.
 
 | Karar | Alternatif | Gerekçe |
 |---|---|---|
-| Karar mantığı **saf** (`decide()` DB'ye dokunmaz) | Repository içinde karar vermek | F2-14 (eşik kalibrasyonu) ve F2-16 (eval) her eşik denemesi için veritabanı kurmak zorunda kalmamalı. 28 kümeleme testinin hiçbiri DB gerektirmiyor. |
-| Merkez **normalize edilmemiş** ortalama | Her adımda L2 normalize etmek | `centroid = mean(members)` özdeşliği korunmalı; aksi halde `remove_member` bozulur ve merge/split geri alınamaz (G2 koşul 8, İtiraz-5 mühendislik notu). Kosinüs ölçekten bağımsız olduğu için normalizasyon gereksiz. |
-| Sayısal çelişki **atamayı engellemez**, işaretler | Ayrı olay saymak | Çelişki "bu iki metin farklı olay" demek değildir; "biri yanlış olabilir" demektir. Hüküm insanındır (Spec §11.4 kaçış valfleri). |
-| Metriğe bağlanamayan sayı **atılır** | Tüm sayıları karşılaştırmak | "23 çeyrektir büyüdü" ile "yüzde 23 büyüdü" karışırsa bayrak gürültüye boğulur ve denetim kuyruğu okunamaz hale gelir. |
-| Makaleler **yayın zamanına göre sırayla** işlenir | Rastgele/id sırası | Kümeleme artımlıdır; sıra sonucu etkiler. Tekrar üretilemeyen sonuç F2-16'da ölçülemez. |
-| Aday elemesi `trace` ile kaydedilir | Sessiz eleme | P4: "neden bu olaya atanmadı?" admin panelinde cevaplanabilir olmalı. |
-| Olay başlığı tohum makaleden | Boş bırakıp LLM beklemek | LLM başlığı F2-06 sonrası gelir; o zamana kadar denetim kuyruğu okunamaz olurdu. |
+| Karar mantığı **saf** (`decide()` DB'ye dokunmaz) | Repository içinde karar | F2-14'ün 15 eşik denemesi saniyeler sürüyor; DB'ye bağlı olsa pratikte koşulamazdı |
+| Merkez **normalize edilmemiş** ortalama | Her adımda L2 normalize | `centroid = mean(members)` bozulursa `remove_member` bozulur ve merge/split geri alınamaz (G2 #8) |
+| Merge/split'te merkez **yeniden hesaplanır** | Artımlı düzeltme | Birkaç turdan sonra kayan nokta birikimi; yeniden hesaplama özdeşliği tazeler |
+| Varlık kısıtı **üç durumlu** | İki durumlu (Spec §11.4 harfiyen) | Boş küme çelişki kanıtı değil, kanıt yokluğudur; harfiyen uygulama recall'ı öldürüyordu |
+| Sayısal çelişki **atamayı engellemez**, işaretler | Ayrı olay saymak | Çelişki "farklı olay" demek değil, "biri yanlış olabilir" demektir |
+| İddia çıkarımı **olay bazlı** koşar | Makale bazlı | F2-09 tekilleştirmesi olayın tüm makaleleri görülmeden yapılamaz |
+| Çıktı şeması `evidence_status`'u **kabul etmez** | Prompt'ta yasaklamak | Prompt talimatı yeterli değil (Spec §11.5); şema + ikinci savunma hattı |
+| Alıntı kaynak metinde **programatik doğrulanır** | Modele güvenmek | Uydurma alıntı sessizce kanıt olurdu |
+| `same_thread` dışındaki ilişkiler **otomatik kurulmaz** | `updates`/`contradicts` de üretmek | O ikisi **yargı** içerir; `same_thread` yalnızca benzerlik gözlemidir (P4) |
+| Takvim **elle** girilir | Kazıyıcı yazmak | TÜİK takvimi JS ile yükleniyor ve yılda bir değişiyor; 12 aylık liste kırılgan kazıyıcıdan ucuz |
+| Takvim eşleştirmesinde **kaynak koşulu zorunlu** | Yalnız zamana bakmak | Aynı saatte gelen alakasız haber bağlanırdı |
 
 ---
 
-## Canlı doğrulama (12 Ağustos 2026)
+## Açık kalan üç kalem
 
-11 gerçek makale üzerinde uçtan uca koşum:
+### F2-20 — Golden Set hedefin altında (55/300 makale, 24/150 iddia)
 
-```
-{'processed': 11, 'assigned': 1, 'created': 10,
- 'needs_review': 0, 'numeric_conflicts': 0, 'errors': 0}
-```
+Set **gerçek** veridir: TCMB duyuruları + 13 haber sitesinden verbatim
+toplandı, olay etiketleri `pairs_tr.jsonl`'deki elle verilmiş "aynı olay"
+etiketlerinin geçişli kapanışından türetildi (çelişki kontrolü geçti).
+İddia setinin beklenen durumları Spec §8.3 **elle uygulanarak** verildi —
+kural motorunun çıktısından türetilmedi.
 
-Tek birleştirme doğru: aynı TCMB sunum duyurusunun iki kaydı
-(benzerlik 0,933).
+300 makaleye çıkmak için ingestion'ın haftalarca birikmesi gerekir; 11
+makalelik canlı veritabanından üretilemez.
 
-### Canlı veride bulunan hata
+**Etkisi:** G2 koşul 3 (false merge ≤ %5) bu boyutta *karara bağlanamaz.*
+36 olay / ~37 küme varken tek bir karışık küme oranı 2,7 puan oynatıyor;
+kapı 2 kümeye denk geliyor. Ölçüm bir **yön** gösterir, kapı kararı değil.
 
-| # | Hata | Belirti | Düzeltme |
-|---|---|---|---|
-| 1 | **`SET LOCAL hnsw.ef_search = %s` çalışmıyor** | 11 makalenin 11'i de `syntax error at or near "$1"` ile düştü | Postgres'te `SET` bind parametresi kabul etmez. `set_config('hnsw.ef_search', %s, true)` ile değiştirildi. |
-| 2 | **Varlıksız makaleler hiç kümelenemiyor** | 0,9997 benzerlikli iki makale (aynı olay) ayrı olaylara düştü | Spec §11.4 boş varlık kümesini tanımlamıyor; `jaccard(∅, ∅) = 0` olduğu için kısıt reddediyordu. Kısıt üç durumlu yapıldı: `ok` / `inconclusive` / `reject`. |
+### F2-07 / G2 koşul 5 — canlı LLM koşumu yapılmadı
 
-> **Bu bir Faz 1 hatasıydı.** `nlp/search.py::_set_ef_search` F1-14'te
-> yazılmış ve "✅ doğrulandı" işaretlenmişti; ama kod yolu canlı
-> veritabanına karşı hiç koşmamıştı — `nearest_events()` ilk kez Faz 2'de
-> çağrıldı. Regresyon testi eklendi
-> (`tests/test_nlp.py::test_ef_search_is_set_via_set_config_not_set_local`).
+`ANTHROPIC_API_KEY` tanımlı değil. İddia çıkarımının **doğrulama
+katmanları** sahte istemciyle test edildi (28 test), ama şu ikisi ölçüm
+bekliyor:
 
-### 2 numaralı hata: varlık kısıtı sessizce recall'ı öldürüyordu
+* F2-07 DoD: 100 iddialık örnekte ≥%90 doğru tip
+* G2 koşul 5: uydurulmuş/hatalı iddia oranı ≤ %2
 
-Aynı koşumda iki makale ayrı olaylara düştü:
+Anahtar geldiğinde `make claims` yeterli.
 
-```
-event 12  Ulaştırma alanındaki yatırım projelerine 6 ayda 41,5 milyar lira harcandı
-event 13  Ulaştırma alanındaki yatırım projelerine 6 ayda 41,5 milyar harcandı
-```
+### F2-21 — haftalık ritüel
 
-İlk teşhis "embedder zayıf" idi. **Yanlış çıktı.** Ölçüm:
-
-| | benzerlik |
-|---|---|
-| `hashing` (kullanımdaki) | 0,9848 |
-| `e5-large` (D16 kararı) | 0,9997 |
-
-İkisi de `T_HIGH = 0,86`'nın çok üstünde. Onları ayıran benzerlik değil,
-**varlık kısıtıydı**: iki makalede de tanınan varlık yok, `jaccard(∅, ∅) = 0`
-ve ortak anahtar varlık da yok → `entity_reject`.
-
-Canlı veride **11 makalenin 6'sında hiç varlık yok** (%55). Kısıt bu hâliyle
-bu makalelerin her birini sonsuza dek tek başına bir olay yapardı — G2'nin
-recall koşulu (≥ %80) hiçbir zaman tutmazdı.
-
-**Düzeltme.** Boş küme *çelişki kanıtı değil, kanıt yokluğudur.* Kısıt üç
-durumlu yapıldı:
-
-| Durum | Koşul | Sonuç |
-|---|---|---|
-| `ok` | jaccard ≥ 0,25 **veya** ortak anahtar varlık | Normal yol — T_HIGH'da otomatik atama |
-| `inconclusive` | en az bir taraf varlıksız | Yalnızca T_HIGH üstünde, **her zaman `needs_review`** |
-| `reject` | iki taraf da dolu, örtüşme yok | Reddedilir (değişmedi) |
-
-Precision önceliği korunuyor: doğrulanamayan kısıt otomatik atama hakkı
-vermiyor, insan onayına gidiyor.
-
-> **Bu bir Spec §11.4 boşluğudur** (kısıt boş küme durumunu tanımlamıyor).
-> Uygulama kararı koda ve teste yazıldı; §11.4'e işlenmesi B-55'te,
-> bir sonraki spec sürümüne bırakıldı — Spec v3.1 az önce donduruldu ve
-> kapsam disiplini "aynı gün ikinci kez açma" demiyor.
-
----
-
-## Kapı G2 hazırlığı
-
-| # | Koşul | Hedef | Durum |
-|---|---|---|---|
-| 1 | Kümeleme precision | ≥ %90 | ⏳ Golden Set yok |
-| 2 | Kümeleme recall | ≥ %80 | ⏳ |
-| 3 | **Yanlış birleştirme** | ≤ %5 | ⏳ **pazarlıksız** |
-| 4 | `evidence_status` doğruluğu | ≥ %95 | ⏳ F2-12 yazılmadı |
-| 5 | Uydurulmuş iddia oranı | ≤ %2 | ⏳ |
-| 6 | Sayısal normalizasyon | ≥ %95 | ⏳ |
-| 7 | `evidence/` içinde LLM çağrısı | 0 | ✅ CI'da aktif |
-| 8 | Merge/split geri alınabilir | %100 | 🟡 Merkez tarafı hazır (`remove_member`), UI yok |
-| 9 | Haftalık ritüel | ≥3 hafta | ⏳ |
-
-### G2 tutmama planına düzeltme
-
-Yol Haritası'nın G2 yedek planında 3. madde "hibrit skorlama (embedding +
-BM25 + varlık örtüşmesi)" diyor. **D16 tanı koşumu bunun bu proje için
-yanlış ilaç olduğunu gösterdi:** en yüksek yanlış-birleştirme riski taşıyan
-çiftlerin tamamı TCMB'nin şablonlu duyurularıdır ve bu çiftlerde metin de
-varlıklar da aynıdır — BM25 ve varlık örtüşmesi 1,0 verir, durumu
-kötüleştirir. Doğru ilaç zaten Spec §11.4'te yazılı olan **zaman
-penceresidir**. Ayrıntı: `docs/embedding-benchmark.md`.
+≥3 hafta üst üste, haftada 10 olay denetimi. **Takvim zamanı gerektirir**;
+kodla kapatılamaz. Ritüelin aracı hazır (`/admin/review/`).
 
 ---
 
@@ -164,9 +238,9 @@ penceresidir**. Ayrıntı: `docs/embedding-benchmark.md`.
 
 | İş | Efor | Not |
 |---|---|---|
-| Makaleleri e5 ile yeniden embed et + kümelemeyi tekrar koş (B-53) | 0,3 PD | `hashing` ile gömülü veri geçersiz |
-| Worker imajına `embed-local` ekstrası (B-54) | 0,5 PD | torch + model ~2,5 GB |
-| Varlık sözlüğü kapsamını genişlet | 0,5 PD | %55 varlıksız oran `inconclusive` yolunu aşırı yükler |
-| F2-04 denetim kuyruğu | 1,5 PD | `/admin/review` |
-| F2-05 merge/split | 2,0 PD | `remove_member` hazır; UI ve `audit_log` akışı kaldı |
-| Golden Set 200 makale | 2 PD | F2-16 ve F2-14'ün ön koşulu |
+| Golden Set'i 300 makaleye çıkar (B-57) | 3–4 PD | Ingestion birikimi bekliyor |
+| Varlık sözlüğü kapsamı (B-56) | 0,5 PD | Precision açığının kök nedeni |
+| Makaleleri e5 ile yeniden embed et (B-53) | 0,3 PD | Mevcut veri `hashing` ile gömülü |
+| Worker imajına `embed-local` (B-54) | 0,5 PD | torch + model ~2,5 GB |
+| Canlı LLM koşumu | 0,2 PD | `ANTHROPIC_API_KEY` bekliyor |
+| Haftalık ritüel | 3 hafta | Takvim |

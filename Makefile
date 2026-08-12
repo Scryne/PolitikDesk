@@ -1,4 +1,4 @@
-.PHONY: help setup up down migrate test lint fmt arch verify-arch cost ci clean sync ingest embed entities cluster health feeds
+.PHONY: help setup up down migrate test lint fmt arch verify-arch cost ci clean sync ingest embed entities cluster claims evidence context calendar eval health feeds
 
 help:
 	@echo "PolitikDesk — geliştirme komutları"
@@ -15,6 +15,10 @@ help:
 	@echo "  make sync         config/sources.yml -> veritabanı"
 	@echo "  make ingest       Bir toplama turu çalıştır"
 	@echo "  make cluster      Bekleyen makaleleri olaylara ata (F2-01)"
+	@echo "  make claims       Olaylardan iddia çıkar (F2-06, LLM)"
+	@echo "  make evidence     Kanıt durumu + salience (F2-12/15)"
+	@echo "  make context      Tarihsel bağlam bağları (F2-17)"
+	@echo "  make eval         Golden Set ölçümü (F2-16)"
 	@echo "  make embed        Bekleyen makaleleri embed et"
 	@echo "  make entities     Varlık çıkarımı"
 	@echo "  make health       Kaynak sağlık raporu"
@@ -67,6 +71,21 @@ entities:
 
 cluster:
 	python -m scripts.ingest cluster
+
+claims:
+	python -m scripts.ingest claims
+
+evidence:
+	python -m scripts.ingest evidence
+
+context:
+	python -m scripts.ingest context
+
+calendar:
+	python -m scripts.calendar list
+
+eval:
+	python -m eval.run
 
 health:
 	python -m scripts.ingest health

@@ -93,7 +93,7 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-34~~ | ~~Salience'ın global (0–90) + kişisel (0–10) olarak ayrılması~~ | İtiraz-7 | ✅ **Kapandı** — Spec v3.1 §8.4 + `migrations/0003`; uygulaması F2-15 |
 | ~~B-35~~ | ~~G0 koşul 8 / G4 koşul 7'nin ölçek belirtecek şekilde yeniden yazılması~~ | İtiraz-1 | ✅ **Kapandı** — G0 #8a/#8b, G4 #7a/#7b |
 | ~~B-36~~ | ~~§11.5 sıcaklık disiplininin `effort` karşılığıyla güncellenmesi~~ | İtiraz-3 | ✅ **Kapandı** — Spec v3.1 §11.5 |
-| B-37 | Golden Set üzerinde `evidence_status` dağılımının eval çıktısına eklenmesi | İtiraz-2 | Faz 2 (F2-16) |
+| ~~B-37~~ | ~~`evidence_status` dağılımının eval çıktısına eklenmesi~~ | İtiraz-2 | ✅ **Kapandı** — `eval/run.py` dağılımı ve %10 eşiği raporluyor |
 | ~~B-38~~ | ~~Embedding'in telif/KVKK statüsü~~ | İtiraz-5 | ⛔ **KAPSAM DIŞI** — kişisel araç |
 | ~~B-39~~ | ~~"Kanıtsız olayda üretim engeli"nin Spec §14.1 kapsam listesine eklenmesi~~ | İtiraz-5 kozmetik notu | ✅ **Kapandı** — Spec v3.1 §14.1 kalem 15 |
 | B-40 | mypy'nin CI'da `continue-on-error` olmaktan çıkarılması | `.github/workflows/ci.yml` | Faz 1 |
@@ -107,8 +107,13 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-48~~ | ~~D16 eleme ölçütünün yeniden yazılması~~ | Tanı koşumu | ✅ **Kapandı** — ölçüt düzeltildi, yazılı gerekçe `docs/embedding-benchmark.md`'de |
 | B-49 | Yol Haritası G2 yedek planı 3. maddesinin düzeltilmesi: hibrit skorlama şablonlu resmî duyuru ailesini **kötüleştirir** | `docs/embedding-benchmark.md` | Faz 2 (B-48 ile birlikte) |
 | ~~B-50~~ | ~~`query: ` önekinin üretim embedder'ına eklenmesi~~ | `nlp/embedder.py` | ✅ **Kapandı** — `MODEL_TEXT_PREFIXES` + iki tarafın aynı kaldığını denetleyen test |
-| B-51 | Olay başlığının LLM ile üretilmesi (şu an tohum makalenin başlığı) | F2-01 uygulaması | Faz 2 (F2-06 sonrası) |
-| B-52 | `numeric_guard` metrik sözlüğünün Golden Set ile yanlış-pozitif oranının ölçülmesi | F2-03 uygulaması | Faz 2 (F2-16) |
+| B-51 | Olay başlığının LLM ile üretilmesi (şu an tohum makalenin başlığı) | F2-01 uygulaması | Faz 3 — `ANTHROPIC_API_KEY` bekliyor |
+| B-52 | `numeric_guard` metrik sözlüğünün yanlış-pozitif oranının ölçülmesi | F2-03 uygulaması | Faz 3 — 300 makalelik set bekliyor |
+| B-57 | Golden Set'in 300 makale + 150 iddiaya çıkarılması | F2-20 kısmi (55 + 24) | **Faz 3 — açık**, G2 koşul 3 buna bağlı |
+| B-58 | İddia çıkarımının canlı LLM ile koşulması (F2-07 %90 DoD, G2 koşul 5) | `ANTHROPIC_API_KEY` yok | **Faz 3 — açık** |
+| B-59 | Haftalık kalite ritüeli (F2-21, ≥3 hafta) | Takvim zamanı gerektirir | **Faz 3 boyunca** |
+| B-60 | `event_relations`'ta `updates` / `contradicts` ilişkileri | F2-17 yalnız `same_thread` kuruyor (yargı içermeyen tek tip) | Faz 3 |
+| B-61 | Takvimin `verified: false` kayıtlarının resmî takvimden teyidi | `config/calendar_2026.yml` — 10 kayıt | Faz 3 |
 | B-53 | Mevcut makalelerin e5 ile yeniden embed edilmesi + kümelemenin tekrar koşulması | D16 kararı | **Faz 2 — açık** |
 | B-54 | Worker konteynerine `embed-local` ekstrası (torch + sentence-transformers, ~2,5 GB) | D16 self-host seçimi | **Faz 2 — açık** |
 | B-55 | Spec §11.4'e varlık kısıtının **boş küme** davranışının yazılması (`ok`/`inconclusive`/`reject`) | Faz 2 canlı koşum: 11 makalenin 6'sı varlıksız | Bir sonraki spec sürümü (v3.2) |

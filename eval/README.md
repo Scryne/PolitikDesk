@@ -7,10 +7,12 @@ Spec §13'ün (Ölçüm ve Değerlendirme) veri ve araç dizini. P7'nin uygulama
 |---|---|---|
 | `pairs_tr.jsonl` | F0-13 — embedding benchmark çift seti (60 çift) | ✅ **kuruldu** — tamamı gerçek yayınlardan verbatim |
 | `embedding_benchmark.py` | F0-13 — koşucu | ✅ hazır |
-| `golden_set_v1.jsonl` | F0-14 → F2-20 — altın makale seti (300) | ⏳ veri bekliyor |
-| `golden_claims_v1.jsonl` | F2-20 — altın iddia seti (150) | ⏳ veri bekliyor |
+| `golden_set_v1.jsonl` | F0-14 → F2-20 — altın makale seti | 🟡 **55/300** — gerçek veri, hedefin altında (B-57) |
+| `golden_claims_v1.jsonl` | F2-20 — altın iddia seti | 🟡 **24/150** — beklenen durumlar Spec §8.3 elle uygulanarak verildi |
 | `golden_set_tools.py` | doğrulayıcı + istatistik | ✅ hazır |
-| `run.py` | F2-16 — eval koşucusu | Faz 2 |
+| `run.py` | F2-16 — eval koşucusu | ✅ hazır ve koşuldu |
+| `eval_report.md` | F2-16 çıktısı | ✅ |
+| `threshold_report.md` | F2-14 — D20 eşik kalibrasyonu | ✅ **T_HIGH=0,92 / T_LOW=0,88** |
 
 ---
 
@@ -77,3 +79,33 @@ python -m eval.embedding_benchmark \
 Golden Set ürünün **moat**'ının ölçüm tarafıdır: model ve prompt her
 değiştiğinde yeniden koşulur (Spec §13.1). Git'te sürümlenir, Docker imajına
 girmez (`.dockerignore`).
+
+
+---
+
+## Golden Set nasıl üretildi (F2-20, kısmi)
+
+Makale setinin olay etiketleri **elle verilmiştir** ama iki kez
+etiketlenmemiştir: `pairs_tr.jsonl`'deki "aynı olay" etiketlerinin
+**geçişli kapanışı** gerçek olay kimliklerini üretir. Üretim sırasında
+tutarlılık denetlenir — "farklı olay" etiketli bir çift aynı kümeye
+düşerse üretim durur.
+
+İddia setinin `expected_status` alanları **Spec §8.3 elle uygulanarak**
+verilmiştir. Kural motorunun çıktısından türetilmiş olsalardı ölçüm
+döngüsel olurdu: motor kendi kendini doğrulardı.
+
+Her iddiada `note` alanı, o durumun neden beklendiğini yazar. Bir
+uyuşmazlıkta önce **notun** doğruluğu tartışılır, sonra kodun.
+
+## Koşum
+
+```bash
+export PD_EMBEDDING_PROVIDER=local
+export PD_EMBEDDING_MODEL=intfloat/multilingual-e5-large
+
+python -m eval.run                              # tam rapor
+python -m eval.run --sweep                      # eşik taraması (F2-14)
+python -m eval.run --review-as split            # denetim kuyruğu reddedilmiş senaryosu
+python -m eval.run --out eval/eval_report.md    # raporu dosyaya yaz
+```

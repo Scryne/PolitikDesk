@@ -61,9 +61,13 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
 
-    # --- Kümeleme eşikleri (D20 — Faz 2'de F2-14 ile kalibre edilecek) ---
-    cluster_t_high: float = Field(default=0.86, ge=0, le=1)
-    cluster_t_low: float = Field(default=0.78, ge=0, le=1)
+    # --- Kümeleme eşikleri (D20 — F2-14 ile kalibre edildi) ---
+    # Spec §11.4'ün tahminleri 0,86 / 0,78 idi. Golden Set üzerinde eşik
+    # taraması (eval/threshold_report.md) bu değerlerde false merge oranını
+    # %10,7 buldu — G2'nin pazarlıksız koşulu (≤ %5) tutmuyordu.
+    # 0,92 / 0,88 ile false merge %2,6'ya iniyor, recall %82,4'te kalıyor.
+    cluster_t_high: float = Field(default=0.92, ge=0, le=1)
+    cluster_t_low: float = Field(default=0.88, ge=0, le=1)
 
     @field_validator("embedding_dim")
     @classmethod

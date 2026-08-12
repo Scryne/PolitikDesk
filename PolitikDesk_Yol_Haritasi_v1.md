@@ -274,6 +274,8 @@ Her görev şu alanlarla tanımlanır:
 | 8 | Merge/split geri alınabilir | %100 | Elle test |
 | 9 | Haftalık ritüel işliyor | ≥3 hafta | |
 
+> **Ölçüm notu (12 Ağu 2026).** G2'nin 3. koşulu (false merge ≤ %5) Golden Set'in boyutuna duyarlıdır: 36 olay / ~37 küme varken tek bir karışık küme oranı 2,7 puan oynatır. Kapı, **300 makalelik set olmadan karara bağlanamaz** (B-57). Mevcut 55 makalelik ölçüm bir yön gösterir: false merge %2,6, otomatik precision %100. Ayrıntı: `eval/threshold_report.md`.
+
 **Kapı G2 tutmuyorsa yapılacaklar (öncelik sırasıyla):**
 1. Eşikleri yeniden kalibre et (F2-14 tekrar)
 2. Kısıtları sıkılaştır (varlık jaccard eşiğini yükselt, zaman penceresini daralt)

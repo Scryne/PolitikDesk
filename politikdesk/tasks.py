@@ -19,6 +19,8 @@ INGESTION_INTERVAL_SECONDS = 300  # 5 dakika (Spec §11.3 adım 1)
 EMBED_BATCH_SIZE = 50
 ENTITY_BATCH_SIZE = 100
 CLUSTER_BATCH_SIZE = 50
+CLAIM_BATCH_EVENTS = 5
+EVIDENCE_BATCH_SIZE = 200
 
 
 @app.task(name="politikdesk.ingest_all", bind=True, max_retries=2)
@@ -119,6 +121,55 @@ def cluster_pending(self, limit: int = CLUSTER_BATCH_SIZE) -> dict[str, int]:  #
         raise self.retry(exc=exc, countdown=120) from exc
 
 
+@app.task(name="politikdesk.extract_claims_pending", bind=True, max_retries=2)
+def extract_claims_pending(self, limit: int = CLAIM_BATCH_EVENTS) -> dict[str, int]:  # noqa: ANN001
+    """Olaylardan iddia çıkarır (F2-06…F2-10).
+
+    LLM kullanır ve bütçe tavanına tabidir. `BudgetExceeded` durumunda
+    RETRY EDİLMEZ — tavan zaten aşılmışken tekrar denemek maliyeti
+    artırmaktan başka bir işe yaramaz.
+    """
+    from politikdesk.llm.errors import BudgetExceeded
+    from politikdesk.nlp.claims_pipeline import run
+
+    try:
+        return run(limit).as_dict()
+    except BudgetExceeded as exc:
+        log.error("claim_extraction_budget_exceeded", detail=str(exc)[:200])
+        return {"errors": 1, "budget_exceeded": 1}
+    except Exception as exc:  # noqa: BLE001
+        log.error("extract_claims_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=300) from exc
+
+
+@app.task(name="politikdesk.score_evidence", bind=True, max_retries=2)
+def score_evidence(self, limit: int = EVIDENCE_BATCH_SIZE) -> dict[str, int]:  # noqa: ANN001
+    """Kanıt durumu ve salience (F2-12, F2-13, F2-15). LLM ÇAĞRISI YOK."""
+    from politikdesk.evidence.pipeline import run
+
+    try:
+        return run(limit).as_dict()
+    except Exception as exc:  # noqa: BLE001
+        log.error("score_evidence_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=120) from exc
+
+
+@app.task(name="politikdesk.link_historical_context")
+def link_historical_context(limit: int = 50) -> dict[str, int]:
+    """Tarihsel bağlam bağları (F2-17)."""
+    from politikdesk.context.related import run
+
+    return run(limit)
+
+
+@app.task(name="politikdesk.match_scheduled_events")
+def match_scheduled_events() -> dict[str, int]:
+    """Beklenen gelişme -> gerçekleşen olay eşleştirmesi (F2-19)."""
+    from politikdesk.context.scheduler_match import match_pending
+
+    return match_pending()
+
+
 @app.task(name="politikdesk.purge_expired_bodies")
 def purge_expired_bodies() -> int:
     """30 günü geçmiş `lead_paragraph` alanlarını siler (F1-12)."""
@@ -160,6 +211,26 @@ app.conf.beat_schedule = {
     "cluster-every-3-minutes": {
         "task": "politikdesk.cluster_pending",
         "schedule": 180.0,
+    },
+    # İddia çıkarımı kümelemeden sonra gelir; LLM maliyeti nedeniyle
+    # seyrek koşar (Spec §11.5 bütçe disiplini).
+    "claims-every-10-minutes": {
+        "task": "politikdesk.extract_claims_pending",
+        "schedule": 600.0,
+    },
+    # Kanıt motoru ucuzdur (LLM yok) — sık koşar ki durumlar tazelensin.
+    "evidence-every-5-minutes": {
+        "task": "politikdesk.score_evidence",
+        "schedule": 300.0,
+    },
+    "context-every-30-minutes": {
+        "task": "politikdesk.link_historical_context",
+        "schedule": 1800.0,
+    },
+    # Takvim eşleştirmesi: veri yayım saatleri bellidir, saatlik yeter.
+    "scheduler-match-hourly": {
+        "task": "politikdesk.match_scheduled_events",
+        "schedule": crontab(minute=20),
     },
     # Saklama politikası: günlük purge (Spec §9.3)
     "purge-daily": {
