@@ -72,6 +72,78 @@ def pending_events(limit: int = 10) -> list[int]:
         return [r["id"] for r in cur.fetchall()]
 
 
+def stale_events(prompt_version: str = PROMPT_VERSION) -> list[dict[str, Any]]:
+    """İddiaları ESKİ prompt sürümüyle çıkarılmış olaylar (B-70).
+
+    `evidence.extracted_by` "<model>+<prompt_version>" biçimindedir; sürüm
+    son "+"tan sonra gelir. Prompt değiştiğinde eski kayıtlar yanlış
+    değildir ama **karışıktır**: iki sürümün çıktısı aynı tabloda
+    durduğunda kalite ölçümü hangi sürümü ölçtüğünü söyleyemez
+    (Spec §11.5 "her prompt sürümlenir ve çıktıya işlenir").
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT c.event_id,
+                   count(DISTINCT c.id) AS claim_count,
+                   array_agg(DISTINCT ev.extracted_by) AS versions
+            FROM claims c
+            JOIN evidence ev ON ev.claim_id = c.id
+            WHERE split_part(ev.extracted_by, '+', 2) IS DISTINCT FROM %s
+            GROUP BY c.event_id
+            ORDER BY c.event_id
+            """,
+            (prompt_version,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def reextract(
+    event_ids: list[int], client: Any = None, *, actor: str = "user:admin"
+) -> ClaimStats:
+    """Belirtilen olayların iddialarını SİLER ve yeniden çıkarır (B-70).
+
+    ⚠ Yıkıcı işlem. Çağıran katman onay almalıdır; `scripts/ingest.py`
+    bunu `--yes` bayrağıyla zorlar.
+
+    Silme `evidence`'ı da götürür (`ON DELETE CASCADE`). Her silme
+    `audit_log`'a yazılır: bir iddianın neden kaybolduğu sorulabilir
+    olmalıdır.
+    """
+    if not event_ids:
+        return ClaimStats()
+
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM claims WHERE event_id = ANY(%s) RETURNING id, event_id",
+            (event_ids,),
+        )
+        removed = [dict(r) for r in cur.fetchall()]
+        cur.execute(
+            """
+            INSERT INTO audit_log (actor, action, target, payload)
+            VALUES (%s, 'claims_reextracted', %s, %s::jsonb)
+            """,
+            (
+                actor,
+                f"events/{','.join(map(str, event_ids))}",
+                json.dumps(
+                    {
+                        "deleted_claims": len(removed),
+                        "events": event_ids,
+                        "new_prompt_version": PROMPT_VERSION,
+                        "reason": "B-70 prompt sürümü birleştirme",
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        conn.commit()
+
+    log.info("claims_deleted_for_reextract", count=len(removed), events=event_ids)
+    return run(limit=len(event_ids), client=client)
+
+
 def _articles_of(cur: Any, event_id: int) -> list[dict[str, Any]]:
     cur.execute(
         """

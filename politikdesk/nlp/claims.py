@@ -114,12 +114,17 @@ class ExtractedClaim:
 
 
 # ------------------------------------------------------------- doğrulama
-def _fold(text: str) -> str:
+def fold_text(text: str) -> str:
     """Alıntı karşılaştırması için normalleştirme.
 
     Yayınlar tipografik tırnak, kesme işareti ve boşluk biçimlerinde
     tutarsızdır; modelin alıntıyı bunlardan biriyle vermesi uydurma
     değildir. Anlamı değiştiren fark aranır, biçimi değil.
+
+    Kamuya açıktır: `editorial/grounding_check.py` (F3-12) aynı
+    normalleştirmeyi kullanmak ZORUNDA. İki farklı katlama, iddia
+    çıkarımında kabul edilen bir alıntının taslak denetiminde
+    uydurma sayılmasına yol açardı.
     """
     text = text.replace("İ", "i").replace("I", "ı").lower()
     text = unicodedata.normalize("NFKD", text)
@@ -138,7 +143,7 @@ def verify_quote(quote: str, source_text: str) -> bool:
     """
     if not quote:
         return False
-    return _fold(quote) in _fold(source_text)
+    return fold_text(quote) in fold_text(source_text)
 
 
 def validate_claim(raw: dict[str, Any], source_text: str) -> ExtractedClaim:
@@ -208,7 +213,7 @@ def _claim_signature(claim: ExtractedClaim) -> str:
         v = claim.normalized_value
         return f"num:{v.get('metric')}:{v.get('value')}:{v.get('period')}"
 
-    tokens = sorted(set(re.findall(r"\w+", _fold(claim.claim_text))))
+    tokens = sorted(set(re.findall(r"\w+", fold_text(claim.claim_text))))
     return f"{claim.claim_type}:{' '.join(tokens)}"
 
 

@@ -194,6 +194,88 @@ def cmd_claims(limit: int) -> int:
     return 0
 
 
+def cmd_reclaim(yes: bool) -> int:
+    """Eski prompt surumuyle cikarilmis iddialari yeniden cikarir (B-70).
+
+    Yikici islem: iddialar ve kanit baglari SILINIR, sonra claims.v2 ile
+    yeniden uretilir. Onay olmadan calismaz.
+    """
+    from politikdesk.llm.errors import LLMNotConfigured
+    from politikdesk.nlp.claims import PROMPT_VERSION
+    from politikdesk.nlp.claims_pipeline import reextract, stale_events
+
+    stale = stale_events()
+    if not stale:
+        print(f"Tum iddialar guncel prompt surumunde ({PROMPT_VERSION}).")
+        return 0
+
+    total = sum(int(r["claim_count"]) for r in stale)
+    print(f"Eski surumle cikarilmis {total} iddia, {len(stale)} olayda:")
+    for row in stale:
+        versions = ", ".join(v for v in row["versions"] if v)
+        print(f"  olay {row['event_id']}: {row['claim_count']} iddia  [{versions}]")
+
+    if not yes:
+        print(f"\nBu iddialar SILINIP {PROMPT_VERSION} ile yeniden cikarilacak.")
+        print("Onaylamak icin: python -m scripts.ingest reclaim --yes")
+        return 1
+
+    try:
+        stats = reextract([int(r["event_id"]) for r in stale])
+    except LLMNotConfigured as exc:
+        print(f"Yeniden cikarim yapilamadi: {exc}")
+        return 2
+
+    print("\nYeniden cikarim tamamlandi:")
+    for key, value in stats.as_dict().items():
+        print(f"  {key:18s}: {value}")
+    print("\nSonraki adim: python -m scripts.ingest evidence")
+    return 0
+
+
+def cmd_briefing(slot: str, send: bool) -> int:
+    """Sabah/aksam brifingi uretir (F3-16) ve istege bagli gonderir (F3-17)."""
+    from politikdesk.briefing import generator
+
+    result = generator.generate(slot)  # type: ignore[arg-type]
+    print(f"Brifing uretildi: #{result['briefing_id']} ({slot}, {result['briefing_date']})")
+    print(f"  olay             : {len(result['events'])}")
+    print(f"  beklenen gelisme : {len(result['upcoming'])}")
+    print(f"  dogrulanmamis    : {len(result['unverified'])}")
+
+    if send:
+        from politikdesk.briefing.mailer import send_briefing
+
+        outcome = send_briefing(result["briefing_id"])
+        if outcome.sent:
+            print("  gonderim         : basarili")
+        elif outcome.skipped_reason == "smtp_unconfigured":
+            print("  gonderim         : atlandi (PD_SMTP_HOST bos) — brifing yine uretildi")
+        else:
+            print(f"  gonderim         : basarisiz — {outcome.error or outcome.skipped_reason}")
+    return 0
+
+
+def cmd_metrics(day: str | None, backfill: int) -> int:
+    """Urun metriklerinin gunluk toplamasi (F3-19)."""
+    from datetime import date, timedelta
+
+    from politikdesk import metrics
+
+    target = date.fromisoformat(day) if day else date.today()
+    for offset in range(max(backfill, 1)):
+        result = metrics.daily_rollup(target - timedelta(days=offset))
+        if offset == 0:
+            for m in result["metrics"]:
+                value = "—" if m["value"] is None else f"{m['value']:.2f}"
+                print(
+                    f"  {m['status']:8s} {m['label']:26s} {value:>9s} {m['unit']:5s}"
+                    f" (hedef {m['target']}, n={m['sample_size']})"
+                )
+    print(f"\n{max(backfill, 1)} gun toplandi.")
+    return 0
+
+
 def cmd_evidence(limit: int) -> int:
     """Kanit durumu ve salience hesaplar (F2-12, F2-13, F2-15)."""
     from politikdesk.evidence.pipeline import run
@@ -250,6 +332,19 @@ def main() -> int:
     claims = sub.add_parser("claims", help="Olaylardan iddia cikar (LLM)")
     claims.add_argument("--limit", type=int, default=5)
 
+    reclaim = sub.add_parser(
+        "reclaim", help="Eski prompt surumundeki iddialari yeniden cikar (B-70)"
+    )
+    reclaim.add_argument("--yes", action="store_true", help="Onay istemeden calis")
+
+    briefing = sub.add_parser("briefing", help="Sabah/aksam brifingi uret (F3-16)")
+    briefing.add_argument("--slot", choices=["morning", "evening"], default="morning")
+    briefing.add_argument("--send", action="store_true", help="E-posta ile gonder")
+
+    metrics_cmd = sub.add_parser("metrics", help="Urun metriklerini topla (F3-19)")
+    metrics_cmd.add_argument("--day", help="YYYY-AA-GG (varsayilan: bugun)")
+    metrics_cmd.add_argument("--backfill", type=int, default=1, help="Kac gun geriye")
+
     evidence = sub.add_parser("evidence", help="Kanit durumu + salience")
     evidence.add_argument("--limit", type=int, default=200)
 
@@ -275,6 +370,12 @@ def main() -> int:
         return cmd_cluster(args.limit)
     if args.command == "claims":
         return cmd_claims(args.limit)
+    if args.command == "reclaim":
+        return cmd_reclaim(args.yes)
+    if args.command == "briefing":
+        return cmd_briefing(args.slot, args.send)
+    if args.command == "metrics":
+        return cmd_metrics(args.day, args.backfill)
     if args.command == "evidence":
         return cmd_evidence(args.limit)
     if args.command == "context":

@@ -348,3 +348,78 @@ bu mekanizmalar tablo olarak listelendi.
 > Not: itirazlar sürüm artışı gerektirdiği için etiket `spec-v3.0` değil
 > **`spec-v3.1`**'dir (Spec §17 spec-freeze kuralı: "Değiştirmek için yazılı
 > gerekçe + bu belgeye sürüm artışı gerekir"). Bu belge o yazılı gerekçedir.
+
+---
+
+## ⛔ İtiraz-8 — Yol Haritası F3-01: Next.js iskeleti dayanağını kaybetti
+
+**Tarih:** 13 Ağustos 2026 · **Faz:** 3 başlangıcı · **Etkilenen:** F3-01…F3-07
+
+### İtiraz
+
+Yol Haritası F3-01 şunu istiyor:
+
+> **F3-01** | Frontend iskeleti (Next.js + Tailwind + shadcn) | `web/` uygulaması |
+> DoD: Kimlik doğrulama (**magic link**), **korumalı rota**, tema
+
+DoD'nin üç maddesinden ikisi, Faz 0'da alınan bir kararla dayanaksız kaldı.
+12 Ağustos 2026'da proje **tek kullanıcılı kişisel bir araç** olarak
+kararlaştırıldı (`docs/FAZ0-DURUM.md`); Yol Haritası Faz 4'ün
+"Çok kullanıcı ve hesap yönetimi" iş kolunu (F4-01…F4-04) bu gerekçeyle
+kapsam dışına aldı.
+
+**Magic link ve korumalı rota, kapsam dışına alınmış o iş kolunun
+parçasıdır.** Kullanıcı = geliştirici olan, yalnızca yerel ağa açılan bir
+uygulamada kimin kimliğini kime doğrulattığımızın cevabı yoktur.
+`politikdesk/admin/router.py` bu sonucu Faz 1'de zaten kayda geçirmişti:
+
+> "Tek kullanıcılı kişisel araç olduğu için ayrı bir kimlik doğrulama
+> katmanı yoktur; API yalnızca yerel ağa açılır."
+
+Geriye tek gerçek gereksinim kalıyor: **tema** — ve o, Next.js gerektirmez.
+
+### İkinci sorun: CI kapsamı
+
+Bu depoda pazarlıksız kısıtların her biri bir testle korunuyor
+(`README.md` "Pazarlık edilemez kısıtlar" tablosu — 23 satır). Kapı G3'ün
+iki koşulu doğrudan arayüze bakıyor:
+
+| Koşul | Metin |
+|---|---|
+| G3 #8 | UI'da siyasi kaynak etiketi yok — **kod incelemesi + arama** |
+| G3 #9 | Otomatik yayın kod yolu yok — **kod incelemesi** |
+
+Ayrı bir node araç zinciri, bu iki koşulu mevcut CI'ın (ruff + mypy +
+pytest + `check_architecture`) **dışına** taşırdı. "Kod incelemesi"
+insanın bir kez yapıp unuttuğu bir şeydir; tarama her koşumda yapılır.
+
+### Karar
+
+**Arayüz FastAPI + sunucu tarafı HTML olarak yazıldı** (`politikdesk/web/`).
+Kullanıcı onayıyla, 13 Ağustos 2026.
+
+| Ne değişti | Ne değişmedi |
+|---|---|
+| Next.js/Tailwind/shadcn yerine sunucu tarafı HTML + CSS değişkenleri | F3-02…F3-07'nin **tüm DoD'leri** |
+| Magic link + korumalı rota yazılmadı | Tema (açık/koyu, `prefers-color-scheme`) |
+| Ayrı `web/` node uygulaması yok | Salience şeffaflığı, framing paneli, zaman çizelgesi |
+
+**Kapsam daralmadı.** F3-02'nin "30 sn'de bir sessiz yenileme"si, F3-03'ün
+Spec §14.3 ekranının tamamı, F3-04'ün `status_reason` çevirisi, F3-05'in
+framing paneli, F3-06'nın zaman çizelgesi ve F3-07'nin salience
+popover'ı uygulandı ve testlendi.
+
+**Kazanılan:** G3 #8 ve #9 artık `tests/test_web.py` içinde otomatik
+denetleniyor — koşul zayıflamadı, sürdürülebilir hâle geldi.
+
+### Bu kararı geri almak gerekirse
+
+Çok kullanıcıya geçilirse (Faz 5) kimlik doğrulama ve korumalı rota
+gerçek bir gereksinim hâline gelir. O noktada Next.js yeniden
+değerlendirilmelidir; `politikdesk/web/` katmanı JSON uçlarını
+(`/api/*`) zaten ayrı tuttuğu için arayüz değişimi veri katmanına
+dokunmaz.
+
+**Spec §11.1 etkilenmiyor:** teknoloji tablosunda "Next.js 15 (Faz 3)"
+satırı bir *plan* kaydıdır, kod seviyesinde zorlanan bir kısıt değildir.
+Spec sürüm artışı gerekmez; bu belge yazılı gerekçedir (Yol Haritası §5).

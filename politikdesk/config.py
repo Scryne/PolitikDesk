@@ -98,6 +98,33 @@ class Settings(BaseSettings):
     sentry_dsn: str = ""
     sentry_traces_sample_rate: float = Field(default=0.1, ge=0, le=1)
 
+    # --- Tek kullanıcı (Faz 3) ---
+    # Kimlik doğrulama katmanı yok (kişisel araç kararı); `users` satırı
+    # yine de gerekir çünkü drafts/profiles/briefings ona bakıyor.
+    user_email: str = "local@politikdesk.local"
+    user_display_name: str = "PolitikDesk"
+
+    # --- Brifing (F3-16, F3-17) ---
+    # SMTP tanımlı değilse brifing YİNE ÜRETİLİR, yalnızca gönderilmez:
+    # e-posta yapılandırması bir dağıtım ayrıntısıdır, üretim koşulu değil.
+    briefing_morning_hour: int = Field(default=8, ge=0, le=23)
+    briefing_evening_hour: int = Field(default=20, ge=0, le=23)
+    briefing_max_events: int = Field(default=7, ge=1, le=20)
+    briefing_min_events: int = Field(default=5, ge=1, le=20)
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, ge=1, le=65535)
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    # E-postadaki olay/izleme linklerinin mutlak adresi.
+    public_base_url: str = "http://localhost:8000"
+
+    # --- Editoryal üretim (F3-10) ---
+    # Taslak uzunluğu X gönderisi ölçeğindedir; sınır promptta DA yazılır
+    # ama asıl zorlama üretim sonrası kesme değil, şema `maxLength`'idir.
+    draft_max_chars: int = Field(default=600, ge=200, le=2000)
+
     # --- Kümeleme eşikleri (D20 — F2-14 ile kalibre edildi) ---
     # Spec §11.4'ün tahminleri 0,86 / 0,78 idi. Golden Set üzerinde eşik
     # taraması (eval/threshold_report.md) bu değerlerde false merge oranını
@@ -167,6 +194,15 @@ class Settings(BaseSettings):
                 f"llm_provider='openai_compat' için {', '.join(missing)} zorunludur. "
                 "Örnek (NVIDIA NIM): PD_LLM_BASE_URL=https://integrate.api.nvidia.com/v1, "
                 "PD_LLM_API_KEY_ENV=NVIDIA_API_KEY"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _briefing_range_is_sane(self) -> Settings:
+        if self.briefing_min_events > self.briefing_max_events:
+            raise ValueError(
+                "PD_BRIEFING_MIN_EVENTS, PD_BRIEFING_MAX_EVENTS'ten büyük olamaz "
+                f"({self.briefing_min_events} > {self.briefing_max_events})."
             )
         return self
 

@@ -10,12 +10,19 @@ from __future__ import annotations
 
 from celery.schedules import crontab
 
+from politikdesk.config import get_settings
 from politikdesk.observability import get_logger
 from politikdesk.worker import app
 
 log = get_logger(__name__)
 
 INGESTION_INTERVAL_SECONDS = 300  # 5 dakika (Spec §11.3 adım 1)
+
+# Brifing saatleri yapılandırılabilir; beat zamanlaması modül yüklenirken
+# kurulduğu için değerler burada bir kez okunur.
+_settings = get_settings()
+BRIEFING_MORNING_HOUR = _settings.briefing_morning_hour
+BRIEFING_EVENING_HOUR = _settings.briefing_evening_hour
 EMBED_BATCH_SIZE = 50
 ENTITY_BATCH_SIZE = 100
 CLUSTER_BATCH_SIZE = 50
@@ -178,6 +185,47 @@ def purge_expired_bodies() -> int:
     return purge()
 
 
+@app.task(name="politikdesk.generate_briefing", bind=True, max_retries=1)
+def generate_briefing(self, slot: str = "morning") -> dict[str, object]:  # noqa: ANN001
+    """Sabah/akşam brifingi üretir ve gönderir (F3-16, F3-17).
+
+    Üretim ve gönderim ayrı ele alınır: SMTP yokken de brifing üretilir
+    ve `/briefing/{tarih}` sayfasında görünür. Gönderim hatası turu
+    başarısız saymaz — brifing zaten kayıtlıdır.
+    """
+    from politikdesk.briefing.generator import generate
+    from politikdesk.briefing.mailer import send_briefing
+
+    try:
+        result = generate(slot)  # type: ignore[arg-type]
+    except Exception as exc:  # noqa: BLE001
+        log.error("briefing_failed", slot=slot, error=type(exc).__name__,
+                  detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=300) from exc
+
+    outcome = send_briefing(int(result["briefing_id"]))
+    return {
+        "briefing_id": result["briefing_id"],
+        "slot": slot,
+        "events": len(result["events"]),
+        "unverified": len(result["unverified"]),
+        **outcome.as_dict(),
+    }
+
+
+@app.task(name="politikdesk.rollup_metrics")
+def rollup_metrics(window_days: int = 7) -> dict[str, object]:
+    """Sekiz ürün metriğinin günlük toplaması (F3-19).
+
+    Gün bitmeden koşar (23:50): o günün aktif dakikaları tamamlanmış
+    olur, oran metrikleri zaten kayan pencerededir.
+    """
+    from politikdesk import metrics
+
+    result = metrics.daily_rollup(window_days=window_days)
+    return {"day": result["day"], "written": result["written"]}
+
+
 @app.task(name="politikdesk.check_source_health")
 def check_source_health() -> list[str]:
     """6 saattir veri vermeyen kaynakları uyarır (F1-19)."""
@@ -240,5 +288,25 @@ app.conf.beat_schedule = {
     "health-check-hourly": {
         "task": "politikdesk.check_source_health",
         "schedule": crontab(minute=5),
+    },
+    # --- Faz 3 ---
+    # Brifing saatleri Spec §14.1 kalem 12'den: sabah 08:00, akşam 20:00.
+    # `crontab` konteynerin saat diliminde çalışır; compose'da TZ
+    # Europe/Istanbul verilir ki 08:00 gerçekten sabah olsun.
+    "briefing-morning": {
+        "task": "politikdesk.generate_briefing",
+        "schedule": crontab(hour=BRIEFING_MORNING_HOUR, minute=0),
+        "kwargs": {"slot": "morning"},
+    },
+    "briefing-evening": {
+        "task": "politikdesk.generate_briefing",
+        "schedule": crontab(hour=BRIEFING_EVENING_HOUR, minute=0),
+        "kwargs": {"slot": "evening"},
+    },
+    # Metrik toplama gün BİTMEDEN koşar: o günün aktif dakikaları
+    # tamamlanmış olsun (F3-19).
+    "metrics-rollup-nightly": {
+        "task": "politikdesk.rollup_metrics",
+        "schedule": crontab(hour=23, minute=50),
     },
 }

@@ -60,6 +60,9 @@ services:
     environment:
       PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
       PD_REDIS_URL: redis://redis:6379/0
+      # Metrik panosu gün sınırına bakar (`date.today()`); UTC'de kalırsa
+      # akşam üretilen bir taslak ertesi günün kutusuna düşerdi.
+      TZ: ${TZ:-Europe/Istanbul}
     env_file:
       - path: .env
         required: false
@@ -94,6 +97,7 @@ services:
       PD_REDIS_URL: redis://redis:6379/0
       # D16 kararı imajın içinde sabit: .env eksik olsa bile worker sessizce
       # `hashing` embedder'a düşmesin (Faz 2 canlı koşumunda olan buydu).
+      TZ: ${TZ:-Europe/Istanbul}
       PD_EMBEDDING_PROVIDER: ${PD_EMBEDDING_PROVIDER:-local}
       PD_EMBEDDING_MODEL: ${PD_EMBEDDING_MODEL:-intfloat/multilingual-e5-large}
     env_file:
@@ -109,7 +113,8 @@ services:
         condition: service_healthy
     profiles: ["workers"]
 
-  # Zamanlayıcı: 5 dakikalık toplama döngüsü, embed, purge (F1-05, F1-12).
+  # Zamanlayıcı: 5 dakikalık toplama döngüsü, embed, purge (F1-05, F1-12)
+  # + Faz 3: sabah/akşam brifingi ve gecelik metrik toplaması (F3-16, F3-19).
   beat:
     build: .
     container_name: pd-beat
@@ -118,6 +123,10 @@ services:
     environment:
       PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
       PD_REDIS_URL: redis://redis:6379/0
+      # Brifing saatleri `crontab` ile kurulur ve konteynerin saat
+      # dilimine bakar. TZ verilmezse UTC kullanılır ve "08:00 sabah
+      # brifingi" Türkiye'de 11:00'e düşerdi.
+      TZ: ${TZ:-Europe/Istanbul}
     env_file:
       - path: .env
         required: false

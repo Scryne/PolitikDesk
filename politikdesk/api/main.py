@@ -19,6 +19,13 @@ from politikdesk.admin.router import router as admin_router
 from politikdesk.api.ingest import router as ingest_router
 from politikdesk.config import get_settings
 from politikdesk.observability import configure_logging, configure_sentry, get_logger
+from politikdesk.web.api import router as web_api_router
+from politikdesk.web.briefing import router as briefing_router
+from politikdesk.web.draft import router as draft_router
+from politikdesk.web.event import router as event_router
+from politikdesk.web.feed import router as feed_router
+from politikdesk.web.metrics_dashboard import router as metrics_router
+from politikdesk.web.onboarding import router as onboarding_router
 
 log = get_logger(__name__)
 
@@ -45,6 +52,17 @@ app.include_router(admin_router)
 app.include_router(admin_events_router)
 app.include_router(admin_calendar_router)
 app.include_router(ingest_router)
+
+# Faz 3 — arayüz ve editoryal katman.
+# Sıra önemlidir: `event_router` "/event/{id}" gibi somut yolları,
+# `feed_router` ise "/" kökünü tanımlar. FastAPI ilk eşleşeni kullanır.
+app.include_router(feed_router)
+app.include_router(event_router)
+app.include_router(draft_router)
+app.include_router(briefing_router)
+app.include_router(onboarding_router)
+app.include_router(metrics_router)
+app.include_router(web_api_router)
 
 
 @app.get("/health/live", tags=["health"])

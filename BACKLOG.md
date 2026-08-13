@@ -111,11 +111,11 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | B-52 | `numeric_guard` metrik sözlüğünün yanlış-pozitif oranının ölçülmesi | F2-03 uygulaması | Faz 3 — 300 makalelik set bekliyor |
 | B-57 | Golden Set'in 300 makale + 150 iddiaya çıkarılması | F2-20 kısmi (55 + 24) | **Faz 3 — açık**, G2 koşul 3 buna bağlı |
 | ~~B-58~~ | ~~İddia çıkarımının canlı LLM ile koşulması (G2 koşul 5)~~ | `ANTHROPIC_API_KEY` yok | ✅ **Kapandı** — `openai_compat` arka ucu + D17 modeli ile koşuldu: 9 olay, 4 iddia, 4 kanıt bağı, **0 hata**. F2-07'nin *sayısal* %90 DoD'si Golden Set hacmine bağlı kaldı (B-57) |
-| B-67 | **Sağlayıcı karşılaştırması:** aynı Golden Set üzerinde Claude ile açık modelin karşılaştırılması | `scripts/llm_benchmark.py --provider anthropic` | **Faz 3 — açık**, anahtar geldiğinde tek komut |
+| B-67 | **Sağlayıcı karşılaştırması:** aynı Golden Set üzerinde Claude ile açık modelin karşılaştırılması | `ANTHROPIC_API_KEY` `.env`'de **boş**; 13 Ağu'da denendi, 18/18 çağrı `LLMNotConfigured` | **Faz 4 — açık**, anahtar geldiğinde tek komut (çıkarım *ve* üretim) |
 | B-68 | Ücretsiz katman kotasının/hız sınırının günlük tura yetip yetmediğinin ölçülmesi | Kıyaslamada 3 model kapasiteden düştü | **Faz 3 — açık** |
 | B-69 | **Metrik seçim doğruluğunun ölçülmesi:** doğrulama `metric`'in listede olduğunu denetliyor, DOĞRU olduğunu denetlemiyor | Canlı koşum: AR-GE harcaması `reserves` kodlanmıştı (claims.v2 ile `other`'a düzeldi) | **Faz 3 — açık**, F2-03 `numeric_guard` yanlış kodla ilgisiz sayıları çelişki sayabilir (B-52 ile birlikte) |
-| B-70 | Mevcut 4 iddianın `claims.v2` ile yeniden çıkarılması | İddialar `claims.v1` ile üretildi; `extracted_by` doğru etiketli ama karışık sürüm | Faz 3 başı — **kullanıcı onayı gerekir** (tablo temizliği) |
-| B-71 | Üretim modelinin (`PD_LLM_MODEL_GENERATION`) kendi ölçümüyle seçilmesi | D17 yalnız *çıkarım* görevini ölçtü; şu anki değer yer tutucu | **Faz 3 — taslak üretimi başlamadan** |
+| ~~B-70~~ | ~~Mevcut 4 iddianın `claims.v2` ile yeniden çıkarılması~~ | Karışık prompt sürümü | ✅ **Kapandı** — kullanıcı onayıyla koşuldu (13 Ağu). 4 iddia silindi, claims.v2 ile 2 iddia + 2 kanıt bağı, 0 hata. Araç: `make reclaim` (`--yes` zorunlu) |
+| ~~B-71~~ | ~~Üretim modelinin kendi ölçümüyle seçilmesi~~ | D17 yalnız *çıkarım* görevini ölçtü | 🟡 **Kapandı ama karar ZAYIF** — D18 (`docs/llm-generation-benchmark.md`): `nemotron-3-super`. Ölçüm ilk iki adayı ayıramadı; karar gecikmeye ve operasyonel tekliğe dayanıyor. Araç: `make genbench` |
 | B-59 | Haftalık kalite ritüeli (F2-21, ≥3 hafta) | Takvim zamanı gerektirir | **Faz 3 boyunca** |
 | B-60 | `event_relations`'ta `updates` / `contradicts` ilişkileri | F2-17 yalnız `same_thread` kuruyor (yargı içermeyen tek tip) | Faz 3 |
 | B-61 | Takvimin `verified: false` kayıtlarının resmî takvimden teyidi | `config/calendar_2026.yml` — 10 kayıt | Faz 3 |
@@ -129,6 +129,18 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-65~~ | ~~`same_thread` eşiğinin (0,80) F2-14 kalibrasyonundan sonra güncellenmemesi~~ | B-53 canlı koşumu: 9 olay **22** bağ üretti | ✅ **Kapandı** — eşik `cluster_t_high`'tan türetiliyor; 22 → 1 bağ; değişmez teste bağlandı |
 | B-66 | Faz 4 kapsam kararının Spec'e işlenmesi (§14.1 kapsam listesi + G4 → G4′) | Yol Haritası Faz 4 daraltıldı | Spec v3.2 |
 | B-64 | `.env.example` satır sonu yorumlarının genel taranması | `PD_EMBEDDING_PROVIDER` tuzağı: boş değer + satır sonu yorumu = yorum değer olur | ✅ **Kapandı** — yorumlar kendi satırına alındı + `Settings` doğrulaması + 3 test |
+
+---
+
+## Faz 3'te açılan kalemler
+
+| # | Kalem | Kaynak | Faz |
+|---|---|---|---|
+| B-72 | **Spec §15 madde 10'un tahmin muafiyeti Spec'e işlenmeli.** Harfiyen uygulanınca R0 gereği *her* tahmin `unverified` olduğu için üretim her olayda bloke oluyordu. Uygulanan kural: tahmin tipi muaf — madde 10'un koruduğu şey "belirli kişilere yönelik SUÇLAMA"dır, bir kişinin kendi tahmininin aktarılması değil | F3-11 uygulaması (`editorial/guards.py`) | **Spec v3.2** |
+| B-73 | **Golden Set kanıt metinleri noktalamasız.** 43 kanıt metninin 43'ünde de virgül yok (`4 milyar 918 2 milyon`). Sayısal grounding bu fikstür üzerinde ölçülemez: modelin doğru okuması (`918,2`) uydurma sayılıyor | B-71 koşumu, `docs/llm-generation-benchmark.md` bulgu 2 | **Faz 4 — açık**, G3 #2 ölçümünü açar |
+| B-74 | **B-71'in temiz fikstürle yeniden ölçülmesi.** Mevcut karar (D18) zayıf: kirlenmemiş olaylarda dört adayın da grounding'i %100 ve ölçüm ayırt edemedi | D18 kapsam sınırı | **Faz 4**, B-73'e bağlı |
+| B-75 | **G3 #2/#3 denetimi (50 + 40 taslak).** Veritabanında iddiası olan tek olay var; kapı bu boyutta karara bağlanamaz | Kapı G3 ölçümü | **Faz 4**, B-57'ye bağlı |
+| B-76 | **Brifing 7 gün üst üste (G3 #5).** `beat` zamanlaması kuruldu (08:00/20:00, TZ=Europe/Istanbul); takvim zamanı gerektirir | Kapı G3 koşul 5 | **Faz 4 boyunca** |
 
 ---
 

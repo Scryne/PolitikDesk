@@ -43,6 +43,11 @@ EXPECTED_TABLES = {
     "llm_calls",
 }
 
+# Faz 3'te (0004) eklenen tablolar. 0001'de tanımlı olmadıkları için
+# `test_all_expected_tables_are_defined` onları aramaz; canlı şema
+# testi ikisinin birleşimine bakar.
+PHASE3_TABLES = {"briefings", "event_feedback", "user_activity"}
+
 # P6 / KVKK m.6 — bu sözcükleri içeren bir sütun editorial_profiles'ta olamaz.
 FORBIDDEN_PROFILE_TERMS = (
     "ideolog",
@@ -155,9 +160,92 @@ def test_editorial_profiles_has_no_ideological_column_in_sql() -> None:
 
 def test_no_truth_score_column() -> None:
     """Spec §15 madde 13: tek sayısal 'doğruluk yüzdesi' şemada yoktur."""
-    lowered = MIGRATION.lower()
+    lowered = ALL_MIGRATIONS.lower()
     for banned in ("truth_score", "accuracy_score", "confidence_score", "trust_score"):
         assert banned not in lowered, f"Yasak sütun: {banned}"
+
+
+# --------------------------------------------------------------------------
+# Faz 3 (0004) kısıtları
+# --------------------------------------------------------------------------
+def test_phase3_tables_are_defined() -> None:
+    defined = set(re.findall(r"CREATE TABLE IF NOT EXISTS (\w+)", ALL_MIGRATIONS))
+    missing = PHASE3_TABLES - defined
+    assert not missing, f"0004'te eksik tablolar: {sorted(missing)}"
+
+
+def test_grounding_result_is_separate_from_check_result() -> None:
+    """Kapı G3 koşul 2 yalnızca grounding'i sayar.
+
+    İkisi tek JSONB'de birleştirilseydi, sert kapının ölçümü yumuşak
+    editoryal kontrollerin gürültüsüne karışırdı.
+    """
+    assert "drafts ADD COLUMN IF NOT EXISTS grounding_result" in ALL_MIGRATIONS
+    assert "check_result" in MIGRATION  # 0001'de zaten var
+
+
+def test_event_feedback_has_no_score_column() -> None:
+    """"Bu yanlış" bir DÜZELTME sinyalidir, bir güvenilirlik skoru değil."""
+    block = re.search(
+        r"CREATE TABLE IF NOT EXISTS event_feedback \((.*?)\n\);",
+        ALL_MIGRATIONS,
+        flags=re.DOTALL,
+    )
+    assert block, "event_feedback tanımı bulunamadı"
+    body = block.group(1).lower()
+    for banned in ("score", "rating", "confidence", "accuracy", "trust"):
+        assert banned not in body, f"event_feedback'te yasak alan: {banned}"
+
+
+def test_user_activity_is_documented_as_non_ranking_input() -> None:
+    """Spec §15 madde 14: etkileşim gündemi sıralayamaz.
+
+    Kısıt SQL yorumunda yazılıdır; `tests/test_metrics.py` kod
+    tarafındaki karşılığını (evidence/ bu tabloyu okumaz) denetler.
+    """
+    assert "GÜNDEM SIRALAMASINA GİRDİ OLAMAZ" in ALL_MIGRATIONS
+    assert "COMMENT ON TABLE user_activity" in ALL_MIGRATIONS
+
+
+@pytest.mark.db
+def test_editorial_profiles_still_has_no_ideological_column_after_0004(
+    db_conn,  # noqa: ANN001
+) -> None:
+    """0004 bu tabloya `compiler_version` ekledi — kısıt korunmalı."""
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'editorial_profiles'
+            """
+        )
+        columns = [r["column_name"].lower() for r in cur.fetchall()]
+    assert "compiler_version" in columns
+    offenders = [c for c in columns if any(t in c for t in FORBIDDEN_PROFILE_TERMS)]
+    assert not offenders, f"editorial_profiles'ta ideolojik sütun(lar): {offenders}"
+
+
+@pytest.mark.db
+def test_briefing_slot_constraint_is_enforced(db_conn) -> None:  # noqa: ANN001
+    """Yalnızca sabah/akşam — üçüncü bir slot sessizce eklenemez."""
+    import psycopg
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM users ORDER BY id LIMIT 1")
+        user = cur.fetchone()
+    if user is None:
+        pytest.skip("Kullanıcı kaydı yok.")
+
+    with db_conn.cursor() as cur, pytest.raises(psycopg.errors.CheckViolation):
+        cur.execute(
+            """
+            INSERT INTO briefings (user_id, briefing_date, slot, body_html,
+                                   body_text, open_token)
+            VALUES (%s, '2026-01-01', 'noon', '<p></p>', '', 'test-token-slot')
+            """,
+            (user["id"],),
+        )
+    db_conn.rollback()
 
 
 # --------------------------------------------------------------------------
@@ -170,7 +258,7 @@ def test_all_tables_exist_in_database(db_conn) -> None:  # noqa: ANN001
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
         )
         actual = {r["table_name"] for r in cur.fetchall()}
-    missing = EXPECTED_TABLES - actual
+    missing = (EXPECTED_TABLES | PHASE3_TABLES) - actual
     assert not missing, f"Veritabanında eksik tablolar: {sorted(missing)}"
 
 
