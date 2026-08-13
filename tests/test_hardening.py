@@ -335,6 +335,57 @@ def _silence_alert_side_effects(monkeypatch) -> None:  # noqa: ANN001
     monkeypatch.setattr(audit_mod, "exists_since", lambda *a, **k: False)
 
 
+# ===========================================================================
+# F4-09 yan etkisi — loopback bağlama + `localhost` tuzağı
+# ===========================================================================
+def test_default_dsns_use_explicit_ipv4_loopback() -> None:
+    """Ana makine DSN'leri `localhost` DEĞİL `127.0.0.1` olmalı.
+
+    F4-09'da yayımlanan portlar güvenlik gerekçesiyle loopback'e bağlandı
+    (`127.0.0.1:5432:5432`) ve Docker yalnızca IPv4 loopback'i dinliyor.
+    Windows'ta `localhost` önce `::1`e çözümlenir; oradan bağlantı
+    reddedilir ve ana makinede koşan her araç havuz zaman aşımına düşer.
+
+    Ölçüldü (13 Ağustos 2026, F4-09'dan sonra):
+        127.0.0.1:5432 -> AÇIK
+        ::1:5432       -> ConnectionRefused
+        localhost      -> [('AF_INET6','::1'), ('AF_INET','127.0.0.1')]
+
+    Konteynerler etkilenmez: compose onlara `db:5432` verir.
+    """
+    from politikdesk.config import Settings
+
+    defaults = Settings(_env_file=None)  # type: ignore[call-arg]
+    assert "localhost" not in defaults.database_url, (
+        "Varsayılan DSN `localhost` kullanıyor; Windows'ta IPv6'ya çözümlenip "
+        "loopback'e bağlı Postgres'e ulaşamaz. `127.0.0.1` yazın."
+    )
+    assert "127.0.0.1" in defaults.database_url
+    assert "localhost" not in defaults.redis_url
+
+
+def test_compose_publishes_only_to_loopback() -> None:
+    """F4-09: Postgres ve Redis makinenin katıldığı ağa açılmamalı.
+
+    Docker'ın `"5432:5432"` kısayolu portu `0.0.0.0`a bağlar. Bu bir
+    sunucu değil dizüstü bilgisayar: kafe Wi-Fi'ında aynı ağdaki herkes
+    varsayılan parolayla veritabanına bağlanabilirdi.
+    """
+    import re
+    from pathlib import Path
+
+    compose = (Path(__file__).resolve().parent.parent / "docker-compose.yml").read_text(
+        encoding="utf-8"
+    )
+    published = re.findall(r'^\s*-\s*"([^"]+:\d+)"\s*$', compose, re.MULTILINE)
+    exposed = [p for p in published if not p.startswith("127.0.0.1:")]
+
+    assert not exposed, (
+        f"Loopback dışına yayımlanan port(lar): {exposed}. "
+        'Biçim `"127.0.0.1:<host>:<konteyner>"` olmalı (F4-09).'
+    )
+
+
 def test_ingestion_does_not_stop_at_budget_cap() -> None:
     """F4-07 DoD: "tavanda üretim duruyor, ingestion devam ediyor".
 

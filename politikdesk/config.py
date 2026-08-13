@@ -55,8 +55,15 @@ class Settings(BaseSettings):
     log_format: Literal["json", "console"] = "json"
 
     # --- Altyapı ---
-    database_url: str = "postgresql://politikdesk:politikdesk@localhost:5432/politikdesk"
-    redis_url: str = "redis://localhost:6379/0"
+    # `localhost` DEĞİL, `127.0.0.1`. F4-09'da yayımlanan portlar güvenlik
+    # gerekçesiyle loopback'e bağlandı (`127.0.0.1:5432:5432`) ve Docker
+    # yalnızca IPv4 loopback'i dinliyor. Windows'ta `localhost` önce
+    # `::1`e çözümlenir; oradan bağlantı reddedilir ve ana makinede koşan
+    # araçlar (pytest, `pd backup`, `pd pipeline-health`) havuz zaman
+    # aşımına düşer. Konteynerler bu değeri kullanmaz — compose onlara
+    # `db:5432` / `redis:6379` verir.
+    database_url: str = "postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk"
+    redis_url: str = "redis://127.0.0.1:6379/0"
 
     # --- LLM (Spec §11.1, §11.5) ---
     # Çıkarım (ucuz model) ile üretim (pahalı model) ayrımı: Risk R6 azaltımı.
