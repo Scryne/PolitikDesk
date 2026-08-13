@@ -15,6 +15,14 @@ doğrular.
     python -m scripts.check_deployment
 
 Çıkış kodu 0 = konteynerler depoyla aynı; 1 = kayma var.
+
+**Aynı sınıftan ikinci arıza (14 Ağustos 2026).** Kod ağacı birebir
+aynıydı, zamanlama tamdı — ama `Dockerfile` `certs/` dizinini
+kopyalamıyordu. `ca_bundle_path()` eksik dizini hata saymaz, sessizce
+yalnız certifi'ye düşer; sonuç Resmî Gazete'de `CERTIFICATE_VERIFY_FAILED`
+oldu. Yerelde geçen istek konteynerde düşüyordu. Ders: kayma yalnızca
+`.py` dosyalarında olmuyor — **kodun okuduğu veri dosyaları da imaja
+girmek zorunda.** `ASSET_DIRS` varlık denetimi onu kapatır.
 """
 
 from __future__ import annotations
@@ -49,6 +57,31 @@ import json
 from politikdesk.tasks import app
 print(json.dumps(sorted(app.conf.beat_schedule)))
 """
+
+# Kodun ÇALIŞMA ANINDA okuduğu, `.py` olmayan dosyalar. Bunlar imaja
+# girmezse kod çalışır ama yanlış davranır (bkz. modül başlığı).
+# Dizin adı -> depoda o dizini temsil eden dosya deseni.
+ASSET_DIRS = {"certs": "*.pem", "config": "*.yml"}
+
+# Konteynerde koşan liste betiği. Dizin adları `ASSET_DIRS`'ten türetilir;
+# iki yerde ayrı ayrı yazılırsa biri güncellenip diğeri unutulur ve denetim
+# sessizce eksik kalır — bu betiğin var olma sebebi tam olarak budur.
+_ASSET_SNIPPET = f"""
+import json, pathlib
+out = {{}}
+for name in {sorted(ASSET_DIRS)!r}:
+    root = pathlib.Path('/app') / name
+    out[name] = sorted(p.name for p in root.iterdir()) if root.is_dir() else None
+print(json.dumps(out))
+"""
+
+
+def expected_assets() -> dict[str, list[str]]:
+    """Depodaki varlık dosyalarının dizin başına adları."""
+    return {
+        name: sorted(p.name for p in (REPO_ROOT / name).glob(pattern))
+        for name, pattern in ASSET_DIRS.items()
+    }
 
 
 def repo_hash() -> str:
@@ -117,8 +150,29 @@ def main() -> int:
             for name in sorted(set(got) - set(want)):
                 print(f"  [FAZLA]   {name}")
 
+    # Varlık dosyaları: kod ağacı aynı olsa da imaja girmemiş olabilirler.
+    asset_drift = False
+    want_assets = expected_assets()
     print()
-    if drifted or schedule_drift:
+    for container in CONTAINERS:
+        raw_assets = _docker_exec(container, _ASSET_SNIPPET)
+        if raw_assets is None:
+            continue
+        got_assets = json.loads(raw_assets)
+        for name, want_files in want_assets.items():
+            got_files = got_assets.get(name)
+            if got_files is None:
+                asset_drift = True
+                print(f"  [EKSIK]   {container:<10} - /app/{name}/ dizini imajda YOK")
+            elif set(want_files) - set(got_files):
+                asset_drift = True
+                eksik = sorted(set(want_files) - set(got_files))
+                print(f"  [EKSIK]   {container:<10} - /app/{name}/: {eksik}")
+            else:
+                print(f"  [OK]      {container:<10} - /app/{name}/ ({len(got_files)} dosya)")
+
+    print()
+    if drifted or schedule_drift or asset_drift:
         print("[HATA] Calisan konteyner(ler) depodaki koddan farkli.")
         print("       Duzeltme: docker compose --profile workers up -d --build")
         return 1

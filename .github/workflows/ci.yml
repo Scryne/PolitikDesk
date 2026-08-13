@@ -57,6 +57,13 @@ jobs:
       - name: Tip kontrolü (mypy)
         run: mypy
 
+      # B-83: F4-09 güvenlik gözden geçirmesinde bağımlılık taraması
+      # koşulmamıştı. Düzeltmesi olmayan bir bulgu çıkarsa adım
+      # `--ignore-vuln <ID>` ile geçilir — ama YAZILI GEREKÇE ile
+      # (`docs/guvenlik-notu.md` §8), sessizce değil.
+      - name: Bağımlılık güvenlik taraması (pip-audit)
+        run: pip-audit --skip-editable
+
       # --- F0-16: mimari kural. Bu adım kırmızıya dönerse CI kırılır. ---
       - name: Mimari kural — evidence/ → llm/ import yasağı
         run: python -m scripts.check_architecture

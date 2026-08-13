@@ -200,7 +200,10 @@ HEARTBEATS: tuple[Heartbeat, ...] = (
         key="metrics",
         label="Metrik toplama",
         threshold_hours=48,  # gecelik 23:50; iki tur kaçarsa alarm
-        sql="SELECT max(recorded_at) AS last_at FROM metrics",
+        # `computed_at`, `recorded_at` DEĞİL (migration 0008). İkincisi
+        # satırın ANLATTIĞI günün etiketidir ve öğleye sabitlenmiştir;
+        # nabız olarak okununca yaş negatife düşüyordu (ölçülen: -14,66).
+        sql="SELECT max(computed_at) AS last_at FROM metrics",
         hint="beat'te `metrics-rollup-nightly` var mı?",
     ),
 )
@@ -296,8 +299,13 @@ def _heartbeat_report(cur: Any, beat: Heartbeat) -> StageReport:
 
     from datetime import UTC, datetime
 
+    # Gelecek tarihli kayıt bir NABIZ DEĞİLDİR. Negatif yaş panoda anlamsız
+    # bir sayı gösterir ve "çok taze" gibi okunur; oysa kaynağı ya saat
+    # kayması ya da yanlış sütundur (migration 0008: `recorded_at` bir gün
+    # etiketiydi ve öğleye sabitlendiği için ileri düşüyordu). Sıfıra
+    # kırpıyoruz: gösterge yalan söylemesin.
     age = (datetime.now(UTC) - last_at).total_seconds() / 3600
-    age_hours = round(age, 2)
+    age_hours = round(max(age, 0.0), 2)
     return StageReport(
         key=beat.key,
         label=beat.label,

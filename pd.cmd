@@ -66,7 +66,8 @@ echo.
 echo   -- gelistirme --
 echo   pd test             Test paketi
 echo   pd lint             ruff + mypy
-echo   pd ci               lint + mimari + test
+echo   pd audit            Bagimlilik guvenlik taramasi
+echo   pd ci               lint + audit + mimari + test
 echo   pd migrate          Migration'lari uygula
 echo.
 echo   -- kurulum --
@@ -219,9 +220,15 @@ goto :eof
 "%PY%" -m scripts.check_architecture
 goto :eof
 
+REM B-83: bagimlilik guvenlik taramasi (CI'da zorunlu adim).
+:cmd_audit
+"%PY%" -m pip_audit --skip-editable
+goto :eof
+
 :cmd_ci
 "%PY%" -m ruff check . || goto :fail
 "%PY%" -m mypy || goto :fail
+"%PY%" -m pip_audit --skip-editable || goto :fail
 "%PY%" -m scripts.check_architecture || goto :fail
 "%PY%" -m scripts.verify_arch_guard || goto :fail
 "%PY%" -m pytest -q

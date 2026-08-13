@@ -414,6 +414,14 @@ def daily_rollup(day: date | None = None, *, window_days: int = 7) -> dict[str, 
         for metric in values:
             if metric.value is None:
                 continue
+            # İKİ ZAMAN, İKİ SÜTUN (migration 0008):
+            #   recorded_at — satırın ANLATTIĞI gün. Öğleye sabitlenir ki
+            #     `recorded_at::date` gün sınırında kaymasın; yukarıdaki
+            #     DELETE ve gün bazlı gruplama buna dayanır.
+            #   computed_at — satırın YAZILDIĞI an. `DEFAULT now()` ile
+            #     gelir ve `pipeline_health` nabzı bunu okur.
+            # Birleştirilmemeliler: nabız gün etiketini okuduğunda yaş
+            # negatife düşüyordu (ölçülen: -14,66 saat).
             cur.execute(
                 """
                 INSERT INTO metrics (metric_name, metric_value, dimensions, recorded_at)

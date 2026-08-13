@@ -196,6 +196,46 @@ def test_every_pipeline_stage_has_a_hint() -> None:
         assert stage.threshold_hours > 0
 
 
+def test_metrics_heartbeat_reads_the_run_time_not_the_day_label() -> None:
+    """Nabız `computed_at` okumalı, `recorded_at` değil (migration 0008).
+
+    Ölçülen arıza: metrik aşaması yaşı `-14,66` saat gösteriyordu — bir
+    nabzın geleceği göstermesi, yanlış sütunu okuduğunun kanıtıdır.
+    `recorded_at` satırın ANLATTIĞI günün etiketidir ve öğleye
+    sabitlenmiştir (gün sınırında kaymasın diye); yerel gün üzerinden
+    kurulduğu için UTC'ye göre ileri düşebiliyordu.
+    """
+    from politikdesk.pipeline_health import HEARTBEATS
+
+    beat = next(b for b in HEARTBEATS if b.key == "metrics")
+    assert "computed_at" in beat.sql
+    assert "recorded_at" not in beat.sql
+
+
+def test_heartbeat_age_is_never_negative() -> None:
+    """Gelecek tarihli kayıt "çok taze" diye okunmamalı.
+
+    Saat kayması ya da sentetik bir zaman damgası nabzı negatife
+    düşürebilir. Negatif yaş panoda anlamsızdır ve göstergeye duyulan
+    güveni bozar; sıfıra kırpılır.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from politikdesk.pipeline_health import HEARTBEATS, _heartbeat_report
+
+    beat = HEARTBEATS[0]
+    future = datetime.now(UTC) + timedelta(hours=14)
+
+    class _Cur:
+        def execute(self, *_a: object, **_k: object) -> None: ...
+        def fetchone(self) -> dict[str, object]:
+            return {"last_at": future}
+
+    report = _heartbeat_report(_Cur(), beat)
+    assert report.oldest_hours == 0.0
+    assert report.status == "green"
+
+
 def test_stage_report_runs_against_live_schema(db_conn) -> None:  # noqa: ANN001
     """Sorgular gerçek şemaya karşı koşmalı — sütun adı kayması sessizdir."""
     from politikdesk.pipeline_health import stage_report

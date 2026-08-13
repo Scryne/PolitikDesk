@@ -29,6 +29,13 @@ COPY politikdesk ./politikdesk
 COPY migrations ./migrations
 COPY scripts ./scripts
 COPY config ./config
+# `certs/` KODUN PARÇASIDIR, isteğe bağlı bir geliştirme kolaylığı değil
+# (F5-20). Buraya kopyalanmazsa `ca_bundle_path()` sessizce yalnız
+# certifi'ye düşer ve Resmî Gazete konteynerde `CERTIFICATE_VERIFY_FAILED`
+# alır — yerelde çalışırken üretimde düşer. Ölçülen arıza: kaynak sağlık
+# panosunda amber, 24 saatte 1 kalem. Denetleyicisi
+# `scripts/check_deployment.py` (varlik denetimi).
+COPY certs ./certs
 
 EXPOSE 8000
 

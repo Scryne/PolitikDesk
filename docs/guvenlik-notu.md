@@ -182,9 +182,27 @@ Uygulama katmanı atlansa bile şema kısıtları tutuyor.
 
 ## 8. Bağımlılıklar
 
-`pip-audit` bu denetimde koşulmadı (bağımlılık listesinde yok). Öneri:
-CI'a eklenmesi. Şimdilik `backups/` ve `.env` sızıntısı gibi doğrudan
+~~`pip-audit` bu denetimde koşulmadı (bağımlılık listesinde yok). Öneri:
+CI'a eklenmesi.~~ Şimdilik `backups/` ve `.env` sızıntısı gibi doğrudan
 kontrol edilebilir riskler kapatıldı.
+
+**✅ Kapandı — B-83 (14 Ağustos 2026).** `pip-audit` `dev` ekstrasına ve
+CI'a **zorunlu adım** olarak eklendi (`make audit`).
+
+İlk koşumun ölçülen sonucu:
+
+| Ortam | Sonuç |
+|---|---|
+| Üretim imajı (`pd-api` konteyneri) | ✅ **Bulgu yok** |
+| Yerel geliştirme `.venv` | 🟡 `setuptools 78.1.0` — PYSEC-2025-49, PYSEC-2026-3447 |
+
+`setuptools` bir **kurulum aracıdır**, çalışma zamanı bağımlılığı
+değildir ve üretim imajında güncel sürümü bulunuyordu; bulgu yalnızca
+yerel ortamdaydı ve yükseltilerek kapatıldı.
+
+**Düzeltmesi olmayan bulgu çıkarsa:** adım `--ignore-vuln <ID>` ile
+geçilebilir — ama **yazılı gerekçe** bu bölüme eklenerek, sessizce
+değil. Gerekçesiz bir `ignore`, taramayı tümüyle anlamsızlaştırır.
 
 ---
 

@@ -38,6 +38,9 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "types-PyYAML>=6.0",
+    # B-83: bağımlılık güvenlik taraması. F4-09 güvenlik gözden
+    # geçirmesinde koşulmamıştı; artık CI adımı (`make audit`).
+    "pip-audit>=2.7",
 ]
 # F0-13 embedding benchmark'ı için (opsiyonel, ağır bağımlılıklar)
 bench = [

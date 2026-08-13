@@ -1,4 +1,4 @@
-.PHONY: help setup up workers start stop restart down migrate test lint fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
+.PHONY: help setup up workers start stop restart down migrate test lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
 
 help:
 	@echo "PolitikDesk — geliştirme komutları"
@@ -22,6 +22,7 @@ help:
 	@echo "  make backup-restore F=<dosya>  Ayrı bir DB'ye geri yükle + doğrula"
 	@echo "  make test         Test paketini koş"
 	@echo "  make lint         ruff + mypy"
+	@echo "  make audit        Bağımlılık güvenlik taraması (B-83)"
 	@echo "  make fmt          ruff format"
 	@echo "  make arch         Mimari kuralları denetle (F0-16)"
 	@echo "  make verify-arch  Mimari korumayı canlı deneyle doğrula"
@@ -88,6 +89,10 @@ test:
 lint:
 	ruff check .
 	mypy || true
+
+# B-83: bagimlilik guvenlik taramasi. CI'da zorunlu adim.
+audit:
+	pip-audit --skip-editable
 
 fmt:
 	ruff format .
@@ -179,7 +184,7 @@ feeds:
 cost:
 	python -m scripts.cost_model
 
-ci: lint arch verify-arch test
+ci: lint audit arch verify-arch test
 
 clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
