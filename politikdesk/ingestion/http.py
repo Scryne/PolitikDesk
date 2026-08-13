@@ -10,13 +10,18 @@ değil.
 
 from __future__ import annotations
 
+import ssl
+import tempfile
 import threading
 import time
 from collections import defaultdict, deque
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
+import certifi
 import httpx
 
 from politikdesk.observability import get_logger
@@ -31,6 +36,50 @@ USER_AGENT = (
 DEFAULT_TIMEOUT = 20.0
 DEFAULT_MAX_RETRIES = 4
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+# Sunucunun göndermeyi unuttuğu ARA sertifikalar (F5-20). Kök değildir;
+# güven sınırını genişletmez — gerekçe `certs/README.md`.
+CERTS_DIR = Path(__file__).resolve().parent.parent.parent / "certs"
+
+
+@lru_cache(maxsize=1)
+def ca_bundle_path() -> str:
+    """certifi demeti + `certs/` altındaki ara sertifikalar.
+
+    Bazı sunucular ara sertifikayı göndermez. Tarayıcılar eksik halkayı
+    AIA adresinden kendileri indirir (*AIA chasing*); Python'un `ssl`
+    modülü indirmez ve doğrulama düşer. Sonuç, teşhisi zor bir
+    asimetridir: **site tarayıcıda açılır, koddan açılmaz.**
+    (Ölçülen örnek: `resmigazete.gov.tr` — yaprak sertifika DigiCert
+    imzalı ve geçerli, ama `GeoTrust TLS RSA CA G1` halkası eksik.)
+
+    Doğrulamayı kapatmak yerine halkayı tamamlıyoruz: Tier 1 birincil
+    kaynaktan okuduğumuzu söylerken karşı tarafın gerçekten o kurum
+    olduğunu doğrulamamak, kanıt zincirinin kendisini çürütürdü.
+
+    Demet bir kez kurulur ve süreç boyunca yeniden kullanılır.
+    """
+    extras = sorted(CERTS_DIR.glob("*.pem")) if CERTS_DIR.is_dir() else []
+    if not extras:
+        return certifi.where()
+
+    bundle = Path(tempfile.gettempdir()) / "politikdesk-ca-bundle.pem"
+    parts = [Path(certifi.where()).read_text(encoding="ascii")]
+    parts.extend(p.read_text(encoding="ascii") for p in extras)
+    bundle.write_text("\n".join(parts), encoding="ascii")
+    log.debug("ca_bundle_built", extra_certs=[p.name for p in extras])
+    return str(bundle)
+
+
+@lru_cache(maxsize=1)
+def ssl_context() -> ssl.SSLContext:
+    """Tamamlanmış demetle kurulmuş TLS bağlamı.
+
+    httpx `verify=<dosya yolu>` biçimini kaldırdı (DeprecationWarning) ve
+    bir `SSLContext` istiyor. Bağlam bir kez kurulup yeniden kullanılır —
+    her istemci için sertifika demetini yeniden ayrıştırmak pahalıdır.
+    """
+    return ssl.create_default_context(cafile=ca_bundle_path())
 
 
 class RateLimiter:
@@ -113,6 +162,9 @@ class HttpClient:
             },
             timeout=self.timeout,
             follow_redirects=True,
+            # Eksik ara sertifikaları tamamlanmış demet (F5-20).
+            # Doğrulama AÇIK kalır; `verify=False` kullanılmaz.
+            verify=ssl_context(),
         )
         self._limiter = RateLimiter(self.max_per_minute)
         self._robots = RobotsCache(self._client)

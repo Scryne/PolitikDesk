@@ -186,6 +186,14 @@ KULLANILABİLİR olmasını. Çatışırlarsa yukarısı kazanır.
    Blok "kısa cümle" diyorsa 25 kelimelik kurum cümlesi yazılmaz.
    Blok ile kaynağın üslubu çatışırsa BLOK kazanır.
 
+7. EMOJİ VE HASHTAG: KARAR SENİN DEĞİL.
+   Editoryal kimlik bloğu "Emoji KULLANMA" diyorsa metinde TEK BİR emoji
+   bile olamaz. "Hashtag KULLANMA" diyorsa metin # işaretiyle başlayan
+   hiçbir sözcük içeremez.
+   Bu bir üslup önerisi değil, kullanıcının açık tercihidir; metni daha
+   canlı yapacağını düşünsen bile EKLEME. Eklersen taslak denetimden
+   uyarı ile döner ve kullanıcı onu elle silmek zorunda kalır.
+
 ÇIKTI ALANLARI:
   body                 Taslak metin. Tek parça, yayına hazır.
   cited_claim_ids      Metnin dayandığı iddia kimlikleri. YALNIZCA sana

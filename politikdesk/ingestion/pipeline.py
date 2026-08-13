@@ -22,6 +22,7 @@ from politikdesk.ingestion.adapters.official import (
     TuikAdapter,
     WordPressRestAdapter,
 )
+from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
 from politikdesk.ingestion.adapters.rss import RssAdapter
 from politikdesk.ingestion.adapters.tuik_sdmx import TuikSdmxAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
@@ -53,6 +54,16 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
 
     if adapter_key == "tuik":
         return TuikAdapter(source.slug, http=http)
+
+    if adapter_key == "resmi_gazete":
+        # `http` GEÇİLMEZ: adaptör kendi istemcisini uzun zaman aşımıyla
+        # kurar. Fihrist sayfası büyük ve sunucu yavaş; paylaşılan 20
+        # saniyelik istemci düzenli olarak zaman aşımına düşüyordu (F5-20).
+        return ResmiGazeteAdapter(
+            source.slug,
+            base_url=source.base_url or "https://www.resmigazete.gov.tr",
+            keyword_filter=list(source.keyword_filter or []),
+        )
 
     if adapter_key == "tuik_sdmx":
         # Kendi HTTP istemcisini kurar: SDMX ve kimlik konakları el sıkışma

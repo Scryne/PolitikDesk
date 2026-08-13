@@ -389,18 +389,76 @@ def _check_missing_context(
 
 
 # ------------------------------------------------------------------ kamu API
+_EMOJI = re.compile(
+    "[\U0001f300-\U0001faff\U00002600-\U000027bf\U0001f900-\U0001f9ff⬀-⯿]"
+)
+_HASHTAG = re.compile(r"(?:^|\s)#\w+", re.UNICODE)
+
+# Profil değeri -> izin verilen azami adet. `frequent` sınırsızdır.
+_ALLOWANCE: dict[str, int | None] = {"none": 0, "minimal": 1, "frequent": None}
+
+
+def _check_profile_form(draft: GeneratedDraft, profile: dict[str, Any] | None) -> CheckItem:
+    """Editoryal profilin BİÇİMSEL kuralları tutuluyor mu (F5-21).
+
+    Profil, ürünün kullanıcıya verdiği bir sözdür: "emoji kullanma",
+    "hashtag kullanma". Bu söz Faz 3'ten beri yalnızca **prompt'la**
+    iletiliyordu ve hiçbir makine denetimi yoktu — oysa Spec §11.5 açıkça
+    "prompt talimatı yeterli değil; programatik kontrol şart" diyor.
+
+    Boşluk ölçümle görüldü (F5-15 model kıyaslaması): profil
+    `emoji_usage: none` ve `hashtag_usage: none` derken
+    `meta/llama-3.3-70b-instruct` taslağa "📊" ve "#Vergi #Ekonomi"
+    ekledi. Grounding kontrolleri bunu görmez — kanıt açısından metin
+    kusursuzdu, kullanıcının biçim tercihi açısından değil.
+
+    Yalnızca OBJEKTİF olarak sayılabilen iki kural denetlenir. Cümle
+    uzunluğu ve resmiyet gibi öznel eksenler bilinçli olarak dışarıda:
+    ölçülemeyen bir kuralı kontrol diye göstermek, kontrolün kendisini
+    değersizleştirir.
+    """
+    if not profile:
+        return CheckItem("profile_form", "Editoryal biçim (profil yok)", "ok")
+
+    problems: list[str] = []
+    for label, pattern, field in (
+        ("emoji", _EMOJI, "emoji_usage"),
+        ("hashtag", _HASHTAG, "hashtag_usage"),
+    ):
+        allowance = _ALLOWANCE.get(str(profile.get(field) or "none"), 0)
+        if allowance is None:
+            continue
+        found = pattern.findall(draft.body)
+        if len(found) > allowance:
+            problems.append(
+                f"{label}: {len(found)} adet (profil azami {allowance})"
+            )
+
+    if problems:
+        return CheckItem(
+            "profile_form",
+            "Editoryal biçim tercihleri",
+            "warn",
+            detail="; ".join(problems),
+            items=tuple(problems),
+        )
+    return CheckItem("profile_form", "Editoryal biçim tercihlerine uygun", "ok")
+
+
 def run_checks(
     draft: GeneratedDraft,
     claims: Sequence[ClaimForGeneration],
     *,
     prior_context: Sequence[str] = (),
     grounding: GroundingReport | None = None,
+    profile: dict[str, Any] | None = None,
 ) -> CheckReport:
-    """Spec §14.4'ün altı kontrolünü koşar.
+    """Spec §14.4'ün altı kontrolü + profil biçim denetimi (F5-21).
 
     `claims`: üretime verilen TÜM iddialar (atıf yapılanları buradan
     süzülür). `prior_context`: olayın `same_thread` bağlarının başlıkları
-    (F2-17 çıktısı) — 6. kontrolün girdisi.
+    (F2-17 çıktısı) — 6. kontrolün girdisi. `profile`: editoryal profil
+    satırı; verilmezse biçim denetimi atlanır.
     """
     cited_ids = set(draft.cited_claim_ids)
     cited = [c for c in claims if c.claim_id in cited_ids] or list(claims)
@@ -425,6 +483,7 @@ def run_checks(
             _check_single_source(cited),
             _check_unlinked(draft, sentences, context.haystack),
             _check_missing_context(draft, sentences, prior_context),
+            _check_profile_form(draft, profile),
         )
     )
 

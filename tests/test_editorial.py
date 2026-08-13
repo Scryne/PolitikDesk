@@ -365,14 +365,53 @@ def _draft_with(body: str, **kwargs: Any):  # noqa: ANN202
     return generate_draft(angle="inform", claims=[make_claim()], client=client)
 
 
-def test_check_report_has_all_six_checks() -> None:
-    """Spec §14.4'ün altı kontrolü, eksiksiz."""
+def test_check_report_has_all_checks() -> None:
+    """Spec §14.4'ün altı kontrolü + profil biçim denetimi (F5-21)."""
     draft = _draft_with("TCMB politika faizini yüzde 37'de sabit tuttu.")
     report = run_checks(draft, [make_claim()])
     assert [i.key for i in report.items] == [
         "source_link", "numeric_match", "news_opinion",
         "single_source", "unlinked", "missing_context",
+        "profile_form",
     ]
+
+
+def test_profile_form_flags_emoji_and_hashtag_when_profile_forbids_them() -> None:
+    """Profil "kullanma" diyorsa model dinlemese bile YAKALANIR (F5-21).
+
+    Bu boşluk ölçümle bulundu: profil `emoji_usage: none` /
+    `hashtag_usage: none` iken bir model taslağa "📊" ve "#Vergi" ekledi.
+    Grounding kontrolleri bunu görmez — kanıt açısından metin kusursuzdu,
+    kullanıcının biçim tercihi açısından değil. Spec §11.5: "prompt
+    talimatı yeterli değil; programatik kontrol şart."
+    """
+    draft = _draft_with("TCMB politika faizini yüzde 37'de sabit tuttu 📊. #Ekonomi")
+    report = run_checks(
+        draft, [make_claim()],
+        profile={"emoji_usage": "none", "hashtag_usage": "none"},
+    )
+    item = next(i for i in report.items if i.key == "profile_form")
+
+    assert item.severity == "warn"
+    assert any("emoji" in p for p in item.items)
+    assert any("hashtag" in p for p in item.items)
+
+
+def test_profile_form_allows_what_the_profile_allows() -> None:
+    """`frequent` sınırsızdır; kontrol kullanıcının tercihini dayatmaz."""
+    draft = _draft_with("TCMB faizi yüzde 37'de tuttu 📊📈. #Ekonomi #Faiz")
+    report = run_checks(
+        draft, [make_claim()],
+        profile={"emoji_usage": "frequent", "hashtag_usage": "frequent"},
+    )
+    assert next(i for i in report.items if i.key == "profile_form").severity == "ok"
+
+
+def test_profile_form_is_skipped_without_a_profile() -> None:
+    """Profil yoksa denetim yapılmaz — varsayılan dayatılmaz."""
+    draft = _draft_with("TCMB faizi yüzde 37'de tuttu 📊. #Ekonomi")
+    report = run_checks(draft, [make_claim()])
+    assert next(i for i in report.items if i.key == "profile_form").severity == "ok"
 
 
 def test_clean_draft_passes_all_checks() -> None:

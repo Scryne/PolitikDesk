@@ -26,7 +26,7 @@ from politikdesk.editorial import repository
 from politikdesk.editorial.checker import run_checks
 from politikdesk.editorial.generator import ANGLES, GeneratedDraft, generate_draft
 from politikdesk.editorial.guards import GenerationBlocked, generation_block_reason
-from politikdesk.editorial.profile_compiler import compiled_prompt_for
+from politikdesk.editorial.profile_compiler import compiled_prompt_for, load_profile
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -150,7 +150,14 @@ def generate_for_event(
     )
 
     check_report = run_checks(
-        draft, claims, prior_context=_prior_context(event_id), grounding=draft.grounding
+        draft,
+        claims,
+        prior_context=_prior_context(event_id),
+        grounding=draft.grounding,
+        # Profil biçim denetimi (F5-21): modelin promptu dinlediğine
+        # GÜVENİLMEZ. Ölçüldü — bir model "emoji kullanma" yazılıyken
+        # taslağa emoji ve hashtag ekledi.
+        profile=load_profile(user_id),
     )
 
     payload: dict[str, Any] = {

@@ -115,12 +115,12 @@ sources:
     tier: 1
     kind: official
     independence_group: "official-resmigazete"
-    access_method: rss
+    access_method: official_feed
     tos_status: allowed
     base_url: "https://www.resmigazete.gov.tr"
-    feed_url: "https://www.resmigazete.gov.tr/rss"
-    adapter: rss
-    verified: false                     # 🔎 B-44: TLS el sıkışması düşüyor (aşağıya bak)
+    feed_url: "https://www.resmigazete.gov.tr/fihrist"
+    adapter: resmi_gazete
+    verified: true                      # ✅ B-44 çözüldü (13 Ağu 2026, F5-20)
     robots_txt: null
     topics: [vergi_ve_harclar, asgari_ucret_ve_zamlar]
     produces_scheduled_events: false
@@ -136,18 +136,25 @@ sources:
       - katsayı
       - borçlanma
     notes: >-
-      13 Ağu 2026 teşhisi (B-44): "bot filtresi" tahmini YANLIŞTI. DNS
-      çözülüyor (212.174.186.1) ve TCP 443 açılıyor, ama sunucu
-      ClientHello'dan hemen sonra bağlantıyı düşürüyor
-      (SSL: UNEXPECTED_EOF_WHILE_READING). Denenip elenenler: TLS 1.2'ye
-      sabitleme, SECLEVEL=1, eski yeniden anlaşma, doğrulama kapatma,
-      www'suz alan adı, Windows schannel + konteyner OpenSSL. Hepsi aynı
-      noktada düşüyor — HTTP katmanına HİÇ ulaşılmıyor, dolayısıyla
-      User-Agent/robots ile ilgisi yok. Ağ/IP düzeyinde engel gibi
-      görünüyor; farklı bir çıkış IP'si (TR) gerektirir.
-    notes: >-
+      B-44 ÇÖZÜLDÜ (13 Ağu 2026, F5-20). Üç fazdır "ağ/IP düzeyinde engel,
+      farklı çıkış IP'si (TR) gerektirir" diye kayıtlıydı. Teşhis YANLIŞTI
+      ve iki ayrı arıza üst üste binmişti:
+      (1) Geliştirme makinesinde GoodbyeDPI çalışıyordu. TLS ClientHello'yu
+      parçalayarak DPI atlatır; bu sunucu parçalanmış el sıkışmayı
+      reddediyordu. WinDivert sürücü katmanında çalıştığı için Docker
+      dahil TÜM trafiği etkiliyordu — "konteynerden de olmuyor" bulgusu
+      bu yüzden yanlış yorumlanmıştı. Kapatılınca el sıkışma geçti.
+      (2) Altından ikinci arıza çıktı: sunucu ARA SERTİFİKAYI göndermiyor
+      (GeoTrust TLS RSA CA G1). Tarayıcılar eksik halkayı AIA'dan indirir,
+      Python indirmez — site tarayıcıda açılır, koddan açılmaz. Halka
+      `certs/` altına eklendi; doğrulama AÇIK kaldı.
+      Ayrıca /rss bir RSS akışı DEĞİL, HTML döndürüyor (0 öğe). Gerçek
+      yapı günlük fihrist sayfasıdır: /fihrist?tarih=YYYY-MM-DD
+      —
       Konu filtresi ZORUNLU: filtresiz ingestion articles tablosunu
       alakasız kayıtla doldurur ve embedding maliyetini boşa harcar.
+      (Bu dosyada `notes` iki kez tanımlıydı; YAML sonuncuyu alır ve
+      birincisi sessizce düşerdi — birleştirildi.)
 
   # ---------------------------------------------------------------- Tier 2
   - slug: aa-ekonomi
