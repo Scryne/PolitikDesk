@@ -24,7 +24,7 @@ kişisel araç kararı (Yol Haritası Faz 4 kapsam notu, Spec v3.2 §14.1).
 | F4-15 | Election Mode feature flag | ✅ hazırlandı, varsayılan kapalı |
 | F4-16 | Denetim izi tamamlama | ✅ |
 
-**Test:** 487 → **547** (+60) · ruff temiz · mypy 86 dosya temiz ·
+**Test:** 487 → **549** (+62) · ruff temiz · mypy 86 dosya temiz ·
 mimari koruma kanıtlandı · `deploy-check` 3/3 konteyner, 15/15 zamanlama.
 
 ---
