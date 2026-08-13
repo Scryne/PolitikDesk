@@ -60,12 +60,12 @@ sources:
     tier: 1
     kind: official
     independence_group: "official-tuik"
-    access_method: official_feed
+    access_method: api
     tos_status: allowed
     base_url: "https://www.tuik.gov.tr"
-    feed_url: null
-    adapter: tuik
-    verified: false                     # 🔎 bülten listesi JS ile yükleniyor
+    feed_url: "https://nsiws.tuik.gov.tr/rest"
+    adapter: tuik_sdmx
+    verified: true                      # ✅ 13 Ağu 2026, SDMX 200 + 427 veri akışı
     robots_txt: "robots.txt yok (HTTP 404) — kısıt beyan edilmemiş"
     topics: [enflasyon, issizlik_ve_istihdam, buyume]
     produces_scheduled_events: true
@@ -74,15 +74,19 @@ sources:
       bulletin_index: "https://veriportali.tuik.gov.tr/Bulten/Index"
       bulletin_url_pattern: "https://veriportali.tuik.gov.tr/Bulten/Index?p=<Slug>-<Donem>-<ID>"
     notes: >-
-      RSS YOK. 13 Ağu 2026 teşhisi (B-42): bülten listesi veriportali'de
-      React SPA olarak yükleniyor; sunucu "JavaScript Gerekli" kabuğu
-      dönüyor. Klasik sitede de sunucu tarafı bülten listesi YOK
-      (/Bulten/Index -> 404, /Kurumsal/Haberler'de bülten bağlantısı yok).
-      Veri servisi https://nsiws.tuik.gov.tr/rest/... (SDMX) ve
-      "Authorization: Bearer" İSTİYOR; belirteç giris.tuik.gov.tr
-      (Keycloak) hesabından alınıyor. KİMLİK BİLGİSİ OLMADAN ÇÖZÜLEMEZ —
-      kullanıcı kararı bekliyor.
-      Veri Yayımlama Takvimi F2-18'in girdisidir.
+      B-42 KAPANDI (13 Ağu 2026, F5-02). Bültenler hâlâ okunamıyor —
+      veriportali React SPA ve /swagger/v1/swagger.json bile "JavaScript
+      Gerekli" kabuğunu döndürüyor. Ama okunabilen bir uç VAR: SDMX
+      servisi. Anahtar DOĞRUDAN çalışmıyor (dört şema da 401 aldı); önce
+      belirtece çevriliyor:
+        POST giris.tuik.gov.tr/realms/web/protocol/openid-connect/token
+          grant_type=password & client_id=nsi-ws-consumer & api_key=<KEY>
+      Protokol, uygulamanın JS paketine gömülü markdown belgeden çıkarıldı.
+      Adaptör (adapters/tuik_sdmx.py) seçilmiş göstergelerin son gözlemini
+      yayın birimine çevirir; şu an işsizlik/istihdam/katılma oranları.
+      DİKKAT: TÜFE bu API'de YOK — 'TR' ajansı yalnızca ÜRETİCİ fiyat
+      endekslerini, işgücü ve GSYH serilerini yayımlıyor.
+      Veri Yayımlama Takvimi F2-18'in girdisidir ve hâlâ açıktır.
 
   - slug: hazine
     name: "T.C. Hazine ve Maliye Bakanlığı"

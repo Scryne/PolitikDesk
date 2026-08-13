@@ -23,6 +23,7 @@ from politikdesk.ingestion.adapters.official import (
     WordPressRestAdapter,
 )
 from politikdesk.ingestion.adapters.rss import RssAdapter
+from politikdesk.ingestion.adapters.tuik_sdmx import TuikSdmxAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import IngestionStats, RawItem
@@ -52,6 +53,13 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
 
     if adapter_key == "tuik":
         return TuikAdapter(source.slug, http=http)
+
+    if adapter_key == "tuik_sdmx":
+        # Kendi HTTP istemcisini kurar: SDMX ve kimlik konakları el sıkışma
+        # ORTASINDA düşebiliyor ve varsayılandan daha çok yeniden deneme
+        # ister (F5-02). Ayrıca robots denetimi kapalıdır — kimliğimizle
+        # çağırdığımız bir API ucu tarama sözleşmesinin konusu değildir.
+        return TuikSdmxAdapter(slug=source.slug)
 
     if adapter_key == "wp_rest":
         if not source.feed_url:

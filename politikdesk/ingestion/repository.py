@@ -6,6 +6,7 @@ buraya bağımlı değildir (test edilebilirlik).
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -140,8 +141,8 @@ def insert_article(
                 source_id, canonical_url, title, excerpt, lead_paragraph,
                 published_at, content_hash, simhash, lang, raw_purge_at,
                 near_duplicate_of_id, simhash_distance, independence_key,
-                topics, is_manual_import
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                topics, is_manual_import, official_value
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
             ON CONFLICT (canonical_url) DO NOTHING
             RETURNING id
             """,
@@ -151,6 +152,8 @@ def insert_article(
                 _to_signed_bigint(article.simhash), article.lang, article.raw_purge_at,
                 near_duplicate_of_id, simhash_distance, independence_key,
                 list(article.topics), is_manual_import,
+                json.dumps(article.official_value, ensure_ascii=False)
+                if article.official_value else None,
             ),
         )
         row = cur.fetchone()

@@ -162,4 +162,7 @@ def normalize(
         lang=item.lang,
         raw_purge_at=now + timedelta(days=RAW_RETENTION_DAYS),
         topics=topics,
+        # Yalnızca resmî veri servisinden gelen adaptörler doldurur; RSS
+        # kaynaklarında yoktur ve None kalır (F5-19).
+        official_value=item.extra.get("normalized_value"),
     )

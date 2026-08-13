@@ -54,6 +54,14 @@ class NormalizedArticle:
     lang: str
     raw_purge_at: datetime
     topics: tuple[str, ...] = ()
+    official_value: dict[str, Any] | None = None
+    """Kaynağın KENDİ makine okunur yayınından gelen sayı (F5-19).
+
+    Modelden değil kurumdan gelir; yalnızca resmî veri servisi olan
+    adaptörler doldurur (şu an `tuik_sdmx`). Kanıt motoru bunu iddianın
+    `normalized_value`'si ile karşılaştırıp Spec §8.3 R3'ün
+    `verified_against_source` bayrağını belirler.
+    """
 
 
 @dataclass(slots=True)

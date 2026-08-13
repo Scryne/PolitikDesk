@@ -45,6 +45,71 @@ def _parse_vector(literal: str | None) -> list[float]:
     return [float(x) for x in literal.strip("[]").split(",") if x]
 
 
+def _verified_against_official(
+    cur: Any, claim_id: int, normalized_value: dict[str, Any] | None
+) -> bool:
+    """İddianın sayısı, kurumun KENDİ yayınındaki sayıyla aynı mı (F5-19).
+
+    R3 (Spec §8.3) tek kaynağa 🟢 verir — ürünün en güçlü etiketi. Bu
+    yüzden doğrulama gerçek olmak zorundadır, lastik damga değil.
+
+    Burada iki BAĞIMSIZ yol karşılaştırılır:
+      1. kurumun makine okunur yayını (`articles.official_value`,
+         TÜİK SDMX'ten geldiği gibi)
+      2. modelin makale metninden çıkardığı `normalized_value`
+
+    İkisi `metric`, `value` ve `period` alanlarının ÜÇÜNDE de buluşuyorsa
+    bayrak kalkar. Kısmi eşleşme yetmez: aynı metriğin farklı dönemi ya da
+    farklı metriğin aynı değeri "doğrulama" değildir.
+
+    Arıza geçmişi: bu bayrağı eskiden hiçbir şey yazmıyordu
+    (`normalized_value.verified_against_source` okunuyordu ama iddia
+    çıkarımının şeması böyle bir alan KABUL ETMİYOR — ve etmemeli,
+    Spec §8.1). Yani R3 üretimde ölü koddu. Faz 5'e kadar görünmedi
+    çünkü resmî sayısal kaynak yoktu (B-42).
+    """
+    if not normalized_value:
+        return False
+
+    metric = normalized_value.get("metric")
+    period = normalized_value.get("period")
+    value = normalized_value.get("value")
+    if metric is None or period is None or value is None:
+        return False
+
+    cur.execute(
+        """
+        SELECT a.official_value
+        FROM evidence ev
+        JOIN articles a ON a.id = ev.article_id
+        WHERE ev.claim_id = %s
+          AND ev.stance = 'supports'
+          AND a.official_value IS NOT NULL
+        """,
+        (claim_id,),
+    )
+    for row in cur.fetchall():
+        official = row["official_value"] or {}
+        if (
+            official.get("metric") == metric
+            and official.get("period") == period
+            and _same_number(official.get("value"), value)
+        ):
+            return True
+    return False
+
+
+def _same_number(left: Any, right: Any) -> bool:
+    """Sayısal eşitlik — kayan nokta gürültüsüne toleranslı, anlama değil.
+
+    `48.9` ile `48.89999999999999` aynı sayıdır; `48.9` ile `49.0` değildir.
+    """
+    try:
+        return abs(float(left) - float(right)) < 1e-6
+    except (TypeError, ValueError):
+        return False
+
+
 def _load_evidence(cur: Any, claim_id: int) -> list[Evidence]:
     cur.execute(
         """
@@ -130,10 +195,9 @@ def score_claims(limit: int = 200) -> int:
                 claim_text=row["claim_text"],
                 claim_type=row["claim_type"],
                 normalized_value=row["normalized_value"],
-                # R3, değerin kurumun yayın formatıyla doğrulandığını ister.
-                # Bunu iddia çıkarımı işaretler; burada üretilmez.
-                value_verified_against_source=bool(
-                    (row["normalized_value"] or {}).get("verified_against_source")
+                # R3, değerin kurumun KENDİ yayınıyla doğrulandığını ister.
+                value_verified_against_source=_verified_against_official(
+                    cur, row["id"], row["normalized_value"]
                 ),
             )
             result = compute_status(claim, evidence)
