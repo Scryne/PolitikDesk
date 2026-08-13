@@ -202,12 +202,18 @@ def _validate_value(value: dict[str, Any]) -> list[str]:
 
 
 # ------------------------------------------------------- tekilleştirme
-def _claim_signature(claim: ExtractedClaim) -> str:
+def claim_signature(claim: ExtractedClaim) -> str:
     """F2-09: aynı iddianın iki kez kaydedilmesini engelleyen imza.
 
     Sayısal iddialarda imza **normalize edilmiş değerdir**: "TÜFE aylık
     %1,78 arttı" ile "Aylık enflasyon yüzde 1,78 oldu" farklı cümlelerdir
     ama aynı iddiadır. Sözcük tabanlı bir imza bunları ayrı sayardı.
+
+    Kamuya açıktır: `claims_pipeline._persist` aynı imzayı, **zaten
+    kayıtlı** iddiaları tanımak için kullanır (F5-16). İki farklı imza
+    hesabı, yeniden çıkarımda aynı iddianın ikinci kez yazılmasına ve
+    kanıt bağlarının iki ayrı kayda bölünmesine yol açardı — yani
+    `independent_count` yine hiç yükselmezdi.
     """
     if claim.claim_type == "number" and claim.normalized_value:
         v = claim.normalized_value
@@ -227,7 +233,7 @@ def dedupe_claims(claims: list[ExtractedClaim]) -> list[ExtractedClaim]:
     seen: set[str] = set()
     out: list[ExtractedClaim] = []
     for claim in claims:
-        signature = _claim_signature(claim)
+        signature = claim_signature(claim)
         if signature in seen:
             continue
         seen.add(signature)
@@ -274,7 +280,7 @@ def group_claims_by_source(
     groups: dict[str, tuple[ExtractedClaim, list[tuple[int, str]]]] = {}
 
     for claim, article_id in collected:
-        signature = _claim_signature(claim)
+        signature = claim_signature(claim)
         if signature not in groups:
             groups[signature] = (claim, [])
             order.append(signature)

@@ -1,5 +1,5 @@
 # PolitikDesk
-## Nihai Ürün Spesifikasyonu — v3.2 (Master Spec)
+## Nihai Ürün Spesifikasyonu — v3.3 (Master Spec)
 ### AI Political Intelligence & Editorial Workspace
 
 ---
@@ -7,12 +7,12 @@
 | | |
 |---|---|
 | **Doküman türü** | Nihai ürün spesifikasyonu — kararların *verildiği* belge |
-| **Sürüm** | 3.2 |
-| **Tarih** | 11 Ağustos 2026 (v3.0) · 12 Ağustos 2026 (v3.1) · **13 Ağustos 2026 (v3.2)** |
+| **Sürüm** | 3.3 |
+| **Tarih** | 11 Ağustos 2026 (v3.0) · 12 Ağustos 2026 (v3.1) · 13 Ağustos 2026 (v3.2) · **13 Ağustos 2026 (v3.3)** |
 | **Önceki sürümler** | `PROJE FİKİR RAPORU.md` (v1, vizyon) → `PolitikDesk_Konsolide_Proje_Raporu.md` (eleştirel konsolidasyon) → `PolitikDesk_Proje_Raporu_v2.md` (daraltılmış kapsam) |
 | **Eşlik eden belge** | `PolitikDesk_Yol_Haritasi_v1.md` (faz-faz uygulama planı) |
-| **Statü** | 🔒 **DONDURULDU** — `spec-v3.2`. D1–D15 değiştirmek için yazılı gerekçe + sürüm artışı gerekir (Bölüm 17). |
-| **Değişiklik gerekçesi** | `docs/karar-itirazlari.md` — D1–D15'in madde madde denetimi. v3.1'e taşıyan itirazlar: İtiraz-4 (D8), İtiraz-7 (D9), İtiraz-3 (D11), İtiraz-1 (D14). v3.2: B-55, B-62, B-66, B-72 (uygulama bulguları). |
+| **Statü** | 🔒 **DONDURULDU** — `spec-v3.3`. D1–D15 değiştirmek için yazılı gerekçe + sürüm artışı gerekir (Bölüm 17). |
+| **Değişiklik gerekçesi** | `docs/karar-itirazlari.md` — D1–D15'in madde madde denetimi. v3.1'e taşıyan itirazlar: İtiraz-4 (D8), İtiraz-7 (D9), İtiraz-3 (D11), İtiraz-1 (D14). v3.2: B-55, B-62, B-66, B-72 (uygulama bulguları). **v3.3: D6 kaynak sınırı 8 → azami 15 (F5-01).** Gerekçe ölçümdür, tercih değil: 8 sınırıyla hiçbir olayda `independent_count ≥ 3` sağlanamıyordu, yani §8.3 R2'nin 🟢 durumu ve §13.3'ün `diversity_ratio` hedefi **yapısal olarak erişilemezdi**. Kademe ve bağımsızlık kuralı §9.2'de. |
 
 ---
 
@@ -670,7 +670,7 @@ Yasak çıktılar: "bu kaynak taraflı", "hükümet yanlısı", "muhalif medya",
 
 Tier 1 kanıtı varsa UI'da her zaman öne çıkar: **"Birincil kaynak mevcut"** rozeti.
 
-### 9.2 MVP kaynak listesi (8 kaynak — kesin sınır)
+### 9.2 Kaynak listesi (azami 15 — kademeli, v3.3)
 
 | # | Kaynak | Tier | Erişim | Not |
 |---|---|---|---|---|
@@ -683,9 +683,20 @@ Tier 1 kanıtı varsa UI'da her zaman öne çıkar: **"Birincil kaynak mevcut"**
 | 7 | Bağımsız ekonomi yayını A | 3 | RSS | Framing çeşitliliği |
 | 8 | Bağımsız ekonomi yayını B | 3 | RSS | Farklı editoryal çizgi |
 
-**Sert kural:** MVP'de 8'den fazla kaynak eklenmez. Kaynak eklemek kolay ve yanıltıcı derecede tatmin edicidir; kaliteyi düşürür, kümeleme hatasını gizler. 9. kaynak ancak Faz 4 kalite hedefleri tutulduktan sonra eklenir.
+**Sert kural (v3.3'te revize — azami 15):** Kaynak eklemek kolay ve yanıltıcı derecede tatmin edicidir; kaliteyi düşürür, kümeleme hatasını gizler. Bu uyarı **geçerliliğini korur** ve aşağıdaki kademe kuralıyla korunur.
 
-7 ve 8 numaralı kaynakların ismi Faz 0'da, ToS incelemesi (F0-08) sonucunda kesinleşir.
+**Sınır neden 8'den 15'e çıktı (F5-01, 13 Ağustos 2026):** 8 sınırı bir kalite korumasıydı; ölçüm, sınırın ürünün **ana metriğini yapısal olarak engellediğini** gösterdi. Canlı veride 28 olayın 21'i tek makaleliydi ve iddiası olan 25 olayın yalnızca 2'sinde birden fazla bağımsız kaynak grubu vardı. §8.3 R2'nin 🟢 için istediği `independent_count ≥ 3` hiçbir olayda sağlanamıyordu — yani **güçlü teyit yapısal olarak imkânsızdı** ve `diversity_ratio` 1,0'da çakılıydı (§13.3 hedefi 2,5).
+
+Sınırın gevşemesi kalite kapılarının gevşemesi **değildir**:
+
+1. **Kademe zorunlu.** 15'e tek adımda çıkılmaz: önce 10, en az bir hafta ölçüm, regresyon yoksa devam (F5-04/F5-05).
+2. **Ölçüt hacim değil bağımsızlıktır.** Yeni kaynak, mevcutlardan farklı bir `independence_group` getirmelidir. Aynı gruba ikinci bir yayın koymak bağımsız sayımı **şişirir**: sistem "iki bağımsız kaynak doğruluyor" derken aynı yayın grubunun iki sitesini sayar. Bu, teyit yokluğundan daha zararlıdır ve §8.2'yi doğrudan çürütür.
+3. **İçerik denetimi zorunlu.** Akışın öğe sayısı yeterlilik ölçütü değildir. F5-04'te 100 öğe döndüren bir aday (hurriyet) yalnızca SEO dolgusu ürettiği için, 20 öğe döndüren bir diğeri (milliyet) başlıkları boş geldiği için elendi.
+4. **Regresyon kapısı.** Kümeleme precision ≥ 0,88 korunmuyorsa genişleme durur.
+
+7 ve 8 numaralı kaynakların ismi Faz 0'da, ToS incelemesi (F0-08) sonucunda kesinleşti (Dünya, BloombergHT — D17). Reuters açık akışı olmadığı için düşürüldü; uluslararası çapraz teyit rolü hâlâ boştur (B-45).
+
+**Faz 5'te eklenenler (F5-04):** TRT Haber (`media-trt`), CNN Türk (`media-demiroren`), Habertürk (`media-haberturk`) — üçü de Tier 3, üçü de ayrı sahiplik grubu, üçü de canlı doğrulandı. Toplam 10 kaynak.
 
 ### 9.3 Erişim ve telif politikası
 
@@ -1275,7 +1286,7 @@ v2'nin "netleşmesi gereken 10 karar"ı, v3'te verilmiş kararlar olarak:
 | D3 | Core Loop | Discover → Understand → Verify → Contextualize → Draft → **Review** | §6 | ✅ Verildi |
 | D4 | **MVP dikeyi** | **Makro ekonomi / para politikası** | §5 | ✅ Verildi |
 | D5 | MVP kapsamı | 14 özellik dahil / 22 kalem hariç | §14 | ✅ Verildi |
-| D6 | Kaynak sayısı | **8 kaynak, sert sınır** | §9.2 | ✅ Verildi |
+| D6 | Kaynak sayısı | **Azami 15, kademeli** (8→10→ölç→15); ölçüt bağımsızlık grubu, hacim değil | §9.2 | ✅ Verildi · **v3.3'te revize (F5-01)** — 8 sınırı R2'yi yapısal olarak imkânsız kılıyordu |
 | D7 | X API | **MVP'de kullanılmaz**; Web Intent + pano ile yayın | §9.4 | ✅ Verildi |
 | D8 | Evidence modeli | 5 kategorik durum + deterministik **R0–R7** (R0 tip kısıtı kanıt kurallarından önce, kısa devre) | §8 | ✅ Verildi · **v3.1'de düzeltildi** |
 | D9 | Salience | Deterministik formül + şeffaf kırılım; **global (0–90) saklanır, kişisel (0–10) sorguda hesaplanır** | §8.4 | ✅ Verildi · **v3.1'de düzeltildi** |

@@ -1,7 +1,22 @@
 # PolitikDesk — MVP kaynak listesi (F0-08, F0-09)
 #
-# ⛔ SERT KURAL (Spec §9.2 / D6): MVP'de 8'DEN FAZLA KAYNAK EKLENMEZ.
+# ⛔ SERT KURAL (Spec §9.2 / D6, v3.3'te revize): AZAMİ 15 KAYNAK.
 #    tests/test_sources_config.py bu kuralı zorlar.
+#
+#    SINIR NEDEN 8'DEN 15'E ÇIKTI (F5-01, 13 Ağu 2026 ölçümü):
+#    8 sınırı bir kalite korumasıydı — "kaynak eklemek yanıltıcı derecede
+#    tatmin edicidir, kümeleme hatasını gizler". Gerekçe hâlâ geçerli, ama
+#    ölçüm sınırın ürünün ANA metriğini yapısal olarak engellediğini
+#    gösterdi: 28 olayın 21'i tek makaleli, iddiası olan 25 olayın yalnızca
+#    2'sinde birden fazla bağımsız kaynak grubu var. Kanıt motoru R2 (🟢)
+#    `independent_count >= 3` istiyor; hiçbir olayda 2'yi geçmiyor. Yani
+#    🟢 teyit YAPISAL OLARAK imkânsızdı ve `diversity_ratio` 1,0'da
+#    çakılıydı (hedef 2,5).
+#
+#    Sınır gevşedi, KALİTE KAPILARI GEVŞEMEDİ: 15'e tek adımda çıkılmaz.
+#    Önce 10, en az bir hafta ölçüm (kümeleme precision >= 0,88 korunuyor
+#    mu, konu filtresi yeni kaynaklarda alakasız içerik geçiriyor mu),
+#    ancak regresyon yoksa 15'e devam (F5-05).
 #
 # ⛔ tos_status='forbidden' kaynaktan ingestion kod seviyesinde engellidir
 #    (politikdesk/ingestion/guard.py, F1-06).
@@ -14,9 +29,9 @@
 # "uluslararası çapraz teyit" rolü boşta; yerine iki Tier 3 yayın ile
 # çerçeveleme çeşitliliği güçlendirildi. Kaynak sayısı 8 -> 7.
 
-version: 2
+version: 3
 vertical: macro_economy
-max_sources: 8
+max_sources: 15
 
 sources:
   # ---------------------------------------------------------------- Tier 1
@@ -185,6 +200,79 @@ sources:
     topics: [politika_faizi, kur_ve_rezervler, enflasyon, derecelendirme]
     produces_scheduled_events: false
     notes: "dunya'dan farklı yayın grubu ve farklı çerçeveleme — D17 koşulu sağlandı."
+
+  # --- F5-04 (13 Ağu 2026): 7 -> 10. Üçü de canlı denendi, üçü de AYRI
+  #     sahiplik grubunda. Aynı gruptan ikinci bir yayın `diversity_ratio`'yu
+  #     ARTIRMAZ (metrik `independence_group` sayar), o yüzden ölçüt hacim
+  #     değil bağımsızlıktır.
+  #
+  #     Elenen adaylar — hacim yeterliydi, İÇERİK yeterli değildi:
+  #       hurriyet   /rss/ekonomi 100 öğe ama haber değil, SEO dolgusu
+  #                  ("Proforma Fatura Nedir", "İTO Firma Sorgulama")
+  #       milliyet   20 öğe, başlıklar boş dönüyor
+  #       ekonomim   genel akış (siyaset/sağlık); ayrıca dunya ile aynı
+  #                  yayın grubu olma riski — bağımsız sayımı çökertirdi
+  #       ntv        gerçek haber var ama reklam/advertorial ile karışık
+  #     Bu eleme bilinçlidir: Spec §9.2'nin uyarısı ("kaynak eklemek
+  #     yanıltıcı derecede tatmin edicidir") tam olarak bu tuzağı anlatıyor.
+
+  - slug: trthaber
+    name: "TRT Haber — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-trt"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.trthaber.com"
+    feed_url: "https://www.trthaber.com/ekonomi_articles.rss"
+    adapter: rss
+    verified: true                      # ✅ 13 Ağu 2026, 60 öğe, ekonomi odaklı
+    robots_txt: "User-agent: * / Allow: / — yalnızca /arama.html ve hava durumu kapalı"
+    topics: [enflasyon, butce_ve_hazine, buyume, issizlik_ve_istihdam, asgari_ucret_ve_zamlar]
+    produces_scheduled_events: false
+    notes: >-
+      Kamu yayıncısı — mevcut yedi kaynağın hiçbiriyle sahiplik bağı yok.
+      Akış ekonomi bölümüne özel ve gerçek haber döndürüyor
+      ("2,9 milyon çiftçiye 6 ayda 106 milyar lira destek").
+
+  - slug: cnnturk
+    name: "CNN Türk — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-demiroren"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.cnnturk.com"
+    feed_url: "https://www.cnnturk.com/feed/rss/ekonomi/news"
+    adapter: rss
+    verified: true                      # ✅ 13 Ağu 2026, 35 öğe, makro odaklı
+    robots_txt: "User-agent: * / Allow: / — /api/, /arama/, /news/ kapalı; akış /feed/ altında, serbest"
+    topics: [politika_faizi, enflasyon, kur_ve_rezervler, buyume, derecelendirme]
+    produces_scheduled_events: false
+    notes: >-
+      Adaylar arasında makro ekonomiye en yakın akış: "ABD'de ÜFE temmuzda
+      beklentilerin altında kaldı", "Merkez Bankası rezervleri 178,4 milyar
+      dolara yükseldi". Demirören grubu — hurriyet/milliyet bu gruba
+      girdiği için o ikisi ayrıca EKLENMEZ, aksi hâlde bağımsız sayım şişer.
+
+  - slug: haberturk
+    name: "Habertürk — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-haberturk"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.haberturk.com"
+    feed_url: "https://www.haberturk.com/rss/ekonomi.xml"
+    adapter: rss
+    verified: true                      # ✅ 13 Ağu 2026, 30 öğe, temiz ekonomi
+    robots_txt: "User-agent: * / Disallow: /ekonomi/yorumlar — haber ve akış yolları serbest"
+    topics: [enflasyon, politika_faizi, kur_ve_rezervler, vergi_ve_harclar]
+    produces_scheduled_events: false
+    notes: >-
+      Akış temiz ekonomi haberi döndürüyor ("ABD'de üretici enflasyonu
+      beklentinin altında", "KKM 51 milyon liraya geriledi").
+      robots.txt yalnızca yorum ve dinamik yolları kapatıyor.
 
 # ---------------------------------------------------------------------------
 # Tier 4 (sosyal) yapılandırılmış kaynak YOKTUR (Spec §9.4 / D7).

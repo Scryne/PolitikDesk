@@ -1,0 +1,294 @@
+"""F5-16 / F5-17 — yukarıdaki aşama değişince aşağıdaki aşama yeniden koşar.
+
+İki ayrı hata, tek bir yapısal körlük: bir aşama durumu değiştiriyor,
+bir sonraki aşama bunu bilmiyor. İkisi birlikte çapraz teyidi imkânsız
+kılıyordu ve ikisi de "kaynak yok" diye yanlış teşhis edilebilirdi.
+
+  F5-16  Olaya yeni makale katıldı -> iddia çıkarımı yeniden koşmalı
+  F5-17  İddiaya yeni kanıt bağı geldi -> kanıt motoru yeniden puanlamalı
+
+F5-16 tek başına düzeltilseydi çapraz teyit veritabanında oluşur ama
+ekranda hâlâ 🟠 `single_source` yazardı.
+
+---
+
+F5-16 — olaya yeni kaynak katıldığında iddia çıkarımı yeniden koşar.
+
+Düzeltilen hata, ürünün ana vaadini sessizce imkânsız kılıyordu ve
+B-79 ile aynı aileden:
+
+    PENDING_EVENTS_SQL'deki `NOT EXISTS (claims)` bir AND dalıydı ve
+    iddiası olan HER olayı listeden çıkarıyordu. Yanındaki
+    `last_update_at > claims_attempted_at` koşulu böylece ölü koddu.
+
+Teyit doğası gereği "önce bir kaynak yazar, sonra diğerleri" diye
+oluşur. İkinci bağımsız kaynağın makalesi mevcut bir olaya katıldığında
+o makale hiç okunmuyor, kanıt bağı hiç kurulmuyor, `independent_count`
+1'i geçemiyordu. Yani hiçbir iddia 🟡/🟢 olamıyordu.
+
+Bu dosyadaki testler eski davranış geri konulduğunda KIRMIZIYA döner.
+
+Testler kendi verisini kurar ve siler; mevcut kayıtlara dokunmaz.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from politikdesk.nlp.claims import ExtractedClaim
+from politikdesk.nlp.claims_pipeline import (
+    MAX_CLAIM_ATTEMPTS,
+    _persist,
+    pending_events,
+)
+
+pytestmark = pytest.mark.db
+
+TEST_SLUG = "pytest-reextract-src"
+DIM = 1024
+
+
+def _vec(seed: float) -> str:
+    return "[" + ",".join(f"{seed + i * 1e-4:.6f}" for i in range(DIM)) + "]"
+
+
+@pytest.fixture()
+def fixtures(db_conn):  # noqa: ANN001, ANN201
+    """İki kaynak (ayrı bağımsızlık grubu) ve üç boş olay kurar."""
+    with db_conn.cursor() as cur:
+        source_ids: list[int] = []
+        for n in (1, 2):
+            cur.execute(
+                """
+                INSERT INTO sources (name, slug, tier, kind, access_method,
+                                     tos_status, independence_group)
+                VALUES (%s, %s, 3, 'media', 'rss', 'allowed', %s)
+                ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+                RETURNING id
+                """,
+                (f"Pytest Kaynak {n}", f"{TEST_SLUG}-{n}", f"pytest-group-{n}"),
+            )
+            source_ids.append(cur.fetchone()["id"])
+
+        event_ids: list[int] = []
+        for n in range(3):
+            cur.execute(
+                """
+                INSERT INTO events (title, vertical, centroid_embedding,
+                                    first_reported_at, last_update_at, article_count)
+                VALUES (%s, 'macro_economy', %s::vector, now(), now(), 1)
+                RETURNING id
+                """,
+                (f"pytest reextract olay {n}", _vec(0.2 * (n + 1))),
+            )
+            event_ids.append(cur.fetchone()["id"])
+
+        article_ids: list[int] = []
+        for i, (event_id, source_id) in enumerate(
+            [(event_ids[0], source_ids[0]), (event_ids[0], source_ids[1]),
+             (event_ids[1], source_ids[0]), (event_ids[2], source_ids[0])]
+        ):
+            cur.execute(
+                """
+                INSERT INTO articles (source_id, canonical_url, title, content_hash,
+                                      embedding, event_id, published_at)
+                VALUES (%s, %s, %s, %s, %s::vector, %s, now())
+                RETURNING id
+                """,
+                (source_id, f"https://pytest.test/reextract/{i}",
+                 f"pytest reextract makale {i}", f"hash-reextract-{i}",
+                 _vec(0.2 * (i + 1)), event_id),
+            )
+            article_ids.append(cur.fetchone()["id"])
+    db_conn.commit()
+
+    yield {"events": event_ids, "articles": article_ids, "sources": source_ids}
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM evidence WHERE claim_id IN "
+            "(SELECT id FROM claims WHERE event_id = ANY(%s))",
+            (event_ids,),
+        )
+        cur.execute("DELETE FROM claims WHERE event_id = ANY(%s)", (event_ids,))
+        cur.execute("DELETE FROM articles WHERE source_id = ANY(%s)", (source_ids,))
+        cur.execute("DELETE FROM events WHERE id = ANY(%s)", (event_ids,))
+        cur.execute("DELETE FROM sources WHERE id = ANY(%s)", (source_ids,))
+    db_conn.commit()
+
+
+def _add_claim(db_conn, event_id: int) -> int:  # noqa: ANN001
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_text, claim_type,
+                                evidence_status, status_reason)
+            VALUES (%s, 'pytest iddia', 'fact', 'unverified',
+                    '{"rule": "pending"}'::jsonb)
+            RETURNING id
+            """,
+            (event_id,),
+        )
+        claim_id = cur.fetchone()["id"]
+    db_conn.commit()
+    return claim_id
+
+
+def _stamp(db_conn, event_id: int, *, attempted_ago: str, updated_ago: str,  # noqa: ANN001
+           attempts: int = 1) -> None:
+    """Deneme ve güncelleme damgalarını göreli olarak kurar."""
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE events
+            SET claims_attempted_at = now() - %s::interval,
+                last_update_at      = now() - %s::interval,
+                claims_attempt_count = %s
+            WHERE id = %s
+            """,
+            (attempted_ago, updated_ago, attempts, event_id),
+        )
+    db_conn.commit()
+
+
+# --------------------------------------------------------------- pending
+def test_event_with_claims_is_pending_when_new_article_arrives(db_conn, fixtures):  # noqa: ANN001
+    """ASIL REGRESYON: iddiası olan olay, YENİ makale gelince yeniden sıraya girer.
+
+    Eski kodda `NOT EXISTS (claims)` bu olayı listeden tamamen çıkarıyor
+    ve ikinci bağımsız kaynağın kanıt bağı hiç kurulmuyordu.
+    """
+    event_id = fixtures["events"][0]
+    _add_claim(db_conn, event_id)
+    # Çıkarım 2 saat önce koştu, yeni makale 1 saat önce katıldı.
+    _stamp(db_conn, event_id, attempted_ago="2 hours", updated_ago="1 hour")
+
+    assert event_id in pending_events(limit=500), (
+        "Olaya yeni makale katıldı ama yeniden çıkarım sıraya girmedi — "
+        "ikinci kaynağın kanıt bağı hiç kurulmaz, çapraz teyit imkânsız olur."
+    )
+
+
+def test_event_with_claims_is_not_pending_without_new_material(db_conn, fixtures):  # noqa: ANN001
+    """Yeni malzeme yoksa iddiası olan olay yeniden çıkarılmaz (LLM israfı)."""
+    event_id = fixtures["events"][1]
+    _add_claim(db_conn, event_id)
+    # Çıkarım güncellemeden SONRA koştu.
+    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours")
+
+    assert event_id not in pending_events(limit=500)
+
+
+def test_empty_event_stops_retrying_at_attempt_cap(db_conn, fixtures):  # noqa: ANN001
+    """F4-05 korunuyor: sıfır iddia dönen olay sonsuza dek denenmez.
+
+    13 Ağustos'ta üç olay 28 saat boyunca her 10 dakikada bir LLM'e
+    gönderilmişti. F5-16 o korumayı gevşetmemelidir.
+    """
+    event_id = fixtures["events"][2]  # iddiası YOK
+    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours",
+           attempts=MAX_CLAIM_ATTEMPTS)
+
+    assert event_id not in pending_events(limit=500)
+
+
+# --------------------------------------------------------------- persist
+def test_reextraction_adds_evidence_link_without_duplicating_claim(db_conn, fixtures):  # noqa: ANN001
+    """Yeniden çıkarım aynı iddiayı ikinci kez YAZMAZ, kanıt bağı EKLER.
+
+    Mükerrer yazsaydı kanıt bağları iki kayda bölünür, `independent_count`
+    her ikisinde de düşük kalırdı — düzeltme kendini boşa çıkarırdı.
+    """
+    event_id = fixtures["events"][0]
+    first_article, second_article = fixtures["articles"][0], fixtures["articles"][1]
+    claim = ExtractedClaim(
+        claim_text="TCMB rezervleri 178,4 milyar dolara yukseldi",
+        claim_type="fact",
+        quote_span="rezervler 178,4 milyar dolar",
+    )
+
+    with db_conn.cursor() as cur:
+        # 1. tur: yalnız ilk kaynak
+        _persist(cur, event_id, [(claim, [(first_article, "ilk alinti")])], "test+claims.v2")
+        db_conn.commit()
+
+        # 2. tur: olaya ikinci bağımsız kaynak katıldı, çıkarım YENİDEN koşar
+        # ve aynı iddiayı bu kez İKİ makaleyle üretir.
+        _persist(
+            cur, event_id,
+            [(claim, [(first_article, "ilk alinti"), (second_article, "ikinci alinti")])],
+            "test+claims.v2",
+        )
+        db_conn.commit()
+
+        cur.execute("SELECT count(*) AS n FROM claims WHERE event_id = %s", (event_id,))
+        claim_count = cur.fetchone()["n"]
+        cur.execute(
+            """
+            SELECT count(*) AS n FROM evidence
+            WHERE claim_id IN (SELECT id FROM claims WHERE event_id = %s)
+            """,
+            (event_id,),
+        )
+        evidence_count = cur.fetchone()["n"]
+
+    assert claim_count == 1, f"iddia mukerrer yazildi ({claim_count} kayit)"
+    assert evidence_count == 2, (
+        f"ikinci kaynagin kanit bagi kurulmadi ({evidence_count} bag) — "
+        "independent_count yukselemez"
+    )
+
+
+# ---------------------------------------------------------------- F5-17
+def test_new_evidence_link_retriggers_scoring(db_conn, fixtures):  # noqa: ANN001
+    """İDDİAYA YENİ KANIT BAĞI GELİNCE DURUM YENİDEN HESAPLANIR.
+
+    `evidence_status` kanıt kümesinin fonksiyonudur ve o küme sonradan
+    büyür. Eski kodda durum bir kez hesaplandıktan sonra iddia listeden
+    düşüyordu: ikinci bağımsız kaynak bağlansa bile ekranda 🟠
+    `single_source` kalıyordu.
+
+    Eski davranış geri konulduğunda bu test KIRMIZIYA döner.
+    """
+    from politikdesk.evidence.pipeline import score_claims
+
+    event_id = fixtures["events"][0]
+    first_article, second_article = fixtures["articles"][0], fixtures["articles"][1]
+    claim = ExtractedClaim(
+        claim_text="Rezervler 178,4 milyar dolara yukseldi",
+        claim_type="fact",
+        quote_span="rezervler 178,4 milyar dolar",
+    )
+
+    with db_conn.cursor() as cur:
+        _persist(cur, event_id, [(claim, [(first_article, "ilk alinti")])], "test+claims.v2")
+    db_conn.commit()
+
+    score_claims(limit=500)
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id, evidence_status FROM claims WHERE event_id = %s", (event_id,))
+        row = cur.fetchone()
+        claim_id, first_status = row["id"], row["evidence_status"]
+
+        # Tek kaynak -> 🟠. Bu, düzeltmenin ölçüldüğü başlangıç noktasıdır.
+        assert first_status == "single_source", first_status
+
+        # İkinci BAĞIMSIZ kaynak aynı iddiayı doğruluyor.
+        _persist(
+            cur, event_id,
+            [(claim, [(first_article, "ilk alinti"), (second_article, "ikinci alinti")])],
+            "test+claims.v2",
+        )
+    db_conn.commit()
+
+    score_claims(limit=500)
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT evidence_status FROM claims WHERE id = %s", (claim_id,))
+        final_status = cur.fetchone()["evidence_status"]
+
+    assert final_status == "partially_corroborated", (
+        f"yeni kanit bagi geldigi halde durum '{final_status}' kaldi — "
+        "capraz teyit veritabaninda olusuyor ama urune yansimiyor"
+    )

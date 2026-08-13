@@ -81,15 +81,39 @@ def _load_evidence(cur: Any, claim_id: int) -> list[Evidence]:
 
 
 def score_claims(limit: int = 200) -> int:
-    """Durumu hesaplanmamış veya bayatlamış iddiaları puanlar."""
+    """Durumu hesaplanmamış veya bayatlamış iddiaları puanlar.
+
+    "Bayat" ÜÇ şeyden biri olabilir ve üçü de sorulmak zorundadır:
+
+      1. Hiç puanlanmamış (`status_reason IS NULL`)
+      2. Motor sürümü değişmiş (Election Mode dahil — `engine_version()`)
+      3. **Puanlamadan SONRA yeni kanıt bağı gelmiş** (F5-17)
+
+    3. koşul eksikti ve etkisi 1. ve 2. kadar sessizdi. Durum bir kez
+    hesaplandıktan sonra iddia listeden düşüyordu; oysa `evidence_status`
+    kanıt kümesinin FONKSİYONUDUR ve o küme sonradan büyür. İkinci
+    bağımsız kaynak bir iddiaya bağlandığında `independent_count`
+    değişir ama kimse yeniden sormadığı için ekranda hâlâ 🟠
+    `single_source` yazardı.
+
+    Bu, F5-16 ile aynı yapısal körlüktür: yukarıdaki aşama durumu
+    değiştiriyor, aşağıdaki aşama bunu bilmiyor. F5-16 çıkarımı, bu da
+    puanlamayı yeniden tetikler; ikisi olmadan çapraz teyit veritabanında
+    oluşur ama ürüne hiç yansımaz.
+    """
     scored = 0
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT id, claim_text, claim_type, normalized_value, event_id
-            FROM claims
+            FROM claims c
             WHERE status_reason IS NULL
                OR status_reason->>'engine_version' IS DISTINCT FROM %s
+               OR EXISTS (
+                    SELECT 1 FROM evidence ev
+                    WHERE ev.claim_id = c.id
+                      AND ev.created_at > (c.status_reason->>'computed_at')::timestamptz
+                  )
             ORDER BY id
             LIMIT %s
             """,

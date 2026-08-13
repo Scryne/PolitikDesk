@@ -1,8 +1,17 @@
-"""Kaynak yapılandırması testleri (F0-08, F0-09, D6).
+"""Kaynak yapılandırması testleri (F0-08, F0-09, D6 · F5-01'de revize).
 
-Spec §9.2'nin "8 kaynak sert sınırı" bir yorum değil, denetlenen bir kuraldır:
+Spec §9.2'nin kaynak sınırı bir yorum değil, denetlenen bir kuraldır:
 "Kaynak eklemek kolay ve yanıltıcı derecede tatmin edicidir; kaliteyi
 düşürür, kümeleme hatasını gizler."
+
+**F5-01 (13 Ağu 2026): sınır 8 -> 15.** Uyarı hâlâ geçerli ama ölçüm
+sınırın ürünün ana metriğini yapısal olarak engellediğini gösterdi:
+iddiası olan 25 olayın yalnızca 2'sinde birden fazla bağımsız kaynak
+grubu vardı, dolayısıyla R2'nin (🟢) istediği `independent_count >= 3`
+hiçbir zaman sağlanamıyordu. Gerekçe `config/sources.yml` başlığında.
+
+Sınırın gevşemesi kalite kapılarının gevşemesi DEĞİLDİR — aşağıdaki
+bağımsızlık ve dağılım testleri korunur ve genişletilir.
 """
 
 from __future__ import annotations
@@ -21,19 +30,23 @@ VALID_TOS = {"allowed", "restricted", "forbidden", "pending_review"}
 
 
 def test_source_count_never_exceeds_hard_limit() -> None:
-    """Spec §9.2 / D6: MVP'de 8'den fazla kaynak eklenmez."""
-    assert len(SOURCES) <= DATA["max_sources"] == 8, (
-        f"{len(SOURCES)} kaynak var. 9. kaynak ancak Faz 4 kalite hedefleri "
-        "tutulduktan sonra eklenir (BACKLOG.md B-08)."
+    """Spec §9.2 / D6 (v3.3): azami 15 kaynak."""
+    assert len(SOURCES) <= DATA["max_sources"] == 15, (
+        f"{len(SOURCES)} kaynak var. Sınır 15'tir ve gerekçesi "
+        "config/sources.yml başlığındadır (F5-01)."
     )
 
 
-def test_source_count_is_seven_after_reuters_dropped() -> None:
-    """Reuters düşürüldü (açık akış yok, lisans riski) -> 8 yerine 7 kaynak.
+def test_source_count_matches_staged_rollout() -> None:
+    """F5-04: 7 -> 10. 15'e TEK ADIMDA çıkılmaz.
 
-    Sert sınır tavandır, hedef değil: 7 kaynak sınırın altındadır.
+    Kademe kasıtlıdır: 10 kaynakla en az bir hafta ölçülür (kümeleme
+    precision >= 0,88 korunuyor mu, konu filtresi yeni kaynaklarda
+    alakasız içerik geçiriyor mu) ve ancak regresyon yoksa 15'e devam
+    edilir (F5-05). Bu test o kademeyi görünür tutar: sayıyı artıran
+    kişi testi de değiştirmek zorundadır, yani artış bilinçli olur.
     """
-    assert len(SOURCES) == 7
+    assert len(SOURCES) == 10
 
 
 def test_slugs_are_unique() -> None:
@@ -66,17 +79,39 @@ def test_no_social_tier_source_in_mvp() -> None:
 
 
 def test_tier_distribution() -> None:
-    """4 resmî (omurga) + 1 ajans (kopya referansı) + 2 bağımsız yayın.
+    """4 resmî (omurga) + 1 ajans (kopya referansı) + 5 bağımsız yayın.
 
     Spec §9.2 iki ajans öngörüyordu; Reuters'ın açık akışı olmadığı için
     çapraz teyit rolü tek ajansa indi. Etkisi: sayısal olmayan iddialarda
-    bağımsız sayım düşer (bkz. docs/karar-itirazlari.md İtiraz-2) ve
-    Faz 2'de evidence_status dağılımı ile ölçülmelidir.
+    bağımsız sayım düşer (bkz. docs/karar-itirazlari.md İtiraz-2).
+
+    F5-04 Tier 3'ü 2'den 5'e çıkardı. Tier 1 SABİT kaldı ve bu bir
+    eksiklik değil, engeldir: TÜİK (B-42, hesap gerekiyor) ve Resmî
+    Gazete (B-44, TR çıkış IP'si gerekiyor) hâlâ ölü. R2'nin (🟢)
+    istediği `has_primary_source` bu ikisi açılmadan güçlenmez —
+    Tier 3 genişlemesi `diversity_ratio` ve R4'ü (🟡) besler, R2'yi değil.
     """
     counts: dict[int, int] = {}
     for s in SOURCES:
         counts[s["tier"]] = counts.get(s["tier"], 0) + 1
-    assert counts == {1: 4, 2: 1, 3: 2}, counts
+    assert counts == {1: 4, 2: 1, 3: 5}, counts
+
+
+def test_every_source_has_a_distinct_independence_group() -> None:
+    """F5-04'ün ölçütü hacim değil BAĞIMSIZLIKTIR.
+
+    `diversity_ratio` (metrics.py) ve kanıt motorunun `independent_count`
+    sayımı `independence_group` üzerinden gider. Aynı gruba iki yayın
+    koymak bağımsız sayımı ŞİŞİRİR: sistem "iki bağımsız kaynak doğruluyor"
+    derken aslında aynı yayın grubunun iki sitesi olur. Bu, teyit
+    yokluğundan daha zararlıdır.
+
+    Somut tuzak: hurriyet ve milliyet Demirören grubundadır, cnnturk da
+    öyle. Üçünü birden eklemek üç bağımsız kaynak DEĞİL, bir tanedir.
+    """
+    groups = [s["independence_group"] for s in SOURCES]
+    duplicates = {g for g in groups if groups.count(g) > 1}
+    assert not duplicates, f"aynı bağımsızlık grubunda birden fazla kaynak: {duplicates}"
 
 
 def test_wire_reference_exists_for_copy_detection() -> None:

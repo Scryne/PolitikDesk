@@ -29,6 +29,7 @@ from politikdesk.llm.errors import LLMNotConfigured
 from politikdesk.nlp.claims import (
     PROMPT_VERSION,
     ExtractedClaim,
+    claim_signature,
     extract_claims,
     group_claims_by_source,
 )
@@ -67,11 +68,13 @@ PENDING_EVENTS_SQL = """
     SELECT e.id FROM events e
     WHERE e.merged_into_id IS NULL
       AND e.article_count > 0
-      AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
       AND (
             e.claims_attempted_at IS NULL
          OR e.last_update_at > e.claims_attempted_at
-         OR e.claims_attempt_count < %s
+         OR (
+              NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
+              AND e.claims_attempt_count < %s
+            )
       )
     ORDER BY e.last_update_at DESC
     LIMIT %s
@@ -81,12 +84,38 @@ PENDING_EVENTS_SQL = """
 def pending_events(limit: int = 10) -> list[int]:
     """İddia çıkarımı bekleyen olaylar (en yeni önce).
 
+    Üç ayrı durum vardır ve yüklem üçünü de ayırt etmek zorundadır:
+
+      1. Hiç denenmemiş                    -> çıkar
+      2. Denendikten SONRA yeni makale geldi -> YENİDEN çıkar (iddiası olsa da)
+      3. Denendi, sıfır iddia döndü, yeni malzeme yok -> deneme hakkı
+         bitene kadar tekrar dene, sonra bırak
+
     "İddiası olmayan" ile "iddia çıkarılamayan" farklıdır. Çıkarımın
     meşru şekilde sıfır iddia döndürmesi mümkündür — başlıktan ibaret
     bir duyuru, özeti olmayan bir bülten. Eski yüklem bu iki durumu
     ayırmıyordu ve sıfır iddia dönen olay listede sonsuza dek kalıyordu:
     13 Ağustos'ta üç olay 28 saat boyunca her 10 dakikada bir yeniden
     LLM'e gönderildi ve her seferinde aynı boş yanıt geldi (F4-05).
+
+    **F5-16 düzeltmesi — 2. durum hiç çalışmıyordu.** F4-05'in eklediği
+    `NOT EXISTS (claims)` koşulu bir AND dalıydı ve iddiası olan her olayı
+    listeden tamamen çıkarıyordu; yanındaki
+    `last_update_at > claims_attempted_at` koşulu böylece **ölü koddu**.
+
+    Bedeli ürünün ana vaadiydi: teyit, doğası gereği "önce bir kaynak
+    yazar, sonra diğerleri" diye oluşur. İkinci bağımsız kaynağın makalesi
+    mevcut bir olaya katıldığında o makaleden HİÇ iddia çıkarılmıyor,
+    dolayısıyla o kaynağın kanıt bağı hiç kurulmuyordu. `independent_count`
+    1'i geçemiyor, hiçbir iddia 🟡/🟢 olamıyordu.
+
+    Ölçülen (13 Ağu 2026, F5-04 sonrası): olay 686'da sekiz makale ve dört
+    bağımsız grup vardı — rezerv haberini dunya, cnnturk ve haberturk ayrı
+    ayrı veriyordu — ama iddialar yalnızca ilk çıkarımdaki iki makaleden
+    geliyordu. Kaynak vardı, kod onu hiç okumuyordu.
+
+    Bu, B-79 ile aynı aileden bir hatadır: ikisi de çapraz teyidi sessizce
+    imkânsız kılıyordu, ikisi de "kaynak yok" diye yanlış teşhis edilebilirdi.
     """
     with connection() as conn, conn.cursor() as cur:
         cur.execute(PENDING_EVENTS_SQL, (MAX_CLAIM_ATTEMPTS, limit))
@@ -200,6 +229,34 @@ def _articles_of(cur: Any, event_id: int) -> list[dict[str, Any]]:
     return [dict(r) for r in cur.fetchall()]
 
 
+def _existing_claims_by_signature(cur: Any, event_id: int) -> dict[str, int]:
+    """Olayın kayıtlı iddialarını imzaya göre indeksler (F5-16).
+
+    İmza, çıkarımın kendi tekilleştirmesiyle aynı fonksiyondan gelir —
+    iki ayrı hesap, yeniden çıkarımda aynı iddianın "yeni" sanılmasına
+    ve mükerrer kayda yol açardı.
+
+    `quote_span` burada boş bırakılır: imzaya girmez (sayısal iddiada
+    `metric:value:period`, diğerlerinde `claim_type` + sözcük kümesi).
+    """
+    cur.execute(
+        "SELECT id, claim_text, claim_type, normalized_value FROM claims WHERE event_id = %s",
+        (event_id,),
+    )
+    index: dict[str, int] = {}
+    for row in cur.fetchall():
+        signature = claim_signature(
+            ExtractedClaim(
+                claim_text=row["claim_text"],
+                claim_type=row["claim_type"],
+                quote_span="",
+                normalized_value=row["normalized_value"],
+            )
+        )
+        index.setdefault(signature, row["id"])
+    return index
+
+
 def _persist(
     cur: Any,
     event_id: int,
@@ -211,29 +268,49 @@ def _persist(
     Bir iddia, onu söyleyen HER makaleye bağlanır. Kanıt motorunun
     `independent_count`'u bu bağları sayar; tek bağ yazmak, çapraz
     teyidin hiç görülmemesi demektir (B-79).
+
+    **Yeniden çıkarımda mükerrer yazmaz (F5-16).** Olaya yeni makale
+    katıldığında çıkarım olayın TÜM makaleleri üzerinde yeniden koşar,
+    yani zaten kayıtlı iddialar tekrar üretilir. Bunlar yeniden
+    yazılsaydı aynı iddia iki satır olur ve kanıt bağları ikiye
+    bölünürdü — `independent_count` her iki kayıtta da düşük kalır,
+    yani düzeltmenin kendisi düzeltmeyi boşa çıkarırdı.
+
+    Çözüm: mevcut iddialar `claim_signature` ile eşlenir (çıkarımın
+    kendi tekilleştirmesiyle **aynı** hesap) ve eşleşen için yalnızca
+    yeni kanıt bağı eklenir. `evidence`'taki
+    `ON CONFLICT (claim_id, article_id) DO NOTHING` sayesinde tekrar
+    koşum güvenlidir: işlem tümüyle idempotenttir.
     """
+    existing = _existing_claims_by_signature(cur, event_id)
+
     links = 0
     for claim, sources in claims:
-        cur.execute(
-            """
-            INSERT INTO claims (event_id, claim_text, claim_type, normalized_value,
-                                evidence_status, status_reason)
-            VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb)
-            RETURNING id
-            """,
-            (
-                event_id,
-                claim.claim_text,
-                claim.claim_type,
-                json.dumps(claim.normalized_value, ensure_ascii=False)
-                if claim.normalized_value else None,
-                # Başlangıç durumu: kanıt motoru henüz koşmadı. `unverified`
-                # güvenli varsayılandır — R0'ın tahmin kısıtıyla da uyumlu,
-                # ve DB CHECK'i ihlal etmez.
-                json.dumps({"rule": "pending", "engine_version": "not_yet_scored"}),
-            ),
-        )
-        claim_id = cur.fetchone()["id"]
+        signature = claim_signature(claim)
+        claim_id = existing.get(signature)
+
+        if claim_id is None:
+            cur.execute(
+                """
+                INSERT INTO claims (event_id, claim_text, claim_type, normalized_value,
+                                    evidence_status, status_reason)
+                VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb)
+                RETURNING id
+                """,
+                (
+                    event_id,
+                    claim.claim_text,
+                    claim.claim_type,
+                    json.dumps(claim.normalized_value, ensure_ascii=False)
+                    if claim.normalized_value else None,
+                    # Başlangıç durumu: kanıt motoru henüz koşmadı. `unverified`
+                    # güvenli varsayılandır — R0'ın tahmin kısıtıyla da uyumlu,
+                    # ve DB CHECK'i ihlal etmez.
+                    json.dumps({"rule": "pending", "engine_version": "not_yet_scored"}),
+                ),
+            )
+            claim_id = cur.fetchone()["id"]
+            existing[signature] = claim_id
 
         for article_id, quote_span in sources:
             cur.execute(
