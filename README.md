@@ -9,7 +9,7 @@
 |---|---|
 | Spesifikasyon | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.1 donduruldu** |
 | Yol haritası | [`PolitikDesk_Yol_Haritasi_v1.md`](PolitikDesk_Yol_Haritasi_v1.md) — "ne zaman ve nasıl" |
-| Mevcut faz | **Faz 3 — Editoryal Katman ve Arayüz** ✅ 21/21 görev ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md)) |
+| Mevcut faz | **Faz 3 — Editoryal Katman ve Arayüz** ✅ 21/21 görev ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md)) |
 | Ölçüm | [`eval/eval_report.md`](eval/eval_report.md) · [eşik kalibrasyonu](eval/threshold_report.md) · [embedding kararı](docs/embedding-benchmark.md) · [üretim modeli kararı](docs/llm-generation-benchmark.md) |
 | Kapsam | Tek kullanıcılı **kişisel araç** — beta/ücretlendirme/hukuk adımları kapsam dışı |
 | MVP dikeyi | Makro ekonomi / para politikası (D4) |
@@ -41,8 +41,15 @@ make metrics                  # 8 ürün metriğini topla
 Sürekli çalıştırma (5 dakikalık döngü):
 
 ```bash
-docker compose --profile workers up -d
+make workers                  # worker + beat'i YENİDEN KURARAK başlatır
+make deploy-check             # konteynerler depodaki kodu mu taşıyor?
 ```
+
+> ⚠️ **`docker compose --profile workers up -d` tek başına yetmez.** Mevcut bir imaj
+> varsa yeniden kurmaz. 13 Ağustos 2026'da beat Faz 1, worker Faz 2 imajıyla koşuyordu;
+> kümeleme/iddia/brifing görevleri hiç zamanlanmadı ve toplanan 29 makalenin 18'i
+> askıda kaldı. Depodaki kod doğruydu, testler yeşildi — kayma **çalışan imajdaydı.**
+> `make workers` `--build` ile kurar ve ardından `deploy-check` koşar.
 
 Yerel geliştirme (Docker olmadan test koşmak için):
 
@@ -129,6 +136,8 @@ Bunlar yorum değil, kodda ve şemada zorlanan sözleşmelerdir:
 | Prompt belgesi ile gönderilen prompt aynı | `tests/test_editorial.py::test_prompt_file_matches_code` |
 | Worker `hashing` embedder'a sessizce düşmez | `docker-compose.yml` (worker `PD_EMBEDDING_*`) + `Dockerfile` `ARG PD_EXTRAS` |
 | Sözlüğe 3 karakterden kısa alias giremez | `tests/test_nlp.py::test_no_short_ambiguous_aliases` |
+| Tanımlanan her Celery görevi zamanlanmış olmalı | `tests/test_tasks.py` (boru hattı sessizce kopmasın) |
+| Çalışan konteyner depodaki kodu taşımalı | `scripts/check_deployment.py` → `make deploy-check` |
 
 Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm artışı gerektirir.
 

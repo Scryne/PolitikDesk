@@ -59,8 +59,14 @@ sources:
       bulletin_index: "https://veriportali.tuik.gov.tr/Bulten/Index"
       bulletin_url_pattern: "https://veriportali.tuik.gov.tr/Bulten/Index?p=<Slug>-<Donem>-<ID>"
     notes: >-
-      RSS YOK. Bülten listesi veriportali.tuik.gov.tr üzerinde dinamik
-      yükleniyor; discover_feeds altındaki JSON ucunu arar.
+      RSS YOK. 13 Ağu 2026 teşhisi (B-42): bülten listesi veriportali'de
+      React SPA olarak yükleniyor; sunucu "JavaScript Gerekli" kabuğu
+      dönüyor. Klasik sitede de sunucu tarafı bülten listesi YOK
+      (/Bulten/Index -> 404, /Kurumsal/Haberler'de bülten bağlantısı yok).
+      Veri servisi https://nsiws.tuik.gov.tr/rest/... (SDMX) ve
+      "Authorization: Bearer" İSTİYOR; belirteç giris.tuik.gov.tr
+      (Keycloak) hesabından alınıyor. KİMLİK BİLGİSİ OLMADAN ÇÖZÜLEMEZ —
+      kullanıcı kararı bekliyor.
       Veri Yayımlama Takvimi F2-18'in girdisidir.
 
   - slug: hazine
@@ -71,17 +77,19 @@ sources:
     access_method: official_feed
     tos_status: allowed
     base_url: "https://www.hmb.gov.tr"
-    feed_url: null
-    adapter: generic_html
-    verified: false                     # 🔎 sayfa JS ile yükleniyor
-    robots_txt: null
+    feed_url: "https://www.hmb.gov.tr/portal/v2/posts"
+    adapter: wp_rest
+    verified: true                      # ✅ B-43 çözüldü (13 Ağu 2026)
+    robots_txt: "User-agent: * / Disallow: (boş) — tüm yollar açık"
     topics: [butce_ve_hazine, kamu_borclanmasi, asgari_ucret_ve_zamlar, derecelendirme]
     produces_scheduled_events: true
-    probe:
-      candidates:
-        - "https://www.hmb.gov.tr/duyurular"
-        - "https://www.hmb.gov.tr/haberler"
-        - "https://www.hmb.gov.tr/rss"
+    notes: >-
+      Duyuru sayfası React uygulaması; sunucu yalnızca "enable JavaScript"
+      kabuğunu döner ve HTML adaptörü 0 öğe üretiyordu (HTTP 200 ile —
+      sessiz arıza). Uygulamayı besleyen uç bir WordPress REST
+      koleksiyonudur: /portal/v2/posts. `link` alanı arka uç konağını
+      (api.hmb.gov.tr) gösterir; genel adres base_url + /duyuru/<slug>
+      ile kurulur.
 
   - slug: resmi-gazete
     name: "Resmî Gazete"
@@ -93,7 +101,7 @@ sources:
     base_url: "https://www.resmigazete.gov.tr"
     feed_url: "https://www.resmigazete.gov.tr/rss"
     adapter: rss
-    verified: false                     # 🔎 sandbox'tan ECONNRESET; yerelde teyit
+    verified: false                     # 🔎 B-44: TLS el sıkışması düşüyor (aşağıya bak)
     robots_txt: null
     topics: [vergi_ve_harclar, asgari_ucret_ve_zamlar]
     produces_scheduled_events: false
@@ -108,6 +116,16 @@ sources:
       - tarife
       - katsayı
       - borçlanma
+    notes: >-
+      13 Ağu 2026 teşhisi (B-44): "bot filtresi" tahmini YANLIŞTI. DNS
+      çözülüyor (212.174.186.1) ve TCP 443 açılıyor, ama sunucu
+      ClientHello'dan hemen sonra bağlantıyı düşürüyor
+      (SSL: UNEXPECTED_EOF_WHILE_READING). Denenip elenenler: TLS 1.2'ye
+      sabitleme, SECLEVEL=1, eski yeniden anlaşma, doğrulama kapatma,
+      www'suz alan adı, Windows schannel + konteyner OpenSSL. Hepsi aynı
+      noktada düşüyor — HTTP katmanına HİÇ ulaşılmıyor, dolayısıyla
+      User-Agent/robots ile ilgisi yok. Ağ/IP düzeyinde engel gibi
+      görünüyor; farklı bir çıkış IP'si (TR) gerektirir.
     notes: >-
       Konu filtresi ZORUNLU: filtresiz ingestion articles tablosunu
       alakasız kayıtla doldurur ve embedding maliyetini boşa harcar.

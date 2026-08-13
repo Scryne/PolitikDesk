@@ -1,12 +1,14 @@
-.PHONY: help setup up down migrate test lint fmt arch verify-arch cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health feeds briefing metrics genbench
+.PHONY: help setup up workers down migrate test lint fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health feeds briefing metrics genbench
 
 help:
 	@echo "PolitikDesk — geliştirme komutları"
 	@echo ""
 	@echo "  make setup        Bağımlılıkları kur (dev dahil)"
 	@echo "  make up           Postgres + Redis + API ayağa kaldır"
+	@echo "  make workers      Worker + beat'i YENİDEN KURARAK ayağa kaldır"
 	@echo "  make migrate      Migration'ları uygula"
 	@echo "  make down         Servisleri durdur"
+	@echo "  make deploy-check Çalışan konteynerler depodaki kodu mu taşıyor?"
 	@echo "  make test         Test paketini koş"
 	@echo "  make lint         ruff + mypy"
 	@echo "  make fmt          ruff format"
@@ -36,7 +38,15 @@ setup:
 up:
 	docker compose up -d db redis
 	docker compose run --rm migrate
-	docker compose up -d api
+	docker compose up -d --build api
+
+# `--build` ZORUNLU. 13 Ağustos 2026'da beat Faz 1 imajıyla, worker Faz 2
+# imajıyla koşuyordu: `up -d` mevcut imaj varsa yeniden kurmaz, bu yüzden
+# yeni görevler (kümeleme, iddia, brifing, metrik) hiç zamanlanmadı ve
+# boru hattı sessizce koptu. `make deploy-check` bu durumu yakalar.
+workers:
+	docker compose --profile workers up -d --build
+	@$(MAKE) --no-print-directory deploy-check
 
 migrate:
 	docker compose run --rm migrate
@@ -60,6 +70,11 @@ arch:
 
 verify-arch:
 	python -m scripts.verify_arch_guard
+
+# Testler kodu denetler, çalışan konteyneri değil. Bu ikisi arasındaki
+# kaymayı yalnızca aşağıdaki denetleyici görür.
+deploy-check:
+	python -m scripts.check_deployment
 
 sync:
 	python -m scripts.ingest sync

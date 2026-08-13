@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -17,8 +18,10 @@ from politikdesk.ingestion.adapters.manual import (
 )
 from politikdesk.ingestion.adapters.official import (
     TuikAdapter,
+    WordPressRestAdapter,
     extract_period_from_title,
     harvest_links,
+    strip_html,
 )
 from politikdesk.ingestion.adapters.rss import MalformedFeed, RssAdapter, parse_feed_date
 from politikdesk.ingestion.dedup import (
@@ -652,3 +655,79 @@ def test_turkish_central_bank_without_explicit_country_stays_in_scope() -> None:
     assert "politika_faizi" in topics.classify(
         "Merkez Bankası faiz kararını açıkladı"
     )
+
+
+# ---------------------------------------------------------------------------
+# B-43 — Hazine: WordPress REST adaptörü
+#
+# Kaynak aylarca HTTP 200 döndürüp 0 öğe üretti: duyuru sayfası bir React
+# uygulaması ve sunucu yalnızca "enable JavaScript" kabuğunu dönüyor.
+# Aşağıdaki testler sessiz arızanın geri gelmemesi içindir.
+# ---------------------------------------------------------------------------
+
+_WP_PAYLOAD = json.dumps(
+    [
+        {
+            "id": 99199,
+            "slug": "agustos-ekim-2026-ic-borclanma-stratejisi",
+            "date_gmt": "2026-07-31T14:10:55",
+            "title": {"rendered": "A&#287;ustos &#8211; Ekim 2026 &#304;&#231; Bor&#231;lanma"},
+            "excerpt": {"rendered": "<p>Strateji &amp; takvim.</p>"},
+            # Arka uç konağı: kullanıcıya GÖSTERİLMEMELİ.
+            "link": "https://api.hmb.gov.tr/2026/07/31/agustos-ekim-2026/",
+        },
+        {"id": 2, "slug": "", "title": {"rendered": "slug yok"}},
+        {"id": 3, "slug": "baslik-yok", "title": {"rendered": ""}},
+    ]
+)
+
+
+def _wp_adapter() -> WordPressRestAdapter:
+    return WordPressRestAdapter(
+        "hazine", api_url="https://example.invalid/portal/v2/posts",
+        base_url="https://www.hmb.gov.tr",
+    )
+
+
+def test_wp_rest_parses_posts() -> None:
+    items = _wp_adapter().parse(_WP_PAYLOAD)
+    assert len(items) == 1
+    item = items[0]
+    assert item.title == "Ağustos – Ekim 2026 İç Borçlanma"
+    assert item.summary == "Strateji & takvim."
+    assert item.published_at == datetime(2026, 7, 31, 14, 10, 55, tzinfo=UTC)
+
+
+def test_wp_rest_builds_public_url_not_backend_link() -> None:
+    """`link` alanı api.hmb.gov.tr'yi gösterir; kullanıcı onu açamaz."""
+    item = _wp_adapter().parse(_WP_PAYLOAD)[0]
+    assert item.url == (
+        "https://www.hmb.gov.tr/duyuru/agustos-ekim-2026-ic-borclanma-stratejisi"
+    )
+    assert "api.hmb.gov.tr" not in item.url
+
+
+def test_wp_rest_guid_is_stable_id_not_slug() -> None:
+    """Slug düzenlenebilir; tekilleştirme kimliği kalıcı `id`'den kurulur."""
+    assert _wp_adapter().parse(_WP_PAYLOAD)[0].guid == "hazine:99199"
+
+
+def test_wp_rest_skips_incomplete_posts() -> None:
+    """Eksik alanlı kayıt atlanır, koleksiyonun tamamı düşmez."""
+    assert len(_wp_adapter().parse(_WP_PAYLOAD)) == 1
+
+
+def test_wp_rest_survives_malformed_payload() -> None:
+    assert _wp_adapter().parse("<html>enable JavaScript</html>") == []
+    assert _wp_adapter().parse('{"code":"rest_no_route"}') == []
+
+
+def test_wp_rest_date_is_utc_aware() -> None:
+    """WordPress `date_gmt` zaman dilimi eki olmadan yazar ama değer UTC'dir."""
+    item = _wp_adapter().parse(_WP_PAYLOAD)[0]
+    assert item.published_at is not None
+    assert item.published_at.tzinfo is not None
+
+
+def test_strip_html_removes_tags_and_entities() -> None:
+    assert strip_html("<p>Faiz &amp; kur   raporu</p>") == "Faiz & kur raporu"

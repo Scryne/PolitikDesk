@@ -16,7 +16,11 @@ from dataclasses import dataclass
 
 from politikdesk.ingestion import guard, repository, topics
 from politikdesk.ingestion.adapters.base import SourceAdapter
-from politikdesk.ingestion.adapters.official import GenericHtmlAdapter, TuikAdapter
+from politikdesk.ingestion.adapters.official import (
+    GenericHtmlAdapter,
+    TuikAdapter,
+    WordPressRestAdapter,
+)
 from politikdesk.ingestion.adapters.rss import RssAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
 from politikdesk.ingestion.http import HttpClient
@@ -47,6 +51,16 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
 
     if adapter_key == "tuik":
         return TuikAdapter(source.slug, http=http)
+
+    if adapter_key == "wp_rest":
+        if not source.feed_url:
+            raise ValueError(f"{source.slug}: wp_rest adaptörü için feed_url gerekli")
+        return WordPressRestAdapter(
+            source.slug,
+            api_url=source.feed_url,
+            base_url=source.base_url or "",
+            http=http,
+        )
 
     if adapter_key == "generic_html":
         candidates = [source.feed_url] if source.feed_url else []

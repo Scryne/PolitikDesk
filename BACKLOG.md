@@ -98,9 +98,9 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-39~~ | ~~"Kanıtsız olayda üretim engeli"nin Spec §14.1 kapsam listesine eklenmesi~~ | İtiraz-5 kozmetik notu | ✅ **Kapandı** — Spec v3.1 §14.1 kalem 15 |
 | ~~B-40~~ | ~~mypy'nin CI'da `continue-on-error` olmaktan çıkarılması~~ | `.github/workflows/ci.yml` | ✅ **Kapandı** — 92 hata temizlendi (`Connection[DictRow]`, `fetch_one`, `TokenUsage`); CI adımı artık zorunlu |
 | ~~B-41~~ | ~~`politikdesk/eval/` boş paketinin kaldırılması~~ | Faz 0 uygulaması | ✅ **Kapandı** — kullanıcı onayıyla silindi |
-| B-42 | TÜİK bülten listesinin JSON ucunun bulunması (sayfa JS ile yükleniyor) | Faz 1 canlı koşum | **Faz 1 — açık** |
-| B-43 | Hazine duyuru akışının bulunması | Faz 1 canlı koşum | **Faz 1 — açık** |
-| B-44 | Resmî Gazete `/rss` bağlantı reddinin çözülmesi (bot filtresi?) | Faz 1 canlı koşum | **Faz 1 — açık** |
+| B-42 | TÜİK bülten listesinin JSON ucunun bulunması (sayfa JS ile yükleniyor) | Faz 1 canlı koşum | 🔴 **KİMLİK BİLGİSİ GEREKİYOR** — 13 Ağu 2026 teşhizi: veriportali React SPA, klasik sitede de sunucu tarafı liste yok (`/Bulten/Index` → 404). Veri servisi `nsiws.tuik.gov.tr/rest/...` (SDMX) **Bearer belirteç** istiyor; belirteç `giris.tuik.gov.tr` (Keycloak) hesabından alınır. **Kullanıcı kararı:** TÜİK hesabı açılsın mı? |
+| ~~B-43~~ | ~~Hazine duyuru akışının bulunması~~ | Faz 1 canlı koşum | ✅ **Kapandı (13 Ağu 2026)** — duyuru sayfası React SPA'ymış; besleyen uç bir **WordPress REST** koleksiyonu: `/portal/v2/posts`. Yeni `wp_rest` adaptörü + 7 test. Canlı: 20 çekildi, **5 saklandı**, 0 hata. `robots.txt` `Disallow:` (boş) |
+| B-44 | Resmî Gazete `/rss` bağlantı reddinin çözülmesi | Faz 1 canlı koşum | 🔴 **AĞ DÜZEYİNDE ENGEL** — "bot filtresi" tahmini **yanlıştı**. DNS ve TCP 443 açılıyor, sunucu ClientHello'dan sonra düşürüyor. TLS 1.2 sabitleme / SECLEVEL=1 / eski yeniden anlaşma / doğrulama kapatma / www'suz alan / iki ayrı TLS yığını — hepsi aynı noktada düşüyor. **HTTP katmanına hiç ulaşılmıyor**, UA veya robots ile ilgisi yok. Farklı çıkış IP'si (TR) gerektirir |
 | B-45 | Reuters'ın düşmesiyle boşalan uluslararası çapraz teyit rolü | Faz 0 F0-08 | Faz 2 sonrası — G2 ölçümüne bağlı |
 | B-46 | Konu filtresinin yanlış-negatif oranının Golden Set ile ölçülmesi | Faz 1: 116 öğenin 106'sı elendi | Faz 2 (F2-16) |
 | ~~B-47~~ | ~~D16: barındırılan adayın (voyage-3) koşulması~~ | `docs/embedding-benchmark.md` | ✅ **Kapandı** — voyage-3 koşuldu, zor AUC 0,782 ile elendi |
@@ -141,6 +141,17 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | B-74 | **B-71'in temiz fikstürle yeniden ölçülmesi.** Mevcut karar (D18) zayıf: kirlenmemiş olaylarda dört adayın da grounding'i %100 ve ölçüm ayırt edemedi | D18 kapsam sınırı | **Faz 4**, B-73'e bağlı |
 | B-75 | **G3 #2/#3 denetimi (50 + 40 taslak).** Veritabanında iddiası olan tek olay var; kapı bu boyutta karara bağlanamaz | Kapı G3 ölçümü | **Faz 4**, B-57'ye bağlı |
 | B-76 | **Brifing 7 gün üst üste (G3 #5).** `beat` zamanlaması kuruldu (08:00/20:00, TZ=Europe/Istanbul); takvim zamanı gerektirir | Kapı G3 koşul 5 | **Faz 4 boyunca** |
+
+---
+
+## Faz 3 sonrası denetimde açılan kalemler (13 Ağustos 2026)
+
+| # | Kalem | Kaynak | Faz |
+|---|---|---|---|
+| ~~B-77~~ | ~~**Bayat imaj arızası.** `pd-beat` Faz 1, `pd-worker` Faz 2 imajıyla koşuyordu; 13 zamanlanmış görevin 5'i vardı. Kümeleme/iddia/kanıt/brifing/metrik hiç koşmadı, 29 makalenin **18'i askıda kaldı**~~ | Faz 3 sonrası denetim | ✅ **Kapandı** — `--build` ile yeniden kuruldu; `make workers`, `make deploy-check`, `scripts/check_deployment.py` (kaymayı kanıtlı yakalıyor), `tests/test_tasks.py` (4 test) |
+| B-78 | **Sessiz kopma alarmı.** Boru hattı bir adımda dursa kimse fark etmiyor. Kaynak sağlığı izleniyor ama *aşama* sağlığı izlenmiyor: "24 saattir kümelenmemiş makale var" gibi bir eşik yok | B-77'nin kök nedeni | **Faz 4 — F4-05 kapsamında** |
+| B-80 | **`source_fetch_log.succeeded` yanıltıcı.** Adaptörler istisnayı içeride yutup `[]` döndürüyor; `Pipeline.run_source` istisna görmediği için kaydı `succeeded=true, 0 öğe` yazıyor. Resmî Gazete'nin TLS hatası logda "başarılı" görünüyor. Sağlık panosu bunu telafi ediyor (0 öğe → kırmızı), yani ürün yanılmıyor — ama **ham kayıt yanlış**. Düzeltme sütunun anlamını değiştirir, mevcut satırları da etkiler | Faz 3 sonrası denetim | **Faz 4 — F4-05 ile birlikte** |
+| B-79 | **`diversity_ratio` = 1,0.** Her iddia `single_source` (R5) veya `unverified` (R0); tek bir `corroborated` yok. Kök neden çapraz teyit edecek bağımsız kaynak yokluğu — 4 T1 kaynağın 2'si hâlâ ölü (B-42, B-44) | Faz 3 sonrası denetim; G4′ #4 hedefi ≥ 2,5 | **Faz 4 — açık**, B-42/B-44'e bağlı |
 
 ---
 
