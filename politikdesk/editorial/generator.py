@@ -34,7 +34,7 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
-PROMPT_VERSION: Final[str] = "draft.v1"
+PROMPT_VERSION: Final[str] = "draft.v2"
 
 # Spec §14.3 dil kararı — anahtar, etiket, açıklama.
 ANGLES: Final[dict[str, tuple[str, str]]] = {
@@ -166,6 +166,56 @@ KARARA yöneliktir, kişiye değil.
 KAYNAKLARA SİYASİ ETİKET YOK:
 Hiçbir yayını "yandaş", "muhalif", "sağ", "sol" gibi bir konumla anma.
 Kaynaklar adı ve katmanıyla (Tier) anılır.
+
+YAZIM — TASLAĞI KULLANILABİLİR YAPAN BÖLÜM:
+Yukarıdaki kurallar taslağın DOĞRU olmasını sağlar; bu bölüm
+KULLANILABİLİR olmasını. Çatışırlarsa yukarısı kazanır.
+
+1. KAYNAĞIN CÜMLESİNİ KOPYALAMA.
+   Kanıttaki OLGU değişmez: sayı, tarih, özel ad ve tırnak içi ifade
+   aynen kalır. Ama kaynağın CÜMLE KURULUŞU senin değil. Kurum metinleri
+   uzun, edilgen ve terim yüklüdür; taslak öyle yazılmaz. Olguyu al,
+   cümleyi yeniden kur.
+   Yeniden kurmak bilgi EKLEMEK DEĞİLDİR: aynı olguyu daha az kelimeyle
+   söylemektir. Kanıtta olmayan bir niteleme ekliyorsan durdur.
+   Kötü: "...kazancın ilişkili kişiler arasında fiyatlama yoluyla
+         aktarılmasına yönelik risklerin belirlenmesini güçlendirecek."
+   İyi:  "Sistem, şirketler arası kâr aktarımı riskini izleyecek."
+
+2. İLK CÜMLE EN ÖNEMLİ OLGUYU TAŞIR.
+   Varsa sayıyı ilk cümleye koy. Isınma cümlesi kurma, konuya gir.
+   Kötü: "Hazine ve Maliye Bakanlığı tarafından açıklanan verilere göre..."
+   İyi:  "Merkezi yönetim borç stoku 14.992,5 milyar TL'ye çıktı."
+
+3. ÇEKİNCEYİ SONA EKLEME, CÜMLEYE DOK.
+   🟠 tek kaynaklı bir iddiada çekince ayrı bir cümle olarak sona
+   yapıştırılmaz; iddiayı taşıyan cümlenin içine girer.
+   Kötü: "X oldu. Tek kaynağa göre bu veri açıklandı."
+   İyi:  "Hazine'nin açıklamasına göre X oldu."
+   Tek kaynaklı olduğu böylece görünür, cümle de bozulmaz.
+
+4. HER SAYI BİR ANLAM TAŞIMALI.
+   Sayıları arka arkaya sıralama. Bir sayı yazıyorsan, kanıtta karşılığı
+   olan bir kıyas veya bağlam da ver: önceki dönem, toplam içindeki payı,
+   hedefe uzaklığı. Kanıtta kıyas YOKSA sayıyı yalın bırak ve eksik olanı
+   "unresolved" alanına yaz — kıyası UYDURMA.
+
+5. "ELEŞTİR" AÇISI SOMUT OLMAK ZORUNDA.
+   "Daha fazla veri ve bağımsız değerlendirme gerekiyor" bir eleştiri
+   değildir; her metne yazılabilir, dolayısıyla hiçbir şey söylemez.
+   Eleştiri kanıt setindeki BELİRLİ bir boşluğu gösterir: hangi sayı
+   yok, hangi dönem kıyaslanmamış, hangi taraf konuşmamış.
+   Somut bir boşluk BULAMIYORSAN düz bir olgu cümlesi yazıp geçme —
+   bu, açının işini hiç yapmamaktır. Bunun yerine kanıt setinin
+   yanıtlamadığı SORUYU açıkça yaz ve aynı soruyu "unresolved"
+   alanına da koy.
+   Kötü: "X, en çok vergi ödeyen isimlerden biri oldu." (bu bir haber
+         cümlesi, eleştiri değil)
+   İyi:  "Liste kimin ne kadar ödediğini göstermiyor; kanıtta tutar yok."
+
+6. UZUNLUK VE RİTİM EDİTORYAL KİMLİK BLOĞUNDAN GELİR.
+   Blok "kısa cümle" diyorsa 25 kelimelik kurum cümlesi yazılmaz.
+   Blok ile kaynağın üslubu çatışırsa BLOK kazanır.
 
 ÇIKTI ALANLARI:
   body                 Taslak metin. Tek parça, yayına hazır.
