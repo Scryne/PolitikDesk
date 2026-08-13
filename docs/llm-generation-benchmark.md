@@ -1,8 +1,8 @@
 # D18 — Taslak üretimi için LLM model seçimi
 
 **Karar:** `nvidia/nemotron-3-super-120b-a12b` (NVIDIA NIM ücretsiz katmanı)
-**Güven düzeyi:** 🟡 **zayıf — ölçüm iki adayı ayıramadı** (aşağıya bakınız)
-**Tarih:** 13 Ağustos 2026
+**Güven düzeyi:** 🟡 zayıf → 🟢 **orta** (B-74 sonrası, aşağıya bakınız)
+**Tarih:** 13 Ağustos 2026 · **B-74 yeniden ölçümü: 13 Ağustos 2026**
 **Araç:** `python -m scripts.generation_benchmark`
 **Bağlam:** B-71 (D17'nin açık bıraktığı kalem) · `docs/llm-model-benchmark.md`
 
@@ -154,6 +154,42 @@ de grounding'i temizdi; ama D17'nin dersi burada da geçerli:
 `gpt-oss-120b` ayrıca var olmayan bir iddia kimliği (`0`) uydurdu —
 tek sözleşme ihlali.
 
+## B-74 — temiz fikstürle yeniden ölçüm (13 Ağustos 2026)
+
+B-73 kapandıktan (19 bölünmüş ondalık onarıldı) sonra kıyaslama yeniden
+koşuldu. Sonuç, bulgu 2'nin teşhisini **doğruladı**:
+
+| Model | Kirli fikstür (B-71) | Temiz fikstür (B-74) | Kanıt dışı sayı |
+|---|---|---|---|
+| `nemotron-3-super` | %88 · 1 ihlal | **%100** | 1 → **0** |
+| `deepseek-v4-flash` | %62 · 3 ihlal | **%100** | 3 → **0** |
+
+**Dört "ihlalin" dördü de fikstür artefaktıydı.** Hiçbiri model
+halüsinasyonu değildi: modeller `918,2` yazıyordu, kanıt metninde virgül
+olmadığı için denetleyici iki ayrı sayı görüyordu.
+
+### Bunun karara etkisi
+
+İki yönü var:
+
+* **Olumlu:** Sayısal grounding artık bu fikstür üzerinde *ölçülebilir*.
+  G3 koşul 2'nin önündeki ölçüm engeli kalktı (örneklem hacmi engeli
+  duruyor — B-57).
+* **Olumsuz:** Ayırt edicilik **daha da azaldı.** Kirli fikstürde
+  grounding iki adayı ayırıyor gibi görünüyordu (%88 vs %62); temizde
+  ikisi de %100. Yani o ayrım gerçek değildi.
+
+Karar yine ikincil ölçütlere dayanıyor, ama ölçüt artık daha keskin:
+**gecikme 25,5 sn vs 85,5 sn (3,4×)** ve operasyonel teklik (çıkarımla
+aynı model). Güven düzeyi bu yüzden 🟡 zayıf → 🟢 orta'ya çekildi:
+karar değişmedi, ama dayanağı artık kirli bir ölçümden değil temiz bir
+ölçümden geliyor.
+
+> `deepseek` 9 çağrının 7'sini tamamladı (2 hata); `nemotron` 9/9.
+> Tamamlama güvenilirliği de aynı yönü gösteriyor.
+
+---
+
 ## Kararın sınırı — bu ölçüm neyi KANITLAMAZ
 
 Bu, D17'den **daha zayıf** bir karardır ve öyle işaretlenmiştir:
@@ -162,8 +198,9 @@ Bu, D17'den **daha zayıf** bir karardır ve öyle işaretlenmiştir:
    denetim ister; bu ölçüm bir *ön eleme*dir, kapı kararı değil.
 2. **Ayırt edici ölçüt ayıramadı** — grounding'de beraberlik var, karar
    gecikmeye dayanıyor. Gecikme önemlidir ama kapının ölçütü değildir.
-3. **Fikstür kirli** (B-73) — sayısal grounding, Golden Set'in bu
-   sürümünde güvenilir ölçülemez.
+   **B-74 bunu pekiştirdi:** temiz fikstürde beraberlik %100–%100.
+3. ~~**Fikstür kirli** (B-73)~~ ✅ **Çözüldü** — B-73 kapandı, B-74
+   yeniden ölçüldü.
 4. **Claude ölçülmedi** (B-67) — `ANTHROPIC_API_KEY` `.env`'de **boş**.
    İki Claude modeliyle koşum denendi ve 18 çağrının 18'i
    `LLMNotConfigured` ile düştü.
@@ -173,7 +210,7 @@ Bu, D17'den **daha zayıf** bir karardır ve öyle işaretlenmiştir:
 ### Kararı yeniden açması gereken durumlar
 
 * Anahtar geldiğinde Claude karşılaştırması (**B-67**)
-* Fikstür düzeltildikten sonra yeniden ölçüm (**B-73 → B-74**)
+* ~~Fikstür düzeltildikten sonra yeniden ölçüm (B-73 → B-74)~~ ✅ yapıldı
 * `nemotron` kapasitesi düşerse: geçiş tek satırdır —
   `PD_LLM_MODEL_GENERATION=deepseek-ai/deepseek-v4-flash-0731`
 

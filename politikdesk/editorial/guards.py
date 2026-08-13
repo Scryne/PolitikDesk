@@ -38,8 +38,10 @@ BlockReason = Literal["no_claims", "no_evidence", "unverified_person_claim"]
 # bloke ederdi. Madde 10'un koruduğu şey "belirli kişilere yönelik
 # SUÇLAMA"dır; bir kişinin kendi tahminini aktarmak suçlama değildir.
 #
-# Bu yorum Spec'te harfiyen yazılı değildir; v3.2'ye işlenmek üzere
-# BACKLOG'a B-72 olarak açıldı.
+# Bu yorum Spec v3.2 §15'e "Madde 10'un kapsamı: tahmin muafiyeti"
+# başlığıyla işlendi (B-72). Muafiyet YALNIZCA tip kısıtından doğan
+# `unverified`'ı kapsar: kanıt yokluğundan `unverified` kalan bir `fact`
+# veya `attribution` iddiası isimli kişi içeriyorsa üretim hâlâ engellenir.
 PERSON_GUARD_EXEMPT_TYPES: Final[frozenset[str]] = frozenset({"prediction"})
 
 # Kapının baktığı durumlar. `contradicted` kasıtlı olarak DIŞARIDA:

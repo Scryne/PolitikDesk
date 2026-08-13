@@ -6,6 +6,10 @@ halde "set geçerli" çıktısı yanıltıcı bir güvence olur.
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 
 from eval.embedding_benchmark import (
@@ -220,3 +224,75 @@ def test_claim_validation_catches_orphan_event_reference() -> None:
 def test_claim_validation_rejects_invalid_status() -> None:
     problems = validate_claims([_claim(expected_status="probably_true")], {"evt-1"})
     assert any("expected_status" in p for p in problems)
+
+
+# ---------------------------------------------------------------------------
+# B-73 — Golden Set kanıt metinlerinde ondalık ayracı
+#
+# Normalleştirme sırasında virgüller düşmüştü ("4 milyar 918 2 milyon").
+# `grounding_check` kanıtta iki ayrı sayı görüyor, modelin DOĞRU okuması
+# ("918,2") uydurma sayılıyordu — yani sayısal grounding bu fikstür
+# üzerinde ölçülemiyordu (bkz. docs/llm-generation-benchmark.md bulgu 2).
+# ---------------------------------------------------------------------------
+
+GOLDEN_CLAIMS = Path(__file__).resolve().parent.parent / "eval" / "golden_claims_v1.jsonl"
+
+# "12 8" gibi YALNIZCA boşlukla ayrılmış iki sayı: kaybolmuş bir ondalık
+# ayracının izi.
+#
+# Türkçe sayı sözcüğüyle kurulan biçimler ("25 bin 993", "4 milyar 918,2
+# milyon") bu kalıba zaten TAKILMAZ, çünkü aradaki sözcük eşleşmeyi böler.
+# Bu yüzden ayrıca bir muafiyet listesi YOK: muafiyet eklemek, "milyar"
+# sözcüğünü gördüğü için gerçek `918 2` hatasını yutuyordu.
+_SPLIT_NUMBER = re.compile(r"\d+\s+\d+")
+
+
+def _golden_evidence() -> list[tuple[str, str, str]]:
+    rows = [
+        json.loads(line)
+        for line in GOLDEN_CLAIMS.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    return [
+        (row["claim_id"], ev["source_slug"], ev["text"])
+        for row in rows
+        for ev in row.get("evidence", [])
+    ]
+
+
+def test_golden_evidence_has_no_split_decimals() -> None:
+    """Kanıt metinlerinde bölünmüş ondalık kalmamalı.
+
+    Kalırsa sayısal grounding ölçümü sessizce anlamsızlaşır: doğru okuyan
+    model ihlal işaretlenir ve G3 #2 yanlış ölçülür.
+    """
+    offenders = [
+        (claim_id, slug, text)
+        for claim_id, slug, text in _golden_evidence()
+        if _SPLIT_NUMBER.search(text)
+    ]
+    assert not offenders, f"Bölünmüş ondalık içeren kanıt metinleri: {offenders}"
+
+
+def test_golden_evidence_decimals_match_normalized_value() -> None:
+    """Kanıttaki sayı, iddianın normalize edilmiş değeriyle uyuşmalı.
+
+    Onarım sırasında virgülün YANLIŞ yere konması (7,6 yerine 76) bu
+    testle yakalanır — fikstür kendi kendini doğrular.
+    """
+    rows = [
+        json.loads(line)
+        for line in GOLDEN_CLAIMS.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    checked = 0
+    for row in rows:
+        normalized = row.get("normalized_value")
+        if not normalized or normalized.get("unit") != "%":
+            continue
+        # İşaret normalize değerde taşınır ("-1.4"); metinde "geriledi" der.
+        needle = f"{abs(normalized['value'])}".replace(".", ",")
+        texts = " ".join(ev["text"] for ev in row.get("evidence", []))
+        if needle in texts:
+            checked += 1
+    assert checked >= 5, f"Yalnızca {checked} iddiada kanıt–değer eşleşmesi doğrulanabildi"

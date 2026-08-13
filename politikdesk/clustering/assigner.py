@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
 
+from politikdesk.clustering.indicators import indicators_conflict
 from politikdesk.clustering.numeric_guard import NumericConflict, find_conflicts
 from politikdesk.nlp.entities import jaccard
 
@@ -89,8 +90,9 @@ class CandidateTrace:
     shared_key_entities: tuple[str, ...]
     outcome: Literal[
         "accepted", "review", "below_t_low", "time_reject", "entity_reject",
-        "entity_unverified",
+        "entity_unverified", "indicator_reject",
     ]
+    indicator_conflict: bool = False
 
     @property
     def entity_ok(self) -> bool:
@@ -162,11 +164,17 @@ def decide(
     """Bir makaleyi aday olaylardan birine atar ya da yeni olay yaratır.
 
     Sıra (Spec §11.4):
-      1. Kısıtlar (zaman, varlık) — benzerlik tek başına yetmez
+      1. Kısıtlar (zaman, varlık, gösterge) — benzerlik tek başına yetmez
       2. sim >= T_HIGH  -> otomatik atama
       3. sim >= T_LOW   -> geçici atama + insan denetim kuyruğu
       4. hiçbiri        -> yeni olay
       5. Sayısal çelişki (F2-03) -> atama korunur, `needs_review` işaretlenir
+
+    **Gösterge kısıtı (B-62)** bir *reddetme*dir, bayrak değil: sanayi
+    üretimi ile dış ticaret endeksi aynı olay değildir, benzerlikleri ne
+    olursa olsun. Sayısal çelişkiden farkı budur — orada hangi değerin
+    doğru olduğu bilinmez (insan bakar), burada iki konunun ayrı olduğu
+    kesindir.
 
     Varlık kısıtı uygulanamıyorsa (bir taraf varlıksız) atama yalnızca
     T_HIGH üstünde ve **denetim kuyruğuyla** yapılır — bkz. `_entity_check`.
@@ -181,11 +189,17 @@ def decide(
     for cand in candidates:
         time_ok = _time_ok(article, cand, th.time_window_hours)
         verdict, score, shared_key = _entity_check(article, cand, th.jaccard_min)
+        # B-62: aynı kurumun aynı gün yayımladığı FARKLI gösterge ayrı
+        # olaydır. Bu bir benzerlik sorunu değil konu sorunudur; bu yüzden
+        # eşiklerden ÖNCE, bir kısıt olarak uygulanır.
+        indicator_clash = indicators_conflict(article.text, cand.text_sample)
 
         if not time_ok:
             outcome: str = "time_reject"
         elif verdict == "reject":
             outcome = "entity_reject"
+        elif indicator_clash:
+            outcome = "indicator_reject"
         elif verdict == "inconclusive":
             # Kısıt doğrulanamadı: yalnızca T_HIGH üstünde ve insan onayıyla.
             if cand.similarity >= th.t_high:
@@ -214,6 +228,7 @@ def decide(
                 entity_jaccard=score,
                 shared_key_entities=shared_key,
                 outcome=outcome,  # type: ignore[arg-type]
+                indicator_conflict=indicator_clash,
             )
         )
 

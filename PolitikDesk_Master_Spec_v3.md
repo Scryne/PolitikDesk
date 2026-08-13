@@ -1,5 +1,5 @@
 # PolitikDesk
-## Nihai Ürün Spesifikasyonu — v3.1 (Master Spec)
+## Nihai Ürün Spesifikasyonu — v3.2 (Master Spec)
 ### AI Political Intelligence & Editorial Workspace
 
 ---
@@ -7,12 +7,12 @@
 | | |
 |---|---|
 | **Doküman türü** | Nihai ürün spesifikasyonu — kararların *verildiği* belge |
-| **Sürüm** | 3.1 |
-| **Tarih** | 11 Ağustos 2026 (v3.0) · **12 Ağustos 2026 (v3.1)** |
+| **Sürüm** | 3.2 |
+| **Tarih** | 11 Ağustos 2026 (v3.0) · 12 Ağustos 2026 (v3.1) · **13 Ağustos 2026 (v3.2)** |
 | **Önceki sürümler** | `PROJE FİKİR RAPORU.md` (v1, vizyon) → `PolitikDesk_Konsolide_Proje_Raporu.md` (eleştirel konsolidasyon) → `PolitikDesk_Proje_Raporu_v2.md` (daraltılmış kapsam) |
 | **Eşlik eden belge** | `PolitikDesk_Yol_Haritasi_v1.md` (faz-faz uygulama planı) |
-| **Statü** | 🔒 **DONDURULDU** — `spec-v3.1` (F0-02). D1–D15 değiştirmek için yazılı gerekçe + sürüm artışı gerekir (Bölüm 17). |
-| **Değişiklik gerekçesi** | `docs/karar-itirazlari.md` — D1–D15'in madde madde denetimi. v3.1'e taşıyan itirazlar: İtiraz-4 (D8), İtiraz-7 (D9), İtiraz-3 (D11), İtiraz-1 (D14). |
+| **Statü** | 🔒 **DONDURULDU** — `spec-v3.2`. D1–D15 değiştirmek için yazılı gerekçe + sürüm artışı gerekir (Bölüm 17). |
+| **Değişiklik gerekçesi** | `docs/karar-itirazlari.md` — D1–D15'in madde madde denetimi. v3.1'e taşıyan itirazlar: İtiraz-4 (D8), İtiraz-7 (D9), İtiraz-3 (D11), İtiraz-1 (D14). v3.2: B-55, B-62, B-66, B-72 (uygulama bulguları). |
 
 ---
 
@@ -53,6 +53,25 @@ P1'in kod hâli listede görünmeliydi.
 > somut çelişkilerdir. Faz 2'ye taşınsalardı kural motorunun ve şemanın yeniden
 > yazılmasını gerektirirdi — Spec'in kendi deyimiyle *"yanlış kurulursa 6. ayda
 > baştan yazılır"* durumu.
+
+### v3.2 — Faz 2–3 canlı koşumlarının Spec'e işlenmesi
+
+v3.1 gibi bu sürüm de yeni bir şey *tasarlamaz*; kodun canlı veride
+karşılaştığı ve zaten çözdüğü dört durumu belgeye taşır. Üçü Spec'in
+**tanımsız bıraktığı** boşluklardı ve harfiyen uygulandıklarında ürünü
+bloke ediyorlardı.
+
+| # | Ne değişti | Neden | Nerede |
+|---|---|---|---|
+| 1 | §11.4 varlık kısıtına **boş küme davranışı** yazıldı: bir taraf varlıksızsa kısıt *uygulanamaz*, reddetmez | Harfiyen `jaccard(∅,∅)=0` reddediyordu. İlk canlı koşumda 11 makalenin 6'sı varlıksızdı; 0,9997 benzerlikli iki makale yalnızca bu yüzden ayrı düştü. Boş küme çelişki kanıtı değil, kanıt yokluğudur. (B-55) | §11.4 |
+| 2 | §11.4'e **gösterge kısıtı** eklendi: aynı kurumun aynı gün yayımladığı farklı göstergeler ayrı olaydır | `docs/FAZ2-DURUM.md` bulgu 3: kalan kümeleme precision açığının **tamamı** bu aileden geliyordu. TÜİK'in sanayi üretimi ile dış ticaret endeksi bültenleri tek olaya birleşiyordu. Ölçülen etki: pairwise precision 0,875 → **1,000**, false merge 0,026 → **0,000**, recall değişmedi. (B-62) | §11.4 |
+| 3 | §15 madde 10'a **tahmin muafiyeti** yazıldı | R0 gereği her `prediction` iddiası `unverified`'dır; madde harfiyen uygulanınca **her olayda** üretim bloke oluyordu. Maddenin koruduğu şey suçlamadır, bir kişinin kendi tahminini aktarmak değil. (B-72) | §15 |
+| 4 | §14.1 ve G4 **tek kullanıcılı kapsama** göre güncellendi | 12 Ağu 2026'da proje tek kullanıcılı kişisel araç olarak kararlaştırıldı; G4'ün 11 koşulundan 7'si gerçek beta kullanıcısı gerektiriyordu ve **hiçbir zaman ölçülemez** hale gelmişti. Ölçülemeyen koşul kapı değildir. (B-66) | §14.1, §13.2 |
+
+> **Ortak ders.** Dördü de aynı biçimde ortaya çıktı: Spec bir *sınır durumu*
+> tanımsız bıraktı, kod harfiyen uyguladı, canlı veri patladı. Tanımsız
+> bırakılan sınır durumu, yazılı olmayan bir karar değildir — yalnızca
+> **ertelenmiş** bir karardır ve bedelini uygulama öder.
 
 ---
 
@@ -862,9 +881,14 @@ FONKSİYON kumele(article):
       zaman_ok   = |article.published_at - aday.last_update_at| <= 72h
       varlik_ok  = jaccard(article.entities, aday.entity_set) >= 0.25
                    VEYA en az 1 ortak Tier-1 varlık
+                   VEYA "uygulanamaz" (bir taraf varlıksızsa — v3.2)
+      gosterge_ok = article ile aday AYNI göstergeden bahsediyor    # v3.2
+                   (iki taraf da doluysa ve kesişim boşsa → AYRI OLAY)
       sayi_ok    = article'daki sayısal iddialar aday ile çelişmiyor
                    (örn. "faiz %40" vs "faiz %42" → farklı olay olabilir → BAYRAK)
 
+      EĞER DEĞİL gosterge_ok:
+          → aday ELENIR (bayrak değil, ret)
       EĞER sim >= T_HIGH (0.86) VE zaman_ok VE varlik_ok:
           en_iyi = max(en_iyi, (sim, aday))
       DEĞİLSE EĞER sim >= T_LOW (0.78) VE zaman_ok VE varlik_ok:
@@ -882,6 +906,35 @@ FONKSİYON kumele(article):
 - Kullanıcı/admin bir olayı **ayırabilir** (`split`) ve iki olayı **birleştirebilir** (`merge`); her iki işlem `audit_log`'a yazılır.
 - `merged_into_id` sayesinde her birleştirme geri alınabilir.
 - Çelişkili sayısal iddia bayrağı, olayı otomatik `needs_review`'a alır.
+
+#### Varlık kısıtının boş küme davranışı (v3.2)
+
+v3.1 bu durumu tanımlamıyordu ve kısıt harfiyen uygulandığında
+`jaccard(∅, ∅) = 0` olduğu için **reddediyordu.** İlk canlı koşumda 11
+makalenin 6'sında hiç varlık yoktu; 0,9997 benzerlikli iki makale (aynı
+olay) yalnızca bu yüzden ayrı düştü.
+
+**Kural:** Boş küme çelişki kanıtı değil, **kanıt yokluğudur.** En az bir
+taraf boşsa kısıt *uygulanamamış* sayılır (`inconclusive`) ve reddetmez.
+Precision önceliği korunur: uygulanamayan kısıt otomatik atama hakkı
+vermez — atama yalnızca `T_HIGH` üstünde ve **insan denetimiyle** yapılır.
+
+#### Gösterge kısıtı (v3.2)
+
+Aynı kurumun aynı gün yayımladığı **farklı göstergeler ayrı olaydır.**
+TÜİK bir sabah hem sanayi üretimini hem dış ticaret endekslerini açıklar;
+iki metin de aynı kurumdan, aynı tarihli, aynı varlıklara sahip ve gömme
+uzayında komşudur. Benzerlik ve varlık kısıtı ikisini de geçirir.
+
+Bu bir *benzerlik* sorunu değil, bir *konu* sorunudur — bu yüzden kısıt
+bir **ret**tir, bayrak değil. Sayısal çelişkiden farkı: orada hangi
+değerin doğru olduğu bilinmez (insan bakar), burada iki konunun ayrı
+olduğu kesindir.
+
+Boş küme semantiği burada da geçerlidir: bir taraf göstergesizse kısıt
+uygulanamaz ve reddetmez.
+
+Zorlama: `politikdesk/clustering/indicators.py`, `tests/test_clustering.py`.
 
 ### 11.5 LLM kullanım disiplini
 
@@ -984,6 +1037,32 @@ P7'nin uygulanması. **Ölçülemeyen özellik yayına girmez.**
 
 Precision, recall'a tercih edilir: yanlış birleştirme kullanıcıyı yanlış bilgiyle içerik üretmeye götürür; ayrı kalan olay yalnızca rahatsızlık yaratır.
 
+#### MVP çıkış kapısı G4′ (v3.2)
+
+Özgün G4'ün 11 koşulundan **7'si gerçek beta kullanıcısı gerektiriyordu**
+(draft acceptance, edit distance, briefing open rate, oturum sayısı, KVKK
+canlıda, ödeme isteği, 100 kullanıcı izdüşümü). Tek kullanıcılı kapsam
+kararıyla (§14.1) bunlar **hiçbir zaman ölçülemez** hale geldi.
+
+**Ölçülemeyen koşul kapı değildir.** Kapıyı kâğıt üstünde tutmak, Spec'in
+kendi kuralını ("kapıyı düşürmek üçüncü seçenek değildir") içten
+çürütürdü. Yürürlükteki kapı:
+
+| # | Koşul | Hedef |
+|---|---|---|
+| 1 | Uçtan uca akış 7 gün kesintisiz | Feed → olay → taslak → kontrol → kopyala |
+| 2 | Taslakta kanıtta olmayan sayı/tarih | **%0** (50 taslak) — sert kapı, korunur |
+| 3 | Correction rate | ≤ %3 |
+| 4 | Diversity ratio | ≥ 2,5 |
+| 5 | Ölçülen aylık toplam maliyet | ≤ 30 $ |
+| 6 | Kritik hata (P0/P1) | 0 açık |
+| 7 | G2 metrikleri regresyona uğramamış | — |
+| 8 | Yedekleme + geri yükleme denenmiş | Belgelenmiş |
+| 9 | Günlük yedek ve maliyet alarmı çalışıyor | — |
+
+Özgün G4 kayıt için Yol Haritası'nda saklanır; çok kullanıcıya geçilirse
+geri gelir.
+
 ### 13.3 Ürün metrikleri (Faz 3'ten itibaren toplanır)
 
 | Metrik | Tanım | MVP hedefi |
@@ -1036,6 +1115,28 @@ Bu ritüel Faz 2'de başlar ve ürün ömrü boyunca devam eder.
 | 13 | **Editoryal Kimlik Kartı** — 7 soruluk form | DRAFT |
 | 14 | **Admin / Denetim Paneli** — kaynak yönetimi, olay merge/split, eval | (iç araç) |
 | 15 | **Kanıtsız olayda üretim engeli** — yeterli kanıtı olmayan olayda taslak üretimi kod yolu olarak açılmaz | REVIEW (P1) |
+
+#### Kapsam düzeltmesi: tek kullanıcılı araç (v3.2)
+
+12 Ağustos 2026'da proje **tek kullanıcılı kişisel bir araç** olarak
+kararlaştırıldı (`docs/FAZ0-DURUM.md`). Bu kararla yukarıdaki 15 kalem
+değişmez — **MVP'nin işlevsel kapsamı aynıdır** — ama şunlar kapsam
+dışına çıkar:
+
+| Kapsam dışı | Gerekçe |
+|---|---|
+| Çok kullanıcılı veri izolasyonu, davet, kullanıcı ayarları (F4-01…04) | Kullanıcı = geliştirici |
+| KVKK aydınlatma/rıza, veri sahibi hakları, kullanım koşulları (F4-11…14) | Veri sahibi = kullanıcı; hukuk danışmanlığı adımı (F0-10/11) da bu gerekçeyle düştü |
+| Kapalı beta yürütme (F4-17…22) | Beta kullanıcısı yok |
+| Ücretlendirme / ödeme altyapısı | Müşteri yok (D19 geçersiz) |
+
+**İstisna:** Election Mode flag'i (F4-15) ve denetim izi (F4-16) kalır —
+ikisi de tek kullanıcıda da gereklidir.
+
+**MVP artık Faz 3'ün sonunda biter.** Faz 4, yalnızca tek kullanıcılı araç
+için de gerekli olan sertleştirme işlerini (dayanıklılık, yedekleme,
+maliyet tavanı, güvenlik, üretim ortamı) içerir. Bunun kapı karşılığı
+G4′'tür (§13.2).
 
 ### 14.2 MVP'de KESİNLİKLE olmayacaklar
 
@@ -1126,11 +1227,28 @@ Bu liste yalnızca bir etik beyan değil; her maddesi **kod veya şema seviyesin
 | 7 | Sahte hesap/persona oluşturmak veya yönetmek | Ürün tek kullanıcı-tek hesap modeli; çoklu hesap özelliği yok |
 | 8 | Koordineli/toplu paylaşım, trend manipülasyonu | Toplu yayın API'si yok; oran sınırı yok çünkü yayın özelliği yok |
 | 9 | Kişisel/hassas veri üzerinden seçmen hedefleme | Kitle/segment veri modeli mevcut değil |
-| 10 | Belirli kişilere yönelik suçlama üretmek | İsimli kişi hakkında `unverified` iddia varsa taslak üretimi engellenir |
+| 10 | Belirli kişilere yönelik suçlama üretmek | İsimli kişi hakkında `unverified` iddia varsa taslak üretimi engellenir — **`prediction` tipi muaftır** (v3.2, aşağıya bakınız) |
 | 11 | Resmî API dışı platform otomasyonu | Yalnızca Web Intent + pano (9.4) |
 | 12 | Toplu izinsiz scraping | `tos_status='forbidden'` kaynaktan ingestion kod seviyesinde engelli |
 | 13 | Tek sayısal "doğruluk yüzdesi" göstermek | Salience skoru "önem" olarak etiketlenir; doğruluk skoru şemada yok |
 | 14 | Etkileşimi artırmak için gündemi çarpıtmak/sansasyonelleştirmek | Salience formülü kural tabanlı ve şeffaf; "engagement" girdisi içermez |
+
+#### Madde 10'un kapsamı: tahmin muafiyeti (v3.2)
+
+Madde 10 harfiyen uygulandığında **her olayı** bloke ediyordu. Sebep R0'dır:
+`prediction` tipindeki her iddia, kanıt yokluğundan değil **tip kısıtından**
+`unverified`'dır (§8.3). "Bakan X enflasyonun düşeceğini öngördü" cümlesi,
+hakkında hiçbir isnat bulunmayan bir kişi yüzünden üretimi durduruyordu.
+
+**Kural:** Maddenin koruduğu şey belirli kişilere yönelik **suçlamadır**; bir
+kişinin kendi tahminini aktarmak suçlama değildir. Bu yüzden `claim_type =
+'prediction'` olan `unverified` iddialar engelleme sayımına girmez.
+
+Muafiyet **yalnızca tip kısıtından** doğan `unverified`'ı kapsar. Kanıt
+yokluğundan `unverified` kalan bir `fact` veya `attribution` iddiası isimli
+kişi içeriyorsa üretim **hâlâ engellenir** — maddenin asıl hedefi odur.
+
+Zorlama: `politikdesk/editorial/guards.py`, `tests/test_editorial.py`.
 
 ---
 
@@ -1181,6 +1299,7 @@ v2'nin "netleşmesi gereken 10 karar"ı, v3'te verilmiş kararlar olarak:
 |---|---|---|---|
 | 3.0 | 11 Ağu 2026 | D1–D15 verildi | — |
 | **3.1** | **12 Ağu 2026** | D8 (R0 sıralaması), D9 (salience ayrımı), D11 (effort), D14 (maliyet ölçeği) düzeltildi; §14.1'e 15. kalem | `docs/karar-itirazlari.md` |
+| **3.2** | **13 Ağu 2026** | §11.4 boş küme davranışı (B-55) + gösterge kısıtı (B-62); §15 madde 10 tahmin muafiyeti (B-72); §14.1/G4 tek kullanıcılı kapsam (B-66) | `docs/FAZ2-DURUM.md`, `docs/FAZ3-DURUM.md`, `docs/FAZ3-SONRASI-DENETIM.md` |
 
 ---
 

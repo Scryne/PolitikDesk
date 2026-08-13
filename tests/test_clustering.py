@@ -27,6 +27,7 @@ from politikdesk.clustering.centroid import (
     recompute,
     remove_member,
 )
+from politikdesk.clustering.indicators import detect_indicators, indicators_conflict
 from politikdesk.clustering.numeric_guard import extract_numbers, find_conflicts
 
 NOW = datetime(2026, 8, 12, 12, 0, tzinfo=UTC)
@@ -404,3 +405,84 @@ def test_contradicting_entities_are_still_a_hard_reject() -> None:
 def test_verified_constraint_still_assigns_automatically() -> None:
     """Regresyon: normal yol değişmedi."""
     assert decide(_article(), [_candidate(similarity=0.93)]).action == "assign"
+
+
+# ==========================================================================
+# B-62 — gösterge ayırıcısı
+#
+# docs/FAZ2-DURUM.md bulgu 3: kalan precision açığının TAMAMI tek bir hata
+# ailesindendi — aynı kurumun aynı gün yayımladığı farklı göstergeler.
+# Golden Set'te TÜİK'in sanayi üretimi bülteni ile dış ticaret endeksi
+# bülteni tek olaya birleşiyordu.
+# ==========================================================================
+def test_detects_indicator_family_without_any_number() -> None:
+    """Gösterge tespiti sayıya bağlı DEĞİLDİR.
+
+    "TÜİK işsizlik oranını açıkladı" cümlesinde hiç sayı yok ama gösterge
+    bellidir; `numeric_guard` bu cümlede hiçbir şey bulamaz.
+    """
+    assert detect_indicators("TÜİK işsizlik oranını açıkladı") == frozenset({"unemployment"})
+    assert extract_numbers("TÜİK işsizlik oranını açıkladı") == []
+
+
+def test_different_indicators_conflict() -> None:
+    assert indicators_conflict(
+        "Sanayi üretimi verileri aylık arttı, yıllık geriledi",
+        "TÜİK haziran ayı dış ticaret endekslerini açıkladı",
+    )
+
+
+def test_same_indicator_does_not_conflict() -> None:
+    assert not indicators_conflict(
+        "Sanayi üretimi Haziran'da yıllık yüzde 1,4 azaldı",
+        "Sanayi üretimi verileri aylık arttı, yıllık geriledi",
+    )
+
+
+def test_empty_indicator_side_never_conflicts() -> None:
+    """Boş küme kanıt yokluğudur, çelişki kanıtı değildir (Spec §11.4 dersi).
+
+    Aksi halde sözlüğün tanımadığı her makale sonsuza dek tek başına
+    kalırdı — `_entity_check`'te aynı hata bir kez yapılmıştı.
+    """
+    assert not indicators_conflict("Sanayi üretimi arttı", "TÜİK verilerini açıkladı")
+    assert not indicators_conflict("", "Sanayi üretimi arttı")
+
+
+def test_indicator_clash_blocks_assignment_despite_high_similarity() -> None:
+    """Asıl regresyon testi: benzerlik yüksek olsa bile ayrı olay.
+
+    Bu çift Golden Set'te 0,9+ benzerlikle aynı olaya düşüyordu.
+    """
+    article = _article(
+        text="Sanayi üretimi Haziran'da yıllık yüzde 1,4 azaldı",
+        entities=frozenset({"Türkiye İstatistik Kurumu"}),
+        key_entities=frozenset({"Türkiye İstatistik Kurumu"}),
+    )
+    candidate = _candidate(
+        similarity=0.97,
+        text_sample="TÜİK haziran ayı dış ticaret endekslerini açıkladı",
+        entities=frozenset({"Türkiye İstatistik Kurumu"}),
+        key_entities=frozenset({"Türkiye İstatistik Kurumu"}),
+    )
+    result = decide(article, [candidate])
+    assert result.action == "create"
+    assert result.trace[0].outcome == "indicator_reject"
+    assert result.trace[0].indicator_conflict is True
+
+
+def test_same_indicator_still_assigns_at_high_similarity() -> None:
+    """Kısıt yalnızca AYIRIR; aynı göstergede kümelemeyi bozmamalı."""
+    article = _article(text="Sanayi üretimi Haziran'da yıllık yüzde 1,4 azaldı")
+    candidate = _candidate(
+        similarity=0.95,
+        text_sample="Sanayi üretimi verileri aylık arttı, yıllık geriledi",
+    )
+    result = decide(article, [candidate])
+    assert result.action == "assign"
+    assert result.trace[0].indicator_conflict is False
+
+
+def test_indicator_detection_is_case_and_diacritic_aware() -> None:
+    """Türkçe tuzağı: 'İŞSİZLİK' ile 'işsizlik' aynı köke inmeli."""
+    assert detect_indicators("İŞSİZLİK ORANI") == detect_indicators("issizlik orani")

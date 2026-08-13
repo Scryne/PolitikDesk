@@ -202,7 +202,92 @@ P1 kapısı canlı denendi: kanıtsız olayda taslak isteği **HTTP 409**.
 
 ---
 
-## 8. Fazın dersi
+## 8. İkinci tur — açık kalemlerin kapatılması (aynı gün)
+
+Denetimden sonra, veri/kimlik bilgisi beklemeyen tüm backlog kalemleri
+kapatıldı.
+
+### B-62 — gösterge ayırıcısı · **G2 #1'i açtı**
+
+`docs/FAZ2-DURUM.md` bulgu 3'ün öngörüsü doğrulandı: kalan precision
+açığının **tamamı** tek bir hata ailesindenmiş. Golden Set'te TÜİK'in
+sanayi üretimi bülteni ile dış ticaret endeksi bülteni tek olaya
+düşüyordu (0,9+ benzerlik, aynı varlıklar, aynı gün).
+
+`clustering/indicators.py`: metinden **gösterge ailesi** çıkarır ve iki
+taraf da doluysa kesişimin boş olmasını bir **ret** sebebi sayar. Sayısal
+çelişkiden farkı bilinçli — orada hangi değerin doğru olduğu bilinmez
+(insan bakar), burada iki konunun ayrı olduğu kesindir.
+
+| Metrik | Önce | Sonra | G2 hedefi |
+|---|---|---|---|
+| Pairwise precision | 0,875 ❌ | **1,000** ✅ | ≥ 0,90 |
+| Pairwise recall | 0,824 | **0,824** ✅ | ≥ 0,80 |
+| F1 | 0,848 | **0,903** | — |
+| False merge | 0,026 | **0,000** ✅ | ≤ 0,05 |
+| Karışık küme | 1 | **0** | — |
+
+**Recall hiç düşmedi.** Kısıt yalnızca ayırıyor; aynı göstergede
+kümelemeye dokunmuyor. Boş küme semantiği `_entity_check`'ten
+devralındı: göstergesiz metin reddetmez.
+
+### B-73 / B-74 — fikstür kirliliği ve yeniden ölçüm
+
+19 bölünmüş ondalık onarıldı (`4 milyar 918 2 milyon` →
+`918,2 milyon`). Her onarım `claim_text`/`normalized_value` ile teyit
+edildi — kör regex değil, açık eşleme. `15 24 yas` bilerek kısa çizgi
+aldı: yaş aralığı, ondalık değil.
+
+Yeniden ölçüm bulgu 2'nin teşhisini doğruladı:
+
+| Model | Kirli fikstür | Temiz fikstür | Kanıt dışı sayı |
+|---|---|---|---|
+| `nemotron-3-super` | %88 | **%100** | 1 → **0** |
+| `deepseek-v4-flash` | %62 | **%100** | 3 → **0** |
+
+**Dört "ihlalin" dördü de fikstür artefaktıymış** — hiçbiri model
+halüsinasyonu değil. Yan etki: ayırt edicilik azaldı (ikisi de %100), yani
+kirli fikstürdeki %88–%62 farkı gerçek değilmiş. D18 kararı gecikmeye
+dayanıyor (25,5 sn vs 85,5 sn) ve güveni 🟡 zayıf → 🟢 orta'ya çekildi.
+
+### Spec v3.2 — üç tanımsız sınır durumu yazıldı
+
+| Kalem | Ne yazıldı |
+|---|---|
+| B-55 | §11.4 varlık kısıtının **boş küme** davranışı: kanıt yokluğu ≠ çelişki kanıtı; kısıt uygulanamaz sayılır, reddetmez |
+| B-62 | §11.4 **gösterge kısıtı** |
+| B-72 | §15 madde 10 **tahmin muafiyeti** — muafiyet yalnızca *tip kısıtından* doğan `unverified`'ı kapsar; kanıt yokluğundan `unverified` kalan `fact`/`attribution` hâlâ engeller |
+| B-66 | §14.1 tek kullanıcılı kapsam + §13.2 **G4′** |
+
+> **Ortak ders.** Dördü de aynı biçimde ortaya çıktı: Spec bir sınır
+> durumu tanımsız bıraktı, kod harfiyen uyguladı, canlı veri patladı.
+> Tanımsız bırakılan sınır durumu yazılmamış bir karar değildir —
+> **ertelenmiş** bir karardır ve bedelini uygulama öder.
+
+### B-68 — ücretsiz katman: kısmen ölçüldü
+
+* **Günlük tur yetiyor:** 17 olayda iddia çıkarımı → 29 iddia, **0 hata**, 0 $.
+* **Kıyaslama yetmiyor:** 4 model paralel koşulunca 429 seli; `glm-5.2`
+  9 çağrının 7'sini kaybetti. Aynı kıyaslama 2 modelle koşulunca **0**
+  rate-limit.
+
+Sınır **eşzamanlılıkta**, günlük hacimde değil. Aylık kota tavanı hâlâ
+ölçülmedi.
+
+### Kapatılamayanlar ve sebepleri
+
+| Kalem | Neden kapanmadı |
+|---|---|
+| B-57, B-75, B-52 | Veri hacmi — 300 makale gerekiyor, 37 var |
+| B-42, B-44 | Dış engel: TÜİK Bearer belirteç ister, Resmî Gazete TLS düşürüyor |
+| B-61 | Resmî takvimler okunamıyor: TÜİK JS duvarı (B-42 ile aynı kök), TCMB PPK sayfası 404 |
+| B-67 | `ANTHROPIC_API_KEY` boş |
+| B-59, B-76 | Takvim zamanı (3 hafta / 7 gün) |
+| B-60, B-63, B-69 | Faz 4'e bırakıldı — tasarım kararı gerektiriyor, acil değil |
+
+---
+
+## 9. Fazın dersi
 
 Faz 2'de eval koşucusu kanıt motorunda hata buldu. Faz 3'te üretim
 kıyaslaması grounding doğrulayıcısında hata buldu. Bu denetimde de aynı
