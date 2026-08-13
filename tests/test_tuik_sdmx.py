@@ -225,7 +225,36 @@ def test_every_tracked_indicator_is_uniquely_pinned() -> None:
         seen.add(fingerprint)
 
 
-def test_adapter_is_registered() -> None:
-    from politikdesk.ingestion.adapters.base import registry
+def test_pipeline_resolves_the_adapter_for_a_tuik_sdmx_source() -> None:
+    """`adapter: tuik_sdmx` yazan kaynak satırı bu sınıfa çözümlenmeli.
 
-    assert registry.get("tuik_sdmx") is TuikSdmxAdapter
+    ⚠️ Bu test bilinçli olarak `registry`'yi DEĞİL `build_adapter`'ı
+    denetler. `adapters/base.py` "yeni adaptör eklemek yalnızca kayda bir
+    satır eklemeyi gerektirir" diyor ama bu doğru değil: `registry.get()`
+    üretimde hiçbir yerden çağrılmıyor, `build_adapter` açık if
+    dallarıyla çözümlüyor (her adaptörün kurucu argümanları farklı).
+
+    Kayda bakan bir test yeşil yanar ve hiçbir şey kanıtlamaz — nitekim
+    canlı konteynerde `registry.keys()` yalnızca `['fake']` döndürüyor,
+    çünkü kayıt yalnızca modül import edilirse oluşuyor. Boru hattının
+    gerçekten kullandığı yol budur.
+    """
+    from politikdesk.ingestion.pipeline import build_adapter
+    from politikdesk.ingestion.repository import SourceRow
+
+    source = SourceRow(
+        id=1, slug="tuik", name="TÜİK", tier=1, kind="official",
+        independence_group="official-tuik", access_method="api",
+        tos_status="allowed", adapter="tuik_sdmx",
+        base_url="https://www.tuik.gov.tr",
+        feed_url="https://nsiws.tuik.gov.tr/rest",
+        extra_feeds=[], keyword_filter=[], topics=[],
+        is_active=True, is_wire_reference=False,
+    )
+
+    adapter = build_adapter(source)
+    try:
+        assert isinstance(adapter, TuikSdmxAdapter)
+        assert adapter.slug == "tuik"
+    finally:
+        adapter.close()

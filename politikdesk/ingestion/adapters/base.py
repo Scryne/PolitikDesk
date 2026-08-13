@@ -85,9 +85,20 @@ class SourceAdapter(Protocol):
 class AdapterRegistry:
     """`adapter` alanına göre adaptör sınıfı çözümler.
 
-    `config/sources.yml` içindeki `adapter: rss` gibi bir değer, burada
-    kayıtlı bir fabrikaya eşlenir. Yeni bir adaptör türü eklemek, yalnızca
-    bu kayda bir satır eklemeyi gerektirir.
+    ⚠️ **Üretimde kullanılan yol bu DEĞİLDİR.** `registry.get()` hiçbir
+    yerden çağrılmıyor; `ingestion/pipeline.py::build_adapter` açık if
+    dallarıyla çözümlüyor — çünkü her adaptörün kurucu argümanları farklı
+    (RSS `feed_url` + `keyword_filter` ister, `tuik_sdmx` kendi HTTP
+    istemcisini kurar, `wp_rest` `base_url` ister). Genel bir fabrika
+    bunları veremez.
+
+    Kayıt yine de tutuluyor çünkü hangi adaptör türlerinin var olduğunu
+    tek yerde listeliyor. Ama **yeni adaptör eklemek için kayda satır
+    eklemek YETMEZ** — `build_adapter`'a da dal eklenmelidir. Eskiden bu
+    belge "yalnızca bir satır yeter" diyordu; canlı koşumda kaydın
+    konteynerde `['fake']`'ten ibaret olduğu görüldü (kayıt yalnızca
+    modül import edilirse oluşuyor) ve boru hattı yine de çalıştı,
+    çünkü kayda hiç bakmıyor (F5-02 denetimi).
     """
 
     def __init__(self) -> None:
