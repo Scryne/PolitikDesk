@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from politikdesk.clustering.centroid import recompute
-from politikdesk.db import connection
+from politikdesk.db import connection, fetch_one
 from politikdesk.nlp.embedder import to_pgvector
 from politikdesk.observability import get_logger
 
@@ -281,7 +281,7 @@ def split_event(source_event_id: int, article_ids: list[int]) -> SplitResult:
 
         cur.execute("SELECT count(*) AS n FROM articles WHERE event_id = %s",
                     (source_event_id,))
-        if cur.fetchone()["n"] == len(rows):
+        if fetch_one(cur)["n"] == len(rows):
             raise MergeError(
                 "Bir olayın TÜM makaleleri bölünemez — sonuç boş bir olay olurdu."
             )
@@ -296,7 +296,7 @@ def split_event(source_event_id: int, article_ids: list[int]) -> SplitResult:
             """,
             (seed["title"], seed["excerpt"], event["vertical"], seed["at"], seed["at"]),
         )
-        new_event_id = cur.fetchone()["id"]
+        new_event_id = fetch_one(cur)["id"]
 
         moved = tuple(r["id"] for r in rows)
         cur.execute(

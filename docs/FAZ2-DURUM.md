@@ -1,7 +1,7 @@
 # Faz 2 — Durum Panosu
 
 **Faz:** Olay Zekâsı · **Plan:** W8–W12 · 25 PD
-**Son güncelleme:** 12 Ağustos 2026
+**Son güncelleme:** 12 Ağustos 2026 (akşam: doğrulama denetimi)
 
 > **Fazın felsefesi:** Bu fazda hiçbir şey "iyi çalışıyor gibi" duruyor diye
 > kabul edilmez. Her bileşen Golden Set'e karşı sayısal olarak ölçülür.
@@ -36,9 +36,9 @@ koşumunda kanıt motorunda gerçek bir hata yakaladı ve eşik kalibrasyonu
 
 | ID | Görev | Durum | Çıktı |
 |---|---|---|---|
-| F2-06 | İddia çıkarım promptu + şema | ✅ | `nlp/claims.py`, `prompts/claims.v1.md` |
-| F2-07 | İddia tipi sınıflandırma | 🟡 | Kod + şema hazır; **%90 DoD ölçümü canlı koşum bekliyor** |
-| F2-08 | Sayısal değer normalizasyonu | ✅ | 21 metrik, ISO dönem doğrulaması; eval: **1,000** |
+| F2-06 | İddia çıkarım promptu + şema | ✅ | `nlp/claims.py`, `prompts/claims.v2.md` — belge/kod eşitliği artık testle korunuyor |
+| F2-07 | İddia tipi sınıflandırma | 🟡 | **Canlı koşuldu** (13 Ağu, D17 modeli): 9 olay, 0 hata, alıntı sadakati %100. %90 DoD'nin *sayısal* ölçümü hâlâ Golden Set hacmine bağlı (B-57) |
+| F2-08 | Sayısal değer normalizasyonu | ✅ | 21 metrik, ISO dönem doğrulaması (yarıyıl dahil); eval: **1,000** |
 | F2-09 | İddia tekilleştirme | ✅ | Sayısal iddiada imza = normalize değer |
 | F2-10 | Kanıt eşleme + alıntı doğrulama | ✅ | `verify_quote` — uydurma alıntı reddediliyor |
 
@@ -127,15 +127,55 @@ Spec §11.4'ün tahminleri (0,86 / 0,78) Golden Set üzerinde false merge
 
 Ayrıntı ve tarama tabloları: `eval/threshold_report.md`.
 
-### 3. Kalan precision açığının tamamı varlıksız makalelerden geliyor
+### 3. ~~Kalan precision açığının tamamı varlıksız makalelerden geliyor~~ — **bu teşhis yanlıştı**
 
-55 makalenin **21'inde** (%38) tanınan varlık yok. Bu makalelerde varlık
-kısıtı uygulanamıyor (`inconclusive` yolu) ve precision'ı taşıyan tek
-şey benzerlik kalıyor.
+> **Düzeltme (12 Ağustos 2026, akşam denetimi).** B-56 uygulandıktan sonra
+> ölçüldü: teşhis tutmuyor. Aşağıdaki özgün metin kayıt için bırakıldı.
 
-Eşik ayarıyla kapatılacak bir açık değil: varlık sözlüğü kapsamı sorunu
-(B-56). Bakanlıklar, kurullar ve şirket adları sözlüğe girdiğinde
-`inconclusive` yolu boşalır.
+Özgün teşhis şuydu: *55 makalenin 21'inde (%38) tanınan varlık yok; bu
+makalelerde varlık kısıtı uygulanamıyor (`inconclusive` yolu) ve
+precision'ı taşıyan tek şey benzerlik kalıyor. Varlık sözlüğü kapsamı
+(B-56) genişletilirse `inconclusive` yolu boşalır.*
+
+**Ölçülen sonuç.** Sözlük 20 → 48 kuruma çıkarıldı (bakanlıklar,
+düzenleyici kurullar, kamu bankaları). Varlıksız oran %38 → **%29**'a
+indi. Kümeleme metrikleri **hiç değişmedi**:
+
+| | B-56 öncesi | B-56 sonrası |
+|---|---|---|
+| Pairwise precision | 0,875 | 0,875 |
+| Recall | 0,824 | 0,824 |
+| False merge | 0,026 | 0,026 |
+| Denetime düşen | 7/55 | 7/55 |
+
+**Gerçek kök neden.** Yanlış eşleşen 4 çiftin tamamı **tek bir karışık
+kümeden** (küme 26) geliyor ve varlıksızlıkla ilgisi yok:
+
+```
+"TÜİK haziran ayı dış ticaret endekslerini açıkladı"     [varlık VAR: TÜİK]
+"Sanayi Üretimi Haziran'da yıllık yüzde 1,4 azaldı"      [aynı olay değil]
+```
+
+İkisi de TÜİK'in **aynı gün** yayımladığı **farklı göstergeye** ait
+bültenler. Varlık kümeleri **özdeş** olduğu için varlık kısıtı bunları
+ayıramaz — sözlüğü ne kadar genişletirsek genişletelim ayıramaz. Bu,
+`docs/embedding-benchmark.md`'de tanımlanan **şablonlu resmî duyuru
+ailesidir** (B-49): metin de varlıklar da aynıdır.
+
+Doğru ilaç sözlük değil, **gösterge (metrik) ayırıcısıdır**: iki makale
+farklı metrik taşıyorsa (dış ticaret endeksi ≠ sanayi üretimi) bu ayrı
+olay kanıtıdır. `clustering/numeric_guard.py` metrik sözlüğü zaten var
+ama şu an yalnızca *çelişki* işaretliyor, *ayırma* yapmıyor. Yeni kalem:
+**B-62**.
+
+**Yine de sistem doğru davranıyor:** bu 4 çiftin **dördü de denetim
+kuyruğunda.** Otomatik precision 1,000 kalıyor — sistem bunu iddia
+etmiyor, soruyor.
+
+**B-56 neden yine de tutuldu:** varlık kapsamı salience'ın
+`varlik_onemi` bileşenini ve gelecekteki veride `varlik_ok` kısıtını
+besliyor; hiçbir regresyon üretmedi. Ama *precision açığının kök nedeni
+değildi.*
 
 ### 4. Ölçümün kendisi iki farklı soruyu ayırmalı
 
@@ -163,6 +203,25 @@ takvim   : 17 kayıt yüklendi
 
 Bağlam bağı doğru: Enflasyon Raporu 2026-III → 2026-II (`same_thread`).
 
+> ⚠️ **Bu koşum `hashing` embedder ile yapılmıştı.** B-53 sonrası e5 ile
+> yeniden koşuldu — aşağıya bakınız.
+
+### e5 ile yeniden koşum (B-53, 12 Ağustos 2026 akşamı)
+
+```
+kümeleme : {'processed': 11, 'assigned': 2, 'created': 9, 'needs_review': 1, 'errors': 0}
+kanıt    : {'claims_scored': 0, 'events_scored': 9, 'errors': 0}
+bağlam   : {'events_processed': 9, 'relations_created': 1}
+```
+
+e5, hashing'in ayıramadığı bir çifti doğru birleştirdi (10 olay → **9**)
+ve belirsiz bir atamayı denetim kuyruğuna gönderdi. Bağlam bağı aynı ve
+doğru: Enflasyon Raporu 2026-III → 2026-II, benzerlik **0,953**.
+
+Bu koşum **gizli bir Faz 2 hatasını ortaya çıkardı** (aşağıdaki tabloda
+4 numara): `same_thread` eşiği hashing'in düşük benzerlik dağılımıyla
+"çalışıyor gibi" duruyordu.
+
 Merge/split geri alınabilirliği canlı doğrulandı: merge → undo → split →
 undo turunda tüm durum bit düzeyinde geri geldi, her adımda merkez
 `mean(members)` ile tutarlı kaldı.
@@ -171,6 +230,7 @@ undo turunda tüm durum bit düzeyinde geri geldi, her adımda merkez
 
 | # | Hata | Belirti | Düzeltme |
 |---|---|---|---|
+| 4 | **`same_thread` eşiği (0,80) kalibrasyondan sonra güncellenmemiş** | e5'e geçince 9 olay **22** bağ üretti — "Ulaştırma yatırımı" ↔ "AR-GE harcaması" 0,884 | Eşik `cluster_t_high`'tan türetiliyor; 22 → **1** bağ (B-65) |
 | 1 | **`SET LOCAL hnsw.ef_search = %s` çalışmıyor** | 11 makalenin 11'i düştü | Postgres'te `SET` bind parametresi kabul etmez → `set_config(...)` |
 | 2 | **Varlıksız makaleler hiç kümelenemiyor** | 0,9997 benzerlikli aynı olay ayrı düştü | `jaccard(∅,∅)=0`; kısıt üç durumlu yapıldı |
 | 3 | **Ajans ile grup kopyası ayrı sayılıyor** | `gc-024` eval uyuşmazlığı | Yayın grubu önceliği (yukarıda) |
@@ -236,11 +296,12 @@ kodla kapatılamaz. Ritüelin aracı hazır (`/admin/review/`).
 
 ## Kalan iş
 
-| İş | Efor | Not |
+| İş | Efor | Durum |
 |---|---|---|
-| Golden Set'i 300 makaleye çıkar (B-57) | 3–4 PD | Ingestion birikimi bekliyor |
-| Varlık sözlüğü kapsamı (B-56) | 0,5 PD | Precision açığının kök nedeni |
-| Makaleleri e5 ile yeniden embed et (B-53) | 0,3 PD | Mevcut veri `hashing` ile gömülü |
-| Worker imajına `embed-local` (B-54) | 0,5 PD | torch + model ~2,5 GB |
-| Canlı LLM koşumu | 0,2 PD | `ANTHROPIC_API_KEY` bekliyor |
-| Haftalık ritüel | 3 hafta | Takvim |
+| ~~Varlık sözlüğü kapsamı (B-56)~~ | 0,5 PD | ✅ 20 → 48 kurum; varlıksız %38 → %29. **Metrikleri değiştirmedi** |
+| ~~Worker imajına `embed-local` (B-54)~~ | 0,5 PD | ✅ `ARG PD_EXTRAS` + CPU torch; konteynerde doğrulandı |
+| ~~Makaleleri e5 ile yeniden embed et (B-53)~~ | 0,3 PD | ✅ Koşuldu; gizli bir eşik hatası yakalandı (B-65) |
+| Gösterge ayırıcısı (B-62) | 1,0 PD | 🔴 **Yeni** — kalan precision açığının gerçek kök nedeni |
+| Golden Set'i 300 makaleye çıkar (B-57) | 3–4 PD | 🔴 Ingestion birikimi bekliyor |
+| Canlı LLM koşumu (B-58) | 0,2 PD | 🔴 `ANTHROPIC_API_KEY` bekliyor |
+| Haftalık ritüel (B-59) | 3 hafta | 🔴 Takvim |

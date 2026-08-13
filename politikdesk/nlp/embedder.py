@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import hashlib
 import math
-from typing import Protocol
+from collections.abc import Callable
+from typing import Protocol, cast
 
 from politikdesk.config import Settings, get_settings
 from politikdesk.ingestion.dedup import tokenize
@@ -78,13 +79,14 @@ class VoyageEmbedder:
     is_production_ready = True
 
     def __init__(self, model: str) -> None:
-        import voyageai  # type: ignore[import-not-found]
+        import voyageai
 
         self.client = voyageai.Client()
         self.model = model
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        return self.client.embed(texts, model=self.model, input_type="document").embeddings
+        response = self.client.embed(texts, model=self.model, input_type="document")
+        return cast("list[list[float]]", response.embeddings)
 
 
 class CohereEmbedder:
@@ -92,7 +94,7 @@ class CohereEmbedder:
     is_production_ready = True
 
     def __init__(self, model: str) -> None:
-        import cohere  # type: ignore[import-not-found]
+        import cohere
 
         self.client = cohere.ClientV2()
         self.model = model
@@ -110,7 +112,7 @@ class OpenAIEmbedder:
     is_production_ready = True
 
     def __init__(self, model: str, dim: int = EMBEDDING_DIM) -> None:
-        from openai import OpenAI  # type: ignore[import-not-found]
+        from openai import OpenAI
 
         self.client = OpenAI()
         self.model = model
@@ -152,7 +154,7 @@ class LocalEmbedder:
     is_production_ready = True
 
     def __init__(self, model: str) -> None:
-        from sentence_transformers import SentenceTransformer  # type: ignore[import-not-found]
+        from sentence_transformers import SentenceTransformer
 
         self.model = SentenceTransformer(model)
         self.prefix = text_prefix_for(model)
@@ -183,7 +185,7 @@ def build_backend(settings: Settings | None = None) -> EmbeddingBackend:
     if not model:
         raise ValueError(f"PD_EMBEDDING_MODEL ayarlanmalı (provider={provider})")
 
-    backends = {
+    backends: dict[str, Callable[[], EmbeddingBackend]] = {
         "voyage": lambda: VoyageEmbedder(model),
         "cohere": lambda: CohereEmbedder(model),
         "openai": lambda: OpenAIEmbedder(model, settings.embedding_dim),

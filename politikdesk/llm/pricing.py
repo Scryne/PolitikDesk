@@ -36,6 +36,9 @@ class ModelPrice:
         return self.input_usd, self.output_usd
 
 
+# Ücretsiz katman: fiyat 0, ama model tabloda AÇIKÇA yer alır.
+FREE_TIER: Final[ModelPrice] = ModelPrice(0.0, 0.0)
+
 PRICES: Final[dict[str, ModelPrice]] = {
     "claude-fable-5": ModelPrice(10.00, 50.00),
     "claude-opus-5": ModelPrice(5.00, 25.00),
@@ -50,6 +53,29 @@ PRICES: Final[dict[str, ModelPrice]] = {
     ),
     "claude-sonnet-4-6": ModelPrice(3.00, 15.00),
     "claude-haiku-4-5": ModelPrice(1.00, 5.00),
+    # --- OpenAI uyumlu ücretsiz katman (NVIDIA NIM · build.nvidia.com) ---
+    # Buradaki 0, "bilinmiyor" değil "ücretsiz" demektir: model açıkça
+    # tabloya yazılmıştır, dolayısıyla UnknownModelError invaryantı
+    # (bilinmeyen model sessizce 0 maliyet üretmez) korunur. Token
+    # muhasebesi yine tutulur — kota takibi ve sağlayıcı karşılaştırması
+    # maliyetten bağımsız olarak token'a bakar.
+    #
+    # ⚠ Model kimliği build.nvidia.com'daki kartta yazan dizeyle BİREBİR
+    #   aynı olmalıdır. Listede olmayan bir model seçilirse çağrı
+    #   UnknownModelError ile durur ve bu dosyaya eklenmesi istenir.
+    # Liste, anahtara açık modeller `/v1/models` ile doğrulanarak yazıldı
+    # (13 Ağu 2026). Katalog kartında görünen her model her anahtara açık
+    # değildir; tahmin yerine uç noktaya sorulmuştur.
+    "moonshotai/kimi-k2.6": FREE_TIER,
+    "nvidia/nemotron-3-ultra-550b-a55b": FREE_TIER,
+    "nvidia/nemotron-3-super-120b-a12b": FREE_TIER,
+    "nvidia/llama-3.3-nemotron-super-49b-v1.5": FREE_TIER,
+    "deepseek-ai/deepseek-v4-flash-0731": FREE_TIER,
+    "z-ai/glm-5.2": FREE_TIER,
+    "minimaxai/minimax-m3": FREE_TIER,
+    "openai/gpt-oss-120b": FREE_TIER,
+    "meta/llama-3.3-70b-instruct": FREE_TIER,
+    "mistralai/mistral-large-2-instruct": FREE_TIER,
 }
 
 # Prompt cache çarpanları (girdi fiyatına göre)

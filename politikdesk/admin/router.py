@@ -109,7 +109,7 @@ def list_articles(
     offset: int = 0,
 ) -> dict[str, Any]:
     """Makale listesi + filtreler (F1-18)."""
-    from politikdesk.db import connection
+    from politikdesk.db import connection, fetch_one
 
     conditions: list[str] = []
     params: list[Any] = []
@@ -150,7 +150,7 @@ def list_articles(
             f"JOIN sources s ON s.id = a.source_id {where}",
             params,
         )
-        total = cur.fetchone()["total"]
+        total = fetch_one(cur)["total"]
 
     return {"total": total, "limit": limit, "offset": offset, "items": rows}
 
@@ -192,7 +192,7 @@ def source_health() -> list[dict[str, Any]]:
 @router.get("/stats")
 def stats() -> dict[str, Any]:
     """Boru hattı özeti."""
-    from politikdesk.db import connection
+    from politikdesk.db import connection, fetch_one
     from politikdesk.nlp.repository import embedding_coverage
 
     with connection() as conn, conn.cursor() as cur:
@@ -208,7 +208,7 @@ def stats() -> dict[str, Any]:
               (SELECT count(*) FROM sources WHERE is_active) AS active_sources
             """
         )
-        base = dict(cur.fetchone())
+        base = dict(fetch_one(cur))
 
     return {**base, "coverage": embedding_coverage()}
 

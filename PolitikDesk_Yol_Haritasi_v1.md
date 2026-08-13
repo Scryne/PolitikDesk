@@ -39,7 +39,7 @@ Bu varsayımlar değişirse takvim değişir; **görev listesi ve sıra değişm
 | **Faz 1** | W4–W7 | 7 Eyl – 2 Eki 2026 | Veri Omurgası | 20 PD | 8 kaynaktan otomatik toplama, temiz veri, admin |
 | **Faz 2** | W8–W12 | 5 Eki – 6 Kas 2026 | Olay Zekâsı | 25 PD | Kümeleme + iddia + kanıt motoru kalite kapısını geçmiş |
 | **Faz 3** | W13–W17 | 9 Kas – 11 Ara 2026 | Editoryal Katman & Arayüz | 25 PD | Uçtan uca ürün: feed → olay → taslak → kontrol → yayın |
-| **Faz 4** | W18–W22 | 14 Ara 2026 – 15 Oca 2027 | Sertleştirme & Kapalı Beta | 23 PD | 8 kullanıcılı kapalı beta canlıda, metrikler akıyor |
+| **Faz 4** | W18–W20 | 14 – 31 Ara 2026 | Sertleştirme ⚠️ *daraltıldı* | ~8 PD | Dayanıklılık, yedekleme, maliyet alarmı, güvenlik. **Çok kullanıcı ve beta kapsam dışı** (kişisel araç) |
 | **Faz 5** | ~Ay 6–11 | Şub – Haz 2027 | Doğrulanmış Büyüme | — | Dikey genişleme, stil öğrenme, içerik kuyruğu, ücretlendirme |
 | **Faz 6** | ~Ay 11–18 | Tem 2027+ | Platform & B2B | — | Olay grafiği görselleştirme, çoklu platform, Team Workspace |
 
@@ -351,11 +351,27 @@ Kapıyı düşürmek seçenek değildir — Spec §13.2 gerekçesi: yanlış bir
 
 ---
 
-# FAZ 4 — Sertleştirme ve Kapalı Beta
+# FAZ 4 — Sertleştirme  ⚠️ **KAPSAM DARALTILDI**
 
-**W18–W22 · 14 Ara 2026 – 15 Oca 2027 · 23 PD**
+**W18–W20 · 14 – 31 Ara 2026 · ~8 PD**
 
-> **Fazın amacı:** Ürünü tek kullanıcılıktan çok kullanıcılığa taşımak, hukuki/KVKK yükümlülüklerini canlıya almak ve 8 gerçek kullanıcıyla kapalı beta başlatmak.
+> **KAPSAM KARARI (12 Ağustos 2026).** Proje **tek kullanıcılı kişisel bir
+> araç** olarak kararlaştırıldı (bkz. `docs/FAZ0-DURUM.md`). Bu kararla
+> Faz 4'ün özgün amacı — "tek kullanıcılıktan çok kullanıcılığa taşımak ve
+> 8 gerçek kullanıcıyla kapalı beta başlatmak" — dayanaksız kaldı.
+>
+> **MVP artık Faz 3'ün sonunda biter.** Faz 4, yalnızca *tek kullanıcılı
+> araç için de gerekli olan* sertleştirme işlerini içerir.
+
+| İş kolu | Karar |
+|---|---|
+| **A — Çok kullanıcı ve hesap yönetimi** (F4-01…F4-04) | ⛔ **Kapsam dışı.** Kullanıcı = geliştirici. Çok kullanıcıya geçilirse Faz 5'te yeniden açılır. |
+| **B — Hukuki ve KVKK** (F4-11…F4-14) | ⛔ **Kapsam dışı** (F0-10/F0-11 ile aynı gerekçe: kişisel araç, veri sahibi = kullanıcı). **İstisna: F4-15 ve F4-16 kalır.** |
+| **C — Dayanıklılık ve operasyon** (F4-05…F4-10) | ✅ **Kalır** — tek kullanıcıda da gerekli. Bunlar fazın tamamıdır. |
+| **D — Beta yürütme** (F4-17…F4-22) | ⛔ **Kapsam dışı.** Beta kullanıcısı yok. |
+
+**Özgün faz aşağıda olduğu gibi bırakıldı** (kayıt için); kapsam dışı iş
+kolları çok kullanıcıya geçiş kararı verilirse buradan geri alınır.
 
 **Not:** W20 yıl sonu tatil dönemine denk gelir; plan bu haftada %50 kapasite varsayar.
 
@@ -401,7 +417,31 @@ Kapıyı düşürmek seçenek değildir — Spec §13.2 gerekçesi: yanlış bir
 | **F4-21** | Beta engelleyicilerin düzeltilmesi | Düzeltme sürümü | "Beta engelleyici" işaretli tüm bulgular kapalı | 2,0 | F4-20 |
 | **F4-22** | Faz 5 kapsam kararı | `faz5-kapsam.md` | Metriklere dayalı: hangi dikey açılacak, ücretlendirme ne zaman, hangi özellik önce | 1,0 | F4-19 |
 
-## 🚪 Kapı G4 — Faz 4 Çıkış / MVP Tamamlanma Koşulları
+## 🚪 Kapı G4 — MVP Tamamlanma Koşulları
+
+> ⚠️ **Yeniden yazıldı (12 Ağustos 2026).** Aşağıdaki özgün G4'ün 11
+> koşulundan **7'si gerçek beta kullanıcısı gerektiriyordu** (1, 2, 3, 4,
+> 6, 9, 11) ve kişisel araç kararıyla **hiçbir zaman ölçülemez** hale
+> geldi. Ölçülemeyen koşul kapı değildir; kapıyı kâğıt üstünde tutmak
+> "kapıyı düşürmek üçüncü seçenek değildir" kuralını içten çürütürdü.
+
+### G4′ (yürürlükteki kapı — tek kullanıcılı MVP)
+
+| # | Koşul | Hedef | Kaynak |
+|---|---|---|---|
+| 1 | Uçtan uca akış 7 gün kesintisiz | Feed → olay → taslak → kontrol → kopyala | G3 #1'in süreye yayılmış hâli |
+| 2 | **Taslakta kanıtta olmayan sayı/tarih** | **%0** (50 taslak) | G3 #2 — sert kapı, korunur |
+| 3 | **Correction rate** (kullanıcının kendi "bu yanlış" işareti) | ≤ %3 | Tek kullanıcıda da ölçülebilir |
+| 4 | **Diversity ratio** | ≥ 2,5 | Kullanıcıdan bağımsız, sistem metriği |
+| 5 | Birim ekonomi — ölçülen aylık toplam maliyet | ≤ 30 $ | F0-07 kişisel profil: 22,94 $ |
+| 6 | Kritik hata (P0/P1) | 0 açık | Değişmedi |
+| 7 | Kümeleme kalite kapıları hâlâ tutuyor | G2 metrikleri regresyona uğramamış | Değişmedi |
+| 8 | Yedekleme + geri yükleme denenmiş | Belgelenmiş | F4-06 |
+| 9 | Günlük yedek ve maliyet alarmı çalışıyor | F4-06, F4-07 | Değişmedi |
+
+**G4′ tutmuyorsa:** Faz 5'e geçilmez; eksik koşula odaklanan bir düzeltme turu açılır.
+
+### Özgün G4 (kayıt için — çok kullanıcıya geçilirse geri gelir)
 
 | # | Koşul | Hedef |
 |---|---|---|

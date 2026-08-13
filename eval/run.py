@@ -437,6 +437,9 @@ def render_report(
 
 # -------------------------------------------------------------------- CLI
 def main(argv: list[str] | None = None) -> int:
+    from politikdesk.config import load_env_file
+
+    load_env_file()
     parser = argparse.ArgumentParser(description="PolitikDesk eval kosucusu (F2-16)")
     parser.add_argument("--articles", type=Path, default=GOLDEN_ARTICLES)
     parser.add_argument("--claims", type=Path, default=GOLDEN_CLAIMS)

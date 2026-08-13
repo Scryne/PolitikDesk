@@ -96,8 +96,8 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-37~~ | ~~`evidence_status` dağılımının eval çıktısına eklenmesi~~ | İtiraz-2 | ✅ **Kapandı** — `eval/run.py` dağılımı ve %10 eşiği raporluyor |
 | ~~B-38~~ | ~~Embedding'in telif/KVKK statüsü~~ | İtiraz-5 | ⛔ **KAPSAM DIŞI** — kişisel araç |
 | ~~B-39~~ | ~~"Kanıtsız olayda üretim engeli"nin Spec §14.1 kapsam listesine eklenmesi~~ | İtiraz-5 kozmetik notu | ✅ **Kapandı** — Spec v3.1 §14.1 kalem 15 |
-| B-40 | mypy'nin CI'da `continue-on-error` olmaktan çıkarılması | `.github/workflows/ci.yml` | Faz 1 |
-| B-41 | `politikdesk/eval/` boş paketinin kaldırılması (ölçüm eserleri kök `eval/` altında) | Faz 0 uygulaması | Faz 1 |
+| ~~B-40~~ | ~~mypy'nin CI'da `continue-on-error` olmaktan çıkarılması~~ | `.github/workflows/ci.yml` | ✅ **Kapandı** — 92 hata temizlendi (`Connection[DictRow]`, `fetch_one`, `TokenUsage`); CI adımı artık zorunlu |
+| ~~B-41~~ | ~~`politikdesk/eval/` boş paketinin kaldırılması~~ | Faz 0 uygulaması | ✅ **Kapandı** — kullanıcı onayıyla silindi |
 | B-42 | TÜİK bülten listesinin JSON ucunun bulunması (sayfa JS ile yükleniyor) | Faz 1 canlı koşum | **Faz 1 — açık** |
 | B-43 | Hazine duyuru akışının bulunması | Faz 1 canlı koşum | **Faz 1 — açık** |
 | B-44 | Resmî Gazete `/rss` bağlantı reddinin çözülmesi (bot filtresi?) | Faz 1 canlı koşum | **Faz 1 — açık** |
@@ -105,19 +105,30 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | B-46 | Konu filtresinin yanlış-negatif oranının Golden Set ile ölçülmesi | Faz 1: 116 öğenin 106'sı elendi | Faz 2 (F2-16) |
 | ~~B-47~~ | ~~D16: barındırılan adayın (voyage-3) koşulması~~ | `docs/embedding-benchmark.md` | ✅ **Kapandı** — voyage-3 koşuldu, zor AUC 0,782 ile elendi |
 | ~~B-48~~ | ~~D16 eleme ölçütünün yeniden yazılması~~ | Tanı koşumu | ✅ **Kapandı** — ölçüt düzeltildi, yazılı gerekçe `docs/embedding-benchmark.md`'de |
-| B-49 | Yol Haritası G2 yedek planı 3. maddesinin düzeltilmesi: hibrit skorlama şablonlu resmî duyuru ailesini **kötüleştirir** | `docs/embedding-benchmark.md` | Faz 2 (B-48 ile birlikte) |
+| ~~B-49~~ | ~~Yol Haritası G2 yedek planı 3. maddesinin düzeltilmesi~~ | `docs/embedding-benchmark.md` | ✅ **Kapandı** — Yol Haritası G2 yedek planı madde 3'te ⚠️ uyarısı mevcut |
 | ~~B-50~~ | ~~`query: ` önekinin üretim embedder'ına eklenmesi~~ | `nlp/embedder.py` | ✅ **Kapandı** — `MODEL_TEXT_PREFIXES` + iki tarafın aynı kaldığını denetleyen test |
 | B-51 | Olay başlığının LLM ile üretilmesi (şu an tohum makalenin başlığı) | F2-01 uygulaması | Faz 3 — `ANTHROPIC_API_KEY` bekliyor |
 | B-52 | `numeric_guard` metrik sözlüğünün yanlış-pozitif oranının ölçülmesi | F2-03 uygulaması | Faz 3 — 300 makalelik set bekliyor |
 | B-57 | Golden Set'in 300 makale + 150 iddiaya çıkarılması | F2-20 kısmi (55 + 24) | **Faz 3 — açık**, G2 koşul 3 buna bağlı |
-| B-58 | İddia çıkarımının canlı LLM ile koşulması (F2-07 %90 DoD, G2 koşul 5) | `ANTHROPIC_API_KEY` yok | **Faz 3 — açık** |
+| ~~B-58~~ | ~~İddia çıkarımının canlı LLM ile koşulması (G2 koşul 5)~~ | `ANTHROPIC_API_KEY` yok | ✅ **Kapandı** — `openai_compat` arka ucu + D17 modeli ile koşuldu: 9 olay, 4 iddia, 4 kanıt bağı, **0 hata**. F2-07'nin *sayısal* %90 DoD'si Golden Set hacmine bağlı kaldı (B-57) |
+| B-67 | **Sağlayıcı karşılaştırması:** aynı Golden Set üzerinde Claude ile açık modelin karşılaştırılması | `scripts/llm_benchmark.py --provider anthropic` | **Faz 3 — açık**, anahtar geldiğinde tek komut |
+| B-68 | Ücretsiz katman kotasının/hız sınırının günlük tura yetip yetmediğinin ölçülmesi | Kıyaslamada 3 model kapasiteden düştü | **Faz 3 — açık** |
+| B-69 | **Metrik seçim doğruluğunun ölçülmesi:** doğrulama `metric`'in listede olduğunu denetliyor, DOĞRU olduğunu denetlemiyor | Canlı koşum: AR-GE harcaması `reserves` kodlanmıştı (claims.v2 ile `other`'a düzeldi) | **Faz 3 — açık**, F2-03 `numeric_guard` yanlış kodla ilgisiz sayıları çelişki sayabilir (B-52 ile birlikte) |
+| B-70 | Mevcut 4 iddianın `claims.v2` ile yeniden çıkarılması | İddialar `claims.v1` ile üretildi; `extracted_by` doğru etiketli ama karışık sürüm | Faz 3 başı — **kullanıcı onayı gerekir** (tablo temizliği) |
+| B-71 | Üretim modelinin (`PD_LLM_MODEL_GENERATION`) kendi ölçümüyle seçilmesi | D17 yalnız *çıkarım* görevini ölçtü; şu anki değer yer tutucu | **Faz 3 — taslak üretimi başlamadan** |
 | B-59 | Haftalık kalite ritüeli (F2-21, ≥3 hafta) | Takvim zamanı gerektirir | **Faz 3 boyunca** |
 | B-60 | `event_relations`'ta `updates` / `contradicts` ilişkileri | F2-17 yalnız `same_thread` kuruyor (yargı içermeyen tek tip) | Faz 3 |
 | B-61 | Takvimin `verified: false` kayıtlarının resmî takvimden teyidi | `config/calendar_2026.yml` — 10 kayıt | Faz 3 |
-| B-53 | Mevcut makalelerin e5 ile yeniden embed edilmesi + kümelemenin tekrar koşulması | D16 kararı | **Faz 2 — açık** |
-| B-54 | Worker konteynerine `embed-local` ekstrası (torch + sentence-transformers, ~2,5 GB) | D16 self-host seçimi | **Faz 2 — açık** |
+| ~~B-53~~ | ~~Mevcut makalelerin e5 ile yeniden embed edilmesi + kümelemenin tekrar koşulması~~ | D16 kararı | ✅ **Kapandı** — `ingest reembed --yes` aracı + koşuldu. 11 makale e5 ile gömüldü, 9 olay, 1 `same_thread`. **Koşum gizli bir hata ortaya çıkardı → B-65** |
+| ~~B-54~~ | ~~Worker konteynerine `embed-local` ekstrası~~ | D16 self-host seçimi | ✅ **Kapandı** — `Dockerfile` `ARG PD_EXTRAS` + CPU torch indeksi; compose'da yalnız worker kurar; `hfcache` volume. Konteynerde doğrulandı: `local`, üretime uygun, 1024 boyut |
 | B-55 | Spec §11.4'e varlık kısıtının **boş küme** davranışının yazılması (`ok`/`inconclusive`/`reject`) | Faz 2 canlı koşum: 11 makalenin 6'sı varlıksız | Bir sonraki spec sürümü (v3.2) |
-| B-56 | Varlık sözlüğü kapsamının genişletilmesi (bakanlıklar, kurullar) | %55 varlıksız oran `inconclusive` yolunu aşırı yüklüyor | Faz 2 |
+| ~~B-56~~ | ~~Varlık sözlüğü kapsamının genişletilmesi (bakanlıklar, kurullar)~~ | %38 varlıksız oran | ✅ **Kapandı** — 20 → 48 kurum; varlıksız %38 → %29. ⚠️ **Kümeleme metriklerini değiştirmedi**; precision açığının kök nedeni bu değilmiş (bkz. B-62 ve `docs/FAZ2-DURUM.md` bulgu 3) |
+
+| B-62 | **Gösterge (metrik) ayırıcısı:** aynı kurumun aynı gün yayımladığı farklı göstergeler ayrı olay sayılmalı | `docs/FAZ2-DURUM.md` bulgu 3 — kalan precision açığının tamamı bu | **Faz 3 — açık**, G2 koşul 1'e bağlı |
+| B-63 | Kaynağın kendisinin varlık sinyali sayılması (TÜİK bülteni metinde "TÜİK" demese de TÜİK varlığı almalı) | B-56 sonrası kalan 16 varliksiz makalenin çoğu bu ailede | Faz 3 — Spec §11.4 `varlik_ok` semantiğini değiştirir, **v3.2 gerektirir** |
+| ~~B-65~~ | ~~`same_thread` eşiğinin (0,80) F2-14 kalibrasyonundan sonra güncellenmemesi~~ | B-53 canlı koşumu: 9 olay **22** bağ üretti | ✅ **Kapandı** — eşik `cluster_t_high`'tan türetiliyor; 22 → 1 bağ; değişmez teste bağlandı |
+| B-66 | Faz 4 kapsam kararının Spec'e işlenmesi (§14.1 kapsam listesi + G4 → G4′) | Yol Haritası Faz 4 daraltıldı | Spec v3.2 |
+| B-64 | `.env.example` satır sonu yorumlarının genel taranması | `PD_EMBEDDING_PROVIDER` tuzağı: boş değer + satır sonu yorumu = yorum değer olur | ✅ **Kapandı** — yorumlar kendi satırına alındı + `Settings` doğrulaması + 3 test |
 
 ---
 

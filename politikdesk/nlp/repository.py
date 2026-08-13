@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
-from politikdesk.db import connection
+from politikdesk.db import connection, fetch_one
 from politikdesk.nlp.embedder import to_pgvector
 from politikdesk.nlp.entities import ExtractedEntity
 from politikdesk.observability import get_logger
@@ -45,6 +46,51 @@ def save_embeddings(vectors: dict[int, list[float]]) -> int:
     return len(vectors)
 
 
+def reset_derived_state() -> dict[str, int]:
+    """Embedding'i ve ondan türeyen her şeyi sıfırlar (B-53).
+
+    Embedder değiştiğinde (D16 kararı gibi) eski vektörlerle yenileri
+    karşılaştırılamaz: olay merkezleri eski uzayda hesaplanmıştır. Makalenin
+    HAM verisine dokunulmaz — yalnızca türetilmiş katman düşer, sonra
+    `embed` + `cluster` ile yeniden üretilir.
+
+    `audit_log` silinmez: neyin ne zaman yapıldığının kaydı korunur.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        counts: dict[str, int] = {}
+
+        cur.execute("SELECT count(*) AS n FROM events")
+        counts["events_dropped"] = fetch_one(cur)["n"]
+        cur.execute("SELECT count(*) AS n FROM event_relations")
+        counts["relations_dropped"] = fetch_one(cur)["n"]
+
+        # Makaleyi olaydan kopar, sonra türetilmiş tabloları düşür.
+        cur.execute(
+            "UPDATE articles SET event_id = NULL, cluster_score = NULL, "
+            "embedding = NULL, embedded_at = NULL"
+        )
+        counts["articles_reset"] = cur.rowcount
+
+        cur.execute("DELETE FROM event_relations")
+        cur.execute("DELETE FROM event_entities")
+        cur.execute("DELETE FROM events")
+
+        cur.execute(
+            "INSERT INTO audit_log (actor, action, target, payload) "
+            "VALUES (%s, %s, %s, %s::jsonb)",
+            (
+                "system:reembed",
+                "reset_derived_state",
+                "articles",
+                json.dumps(counts, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+
+    log.warning("derived_state_reset", **counts)
+    return counts
+
+
 def pending_entities(limit: int = 100) -> list[dict[str, Any]]:
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -80,7 +126,7 @@ def upsert_entity(entity: ExtractedEntity, aliases: tuple[str, ...] = ()) -> int
             (entity.canonical_name, entity.entity_type, list(aliases),
              entity.is_key_entity),
         )
-        entity_id = cur.fetchone()["id"]
+        entity_id = fetch_one(cur)["id"]
         conn.commit()
         return entity_id
 
@@ -138,4 +184,4 @@ def embedding_coverage() -> dict[str, int]:
             FROM articles
             """
         )
-        return dict(cur.fetchone())
+        return dict(fetch_one(cur))

@@ -59,9 +59,22 @@ def test_default_backend_is_marked_not_production_ready() -> None:
     assert backend.is_production_ready is False
 
 
-def test_unknown_provider_raises() -> None:
+def test_unknown_provider_raises_at_settings_layer() -> None:
+    """İlk savunma hattı: ayar nesnesi kurulurken (uygulama açılışında)."""
     with pytest.raises(ValueError, match="Bilinmeyen embedding"):
-        build_backend(Settings(embedding_provider="sihirli", embedding_model="x"))
+        Settings(embedding_provider="sihirli", embedding_model="x")
+
+
+def test_unknown_provider_raises_at_backend_layer() -> None:
+    """İkinci savunma hattı: `Settings` atlanıp elle nesne kurulsa bile.
+
+    `build_backend` doğrudan çağrılabildiği için kendi kontrolünü korur;
+    ayar doğrulamasına güvenip bu dalı silmek sessiz `KeyError` üretirdi.
+    """
+    settings = Settings(embedding_provider="local", embedding_model="x")
+    object.__setattr__(settings, "embedding_provider", "sihirli")
+    with pytest.raises(ValueError, match="Bilinmeyen embedding"):
+        build_backend(settings)
 
 
 def test_provider_without_model_raises() -> None:
@@ -160,6 +173,60 @@ def test_key_entities_flagged_for_salience() -> None:
 
 def test_key_entities_are_subset_of_institutions() -> None:
     assert set(INSTITUTIONS) >= KEY_ENTITIES
+
+
+# --------------------------------------------------------------- B-56
+def test_ministries_and_boards_are_recognized() -> None:
+    """B-56: Golden Set'in %38'inde hiç varlık tanınmıyordu.
+
+    Bakanlıklar, düzenleyici kurullar ve kamu bankaları sözlükte yoktu;
+    bu makalelerde `varlik_ok` kısıtı uygulanamıyor, precision'ı yalnızca
+    benzerlik taşıyordu.
+    """
+    cases = {
+        "Ticaret Bakanlığı ihracat rakamlarını açıkladı": "Ticaret Bakanlığı",
+        "VDK'nin risk analiz sistemi devrede": "Vergi Denetim Kurulu",
+        "Rekabet Kurumu A101'e koşullu izin verdi": "Rekabet Kurumu",
+        "Ziraat Bankası net kârını açıkladı": "Ziraat Bankası",
+        "EPDK elektrik tarifesini güncelledi": "Enerji Piyasası Düzenleme Kurumu",
+        "OECD Türkiye büyüme tahminini yükseltti": "Ekonomik İşbirliği ve Kalkınma Örgütü",
+    }
+    for text, expected in cases.items():
+        names = {e.canonical_name for e in extract_institutions(text)}
+        assert expected in names, f"{expected!r} bulunamadı: {text!r}"
+
+
+def test_no_short_ambiguous_aliases() -> None:
+    """Kapsam genişlerken precision'ı koruyan kural.
+
+    `_ALIAS_RE` sözcük sınırıyla eşleşir; "tim", "kik" gibi kısa alias'lar
+    sıradan Türkçe metinde yanlış-pozitif üretir. Sözlüğe yeni kurum eklerken
+    bu sınırın gevşetilmesi bu testle engellenir.
+    """
+    too_short = {
+        alias
+        for aliases in INSTITUTIONS.values()
+        for alias in aliases
+        if len(alias) < 3
+    }
+    assert not too_short, f"3 karakterden kısa alias precision'ı düşürür: {too_short}"
+
+
+def test_new_institutions_are_not_key_entities() -> None:
+    """B-56 kapsamı Tier-1 kümesini büyütmez.
+
+    `KEY_ENTITIES`, kümelemede benzerlik kısıtını gevşeten bir VEYA dalıdır
+    (Spec §11.4) ve salience'ı besler. Sözlüğü genişletmek bu kümeyi
+    büyütseydi false merge riski artardı — G2'nin pazarlıksız koşulu.
+    """
+    assert frozenset({
+        "Türkiye Cumhuriyet Merkez Bankası",
+        "Türkiye İstatistik Kurumu",
+        "Hazine ve Maliye Bakanlığı",
+        "Resmî Gazete",
+        "Para Politikası Kurulu",
+        "Cumhurbaşkanlığı",
+    }) == KEY_ENTITIES
 
 
 # --------------------------------------------- kümeleme kısıtı girdileri

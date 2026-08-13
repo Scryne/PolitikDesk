@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from politikdesk.db import connection
+from politikdesk.db import connection, fetch_one
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -94,7 +94,7 @@ def add_scheduled(
             """,
             (title, expected_at, source_id, vertical),
         )
-        scheduled_id = cur.fetchone()["id"]
+        scheduled_id = fetch_one(cur)["id"]
         conn.commit()
 
     log.info("scheduled_event_added", id=scheduled_id, title=title)

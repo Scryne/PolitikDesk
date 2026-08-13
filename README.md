@@ -19,7 +19,7 @@
 ## Hızlı başlangıç
 
 ```bash
-cp .env.example .env          # ANTHROPIC_API_KEY'i doldur (LLM gerekiyorsa)
+cp .env.example .env          # LLM anahtarını doldur (bkz. docs/llm-saglayici.md)
 make up                       # Postgres + pgvector + Redis + API
 make sync                     # config/sources.yml -> veritabanı
 make ingest                   # bir toplama turu (gerçek akışlardan)
@@ -37,7 +37,7 @@ Yerel geliştirme (Docker olmadan test koşmak için):
 ```bash
 python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
 make setup
-make ci                        # lint + mimari kural + testler
+make ci                        # lint + mypy + mimari kural + testler
 ```
 
 `make help` tüm komutları listeler.
@@ -98,6 +98,9 @@ Bunlar yorum değil, kodda ve şemada zorlanan sözleşmelerdir:
 | Salience'ta etkileşim (beğeni/paylaşım) girdisi yok | `tests/test_evidence.py::test_salience_has_no_engagement_input` (AST taraması) |
 | LLM çıktısı `evidence_status` üretemez | `nlp/claims.py::CLAIMS_SCHEMA` + `FORBIDDEN_FIELDS` |
 | Kanıt alıntısı kaynak metinde birebir geçmeli | `nlp/claims.py::verify_quote` |
+| Embedding sağlayıcısı bilinmeyense uygulama açılmaz | `config.py::_provider_must_be_known` + `tests/test_config_and_api.py` |
+| Worker `hashing` embedder'a sessizce düşmez | `docker-compose.yml` (worker `PD_EMBEDDING_*`) + `Dockerfile` `ARG PD_EXTRAS` |
+| Sözlüğe 3 karakterden kısa alias giremez | `tests/test_nlp.py::test_no_short_ambiguous_aliases` |
 
 Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm artışı gerektirir.
 

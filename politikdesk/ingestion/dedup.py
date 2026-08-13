@@ -185,10 +185,10 @@ def classify(
     best: tuple[int, int] | None = None
 
     if simhash:
-        for article_id, other in existing_simhashes:
-            if not other:
+        for article_id, other_simhash in existing_simhashes:
+            if not other_simhash:
                 continue
-            distance = hamming_distance(simhash, other)
+            distance = hamming_distance(simhash, other_simhash)
             if distance <= max_distance and (best is None or distance < best[1]):
                 best = (article_id, distance)
 
@@ -202,10 +202,10 @@ def classify(
         candidate = ngram_set(text)
         if len(candidate) >= MIN_TOKENS_FOR_NGRAM:
             for article_id, other_text in existing_texts.items():
-                other = ngram_set(other_text)
-                if len(other) < MIN_TOKENS_FOR_NGRAM:
+                other_ngrams = ngram_set(other_text)
+                if len(other_ngrams) < MIN_TOKENS_FOR_NGRAM:
                     continue
-                if containment(candidate, other) >= NGRAM_CONTAINMENT_THRESHOLD:
+                if containment(candidate, other_ngrams) >= NGRAM_CONTAINMENT_THRESHOLD:
                     return DuplicateVerdict(
                         kind="near", matched_article_id=article_id, distance=None
                     )

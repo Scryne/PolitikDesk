@@ -52,7 +52,29 @@ LOOKBACK_DAYS = 400
 # Kümeleme eşiğinden AYRI ve daha yüksektir: burada aranan "aynı olay"
 # değil "aynı dizinin başka halkası"dır ve yanlış bağlantı, olay
 # sayfasında alakasız bir "geçmiş" göstermek demektir.
-SAME_THREAD_MIN_SIMILARITY = 0.80
+#
+# ⚠ Sabit 0,80 idi ve BU BİR HATAYDI (B-53 canlı koşumunda yakalandı).
+# Değer, Spec §11.4'ün eski T_HIGH tahminine (0,86) göre "yüksek" yazılmıştı;
+# F2-14 eşikleri 0,92/0,88'e kalibre ettiğinde bu sabit güncellenmedi ve
+# sessizce kümeleme eşiğinin ALTINA düştü. Hashing embedder'la görünmedi
+# (benzerlikler zaten düşüktü); e5'e geçince 9 olay 22 bağ üretti:
+#
+#     "Ulaştırma yatırım projeleri" ↔ "AR-GE harcaması"   0,884
+#     "VDK risk analiz sistemi"     ↔ "AR-GE harcaması"   0,834
+#
+# Doğru türetim: `same_thread` adayı, **kümelenecek kadar benzeyen ama
+# zaman penceresi yüzünden kümelenemeyen** olaydır. O halde eşik kümeleme
+# T_HIGH'ı olmalıdır — "aynı olay sayılacak kadar benziyor, ama 400 gün
+# önce olmuş: demek ki aynı dizinin başka halkası."
+#
+# Bu türetim veriyle de uyumlu: gerçek bağ (Enflasyon Raporu 2026-III →
+# 2026-II) 0,953; farklı TCMB serileri (PPK Özeti ↔ Enflasyon Raporu)
+# 0,906 ile eleniyor.
+def same_thread_min_similarity() -> float:
+    """`same_thread` eşiği — kümeleme T_HIGH'ından türetilir (asla altına düşmez)."""
+    from politikdesk.config import get_settings
+
+    return get_settings().cluster_t_high
 
 # Bir olaya bağlanacak azami geçmiş olay. Olay sayfasında 5'ten fazla
 # tarihsel bağlam okunabilirliği düşürür.
@@ -77,7 +99,7 @@ def _parse_vector(literal: str | None) -> list[float]:
 def find_related(
     event_id: int,
     *,
-    min_similarity: float = SAME_THREAD_MIN_SIMILARITY,
+    min_similarity: float | None = None,
     lookback_days: int = LOOKBACK_DAYS,
     limit: int = MAX_RELATIONS,
 ) -> list[RelatedEvent]:
@@ -85,7 +107,12 @@ def find_related(
 
     Yalnızca **daha eski** olaylar döner: tarihsel bağlam geriye bakar.
     İleriye bakan bağ, aynı ilişkinin diğer ucundan kurulur.
+
+    `min_similarity` verilmezse ayarlardan türetilir; sabit varsayılan
+    kullanılmaz ki eşik kalibrasyonu (F2-14) burayı da kapsasın.
     """
+    if min_similarity is None:
+        min_similarity = same_thread_min_similarity()
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """

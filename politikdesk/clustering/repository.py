@@ -12,7 +12,7 @@ from typing import Any
 
 from politikdesk.clustering.assigner import ArticleFeatures, Assignment, EventCandidate
 from politikdesk.clustering.centroid import add_member
-from politikdesk.db import connection
+from politikdesk.db import connection, fetch_one
 from politikdesk.nlp.embedder import to_pgvector
 from politikdesk.nlp.search import DEFAULT_EF_SEARCH, set_ef_search
 from politikdesk.observability import get_logger
@@ -158,7 +158,7 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int:
                 article.published_at,
             ),
         )
-        event_id = cur.fetchone()["id"]
+        event_id = fetch_one(cur)["id"]
         _attach_article(cur, event_id, article.article_id, similarity=None)
         conn.commit()
 

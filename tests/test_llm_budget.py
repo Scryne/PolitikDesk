@@ -242,3 +242,41 @@ def test_grounding_instruction_is_available_to_prompts() -> None:
     from politikdesk.llm.client import GROUNDING_INSTRUCTION
 
     assert "Kanıtta olmayan" in GROUNDING_INSTRUCTION
+
+
+# ---------------------------------------------------- yapılandırma eksikliği
+def test_missing_api_key_raises_named_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Anahtar yokken SDK'nın ham `TypeError`'ı yerine anlaşılır hata.
+
+    Denetimde görülen davranış: `make claims` her olay için ayrı ayrı
+    "TypeError: Could not resolve authentication method" logluyordu — tek bir
+    yapılandırma eksikliği 5 satır anlamsız hata gibi görünüyordu.
+    """
+    from politikdesk.llm.client import _AnthropicBackend
+    from politikdesk.llm.errors import LLMNotConfigured
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    backend = _AnthropicBackend(Settings())
+
+    with pytest.raises(LLMNotConfigured, match="ANTHROPIC_API_KEY"):
+        _ = backend.client
+
+
+def test_missing_api_key_is_not_written_to_the_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hiç yapılmamış çağrı `llm_calls` muhasebesini kirletmemeli."""
+    from politikdesk.llm.errors import LLMNotConfigured
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    class _UnconfiguredBackend:
+        def complete_json(self, **_: Any) -> tuple[str, Any]:
+            raise LLMNotConfigured("ANTHROPIC_API_KEY")
+
+    client, ledger = _client(_UnconfiguredBackend())
+
+    with pytest.raises(LLMNotConfigured):
+        client.complete_json(purpose="claims", system="s", user="u", schema=SCHEMA)
+
+    assert ledger.calls == [], "Yapılmamış çağrı defterine yazılmış"

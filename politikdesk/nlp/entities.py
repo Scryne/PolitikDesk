@@ -57,6 +57,71 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     "Türkiye İş Kurumu": ("işkur", "iskur", "türkiye iş kurumu"),
     "Asgari Ücret Tespit Komisyonu": ("asgari ücret tespit komisyonu",),
     "Cumhurbaşkanlığı": ("cumhurbaşkanlığı", "cumhurbaskanligi"),
+    # ----------------------------------------------------------------- B-56
+    # Bakanlıklar, düzenleyici kurullar ve kamu bankaları. Faz 2 ölçümü
+    # Golden Set'in %38'inde hiç varlık tanınmadığını gösterdi; bu makaleler
+    # `varlik_ok` kısıtını uygulayamadığı için `inconclusive` yolunu
+    # yüklüyor ve precision'ı yalnızca benzerliğe bırakıyordu.
+    #
+    # ⚠ Alias seçim kuralı: kısa ve çok anlamlı kısaltmalar (tim, kik, ...)
+    # ALINMAZ. `_ALIAS_RE` sözcük sınırıyla eşleşir; "tim" gibi bir alias
+    # sıradan metinde yanlış-pozitif üretir. Kapsam genişlerken precision
+    # düşerse bu kural gevşetilmiş demektir.
+    "Ticaret Bakanlığı": ("ticaret bakanlığı", "ticaret bakanligi"),
+    "Ulaştırma ve Altyapı Bakanlığı": (
+        "ulaştırma ve altyapı bakanlığı", "ulastirma ve altyapi bakanligi",
+        "ulaştırma bakanlığı",
+    ),
+    "Tarım ve Orman Bakanlığı": (
+        "tarım ve orman bakanlığı", "tarim ve orman bakanligi", "tarım bakanlığı",
+    ),
+    "Sanayi ve Teknoloji Bakanlığı": (
+        "sanayi ve teknoloji bakanlığı", "sanayi ve teknoloji bakanligi",
+    ),
+    "Enerji ve Tabii Kaynaklar Bakanlığı": (
+        "enerji ve tabii kaynaklar bakanlığı", "enerji bakanlığı",
+    ),
+    "Çalışma ve Sosyal Güvenlik Bakanlığı": (
+        "çalışma ve sosyal güvenlik bakanlığı", "çalışma bakanlığı",
+    ),
+    "Vergi Denetim Kurulu": ("vergi denetim kurulu", "vdk"),
+    "Gelir İdaresi Başkanlığı": ("gelir idaresi başkanlığı", "gelir idaresi"),
+    "Rekabet Kurumu": ("rekabet kurumu", "rekabet kurulu"),
+    "Enerji Piyasası Düzenleme Kurumu": (
+        "epdk", "enerji piyasası düzenleme kurumu",
+    ),
+    "Sigortacılık ve Özel Emeklilik Düzenleme ve Denetleme Kurumu": (
+        "seddk", "sigortacılık ve özel emeklilik düzenleme ve denetleme kurumu",
+    ),
+    "Tasarruf Mevduatı Sigorta Fonu": ("tmsf", "tasarruf mevduatı sigorta fonu"),
+    "Kamu İhale Kurumu": ("kamu ihale kurumu",),
+    "Türkiye Varlık Fonu": ("türkiye varlık fonu", "turkiye varlik fonu"),
+    "Türkiye Bilimsel ve Teknolojik Araştırma Kurumu": (
+        "tübitak", "tubitak", "türkiye bilimsel ve teknolojik araştırma kurumu",
+    ),
+    "Küçük ve Orta Ölçekli İşletmeleri Geliştirme İdaresi": (
+        "kosgeb", "küçük ve orta ölçekli işletmeleri geliştirme idaresi",
+    ),
+    "Türkiye İhracatçılar Meclisi": ("türkiye ihracatçılar meclisi",),
+    "Türkiye Odalar ve Borsalar Birliği": (
+        "tobb", "türkiye odalar ve borsalar birliği",
+    ),
+    "Türkiye Bankalar Birliği": ("türkiye bankalar birliği",),
+    "Ziraat Bankası": ("ziraat bankası", "ziraat bankasi", "t.c. ziraat bankası"),
+    "Türkiye Halk Bankası": ("halkbank", "türkiye halk bankası"),
+    "Türkiye Vakıflar Bankası": ("vakıfbank", "vakifbank", "türkiye vakıflar bankası"),
+    "Türkiye İş Bankası": ("türkiye iş bankası", "iş bankası"),
+    "Türk Eximbank": ("eximbank", "türk eximbank"),
+    "Türkiye Kalkınma ve Yatırım Bankası": (
+        "türkiye kalkınma ve yatırım bankası",
+    ),
+    "Ekonomik İşbirliği ve Kalkınma Örgütü": (
+        "oecd", "ekonomik işbirliği ve kalkınma örgütü",
+    ),
+    "Avrupa İmar ve Kalkınma Bankası": (
+        "ebrd", "avrupa imar ve kalkınma bankası",
+    ),
+    "Dünya Ticaret Örgütü": ("dünya ticaret örgütü", "world trade organization"),
 }
 
 # Salience formülünün "varlik_onemi" bileşeni (Spec §8.4) için anahtar varlıklar

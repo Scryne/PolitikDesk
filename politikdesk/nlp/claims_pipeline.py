@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from politikdesk.db import connection
+from politikdesk.llm.errors import LLMNotConfigured
 from politikdesk.nlp.claims import (
     PROMPT_VERSION,
     ExtractedClaim,
@@ -174,6 +175,9 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
 
             stats.events_processed += 1
 
+        except LLMNotConfigured:
+            # Yapılandırma eksikliği olay başına hata değildir; tur biter.
+            raise
         except Exception as exc:  # noqa: BLE001
             stats.errors += 1
             log.error(

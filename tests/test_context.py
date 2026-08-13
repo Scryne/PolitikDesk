@@ -13,7 +13,7 @@ import pytest
 from politikdesk.context.related import find_related, link_related
 from politikdesk.context.scheduler_match import add_scheduled, match_pending
 
-pytestmark = pytest.mark.db
+pytestmark = pytest.mark.db  # not: son testin DB gereksinimi yok
 
 SLUG = "pytest-context-src"
 DIM = 1024
@@ -199,3 +199,24 @@ def test_event_from_another_source_is_not_matched(db_conn, fixtures) -> None:  #
 def test_unknown_source_slug_is_rejected(db_conn) -> None:  # noqa: ANN001
     with pytest.raises(ValueError, match="Kaynak bulunamadı"):
         add_scheduled(title="pytest", expected_at=datetime.now(UTC), source_slug="yok-boyle")
+
+
+# ------------------------------------------------------------------ B-53
+def test_same_thread_threshold_never_falls_below_clustering() -> None:
+    """`same_thread` eşiği kümeleme T_HIGH'ının altına düşemez.
+
+    Bu bir stil tercihi değil, F2-17'nin tanımı: `same_thread` adayı,
+    **kümelenecek kadar benzeyen ama zaman penceresi yüzünden
+    kümelenemeyen** olaydır. Eşik T_HIGH'ın altına düşerse modül "aynı
+    olay bile sayılmayacak kadar farklı" olayları geçmiş diye bağlar.
+
+    Gerçek olay (B-53 canlı koşumu): sabit 0,80 idi — Spec §11.4'ün eski
+    T_HIGH tahminine (0,86) göre yazılmış, F2-14 eşikleri 0,92/0,88'e
+    kalibre ederken güncellenmemişti. Hashing embedder'la görünmüyordu;
+    e5'e geçince 9 olay 22 bağ üretti ("Ulaştırma yatırımı" ↔ "AR-GE
+    harcaması" 0,884). Bu test o sessiz kaymayı imkânsız kılar.
+    """
+    from politikdesk.config import Settings
+    from politikdesk.context.related import same_thread_min_similarity
+
+    assert same_thread_min_similarity() >= Settings().cluster_t_high

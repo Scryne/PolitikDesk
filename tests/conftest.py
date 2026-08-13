@@ -4,9 +4,19 @@ import os
 
 import pytest
 
+from politikdesk.config import Settings
+
 # Testler kendi ayarlarıyla koşsun; geliştiricinin .env'i sızmasın.
 os.environ.setdefault("PD_ENV", "test")
 os.environ.setdefault("PD_LOG_FORMAT", "console")
+
+# ...ve `.env` DOSYASI da sızmasın. Yukarıdaki iki satır yalnızca ortam
+# değişkeni varsayılanı koyuyordu; `Settings` ise ayrıca `.env`'i okur.
+# Sonuç: aynı test, geliştiricinin makinesinde `.env`'de ne yazdığına göre
+# geçip CI'da kalabiliyordu (canlı örnek: `PD_LLM_BASE_URL` yerelde dolu
+# olduğu için "eksik yapılandırma hata vermeli" testi geçmedi).
+# Testler yalnızca açıkça verdikleri değerlere bağlı olmalıdır.
+Settings.model_config["env_file"] = None
 
 
 def _database_url() -> str | None:

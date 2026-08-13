@@ -46,6 +46,44 @@ def test_threshold_ordering_is_enforced() -> None:
         Settings(cluster_t_high=0.80, cluster_t_low=0.90)
 
 
+def test_inline_comment_does_not_leak_into_embedding_provider() -> None:
+    """`.env`'de `KEY=` satırının sonundaki yorum DEĞER sanılmamalı.
+
+    Gerçek olay (Faz 2 sonrası denetim): `.env` şu satırı içeriyordu
+
+        PD_EMBEDDING_PROVIDER=            # voyage | cohere | openai | local
+
+    python-dotenv boş değerde satır sonu yorumunu ayıklamıyor; ayar
+    "# voyage | cohere | openai | local" oluyordu. `make eval`, `make embed`
+    ve `make cluster` bu yüzden çöküyordu.
+    """
+    assert Settings(embedding_provider="local   # yorum").embedding_provider == "local"
+    assert Settings(embedding_provider="   ").embedding_provider == ""
+
+
+def test_commented_out_provider_normalizes_to_unset() -> None:
+    """`.env`'deki gerçek bozuk satırın tam metni.
+
+    Kullanıcının kastı "boş bıraktım"dı; yorum ayıklanınca ayar boşa döner
+    ve `build_backend` bilinen `hashing` yoluna uyarı logluyarak düşer.
+    Eskiden değer yorumun kendisi oluyordu ve `PD_EMBEDDING_MODEL
+    ayarlanmalı (provider=# voyage | ...)` diye anlamsız bir hata veriyordu.
+    """
+    broken = "# voyage | cohere | openai | local"
+    assert Settings(embedding_provider=broken).embedding_provider == ""
+
+
+def test_unknown_embedding_provider_is_rejected_at_startup() -> None:
+    """Yazım hatası ilk embed çağrısında değil, açılışta patlamalı."""
+    with pytest.raises(ValueError, match="Bilinmeyen embedding"):
+        Settings(embedding_provider="voyaage")
+
+
+def test_empty_provider_is_allowed_but_means_hashing() -> None:
+    """Boş bırakmak geçerlidir (yerel geliştirme) — sessizce reddedilmez."""
+    assert Settings(embedding_provider="").embedding_provider == ""
+
+
 def test_logs_are_json_formatted(capsys: pytest.CaptureFixture[str]) -> None:
     """F0-18 DoD: log JSON formatında."""
     configure_logging(Settings(log_format="json", log_level="INFO"))

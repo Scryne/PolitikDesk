@@ -9,6 +9,7 @@ Kullanım:
     python -m scripts.ingest run --source aa-ekonomi
     python -m scripts.ingest embed           # bekleyen makaleleri embed et
     python -m scripts.ingest entities        # varlık çıkar
+    python -m scripts.ingest reembed --yes   # embedder değişti: sıfırla (B-53)
     python -m scripts.ingest health          # kaynak sağlık raporu
     python -m scripts.ingest purge           # süresi geçmiş gövdeleri sil
 """
@@ -18,6 +19,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from politikdesk.config import load_env_file
 from politikdesk.observability import configure_logging
 
 
@@ -78,6 +80,35 @@ def cmd_embed(limit: int) -> int:
     if not backend.is_production_ready:
         print("  UYARI: uretim icin uygun olmayan yerel embedder kullanildi.")
         print("  D16 karari icin: docs/embedding-benchmark.md")
+    return 0
+
+
+def cmd_reembed(yes: bool) -> int:
+    """Embedder degistiginde turetilmis katmani sifirlar (B-53).
+
+    Makalelerin HAM verisi korunur; embedding, olaylar ve olay iliskileri
+    dusurulur. Ardindan `embed` + `cluster` yeniden kosulmalidir.
+    """
+    from politikdesk.nlp import repository as nlp_repo
+    from politikdesk.nlp.embedder import build_backend
+
+    backend = build_backend()
+    if not backend.is_production_ready:
+        print(f"Iptal: aktif embedder '{backend.name}' uretim icin uygun degil.")
+        print("  Sifirlamadan once PD_EMBEDDING_PROVIDER ayarlanmali (D16).")
+        return 2
+
+    if not yes:
+        print("Bu islem TUM olaylari ve embedding'leri siler; makaleler kalir.")
+        print(f"Yeni embedder: {backend.name}")
+        print("Onaylamak icin --yes ile tekrar calistirin.")
+        return 1
+
+    counts = nlp_repo.reset_derived_state()
+    print("Turetilmis katman sifirlandi:")
+    for key, value in counts.items():
+        print(f"  {key:18s}: {value}")
+    print("\nSirada: `make embed` ve `make cluster`.")
     return 0
 
 
@@ -148,9 +179,15 @@ def cmd_cluster(limit: int) -> int:
 
 def cmd_claims(limit: int) -> int:
     """Olaylardan iddia cikarir (F2-06). ANTHROPIC_API_KEY gerekir."""
+    from politikdesk.llm.errors import LLMNotConfigured
     from politikdesk.nlp.claims_pipeline import run
 
-    stats = run(limit)
+    try:
+        stats = run(limit)
+    except LLMNotConfigured as exc:
+        print(f"Iddia cikarimi yapilamadi: {exc}")
+        print("  Faz 2 G2 kosul 5 ve F2-07 DoD bu adima bagli (B-58).")
+        return 2
     print("Iddia cikarimi tamamlandi:")
     for key, value in stats.as_dict().items():
         print(f"  {key:18s}: {value}")
@@ -180,6 +217,10 @@ def cmd_context(limit: int) -> int:
 
 
 def main() -> int:
+    # Sağlayıcı anahtarları (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`…) `PD_`
+    # önekli olmadığı için `Settings` onları okumaz; yerel koşumda ortama
+    # ancak buradan girer. Docker'da compose'un `env_file`'ı zaten yapıyor.
+    load_env_file()
     configure_logging()
 
     parser = argparse.ArgumentParser(description="PolitikDesk ingestion araci")
@@ -194,6 +235,11 @@ def main() -> int:
 
     embed = sub.add_parser("embed", help="Bekleyen makaleleri embed et")
     embed.add_argument("--limit", type=int, default=200)
+
+    reembed = sub.add_parser(
+        "reembed", help="Embedder degistiginde turetilmis katmani sifirla (B-53)"
+    )
+    reembed.add_argument("--yes", action="store_true", help="Onay istemeden calis")
 
     ents = sub.add_parser("entities", help="Varlik cikarimi")
     ents.add_argument("--limit", type=int, default=500)
@@ -221,6 +267,8 @@ def main() -> int:
         return cmd_run(args.source, args.no_scope_filter)
     if args.command == "embed":
         return cmd_embed(args.limit)
+    if args.command == "reembed":
+        return cmd_reembed(args.yes)
     if args.command == "entities":
         return cmd_entities(args.limit)
     if args.command == "cluster":

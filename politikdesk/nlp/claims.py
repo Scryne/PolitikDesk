@@ -33,7 +33,7 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
-PROMPT_VERSION = "claims.v1"
+PROMPT_VERSION = "claims.v2"
 MAX_QUOTE_LEN = 200      # migrations/0001: CONSTRAINT quote_span_len
 MAX_CLAIM_LEN = 500
 
@@ -89,7 +89,13 @@ CLAIMS_SCHEMA: dict[str, Any] = {
     },
 }
 
-_PERIOD_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])|-Q[1-4])?$")
+# Dönem sözlüğü: yıl, ay, çeyrek ve YARIYIL.
+# Yarıyıl (`2026-H1`) canlı koşumda eklendi: Türkçe ekonomi haberciliğinde
+# "yılın ilk yarısı" yaygın bir dönemdir ve model bunu doğru üretmişken
+# doğrulama reddediyordu — model hatası değil, sözlük boşluğuydu.
+# Spec §11.5 `normalized_value` şeklini sabitler ama dönem sözlüğünü
+# saymaz; bu yüzden genişletme spec değişikliği gerektirmez.
+_PERIOD_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])|-Q[1-4]|-H[12])?$")
 
 
 @dataclass(frozen=True)
@@ -224,25 +230,56 @@ SYSTEM_PROMPT = """Sen bir haber metninden ATOMİK İDDİALARI çıkaran bir ç�
 Türkiye makro ekonomi gündemi üzerinde çalışıyorsun.
 
 TEMEL KURAL — GROUNDING:
-Yalnızca sana verilen metindeki bilgiyi kullan. Metinde olmayan hiçbir olgu,
-sayı, tarih, isim veya alıntı ekleme. Metinden çıkarılamayan bir alan varsa
-null bırak. Emin değilsen iddiayı hiç çıkarma.
+Yalnızca sana verilen metindeki bilgiyi kullan. Metinde olmayan hiçbir
+olgu, sayı, tarih, isim veya alıntı ekleme. Metinden çıkarılamayan bir
+alan varsa null bırak. Emin değilsen iddiayı hiç çıkarma.
 
-ATOMİK İDDİA: tek bir doğrulanabilir önerme. Bileşik cümleleri böl.
+ATOMİK İDDİA NEDİR:
+Tek bir doğrulanabilir önerme. "TCMB faizi %37'de sabit tuttu ve
+enflasyonun temmuzda yükseleceğini öngördü" İKİ iddiadır:
+  1. (fact)       TCMB politika faizini yüzde 37'de sabit tuttu
+  2. (prediction) TCMB enflasyonun temmuzda yükseleceğini öngördü
 
-İDDİA TİPLERİ:
-  fact        Gerçekleşmiş, doğrulanabilir olay.
-  number      İddianın ÖZÜ bir ölçüm ise.
-  attribution Birinin söylediği/açıkladığı şey.
-  prediction  Gelecek hakkında; "bekleniyor/öngörülüyor/hedefleniyor" dahil.
-              Kim söylerse söylesin, sayı içerse bile prediction'dır.
+İDDİA TİPLERİ — tam olarak biri:
+  fact        Gerçekleşmiş, doğrulanabilir olay. "Kurul faizi sabit tuttu."
+  number      Sayısal bir büyüklük bildiren iddia. "TÜFE aylık yüzde 1,78 arttı."
+  attribution Birinin söylediği/açıkladığı şey. "Bakan Şimşek dezenflasyonun
+              sürdüğünü söyledi." Söylenmiş olması olgudur; içeriği ayrıdır.
+  prediction  Gelecek hakkında. "Enflasyonun yıl sonunda düşmesi bekleniyor."
 
-SAYISAL NORMALİZASYON ('number' tipinde zorunlu):
-  metric/value/unit/period. Ondalık ayırıcı nokta (1,78 -> 1.78).
-  period ISO: "2026-07" (ay), "2026-Q1" (çeyrek), "2026" (yıl).
+TİP AYRIMINDA DİKKAT:
+- Bir sayı içeriyor diye her iddia `number` değildir. `number`, iddianın
+  ÖZÜ bir ölçüm ise kullanılır.
+- Beklenti, tahmin, öngörü, "bekleniyor", "öngörülüyor", "hedefleniyor"
+  ifadeleri `prediction`'dır — kim söylerse söylesin, sayı içerse bile.
+- "X, Y olacağını söyledi" → `prediction` (içerik gelecek hakkında).
+  "X, Y olduğunu söyledi" → `attribution`.
 
-ALINTI: her iddia için metinden EN FAZLA 200 KARAKTER BİREBİR alıntı.
-Alıntı metinde AYNEN geçmelidir; kısaltma veya düzeltme yapma.
+SAYISAL NORMALİZASYON (`number` tipinde ZORUNLU):
+  metric  Ölçülen büyüklüğün kanonik adı (aşağıdaki listeden)
+  value   Sayı (ondalık ayırıcı nokta: 1,78 -> 1.78)
+  unit    "%", "TL", "USD", "kisi", "adet"
+  period  Ölçüm dönemi ISO: "2026-07" (ay), "2026-Q1" (çeyrek),
+          "2026-H1" (yarıyıl), "2026" (yıl)
+
+İzinli metric değerleri:
+  tufe_monthly, tufe_annual, ufe_monthly, ufe_annual,
+  policy_rate, overnight_lending_rate, overnight_borrowing_rate,
+  unemployment_rate, employment_rate, participation_rate,
+  gdp_growth_annual, gdp_growth_quarterly, industrial_production,
+  current_account_balance, budget_balance, trade_balance,
+  minimum_wage, public_debt, reserves, exchange_rate, other
+
+METRİK SEÇİMİ — ÖNEMLİ:
+Ölçümü GERÇEKTEN karşılayan kodu seç. Hiçbiri karşılamıyorsa "other" yaz.
+Yakın görünen ama farklı bir göstergeyi ASLA seçme: yanlış kod, birbiriyle
+ilgisiz iki sayının çelişki sanılmasına yol açar. Örneğin AR-GE harcaması
+"reserves" DEĞİLDİR; listede karşılığı yoksa "other"dır.
+
+ALINTI (`quote_span`):
+  Her iddia için metinden EN FAZLA 200 KARAKTER birebir alıntı ver.
+  Alıntı metinde AYNEN geçmelidir; kısaltma veya düzeltme yapma.
+  200 karakteri aşan bir dayanak varsa en özlü kısmını seç.
 
 YAPMAYACAKLARIN:
 - Doğruluk yargısı verme. İddianın doğru olup olmadığı senin işin değil.

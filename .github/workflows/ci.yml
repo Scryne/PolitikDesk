@@ -52,9 +52,10 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      # B-40: Faz 0'da `continue-on-error` idi. 92 hata temizlendi (bağlantı
+      # tipi `Connection[DictRow]`, `fetch_one`, `TokenUsage`), artık zorunlu.
       - name: Tip kontrolü (mypy)
         run: mypy
-        continue-on-error: true # Faz 0'da uyarı; Faz 1'de zorunlu hale gelir
 
       # --- F0-16: mimari kural. Bu adım kırmızıya dönerse CI kırılır. ---
       - name: Mimari kural — evidence/ → llm/ import yasağı

@@ -17,6 +17,7 @@ from politikdesk.nlp.claims import (
     CLAIMS_SCHEMA,
     FORBIDDEN_FIELDS,
     MAX_QUOTE_LEN,
+    PROMPT_VERSION,
     dedupe_claims,
     extract_claims,
     validate_claim,
@@ -93,9 +94,11 @@ def test_prompt_version_is_sent_to_the_model() -> None:
         title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
         published_at="2026-07-23", client=client,
     )
-    assert client.calls[0]["prompt_version"] == "claims.v1"
+    # Sürüm sabite bağlanır: elle yazılan dize, sürüm artışında testi
+    # kırar ama denetlenen davranış hakkında hiçbir şey söylemez.
+    assert client.calls[0]["prompt_version"] == PROMPT_VERSION
     assert client.calls[0]["schema"] is CLAIMS_SCHEMA
-    assert result.extracted_by == "claude-sonnet-5+claims.v1"
+    assert result.extracted_by == f"claude-sonnet-5+{PROMPT_VERSION}"
 
 
 def test_extraction_uses_the_cheap_model_task() -> None:
@@ -282,3 +285,53 @@ def test_empty_model_output_is_not_an_error() -> None:
         published_at="2026-07-23", client=client,
     )
     assert result.claims == [] and result.rejected == []
+
+
+# ------------------------------------------------- prompt sürüm bütünlüğü
+def test_prompt_file_matches_code() -> None:
+    """Sürümlü prompt belgesi ile kodun GÖNDERDİĞİ prompt aynı olmalı.
+
+    v1'de aynı değillerdi: `prompts/claims.v1.md` izinli `metric` listesini
+    ve tip ayrım örneklerini içeriyordu, `claims.py::SYSTEM_PROMPT`
+    içermiyordu — yani model o rehberliği hiç görmedi. Sapma sessizdi ve
+    ancak canlı koşumda (B-58) yanlış metrik seçimi olarak ortaya çıktı.
+
+    `extracted_by` alanına yazılan sürüm, gerçekte gönderilen promptu
+    temsil etmiyorsa denetlenebilirlik iddiası da çöker (Spec §11.5).
+    """
+    from pathlib import Path
+
+    from politikdesk.nlp.claims import PROMPT_VERSION, SYSTEM_PROMPT
+
+    repo_root = Path(__file__).resolve().parent.parent
+    doc = repo_root / "prompts" / f"{PROMPT_VERSION}.md"
+    assert doc.is_file(), f"{doc.name} yok — prompt sürümü belgesiz olamaz"
+
+    blocks = doc.read_text(encoding="utf-8").split("## SYSTEM", 1)
+    assert len(blocks) == 2, f"{doc.name} içinde '## SYSTEM' bölümü yok"
+    documented = blocks[1].split("```")[1].strip()
+
+    assert documented == SYSTEM_PROMPT.strip(), (
+        f"{doc.name} ile claims.py::SYSTEM_PROMPT ayrışmış. "
+        "Prompt değiştiyse HEM kodu HEM belgeyi güncelleyin ve "
+        "PROMPT_VERSION'ı artırın."
+    )
+
+
+def test_half_year_period_is_accepted() -> None:
+    """`2026-H1` canlı koşumda reddediliyordu — sözlük boşluğuydu.
+
+    Türkçe ekonomi haberciliğinde "yılın ilk yarısı" yaygın bir dönemdir;
+    model doğru üretmişken doğrulama düşürüyordu.
+    """
+    from politikdesk.nlp.claims import _validate_value
+
+    ok = _validate_value(
+        {"metric": "budget_balance", "value": 1.5, "unit": "TL", "period": "2026-H1"}
+    )
+    assert ok == []
+
+    bad = _validate_value(
+        {"metric": "budget_balance", "value": 1.5, "unit": "TL", "period": "2026-H3"}
+    )
+    assert any("period" in p for p in bad)
