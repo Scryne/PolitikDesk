@@ -188,6 +188,11 @@ def page(title: str, body: str, *, active: str = "", extra_js: str = "") -> str:
         for href, label in NAV
     )
     script = f"<script>{extra_js}</script>" if extra_js else ""
+
+    # Spec §12.6 madde 5: Election Mode açıkken kullanıcıya görünür
+    # gösterge. Kapalıyken boş string döner (F4-15 — varsayılan kapalı).
+    from config.election_mode import banner
+
     return f"""<!doctype html>
 <html lang="tr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -197,7 +202,7 @@ def page(title: str, body: str, *, active: str = "", extra_js: str = "") -> str:
   <a class="brand" href="/feed">PolitikDesk</a>
   <nav>{nav}</nav>
 </div></header>
-<div class="wrap">{body}</div>
+<div class="wrap">{banner()}{body}</div>
 {script}
 </body></html>"""
 

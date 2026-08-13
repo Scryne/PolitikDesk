@@ -9,7 +9,8 @@
 |---|---|
 | Spesifikasyon | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.1 donduruldu** |
 | Yol haritası | [`PolitikDesk_Yol_Haritasi_v1.md`](PolitikDesk_Yol_Haritasi_v1.md) — "ne zaman ve nasıl" |
-| Mevcut faz | **Faz 3 — Editoryal Katman ve Arayüz** ✅ 21/21 görev ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md)) |
+| Mevcut faz | **Faz 4 — Sertleştirme** ✅ 8/8 görev ([Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md) · [Faz 4](docs/FAZ4-DURUM.md)) |
+| Güvenlik | [`docs/guvenlik-notu.md`](docs/guvenlik-notu.md) — F4-09 gözden geçirmesi |
 | Ölçüm | [`eval/eval_report.md`](eval/eval_report.md) · [eşik kalibrasyonu](eval/threshold_report.md) · [embedding kararı](docs/embedding-benchmark.md) · [üretim modeli kararı](docs/llm-generation-benchmark.md) |
 | Kapsam | Tek kullanıcılı **kişisel araç** — beta/ücretlendirme/hukuk adımları kapsam dışı |
 | MVP dikeyi | Makro ekonomi / para politikası (D4) |
@@ -18,48 +19,68 @@
 
 ## Hızlı başlangıç
 
-```bash
-cp .env.example .env          # LLM anahtarını doldur (bkz. docs/llm-saglayici.md)
-make up                       # Postgres + pgvector + Redis + API
-make sync                     # config/sources.yml -> veritabanı
-make ingest                   # bir toplama turu (gerçek akışlardan)
-open http://localhost:8000/feed       # Live Feed
-open http://localhost:8000/admin/     # sağlık panosu
+**Windows:** `pd` · **Linux/macOS:** `make` — ikisi de aynı komut adlarını taşır.
+(`make` Windows'ta kurulu gelmez; `pd.cmd` onun birebir karşılığıdır.)
+
+```bat
+copy .env.example .env        :: LLM anahtarını doldur (bkz. docs/llm-saglayici.md)
+pd start                      :: TÜM yığını kurar ve ayağa kaldırır
+pd sync                       :: config/sources.yml -> veritabanı
+pd open                       :: Live Feed'i tarayıcıda açar
 ```
 
-Editoryal akış (Faz 3):
+`pd start` şunu yapar: Postgres + Redis → migration → API → worker + beat
+(**yeniden kurarak**) → `deploy-check`. Sonrası kendiliğinden akar; boru
+hattı 5 dakikada bir toplar, embed eder, kümeler, iddia çıkarır, kanıta bağlar.
 
-```bash
-make claims                   # olaylardan iddia çıkar (LLM)
-make evidence                 # kanıt durumu + salience
-open http://localhost:8000/onboarding/profile   # Editoryal Kimlik Kartı (7 soru)
-# feed -> olay -> [Bilgilendir|Analiz Et|Eleştir] -> yayın öncesi kontrol -> kopyala
-make briefing                 # sabah brifingi üret (+ SMTP varsa gönder)
-make metrics                  # 8 ürün metriğini topla
+Günlük kullanım:
+
+```
+http://localhost:8000/feed        Live Feed — gündem
+http://localhost:8000/admin/      sağlık panosu (kaynaklar + boru hattı aşamaları)
+http://localhost:8000/admin/metrics   8 ürün metriği
 ```
 
-Sürekli çalıştırma (5 dakikalık döngü):
+İlk kurulumda bir kez: `/onboarding/profile` — Editoryal Kimlik Kartı (7 soru).
+Sonra akış: **feed → olay → [Bilgilendir | Analiz Et | Eleştir] → yayın öncesi
+kontrol → kopyala.**
 
-```bash
-make workers                  # worker + beat'i YENİDEN KURARAK başlatır
-make deploy-check             # konteynerler depodaki kodu mu taşıyor?
+### Arka plan işleri (bir kez kur, unut)
+
+```bat
+pd schedule-install           :: günlük yedek 03:30 + sağlık nöbeti 6 saatte bir
+pd schedule-status            :: kurulu mu, en son ne zaman koştu?
+```
+
+> Docker Desktop'ın **açılışta başlaması** da gerekir:
+> *Settings → General → "Start Docker Desktop when you sign in"*.
+> Konteynerlerde `restart: unless-stopped` var; Docker kalkınca yığın kendi kalkar.
+
+### Sağlık ve yedek
+
+```bat
+pd watchdog                   :: dışarıdan nöbet: konteyner + API + aşama
+pd pipeline-health            :: hangi aşamada birikme var?
+pd backup                     :: elle yedek al
+pd backup-restore <dosya>     :: AYRI bir DB'ye geri yükle ve satır satır doğrula
 ```
 
 > ⚠️ **`docker compose --profile workers up -d` tek başına yetmez.** Mevcut bir imaj
 > varsa yeniden kurmaz. 13 Ağustos 2026'da beat Faz 1, worker Faz 2 imajıyla koşuyordu;
 > kümeleme/iddia/brifing görevleri hiç zamanlanmadı ve toplanan 29 makalenin 18'i
 > askıda kaldı. Depodaki kod doğruydu, testler yeşildi — kayma **çalışan imajdaydı.**
-> `make workers` `--build` ile kurar ve ardından `deploy-check` koşar.
+> `pd start` / `pd restart` `--build` ile kurar ve ardından `deploy-check` koşar.
 
-Yerel geliştirme (Docker olmadan test koşmak için):
+### Geliştirme
 
-```bash
-python -m venv .venv && . .venv/bin/activate   # Windows: .venv\Scripts\activate
-make setup
-make ci                        # lint + mypy + mimari kural + testler
+```bat
+pd setup                      :: bağımlılıkları kur
+pd ci                         :: lint + mypy + mimari kural + testler
+pd help                       :: tüm komutlar
 ```
 
-`make help` tüm komutları listeler.
+Boru hattı adımları elle de koşturulabilir:
+`pd ingest | embed | entities | cluster | claims | evidence | context | briefing | metrics`
 
 ---
 
@@ -94,9 +115,16 @@ politikdesk/
 │   └── profile_compiler.py  form -> statik prompt bloğu (ideoloji YOK)
 ├── briefing/    sabah/akşam brifingi — DETERMİNİSTİK, LLM yok      [Faz 3 ✓]
 ├── web/         feed, olay sayfası, taslak, brifing, metrik panosu [Faz 3 ✓]
-├── llm/         sağlayıcı-agnostik adapter + bütçe sayacı         [Faz 0 ✓]
+├── llm/         sağlayıcı-agnostik adapter + bütçe sayacı + alarm  [Faz 0/4 ✓]
 ├── api/         FastAPI router'ları + manuel içe aktarma          [Faz 0–1 ✓]
-└── admin/       kaynak yönetimi, makale denetimi, sağlık          [Faz 1 ✓]
+├── admin/       kaynak yönetimi, makale denetimi, sağlık          [Faz 1 ✓]
+├── audit.py     denetim izi — tek giriş noktası, eylem sözleşmesi [Faz 4 ✓]
+└── pipeline_health.py  aşama birikmesi alarmı (sessiz kopma)      [Faz 4 ✓]
+
+config/election_mode.py   Election Mode flag — hazır, varsayılan KAPALI  [Faz 4 ✓]
+scripts/backup.py         yedek al / doğrula / ayrı DB'ye geri yükle     [Faz 4 ✓]
+scripts/watchdog.py       dışarıdan sağlık nöbeti (Docker kapalıysa da)  [Faz 4 ✓]
+scripts/perf_check.py     p95 + N+1 ölçümü                               [Faz 4 ✓]
 ```
 
 ### Pazarlık edilemez kısıtlar
@@ -137,7 +165,13 @@ Bunlar yorum değil, kodda ve şemada zorlanan sözleşmelerdir:
 | Worker `hashing` embedder'a sessizce düşmez | `docker-compose.yml` (worker `PD_EMBEDDING_*`) + `Dockerfile` `ARG PD_EXTRAS` |
 | Sözlüğe 3 karakterden kısa alias giremez | `tests/test_nlp.py::test_no_short_ambiguous_aliases` |
 | Tanımlanan her Celery görevi zamanlanmış olmalı | `tests/test_tasks.py` (boru hattı sessizce kopmasın) |
-| Çalışan konteyner depodaki kodu taşımalı | `scripts/check_deployment.py` → `make deploy-check` |
+| Çalışan konteyner depodaki kodu taşımalı | `scripts/check_deployment.py` → `pd deploy-check` |
+| Bir iddia, onu söyleyen HER kaynağa bağlanmalı | `nlp/claims.py::group_claims_by_source` + `tests/test_corroboration.py` (B-79) |
+| Sıfır iddia dönen olay sonsuza dek yeniden denenmemeli | `events.claims_attempted_at` + `MAX_CLAIM_ATTEMPTS` |
+| Adaptörün yuttuğu hata turu "başarılı" yapmamalı | `adapters/base.py::FailureRecorder` (B-80) |
+| Denetim izine yazılan her eylem tanımlı olmalı | `audit.py::ACTIONS` + `tests/test_hardening.py` |
+| Election Mode varsayılan KAPALI | `tests/test_election_mode.py::test_default_is_off` |
+| Veritabanı/Redis portları dışarı açılmamalı | `docker-compose.yml` → `127.0.0.1:` bağlama (F4-09) |
 
 Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm artışı gerektirir.
 

@@ -16,7 +16,7 @@ from email.utils import parsedate_to_datetime
 from urllib.parse import urljoin
 from xml.etree import ElementTree
 
-from politikdesk.ingestion.adapters.base import registry
+from politikdesk.ingestion.adapters.base import FailureRecorder, registry
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import RawItem
 from politikdesk.observability import get_logger
@@ -30,7 +30,7 @@ _DATE_TAGS = ("pubDate", "published", "updated", f"{ATOM_NS}published",
               f"{ATOM_NS}updated", "{http://purl.org/dc/elements/1.1/}date")
 
 
-class RssAdapter:
+class RssAdapter(FailureRecorder):
     """Bir veya birden çok RSS/Atom akışından öğe çeker."""
 
     def __init__(
@@ -44,6 +44,7 @@ class RssAdapter:
         keyword_filter: list[str] | None = None,
         max_items: int = 100,
     ) -> None:
+        super().__init__()
         self.slug = slug
         self.feed_urls = [feed_url, *(extra_feeds or [])]
         self.base_url = base_url
@@ -57,6 +58,7 @@ class RssAdapter:
             try:
                 items.extend(self._fetch_one(feed_url))
             except Exception as exc:  # noqa: BLE001 — bir akış diğerlerini düşürmez
+                self.record_failure(feed_url, exc)
                 log.warning(
                     "rss_feed_failed",
                     source=self.slug,

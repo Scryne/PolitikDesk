@@ -16,7 +16,7 @@ from typing import Any
 
 from politikdesk.db import connection
 from politikdesk.evidence.independence import EvidenceArticle
-from politikdesk.evidence.rules import Claim, Evidence, compute_status
+from politikdesk.evidence.rules import Claim, Evidence, compute_status, engine_version
 from politikdesk.evidence.salience import EventSignals, global_salience
 from politikdesk.observability import get_logger
 
@@ -93,7 +93,9 @@ def score_claims(limit: int = 200) -> int:
             ORDER BY id
             LIMIT %s
             """,
-            ("evidence-engine@1.0.0", limit),
+            # Yürürlükteki sürüm — Election Mode açıksa "+election" eki
+            # alır ve tüm iddialar yeni eşiğe göre yeniden puanlanır.
+            (engine_version(), limit),
         )
         rows = list(cur.fetchall())
 

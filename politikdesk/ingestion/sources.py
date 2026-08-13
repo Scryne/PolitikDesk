@@ -148,6 +148,23 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                     ),
                 )
                 updated += 1
+
+        # F4-16: kaynak listesinin değişmesi denetlenmesi gereken bir
+        # olaydır — hangi kaynaktan neyi topladığımız ürünün en temel
+        # sözleşmesi (Spec §9.2, 8 kaynak sert sınırı). Aynı işlemde
+        # yazılır: sync geri sarılırsa iz de geri sarılmalı.
+        from politikdesk import audit
+
+        audit.write(
+            "sources_synced",
+            "config/sources.yml",
+            payload={
+                "inserted": inserted,
+                "updated": updated,
+                "slugs": [c.slug for c in configs],
+            },
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("sources_synced", inserted=inserted, updated=updated)

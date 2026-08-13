@@ -1,14 +1,25 @@
-.PHONY: help setup up workers down migrate test lint fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health feeds briefing metrics genbench
+.PHONY: help setup up workers start stop restart down migrate test lint fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
 
 help:
 	@echo "PolitikDesk — geliştirme komutları"
 	@echo ""
 	@echo "  make setup        Bağımlılıkları kur (dev dahil)"
+	@echo "  make start        TÜM yığını ayağa kaldır (günlük kullanım)"
+	@echo "  make stop         Yığını durdur"
+	@echo "  make restart      Yeniden kurup başlat (kod değiştiyse)"
 	@echo "  make up           Postgres + Redis + API ayağa kaldır"
 	@echo "  make workers      Worker + beat'i YENİDEN KURARAK ayağa kaldır"
 	@echo "  make migrate      Migration'ları uygula"
 	@echo "  make down         Servisleri durdur"
 	@echo "  make deploy-check Çalışan konteynerler depodaki kodu mu taşıyor?"
+	@echo ""
+	@echo "  -- sağlık ve yedek (Faz 4) --"
+	@echo "  make watchdog        Dışarıdan sağlık nöbeti (konteyner+API+aşama)"
+	@echo "  make pipeline-health Hangi aşamada birikme var?"
+	@echo "  make backup          Veritabanı yedeği al"
+	@echo "  make backup-list     Yedekleri listele"
+	@echo "  make backup-verify F=<dosya>   Yedek okunabilir mi?"
+	@echo "  make backup-restore F=<dosya>  Ayrı bir DB'ye geri yükle + doğrula"
 	@echo "  make test         Test paketini koş"
 	@echo "  make lint         ruff + mypy"
 	@echo "  make fmt          ruff format"
@@ -48,11 +59,28 @@ workers:
 	docker compose --profile workers up -d --build
 	@$(MAKE) --no-print-directory deploy-check
 
+# Günlük kullanım girişi (F4-10). `up` + `workers` sırasını doğru
+# uygular: migration önce, worker/beat sonra.
+start: up workers
+	@echo ""
+	@echo "PolitikDesk hazır:"
+	@echo "  Feed        http://localhost:8000/feed"
+	@echo "  Sağlık      http://localhost:8000/admin/"
+	@echo "  Metrikler   http://localhost:8000/admin/metrics"
+
+stop:
+	docker compose --profile workers down
+
+# Kod değiştiyse bu. `restart` yerine `stop + start`: Docker'ın
+# `restart` komutu imajı YENİDEN KURMAZ ve B-77'nin tam olarak
+# tekrarına yol açar.
+restart: stop start
+
 migrate:
 	docker compose run --rm migrate
 
 down:
-	docker compose down
+	docker compose --profile workers down
 
 test:
 	pytest -v
@@ -120,6 +148,30 @@ genbench:
 
 health:
 	python -m scripts.ingest health
+
+# Boru hattının İÇİ: bir aşamada birikme var mı? (B-78)
+pipeline-health:
+	python -c "from politikdesk import pipeline_health as p; [print(f'{r.status:6} {r.label:22} bekleyen={r.backlog:4} en_eski={r.oldest_hours} esik={r.threshold_hours}') for r in p.stage_report()]"
+
+# Dışarıdan nöbet: Docker kapalıysa içerideki alarm ötemez (F4-10)
+watchdog:
+	python -m scripts.watchdog
+
+# --- Yedekleme (F4-06) ---------------------------------------------------
+backup:
+	python -m scripts.backup create
+
+backup-list:
+	python -m scripts.backup list
+
+backup-verify:
+	@test -n "$(F)" || (echo "Kullanim: make backup-verify F=backups/<dosya>.dump"; exit 1)
+	python -m scripts.backup verify "$(F)"
+
+# Geri yükleme ÜRETİME DEĞİL, ayrı bir doğrulama veritabanına yapılır.
+backup-restore:
+	@test -n "$(F)" || (echo "Kullanim: make backup-restore F=backups/<dosya>.dump"; exit 1)
+	python -m scripts.backup restore "$(F)" --into politikdesk_restore_test
 
 feeds:
 	python -m scripts.discover_feeds

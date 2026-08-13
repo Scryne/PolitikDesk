@@ -29,8 +29,8 @@ from politikdesk.llm.errors import LLMNotConfigured
 from politikdesk.nlp.claims import (
     PROMPT_VERSION,
     ExtractedClaim,
-    dedupe_claims,
     extract_claims,
+    group_claims_by_source,
 )
 from politikdesk.observability import get_logger
 
@@ -55,21 +55,63 @@ class ClaimStats:
         }
 
 
+# Bir olay bu kadar denendikten sonra, yeni makale gelmedikçe bırakılır.
+# 3: ilk deneme + iki tekrar. Geçici bir sağlayıcı arızası bu pencerede
+# düzelir; düzelmiyorsa sorun metinde, tekrar denemekte değil.
+MAX_CLAIM_ATTEMPTS = 3
+
+# Deneme sayacı dolmuş olay, olaya yeni makale katılırsa yeniden denenir
+# (`last_update_at > claims_attempted_at`). Yeni malzeme yeni bir sonuç
+# ihtimali demektir; aynı metni tekrar sormak değildir.
+PENDING_EVENTS_SQL = """
+    SELECT e.id FROM events e
+    WHERE e.merged_into_id IS NULL
+      AND e.article_count > 0
+      AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
+      AND (
+            e.claims_attempted_at IS NULL
+         OR e.last_update_at > e.claims_attempted_at
+         OR e.claims_attempt_count < %s
+      )
+    ORDER BY e.last_update_at DESC
+    LIMIT %s
+"""
+
+
 def pending_events(limit: int = 10) -> list[int]:
-    """İddiası çıkarılmamış olaylar (en yeni önce)."""
+    """İddia çıkarımı bekleyen olaylar (en yeni önce).
+
+    "İddiası olmayan" ile "iddia çıkarılamayan" farklıdır. Çıkarımın
+    meşru şekilde sıfır iddia döndürmesi mümkündür — başlıktan ibaret
+    bir duyuru, özeti olmayan bir bülten. Eski yüklem bu iki durumu
+    ayırmıyordu ve sıfır iddia dönen olay listede sonsuza dek kalıyordu:
+    13 Ağustos'ta üç olay 28 saat boyunca her 10 dakikada bir yeniden
+    LLM'e gönderildi ve her seferinde aynı boş yanıt geldi (F4-05).
+    """
     with connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT e.id FROM events e
-            WHERE e.merged_into_id IS NULL
-              AND e.article_count > 0
-              AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
-            ORDER BY e.last_update_at DESC
-            LIMIT %s
-            """,
-            (limit,),
-        )
+        cur.execute(PENDING_EVENTS_SQL, (MAX_CLAIM_ATTEMPTS, limit))
         return [r["id"] for r in cur.fetchall()]
+
+
+def _record_attempt(cur: Any, event_id: int) -> None:
+    """Deneme damgasını basar.
+
+    Sayaç, olaya yeni makale katıldığında sıfırlanır: `last_update_at`
+    ilerlediyse önceki denemelerin konusu olan metin artık eksiktir.
+    """
+    cur.execute(
+        """
+        UPDATE events
+        SET claims_attempted_at = now(),
+            claims_attempt_count = CASE
+                WHEN claims_attempted_at IS NULL
+                  OR last_update_at > claims_attempted_at THEN 1
+                ELSE claims_attempt_count + 1
+            END
+        WHERE id = %s
+        """,
+        (event_id,),
+    )
 
 
 def stale_events(prompt_version: str = PROMPT_VERSION) -> list[dict[str, Any]]:
@@ -161,12 +203,17 @@ def _articles_of(cur: Any, event_id: int) -> list[dict[str, Any]]:
 def _persist(
     cur: Any,
     event_id: int,
-    claims: list[tuple[ExtractedClaim, int]],
+    claims: list[tuple[ExtractedClaim, list[tuple[int, str]]]],
     extracted_by: str,
 ) -> int:
-    """İddiaları ve kanıt bağlarını yazar; kurulan bağ sayısını döndürür."""
+    """İddiaları ve kanıt bağlarını yazar; kurulan bağ sayısını döndürür.
+
+    Bir iddia, onu söyleyen HER makaleye bağlanır. Kanıt motorunun
+    `independent_count`'u bu bağları sayar; tek bağ yazmak, çapraz
+    teyidin hiç görülmemesi demektir (B-79).
+    """
     links = 0
-    for claim, article_id in claims:
+    for claim, sources in claims:
         cur.execute(
             """
             INSERT INTO claims (event_id, claim_text, claim_type, normalized_value,
@@ -188,15 +235,17 @@ def _persist(
         )
         claim_id = cur.fetchone()["id"]
 
-        cur.execute(
-            """
-            INSERT INTO evidence (claim_id, article_id, stance, quote_span, extracted_by)
-            VALUES (%s, %s, 'supports', %s, %s)
-            ON CONFLICT (claim_id, article_id) DO NOTHING
-            """,
-            (claim_id, article_id, claim.quote_span, extracted_by),
-        )
-        links += cur.rowcount
+        for article_id, quote_span in sources:
+            cur.execute(
+                """
+                INSERT INTO evidence (claim_id, article_id, stance, quote_span,
+                                      extracted_by)
+                VALUES (%s, %s, 'supports', %s, %s)
+                ON CONFLICT (claim_id, article_id) DO NOTHING
+                """,
+                (claim_id, article_id, quote_span, extracted_by),
+            )
+            links += cur.rowcount
     return links
 
 
@@ -236,19 +285,34 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                     collected.extend((c, article["id"]) for c in result.claims)
 
                 # F2-09: olay düzeyinde tekilleştirme — aynı iddia iki
-                # makalede de geçebilir; kayıt tek olmalı.
-                deduped = dedupe_claims([c for c, _ in collected])
-                kept = {id(c) for c in deduped}
-                final = [(c, aid) for c, aid in collected if id(c) in kept]
+                # makalede de geçebilir; KAYIT tek olmalı ama KANIT BAĞI
+                # her kaynak için ayrı kurulmalı. Eskiden ikinci kaynağın
+                # bağı da atılıyordu ve hiçbir iddia çapraz teyide
+                # ulaşamıyordu (B-79).
+                final = group_claims_by_source(collected)
 
                 stats.evidence_links += _persist(cur, event_id, final, extracted_by)
                 stats.claims_extracted += len(final)
+                # Denemeyi, sonucu ne olursa olsun kaydet: sıfır iddia
+                # dönmesi de bir sonuçtur. Aynı işlemde yazılır ki iddia
+                # yazımı geri sarılırsa deneme damgası da geri sarılsın.
+                _record_attempt(cur, event_id)
                 conn.commit()
+
+                if not final:
+                    log.info(
+                        "claim_extraction_empty",
+                        event_id=event_id,
+                        articles=len(articles),
+                        hint="Metinde çıkarılabilir iddia yok. Olaya yeni "
+                             "makale katılmadıkça yeniden denenmeyecek.",
+                    )
 
             stats.events_processed += 1
 
         except LLMNotConfigured:
             # Yapılandırma eksikliği olay başına hata değildir; tur biter.
+            # Deneme SAYILMAZ: anahtar gelince bu olaylar denenmelidir.
             raise
         except Exception as exc:  # noqa: BLE001
             stats.errors += 1
@@ -258,6 +322,15 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                 error=type(exc).__name__,
                 detail=str(exc)[:300],
             )
+            # Başarısız deneme de denemedir. Yazılmazsa kalıcı olarak
+            # patlayan bir olay turu her seferinde baştan tıkar ve
+            # arkasındaki olaylar hiç sıraya gelmez.
+            try:
+                with connection() as conn, conn.cursor() as cur:
+                    _record_attempt(cur, event_id)
+                    conn.commit()
+            except Exception:  # noqa: BLE001 — damga yazılamadıysa tur sürsün
+                log.warning("claim_attempt_stamp_failed", event_id=event_id)
 
     log.info("claim_extraction_complete", **stats.as_dict())
     return stats

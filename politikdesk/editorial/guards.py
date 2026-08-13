@@ -50,6 +50,20 @@ PERSON_GUARD_EXEMPT_TYPES: Final[frozenset[str]] = frozenset({"prediction"})
 UNVERIFIED_STATUSES: Final[frozenset[str]] = frozenset({"unverified"})
 
 
+def blocked_statuses() -> frozenset[str]:
+    """Üretimi engelleyen kanıt durumları.
+
+    Normalde yalnızca `unverified`. Election Mode açıksa `single_source`
+    de eklenir (Spec §12.6 madde 1). Sabit yerine fonksiyon olması
+    F4-15'in özüdür: mod açıldığında değişmesi gereken tek yer
+    `config/election_mode.py`'dir, buradaki çağıranlar değil.
+    """
+    from config.election_mode import current
+
+    mode = current()
+    return mode.blocked_statuses if mode.enabled else UNVERIFIED_STATUSES
+
+
 class GenerationBlocked(Exception):
     """Üretim bir ürün sözleşmesi maddesi tarafından engellendi.
 
@@ -122,6 +136,7 @@ def require_generation_allowed(claims: Sequence[ClaimForGeneration]) -> None:
             {"claim_count": len(claims)},
         )
 
+    blocking = blocked_statuses()
     people_by_claim = _named_people(claims)
     offenders: list[dict[str, Any]] = [
         {
@@ -131,7 +146,7 @@ def require_generation_allowed(claims: Sequence[ClaimForGeneration]) -> None:
         }
         for claim in claims
         if claim.claim_id in people_by_claim
-        and claim.evidence_status in UNVERIFIED_STATUSES
+        and claim.evidence_status in blocking
         and claim.claim_type not in PERSON_GUARD_EXEMPT_TYPES
     ]
     if offenders:
@@ -162,6 +177,7 @@ def generation_block_reason(claims: Sequence[ClaimForGeneration]) -> GenerationB
 __all__ = [
     "ClaimForGeneration",
     "GenerationBlocked",
+    "blocked_statuses",
     "generation_block_reason",
     "require_generation_allowed",
 ]

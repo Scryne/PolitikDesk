@@ -218,7 +218,12 @@ def _claim_signature(claim: ExtractedClaim) -> str:
 
 
 def dedupe_claims(claims: list[ExtractedClaim]) -> list[ExtractedClaim]:
-    """Aynı imzalı iddiaları teke indirir; ilk görülen kazanır."""
+    """Aynı imzalı iddiaları teke indirir; ilk görülen kazanır.
+
+    ⚠ Kaynak bilgisi taşımaz. Bir iddianın KAÇ kaynakta geçtiği önemliyse
+    `group_claims_by_source` kullanın — tekilleştirmenin attığı şey tam
+    olarak o bilgidir (B-79).
+    """
     seen: set[str] = set()
     out: list[ExtractedClaim] = []
     for claim in claims:
@@ -228,6 +233,60 @@ def dedupe_claims(claims: list[ExtractedClaim]) -> list[ExtractedClaim]:
         seen.add(signature)
         out.append(claim)
     return out
+
+
+def group_claims_by_source(
+    collected: list[tuple[ExtractedClaim, int]],
+) -> list[tuple[ExtractedClaim, list[tuple[int, str]]]]:
+    """Aynı iddiayı teke indirir ama **kaynaklarını biriktirir** (B-79).
+
+    Bu fonksiyon bir hata düzeltmesidir ve düzelttiği hata ürünün ana
+    vaadini sessizce çürütüyordu.
+
+    Eskiden `run()` şunu yapıyordu:
+
+        deduped = dedupe_claims([c for c, _ in collected])
+        kept    = {id(c) for c in deduped}
+        final   = [(c, aid) for c, aid in collected if id(c) in kept]
+
+    Yani iki bağımsız kaynak aynı iddiayı söylediğinde, ikinci kaynağın
+    (iddia, makale) çifti **tamamen atılıyordu** — yalnızca yinelenen
+    iddia metni değil, o kaynağın KANIT BAĞI da. Sonuç: hiçbir iddia
+    birden fazla kanıta ulaşamıyordu.
+
+    Bunun bedeli ölçüldü (13 Ağustos 2026): 48 iddianın tamamı
+    `single_source` ya da `unverified`; tek bir `corroborated` yok;
+    `diversity_ratio` = 1,0. Backlog bunu "çapraz teyit edecek bağımsız
+    kaynak yok" (B-79) diye teşhis etmişti. **Teşhis yanlıştı:** kaynak
+    vardı, kod onu atıyordu. Sekiz kaynak da canlı olsa oran 1,0'da
+    kalırdı, çünkü R2/R4'ün saydığı `independent_count` hiçbir zaman
+    1'i geçemezdi.
+
+    Sayısal iddialarda imza `metric:value:period`e normalize edilir —
+    yani hata tam da **çapraz teyidin en net olduğu** yolda tetikleniyordu.
+
+    Dönüş: her imza için (temsilci iddia, [(makale_id, alıntı), ...]).
+    Alıntı makale başına ayrı tutulur: kanıt bağı, iddianın o kaynakta
+    hangi sözlerle geçtiğini göstermelidir; başka bir makalenin cümlesini
+    göstermek kanıtın kendisini yanlışlar.
+    """
+    order: list[str] = []
+    groups: dict[str, tuple[ExtractedClaim, list[tuple[int, str]]]] = {}
+
+    for claim, article_id in collected:
+        signature = _claim_signature(claim)
+        if signature not in groups:
+            groups[signature] = (claim, [])
+            order.append(signature)
+
+        _, sources = groups[signature]
+        # Aynı makale aynı iddiayı iki kez üretebilir (LLM tekrarı);
+        # kanıt bağı makale başına tektir.
+        if any(existing_id == article_id for existing_id, _ in sources):
+            continue
+        sources.append((article_id, claim.quote_span))
+
+    return [groups[sig] for sig in order]
 
 
 # -------------------------------------------------------------- çıkarım

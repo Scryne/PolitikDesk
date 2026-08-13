@@ -6,6 +6,7 @@ buraya bağımlı değildir (test edilebilirlik).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -172,9 +173,26 @@ def record_fetch(
     near_dupes: int,
     filtered_out: int,
     error: str | None,
+    partial_failures: Sequence[str] = (),
 ) -> None:
-    """Çekim turunu günlüğe yazar ve kaynağın sağlık alanlarını günceller."""
+    """Çekim turunu günlüğe yazar ve kaynağın sağlık alanlarını günceller.
+
+    `succeeded` sütununun anlamı (B-80'de düzeltildi): **tur kullanılabilir
+    sonuç üretti mi**. Eskiden "boru hattına istisna sızmadı mı" demekti;
+    adaptörler hatayı içeride yuttuğu için Resmî Gazete'nin TLS hatası ham
+    kayıtta `succeeded=true, 0 öğe` diye görünüyordu. Sağlık panosu bunu
+    telafi ediyordu (0 öğe → kırmızı), yani ürün yanılmıyordu — ama kayıt
+    yanılıyordu.
+
+    `partial_failures`: öğe GELDİ ama bazı akışlar düştü. Tur başarılı
+    sayılır (kaynağı kırmızıya çekmek yanlış alarm olurdu), yalnızca
+    `error` sütununa iz düşülür.
+    """
     now = datetime.now(UTC)
+    logged_error = error
+    if logged_error is None and partial_failures:
+        logged_error = "KISMİ: " + "; ".join(partial_failures)[:900]
+
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -184,7 +202,7 @@ def record_fetch(
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (source_id, duration_ms, items_fetched, items_stored, exact_dupes,
-             near_dupes, filtered_out, error is None, error),
+             near_dupes, filtered_out, error is None, logged_error),
         )
 
         if error is None and items_fetched > 0:

@@ -19,6 +19,11 @@ htmlcov/
 pgdata/
 redisdata/
 
+# Yedekler (F4-06). Depoya ASLA girmemeli: makale alıntıları, editoryal
+# profil ve taslaklar içerir. Yedeğin yeri diskte (ve tercihen ayrı bir
+# sürücüde), sürüm kontrolünde değil.
+backups/
+
 # Editör
 .vscode/
 .idea/

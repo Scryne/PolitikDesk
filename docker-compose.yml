@@ -1,20 +1,47 @@
-# PolitikDesk — geliştirme ortamı (F0-12)
-# Spec §11.1 (D12): tek VPS + Docker Compose. Kubernetes MVP'de yasak.
+# PolitikDesk — çalıştırma ortamı (F0-12, F4-10)
+# Spec §11.1 (D12): tek makine + Docker Compose. Kubernetes MVP'de yasak.
 #
-#   docker compose up -d db redis
-#   docker compose run --rm migrate
-#   docker compose up api
+#   make up        db + redis + migrate + api
+#   make workers   worker + beat (YENİDEN KURARAK — bkz. B-77)
+#
+# `restart: unless-stopped` (F4-10): Docker Desktop açılışta başlatılacak
+# şekilde ayarlıysa, makine yeniden başladığında tüm yığın kendiliğinden
+# kalkar. "unless-stopped", `always`a tercih edildi: `make down` ile
+# bilerek durdurulan bir yığını sonraki açılışta geri getirmez.
+#
+# `migrate` bilerek HARİÇ tutuldu — bir kez koşup çıkar; yeniden
+# başlatılırsa sonsuz döngüye girer.
+#
+# ⚠ PORTLAR `127.0.0.1`E BAĞLI (F4-09). Docker'ın `"5432:5432"` kısayolu
+# portu `0.0.0.0`a, yani makinenin KATILDIĞI HER AĞA açar. 13 Ağustos
+# 2026 güvenlik gözden geçirmesinde ölçülen durum buydu: Postgres
+# (politikdesk/politikdesk) ve Redis (kimlik doğrulamasız) kafe ya da
+# otel Wi-Fi'ında aynı ağdaki herkese açıktı. Konteynerler birbirine
+# Docker ağı üzerinden (`db:5432`) bağlanır; loopback'e bağlamak onları
+# etkilemez, yalnızca dışarıyı keser.
 
 services:
   db:
     image: pgvector/pgvector:pg16
     container_name: pd-db
+    restart: unless-stopped
+    # `pg_stat_statements` (F4-08): N+1 sorgu denetimi bir sayfanın kaç
+    # SQL çağrısı ürettiğini saymayı gerektirir. Uzantı `shared_preload_
+    # libraries` ile yüklenmek zorundadır — sonradan `CREATE EXTENSION`
+    # yetmez. Onsuz `scripts.perf_check` denetimi ATLAR ve bunu söyler;
+    # sessizce "temiz" demez.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
     environment:
       POSTGRES_USER: politikdesk
       POSTGRES_PASSWORD: politikdesk
       POSTGRES_DB: politikdesk
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -26,9 +53,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: pd-redis
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -55,6 +83,7 @@ services:
   api:
     build: .
     container_name: pd-api
+    restart: unless-stopped
     command:
       ["uvicorn", "politikdesk.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
@@ -67,7 +96,7 @@ services:
       - path: .env
         required: false
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -89,6 +118,7 @@ services:
       args:
         PD_EXTRAS: embed-local
     container_name: pd-worker
+    restart: unless-stopped
     command:
       ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
        "--concurrency", "2"]
@@ -118,6 +148,7 @@ services:
   beat:
     build: .
     container_name: pd-beat
+    restart: unless-stopped
     command:
       ["celery", "-A", "politikdesk.worker.app", "beat", "-l", "info"]
     environment:

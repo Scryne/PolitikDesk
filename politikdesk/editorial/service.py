@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from politikdesk import audit
 from politikdesk.editorial import repository
 from politikdesk.editorial.checker import run_checks
 from politikdesk.editorial.generator import ANGLES, GeneratedDraft, generate_draft
@@ -159,7 +160,7 @@ def generate_for_event(
     }
 
     if persist:
-        payload["draft_id"] = repository.save_draft(
+        draft_id = repository.save_draft(
             user_id=user_id,
             event_id=event_id,
             angle=angle,
@@ -170,6 +171,27 @@ def generate_for_event(
             check_result=check_report.as_dict(),
             model=draft.model,
             prompt_version=draft.prompt_version,
+        )
+        payload["draft_id"] = draft_id
+
+        # F4-16: taslak üretimi denetim izine düşer. `draft_action` zaten
+        # kaydediliyordu ama o KULLANICININ tepkisidir; üretimin kendisi
+        # — hangi modelin, hangi promptla, hangi iddialara dayanarak
+        # yazdığı — kayıtsızdı. Bir taslak geriye dönük sorgulanacaksa
+        # sorulacak ilk soru budur.
+        audit.write(
+            "draft_generated",
+            f"drafts/{draft_id}",
+            actor=f"user:{user_id}",
+            payload={
+                "event_id": event_id,
+                "angle": angle,
+                "model": draft.model,
+                "prompt_version": draft.prompt_version,
+                "cited_claim_ids": list(draft.cited_claim_ids),
+                "is_grounded": draft.is_grounded,
+                "is_blocking": check_report.as_dict().get("is_blocking", False),
+            },
         )
 
     return payload

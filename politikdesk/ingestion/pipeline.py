@@ -15,6 +15,7 @@ import time
 from dataclasses import dataclass
 
 from politikdesk.ingestion import guard, repository, topics
+from politikdesk.ingestion.adapters import base as adapter_base
 from politikdesk.ingestion.adapters.base import SourceAdapter
 from politikdesk.ingestion.adapters.official import (
     GenericHtmlAdapter,
@@ -103,6 +104,9 @@ class Pipeline:
         started = time.perf_counter()
         error: str | None = None
         items: list[RawItem] = []
+        # Adaptörün içeride yuttuğu hatalar (B-80). İstisna boru hattına
+        # ulaşmadığı için tur "başarılı" görünürdü; artık ayrıca taşınıyor.
+        failures: list[str] = []
 
         try:
             decision = guard.check(source.slug, source.tos_status,
@@ -111,7 +115,12 @@ class Pipeline:
                 return stats
 
             adapter = build_adapter(source, self.http)
-            items = adapter.fetch()
+            try:
+                items = adapter.fetch()
+            finally:
+                # `finally`: fetch yarıda patlasa bile o ana kadar yutulmuş
+                # hatalar kaydedilsin, adaptörün defteri boşalsın.
+                failures = adapter_base.drain_failures(adapter)
             stats.fetched = len(items)
             stats = self._store_items(items, source, decision, stats)
 
@@ -128,6 +137,19 @@ class Pipeline:
             log.warning("source_fetch_failed", source=source.slug,
                         error=type(exc).__name__, detail=str(exc)[:300])
 
+        # Hiç öğe gelmediyse ve adaptör içeride bir şey yuttuysa, bu tur
+        # başarısızdır — `succeeded=true, 0 öğe` yazmak ham kaydı yalanlar.
+        if error is None and stats.fetched == 0 and failures:
+            error = "; ".join(failures)[:1000]
+            stats.errors = 1
+            log.warning("source_fetch_silent_failure", source=source.slug,
+                        failures=len(failures), detail=error[:300])
+        elif failures:
+            # Kısmi başarısızlık: bazı akışlar düştü ama öğe geldi. Tur
+            # başarılıdır; kaynağı kırmızıya çekmek yanlış alarm olurdu.
+            log.info("source_fetch_partial_failure", source=source.slug,
+                     failures=len(failures), fetched=stats.fetched)
+
         duration_ms = int((time.perf_counter() - started) * 1000)
         repository.record_fetch(
             source.id,
@@ -138,6 +160,7 @@ class Pipeline:
             near_dupes=stats.near_duplicates,
             filtered_out=stats.filtered_out,
             error=error,
+            partial_failures=failures if error is None else [],
         )
         return stats
 

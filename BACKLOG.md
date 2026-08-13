@@ -151,7 +151,20 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-77~~ | ~~**Bayat imaj arızası.** `pd-beat` Faz 1, `pd-worker` Faz 2 imajıyla koşuyordu; 13 zamanlanmış görevin 5'i vardı. Kümeleme/iddia/kanıt/brifing/metrik hiç koşmadı, 29 makalenin **18'i askıda kaldı**~~ | Faz 3 sonrası denetim | ✅ **Kapandı** — `--build` ile yeniden kuruldu; `make workers`, `make deploy-check`, `scripts/check_deployment.py` (kaymayı kanıtlı yakalıyor), `tests/test_tasks.py` (4 test) |
 | B-78 | **Sessiz kopma alarmı.** Boru hattı bir adımda dursa kimse fark etmiyor. Kaynak sağlığı izleniyor ama *aşama* sağlığı izlenmiyor: "24 saattir kümelenmemiş makale var" gibi bir eşik yok | B-77'nin kök nedeni | **Faz 4 — F4-05 kapsamında** |
 | B-80 | **`source_fetch_log.succeeded` yanıltıcı.** Adaptörler istisnayı içeride yutup `[]` döndürüyor; `Pipeline.run_source` istisna görmediği için kaydı `succeeded=true, 0 öğe` yazıyor. Resmî Gazete'nin TLS hatası logda "başarılı" görünüyor. Sağlık panosu bunu telafi ediyor (0 öğe → kırmızı), yani ürün yanılmıyor — ama **ham kayıt yanlış**. Düzeltme sütunun anlamını değiştirir, mevcut satırları da etkiler | Faz 3 sonrası denetim | **Faz 4 — F4-05 ile birlikte** |
-| B-79 | **`diversity_ratio` = 1,0.** Her iddia `single_source` (R5) veya `unverified` (R0); tek bir `corroborated` yok. Kök neden çapraz teyit edecek bağımsız kaynak yokluğu — 4 T1 kaynağın 2'si hâlâ ölü (B-42, B-44) | Faz 3 sonrası denetim; G4′ #4 hedefi ≥ 2,5 | **Faz 4 — açık**, B-42/B-44'e bağlı |
+| ~~B-79~~ | ~~**`diversity_ratio` = 1,0.** Kök neden çapraz teyit edecek bağımsız kaynak yokluğu~~ | Faz 3 sonrası denetim; G4′ #4 hedefi ≥ 2,5 | 🔴 **TEŞHİS YANLIŞTI (13 Ağu 2026).** Kaynak vardı, **kod onu atıyordu.** `claims_pipeline.run` tekilleştirmede ikinci kaynağın (iddia, makale) çiftini tamamen düşürüyordu — yinelenen metni değil, o kaynağın **kanıt bağını** da. `independent_count` hiçbir zaman 1'i geçemiyordu; 8 kaynak da canlı olsa oran 1,0'da kalırdı. Düzeltildi: `group_claims_by_source` + `tests/test_corroboration.py` (9 test, regresyonla kanıtlandı). Kalan engel artık kaynak değil **iddia eşleştirme** → B-81 |
+
+---
+
+---
+
+## Faz 4'te açılan kalemler (13 Ağustos 2026)
+
+| # | Kalem | Kaynak | Faz |
+|---|---|---|---|
+| B-81 | **Kaynaklar arası iddia eşleştirme.** B-79 düzeltildikten sonra kalan gerçek engel. İmza (`_claim_signature`) sözcük tabanlı: aynı olguyu iki kaynak farklı sözcüklerle söyleyince eşleşmiyor. Ölçülen örnek (olay 686): AA "TCMB Başkanı Karahan, 2026 yıl sonu enflasyon tahminini…" (`attribution`), Dünya "Merkez Bankası'nın yıl sonu enflasyon tahmini belli oldu" (`fact`). Aynı olgu, iki bağımsız kaynak — ama hem sözcükler hem `claim_type` farklı, imza eşleşmiyor. ⚠️ **Aceleye getirilmemeli:** gevşek eşleştirme YANLIŞ teyit üretir ("iki kaynak aynı şeyi söylüyor" derken söylemiyorlar) ve bu, teyit yokluğundan çok daha zararlıdır — ürünün ana vaadini doğrudan çürütür. Golden Set üzerinde precision ölçülmeden uygulanmamalı | B-79 düzeltmesi | **Faz 5 — açık**, G4′ #4'ün gerçek ön koşulu. Spec §8.2'yi etkiler, sürüm artışı gerektirir |
+| B-82 | **`number` tiplemesi kaçırılıyor.** Olay 686'da "yıl sonu enflasyon tahminini yüzde X" iddiası `attribution`/`fact` olarak tiplendi, `number` değil. `number` olsaydı imza `metric:value:period`e normalize olacak ve B-81'e gerek kalmadan çapraz teyit kurulacaktı. Prompt iyileştirmesi B-81'den ucuz ve risksiz olabilir — **önce bu ölçülmeli** | B-79 koşumu | **Faz 5 — B-81'den ÖNCE denenmeli** |
+| B-83 | **`pip-audit` CI'a eklenmeli.** F4-09 güvenlik gözden geçirmesinde bağımlılık taraması koşulmadı | `docs/guvenlik-notu.md` §8 | Faz 5 |
+| B-84 | **Yedekler şifresiz ve OneDrive altında.** `backups/*.dump` makale alıntısı, editoryal profil ve taslak içerir. `.gitignore`'da ama OneDrive senkronu `.gitignore`'a bakmaz. Kullanıcı kararı: BitLocker yeterli mi, yoksa `PD_BACKUP_DIR` OneDrive dışına mı alınsın? | `docs/guvenlik-notu.md` §2 | **Kullanıcı kararı bekliyor** |
 
 ---
 

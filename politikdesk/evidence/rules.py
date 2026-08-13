@@ -106,8 +106,34 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def strong_min_sources() -> int:
+    """R2'nin bağımsız kaynak eşiği (Spec §8.3 R2, §12.6 madde 2).
+
+    Normalde 3. Election Mode açıkken 4 — seçim döneminde 🟢 etiketi
+    vermenin maliyeti, vermemenin maliyetinden yüksektir.
+    """
+    from config.election_mode import current
+
+    return current().strongly_corroborated_min_sources
+
+
+def engine_version() -> str:
+    """Motorun *yürürlükteki* sürümü — mod dahil.
+
+    Election Mode eşikleri değiştirdiği için, aynı kanıt setine farklı
+    bir durum atanır. Sürüm dizesine modu yazmak, `score_claims`'in
+    "sürümü farklı olanı yeniden puanla" yüklemini kendiliğinden
+    tetikler: mod açıldığında tüm iddialar yeni eşiğe göre yeniden
+    hesaplanır. Yazılmasaydı, mod açıkken eski gevşek etiketler
+    ekranda kalırdı — göstergesi açık, koruması kapalı bir mod.
+    """
+    from config.election_mode import is_enabled
+
+    return f"{ENGINE_VERSION}+election" if is_enabled() else ENGINE_VERSION
+
+
 def _base_reason(rule: str) -> dict:
-    return {"rule": rule, "computed_at": _now(), "engine_version": ENGINE_VERSION}
+    return {"rule": rule, "computed_at": _now(), "engine_version": engine_version()}
 
 
 # ---------------------------------------------------------------- R0
@@ -141,7 +167,16 @@ def _r1_contradicted(evidence: list[Evidence]) -> bool:
 
 
 def _r3_official_number(claim: Claim, evidence: list[Evidence]) -> bool:
-    """Resmî sayısal veri istisnası: TÜİK verisini TÜİK açıkladıysa 3 teyit beklenmez."""
+    """Resmî sayısal veri istisnası: TÜİK verisini TÜİK açıkladıysa 3 teyit beklenmez.
+
+    Election Mode'da bu istisna KAPALIDIR. Spec §12.6 madde 2 "🟢 için
+    independent_count ≥ 4 ve Tier 1 zorunlu" diyor; tek kaynağa 🟢
+    veren bir istisnayı açık bırakmak o cümleyi boşa çıkarırdı.
+    """
+    from config.election_mode import current
+
+    if current().enabled:
+        return False
     if claim.claim_type != "number" or not claim.value_verified_against_source:
         return False
     return any(
@@ -186,7 +221,7 @@ def compute_status(
     # ---- BLOK 2: kanıt kuralları, ilk eşleşen kazanır
     if _r1_contradicted(evidence):
         result = StatusResult("contradicted", "R1", {**_base_reason("R1"), **facts})
-    elif primary and count >= 3 and not contradicting:
+    elif primary and count >= strong_min_sources() and not contradicting:
         result = StatusResult(
             "strongly_corroborated", "R2", {**_base_reason("R2"), **facts}
         )

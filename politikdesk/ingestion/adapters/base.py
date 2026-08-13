@@ -15,6 +15,54 @@ from typing import Protocol, runtime_checkable
 from politikdesk.ingestion.models import RawItem
 
 
+class FailureRecorder:
+    """Adaptörün *yuttuğu* hataları boru hattına taşıyan defter (B-80).
+
+    Adaptörler bilerek hata yutar: bir kaynağın üç akışından biri düşerse
+    diğer ikisi yine toplanmalıdır (F1-02). Ama yutulan hata boru hattına
+    hiç ulaşmadığı için `run_source` istisna görmüyor ve turu
+    `succeeded=true, 0 öğe` diye kaydediyordu. Resmî Gazete'nin TLS
+    hatası ham kayıtta "başarılı" görünüyordu.
+
+    Çözüm: hata yutulmaya devam eder ama **kaydedilir**. Boru hattı
+    `drain_failures()` ile alır ve turun gerçekten başarılı olup
+    olmadığına buna bakarak karar verir.
+    """
+
+    def __init__(self) -> None:
+        self._failures: list[str] = []
+
+    def record_failure(self, target: str, exc: BaseException) -> None:
+        self._failures.append(f"{target}: {type(exc).__name__}: {str(exc)[:200]}")
+
+    def note_failure(self, message: str) -> None:
+        """İstisna olmayan başarısızlık (ör. uç 200 döndü ama liste boş)."""
+        self._failures.append(message)
+
+    def drain_failures(self) -> list[str]:
+        """Biriken hataları döndürür ve defteri boşaltır.
+
+        Boşaltma kasıtlı: adaptör örnekleri turlar arasında yeniden
+        kullanılabilir; boşaltılmazsa bir turun hatası sonraki turda da
+        raporlanır ve kaynak hiç düzelmemiş görünür.
+        """
+        drained = self._failures
+        self._failures = []
+        return drained
+
+
+def drain_failures(adapter: object) -> list[str]:
+    """Adaptör hata defteri tutuyorsa boşaltır; tutmuyorsa boş liste döner.
+
+    `SourceAdapter` protokolü hata defterini zorunlu kılmaz — ağa hiç
+    çıkmayan bir adaptörün yutacak hatası da yoktur.
+    """
+    drain = getattr(adapter, "drain_failures", None)
+    if callable(drain):
+        return list(drain())
+    return []
+
+
 @runtime_checkable
 class SourceAdapter(Protocol):
     """Bir kaynaktan yayın birimi çeken bileşen."""
@@ -26,6 +74,10 @@ class SourceAdapter(Protocol):
 
         Hata durumunda istisna fırlatabilir; boru hattı yakalar, loglar ve
         diğer kaynaklarla devam eder (F1-02 DoD: "hatalı feed'de çökmüyor").
+
+        İstisnayı *yutan* adaptör (birden çok akışı olanlar) `FailureRecorder`
+        türetir ve yuttuğunu kaydeder — yoksa boru hattı boş turu başarılı
+        sanar (B-80).
         """
         ...
 

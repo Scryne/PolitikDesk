@@ -238,6 +238,32 @@ def check_source_health() -> list[str]:
     return unhealthy
 
 
+@app.task(name="politikdesk.check_pipeline_health")
+def check_pipeline_health() -> list[dict[str, object]]:
+    """Bir aşamada birikme var mı? (F4-05, B-78)
+
+    `check_source_health` boru hattının GİRİŞİNE bakar; bu görev
+    içerisine bakar. 13 Ağustos'ta toplama çalışırken kümeleme durmuştu
+    ve 13 saat boyunca hiçbir gösterge bunu söylemedi.
+    """
+    from politikdesk import pipeline_health
+
+    return pipeline_health.check_and_log()
+
+
+@app.task(name="politikdesk.check_llm_budget")
+def check_llm_budget() -> dict[str, object]:
+    """Bütçe eşiğini kontrol eder, gerekirse uyarı gönderir (F4-07).
+
+    Bütçe zaten her çağrı öncesi denetleniyor; bu görev *çağrı olmasa
+    bile* eşiğin görülmesini sağlar — ay sonuna doğru tavana yaklaşıp
+    üretimin duracağını önceden bilmek gerekir.
+    """
+    from politikdesk.llm.budget import BudgetGuard
+
+    return BudgetGuard().alert_if_needed()
+
+
 app.conf.beat_schedule = {
     # Spec §11.3: her 5 dakikada bir toplama
     "ingest-every-5-minutes": {
@@ -288,6 +314,18 @@ app.conf.beat_schedule = {
     "health-check-hourly": {
         "task": "politikdesk.check_source_health",
         "schedule": crontab(minute=5),
+    },
+    # Aşama sağlığı (B-78). Kaynak kontrolünden 30 dakika kaydırıldı ki
+    # iki alarm aynı loga aynı anda düşüp birbirini gizlemesin.
+    "pipeline-health-hourly": {
+        "task": "politikdesk.check_pipeline_health",
+        "schedule": crontab(minute=35),
+    },
+    # Bütçe eşiği (F4-07). Günde iki kez: sabah brifinginden önce ve
+    # gün ortasında — tavana çarpmadan önce haber alınsın.
+    "llm-budget-check": {
+        "task": "politikdesk.check_llm_budget",
+        "schedule": crontab(hour="7,15", minute=45),
     },
     # --- Faz 3 ---
     # Brifing saatleri Spec §14.1 kalem 12'den: sabah 08:00, akşam 20:00.

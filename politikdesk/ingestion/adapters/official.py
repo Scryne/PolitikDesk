@@ -23,7 +23,7 @@ from datetime import UTC, datetime
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 
-from politikdesk.ingestion.adapters.base import registry
+from politikdesk.ingestion.adapters.base import FailureRecorder, registry
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import RawItem
 from politikdesk.observability import get_logger
@@ -79,7 +79,7 @@ _TR_MONTHS = {
 }
 
 
-class TuikAdapter:
+class TuikAdapter(FailureRecorder):
     """TÜİK haber bültenleri (F1-03).
 
     TÜİK bir RSS akışı yayımlamaz. Bültenler veri portalındaki liste
@@ -101,6 +101,7 @@ class TuikAdapter:
         base_url: str = "https://veriportali.tuik.gov.tr",
         http: HttpClient | None = None,
     ) -> None:
+        super().__init__()
         self.slug = slug
         self.base_url = base_url
         self.index_urls = index_urls or [
@@ -114,6 +115,7 @@ class TuikAdapter:
             try:
                 response = self.http.get(index_url, source_slug=self.slug)
             except Exception as exc:  # noqa: BLE001
+                self.record_failure(index_url, exc)
                 log.warning("tuik_index_failed", url=index_url,
                             error=type(exc).__name__, detail=str(exc)[:200])
                 continue
@@ -121,6 +123,7 @@ class TuikAdapter:
             items = self.parse(response.text, base_url=index_url)
             if items:
                 return items
+            self.note_failure(f"{index_url}: HTTP 200 ama bülten bağlantısı yok")
             log.warning(
                 "tuik_index_empty",
                 url=index_url,
@@ -157,7 +160,7 @@ class TuikAdapter:
         return items
 
 
-class GenericHtmlAdapter:
+class GenericHtmlAdapter(FailureRecorder):
     """Liste sayfasından duyuru bağlantısı toplayan genel adaptör (F1-03).
 
     Hazine gibi RSS yayımlamayan kurumlar için. `link_pattern` ile hangi
@@ -175,6 +178,7 @@ class GenericHtmlAdapter:
         min_title_len: int = 15,
         http: HttpClient | None = None,
     ) -> None:
+        super().__init__()
         self.slug = slug
         self.index_urls = index_urls
         self.base_url = base_url
@@ -188,12 +192,17 @@ class GenericHtmlAdapter:
             try:
                 response = self.http.get(index_url, source_slug=self.slug)
             except Exception as exc:  # noqa: BLE001
+                self.record_failure(index_url, exc)
                 log.warning("html_index_failed", source=self.slug, url=index_url,
                             error=type(exc).__name__, detail=str(exc)[:200])
                 continue
             items.extend(self.parse(response.text, base_url=index_url))
 
         if not items:
+            self.note_failure(
+                f"{self.slug}: {len(self.index_urls)} liste sayfasının hiçbirinde "
+                "duyuru bağlantısı bulunamadı"
+            )
             log.warning("html_index_empty", source=self.slug,
                         hint="`python -m scripts.discover_feeds` ile uç arayın.")
         return items
@@ -237,7 +246,7 @@ def strip_html(raw: str) -> str:
     return " ".join(html_mod.unescape(text).split())
 
 
-class WordPressRestAdapter:
+class WordPressRestAdapter(FailureRecorder):
     """WordPress REST API yayımlayan kurum siteleri (B-43).
 
     **Neden var.** Hazine'nin duyuru sayfası bir React uygulamasıdır;
@@ -265,6 +274,7 @@ class WordPressRestAdapter:
         per_page: int = 20,
         http: HttpClient | None = None,
     ) -> None:
+        super().__init__()
         self.slug = slug
         self.api_url = api_url
         self.base_url = base_url.rstrip("/")
@@ -277,12 +287,14 @@ class WordPressRestAdapter:
         try:
             response = self.http.get(url, source_slug=self.slug)
         except Exception as exc:  # noqa: BLE001
+            self.record_failure(url, exc)
             log.warning("wp_rest_failed", source=self.slug, url=url,
                         error=type(exc).__name__, detail=str(exc)[:200])
             return []
 
         items = self.parse(response.text)
         if not items:
+            self.note_failure(f"{url}: HTTP 200 ama kullanılabilir kayıt yok")
             log.warning("wp_rest_empty", source=self.slug, url=url,
                         hint="Uç JSON dizisi dönmedi ya da tüm kayıtlar eksik alanlı.")
         return items

@@ -189,6 +189,18 @@ def source_health() -> list[dict[str, Any]]:
     return repository.health_report()
 
 
+@router.get("/pipeline-health")
+def pipeline_health_endpoint() -> list[dict[str, Any]]:
+    """Aşama başına birikme durumu (F4-05, B-78).
+
+    `/admin/health` boru hattının GİRİŞİNE bakar (kaynaklar veri veriyor
+    mu?). Bu uç içerisine bakar: gelen veri sonuna kadar gidiyor mu?
+    """
+    from politikdesk import pipeline_health
+
+    return [r.as_dict() for r in pipeline_health.stage_report()]
+
+
 @router.get("/stats")
 def stats() -> dict[str, Any]:
     """Boru hattı özeti."""
@@ -217,8 +229,11 @@ def stats() -> dict[str, Any]:
 @router.get("/", response_class=HTMLResponse)
 def dashboard() -> str:
     """Tek sayfalık denetim panosu (F1-17/18/19 görsel karşılığı)."""
+    from politikdesk import pipeline_health as ph
+
     health = repository.health_report()
     counts = stats()
+    stages = ph.stage_report()
 
     badge = {"green": "#1a7f37", "amber": "#9a6700", "red": "#cf222e",
              "blocked": "#8250df", "inactive": "#6e7781"}
@@ -243,6 +258,28 @@ def dashboard() -> str:
     embedded_pct = (
         round(coverage["embedded"] / coverage["total"] * 100)
         if coverage["total"] else 0
+    )
+
+    # Aşama sağlığı (B-78). Boru hattı sırasıyla gösterilir ki nerede
+    # koptuğu okunsun; ilk kırmızıdan sonrası zaten onun sonucudur.
+    stage_rows = "".join(
+        f"<tr>"
+        f"<td><strong>{html.escape(s.label)}</strong></td>"
+        f"<td><span style='color:{badge.get(s.status, '#000')}'>● {s.status}</span></td>"
+        f"<td>{s.backlog if s.kind == 'backlog' else '—'}</td>"
+        f"<td>{s.oldest_hours if s.oldest_hours is not None else '—'}</td>"
+        f"<td>{s.threshold_hours}</td>"
+        f"<td><small>{html.escape(s.hint) if s.status != 'green' else ''}</small></td>"
+        f"</tr>"
+        for s in stages
+    )
+    broken = [s for s in stages if s.status == "red"]
+    stage_banner = (
+        f"<p style='background:#ffebe9;border:1px solid #cf222e;border-radius:6px;"
+        f"padding:.6rem .9rem'><b>Boru hattı kopuk:</b> "
+        f"{html.escape(', '.join(s.label for s in broken))}. "
+        f"Aşağıdaki tabloda ipucu var.</p>"
+        if broken else ""
     )
 
     return f"""<!doctype html>
@@ -270,11 +307,24 @@ def dashboard() -> str:
   <div class="card"><b>{counts['entities']}</b><small>varlık</small></div>
   <div class="card"><b>{embedded_pct}%</b><small>embed edilmiş</small></div>
 </div>
+{stage_banner}
+<h2 style="font-size:1.1rem;margin-top:1.6rem">Boru hattı aşamaları</h2>
+<p><small>Kaynak tablosu boru hattının <em>girişine</em> bakar; bu tablo
+<em>içerisine</em>. 13 Ağustos 2026'da kaynaklar yemyeşilken kümeleme 13 saat
+durmuştu ve hiçbir gösterge bunu söylemedi (B-77/B-78).</small></p>
+<table>
+<tr><th>Aşama</th><th>Durum</th><th>Bekleyen</th><th>En eski (sa)</th>
+    <th>Eşik (sa)</th><th>İpucu</th></tr>
+{stage_rows}
+</table>
+
+<h2 style="font-size:1.1rem;margin-top:1.6rem">Kaynaklar</h2>
 <table>
 <tr><th>Kaynak</th><th>Tier</th><th>Durum</th><th>24s</th><th>Toplam</th>
     <th>Son başarı (sa)</th><th>ToS</th><th>Son hata</th></tr>
 {rows}
 </table>
 <p><small>Uçlar: <code>/admin/sources</code> · <code>/admin/articles</code> ·
-<code>/admin/health</code> · <code>/admin/stats</code></small></p>
+<code>/admin/health</code> · <code>/admin/pipeline-health</code> ·
+<code>/admin/stats</code></small></p>
 </body></html>"""

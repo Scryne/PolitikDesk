@@ -58,6 +58,40 @@ def _send_smtp(message: EmailMessage, settings: Settings) -> None:
         smtp.send_message(message)
 
 
+def send_notification(
+    *, subject: str, text_body: str, html_body: str = "",
+    settings: Settings | None = None,
+) -> SendResult:
+    """Brifing dışı operasyonel bildirim gönderir (F4-07 bütçe alarmı).
+
+    Brifing gönderimiyle aynı sözleşme: **SMTP yoksa hata değil, atlama.**
+    Bir alarmın e-postayla ulaşamaması, alarmın kendisini geçersiz
+    kılmaz — çağıran zaten loga ve denetim izine yazmıştır.
+    """
+    settings = settings or get_settings()
+
+    if not is_configured(settings):
+        return SendResult(False, skipped_reason="smtp_unconfigured")
+
+    message = build_message(
+        subject=subject,
+        to=settings.user_email,
+        html_body=html_body or f"<pre>{text_body}</pre>",
+        text_body=text_body,
+        sender=settings.smtp_from or settings.smtp_user,
+    )
+
+    try:
+        _send_smtp(message, settings)
+    except Exception as exc:  # noqa: BLE001 — bildirim hatası hattı durdurmaz
+        detail = f"{type(exc).__name__}: {str(exc)[:200]}"
+        log.warning("notification_send_failed", subject=subject, detail=detail)
+        return SendResult(False, error=detail)
+
+    log.info("notification_sent", subject=subject, to=settings.user_email)
+    return SendResult(True)
+
+
 def send_briefing(briefing_id: int, *, settings: Settings | None = None) -> SendResult:
     """Kaydedilmiş brifingi e-postayla gönderir ve sonucu işler."""
     settings = settings or get_settings()

@@ -180,9 +180,96 @@ class BudgetGuard:
 
     # -- rapor ---------------------------------------------------------------
     def snapshot(self) -> dict[str, float]:
+        daily = self.ledger.spent_today_usd()
+        monthly = self.ledger.spent_this_month_usd()
+        daily_cap = self.settings.llm_daily_budget_usd
+        monthly_cap = self.settings.llm_monthly_budget_usd
         return {
-            "daily_spent_usd": self.ledger.spent_today_usd(),
-            "daily_cap_usd": self.settings.llm_daily_budget_usd,
-            "monthly_spent_usd": self.ledger.spent_this_month_usd(),
-            "monthly_cap_usd": self.settings.llm_monthly_budget_usd,
+            "daily_spent_usd": daily,
+            "daily_cap_usd": daily_cap,
+            "daily_ratio": daily / daily_cap if daily_cap else 0.0,
+            "monthly_spent_usd": monthly,
+            "monthly_cap_usd": monthly_cap,
+            "monthly_ratio": monthly / monthly_cap if monthly_cap else 0.0,
         }
+
+    # -- alarm (F4-07) --------------------------------------------------------
+    def alert_if_needed(self, *, notify: bool = True) -> dict[str, object]:
+        """Eşik aşıldıysa bir kez uyarır (F4-07).
+
+        `check()` çağrı ANINDA tavanı zorlar; bu ise çağrı olmasa bile
+        eşiği görünür kılar. İkisi ayrı olmalı: ayın 20'sinde aylık
+        tavanın %85'inde olduğunu, bir sonraki üretim denemesi
+        `BudgetExceeded` ile düştüğünde değil, önceden bilmek gerekir.
+
+        Tekrar bastırma denetim izinden okunur — aynı uyarı aynı dönemde
+        (gün/ay) bir kez gönderilir. Gürültüye dönen alarm kapatılır.
+        """
+        from datetime import UTC, datetime
+
+        from politikdesk import audit
+
+        snap = self.snapshot()
+        now = datetime.now(UTC)
+        fired: list[dict[str, object]] = []
+
+        periods = (
+            ("günlük", "daily", now.strftime("%Y-%m-%d")),
+            ("aylık", "monthly", now.strftime("%Y-%m")),
+        )
+
+        for label, key, bucket in periods:
+            ratio = float(snap[f"{key}_ratio"])
+            if ratio >= 1.0:
+                level = "exceeded"
+            elif ratio >= WARN_THRESHOLD:
+                level = "warning"
+            else:
+                continue
+
+            target = f"budget:{key}:{bucket}:{level}"
+            if audit.exists_since("llm_budget_alert", target, hours=25):
+                continue
+
+            spent = float(snap[f"{key}_spent_usd"])
+            cap = float(snap[f"{key}_cap_usd"])
+            detail = {
+                "period": key, "level": level, "ratio": round(ratio, 3),
+                "spent_usd": round(spent, 4), "cap_usd": cap,
+            }
+            fired.append(detail)
+
+            log.error(
+                "llm_budget_alert", period=key, level=level,
+                spent_usd=round(spent, 4), cap_usd=cap, ratio=round(ratio, 3),
+            )
+            audit.write("llm_budget_alert", target, payload=detail)
+
+            if notify:
+                self._notify(label, level, spent, cap, ratio)
+
+        return {"snapshot": snap, "alerts": fired}
+
+    @staticmethod
+    def _notify(label: str, level: str, spent: float, cap: float, ratio: float) -> None:
+        """Bildirim gönderilemezse alarm yine geçerlidir — log ve denetim
+        izi zaten yazıldı; bu yalnızca haber vermenin ikinci yolu."""
+        from politikdesk.briefing.mailer import send_notification
+
+        headline = (
+            f"LLM {label} bütçe TAVANI aşıldı — üretim duruyor"
+            if level == "exceeded"
+            else f"LLM {label} bütçesinin %{ratio * 100:.0f}'i kullanıldı"
+        )
+        body = (
+            f"{headline}\n\n"
+            f"Harcanan: {spent:.4f} $\n"
+            f"Tavan:    {cap:.2f} $\n\n"
+            "Tavan aşıldığında YALNIZCA LLM'e bağlı adımlar durur "
+            "(iddia çıkarımı, taslak üretimi). Toplama, embedding, "
+            "kümeleme ve kanıt motoru çalışmaya devam eder — hiçbiri "
+            "LLM kullanmaz.\n\n"
+            "Tavanı değiştirmek için: PD_LLM_DAILY_BUDGET_USD / "
+            "PD_LLM_MONTHLY_BUDGET_USD"
+        )
+        send_notification(subject=f"PolitikDesk — {headline}", text_body=body)
