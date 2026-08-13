@@ -1,21 +1,26 @@
-"""TÜİK SDMX servisinin kimlik doğrulama şemasını tespit eder (F5-02).
+"""TÜİK SDMX erişimini uçtan uca doğrular (F5-02 · B-42).
 
-B-42'nin kalan parçası. Teşhis şuydu: bülten listesi `veriportali` ve
-`data.tuik.gov.tr` üzerinde React SPA olarak yükleniyor (sunucu yalnızca
-"JavaScript gerekli" kabuğu döndürüyor; `/swagger/v1/swagger.json` bile
-aynı kabuğu döndürür — gerçek bir spec değildir). Sunucu tarafından
-okunabilen tek uç **SDMX servisidir**:
+**Protokol nereden bulundu:** TÜİK'in API belgesi sunucudan okunabilen
+bir yerde yayımlanmıyor — `veriportali` bir React SPA ve
+`/swagger/v1/swagger.json` bile "JavaScript gerekli" kabuğunu döndürüyor
+(B-42'nin üç fazdır açık kalmasının sebebi buydu). Belge, uygulamanın JS
+paketine (`/assets/main-*.js`) gömülü markdown içinde bulundu:
 
-    https://nsiws.tuik.gov.tr/rest/...
+    POST giris.tuik.gov.tr/realms/web/protocol/openid-connect/token
+      grant_type=password & client_id=nsi-ws-consumer & api_key=<KEY>
+    -> access_token (expires_in: 300)
 
-Bu uç kimlik doğrulama ister ve 401'i `WWW-Authenticate` başlığı
-OLMADAN döndürür — yani şema ilan edilmiyor. Anahtarın hangi biçimde
-gönderileceği ancak denenerek bulunur. Bu betik onu yapar.
+    GET nsiws.tuik.gov.tr/rest/... + Authorization: Bearer <token>
 
-⛔ **Anahtar hiçbir koşulda ekrana basılmaz.** Yalnızca hangi şemanın
-kaç döndürdüğü yazılır. Anahtar `.env`'den, dolaylı desenle okunur:
-`PD_TUIK_API_KEY_ENV` hangi ortam değişkeninin anahtarı taşıdığını
-söyler (`PD_LLM_API_KEY_ENV` ile aynı deyim, B-64).
+Bu betik o zinciri koşar ve nerede koptuğunu söyler.
+
+**Aralıklı TLS arızası beklenen bir durumdur:** `giris` ve `nsiws`
+konakları zaman zaman el sıkışma ortasında bağlantıyı düşürüyor
+(`UNEXPECTED_EOF_WHILE_READING` — Resmî Gazete'nin B-44'teki semptomuyla
+aynı sınıf, ama burada kalıcı değil). `HttpClient` bunu yeniden dener;
+tek bir hata "kaynak ölü" demek DEĞİLDİR.
+
+⛔ Anahtar ve belirteç ekrana basılmaz.
 
 Kullanım:
     python -m scripts.probe_tuik
@@ -23,90 +28,67 @@ Kullanım:
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
-
-import httpx
+import re
 
 from politikdesk.config import load_env_file
+from politikdesk.ingestion.http import HttpClient
+from politikdesk.ingestion.tuik_auth import TuikAuthError, TuikTokenProvider
 
-BASE = "https://nsiws.tuik.gov.tr/rest"
-# Şema keşfi için en ucuz uç: veri değil, veri akışı listesi.
-PROBE_PATH = "/dataflow"
+DATAFLOW_URL = "https://nsiws.tuik.gov.tr/rest/dataflow/TR/all/latest"
 
-UA = "PolitikDesk/1.0 (+kişisel araştırma aracı)"
-
-
-@dataclass
-class Attempt:
-    label: str
-    status: int
-    detail: str
-
-
-def _schemes(key: str) -> list[tuple[str, dict[str, str], dict[str, str]]]:
-    """(etiket, başlıklar, sorgu parametreleri) — denenecek şemalar."""
-    return [
-        ("Authorization: Bearer", {"Authorization": f"Bearer {key}"}, {}),
-        ("Authorization: ApiKey", {"Authorization": f"ApiKey {key}"}, {}),
-        ("Authorization: <ham>", {"Authorization": key}, {}),
-        ("X-API-Key", {"X-API-Key": key}, {}),
-        ("apikey", {"apikey": key}, {}),
-        ("sorgu: api_key", {}, {"api_key": key}),
-        ("sorgu: apiKey", {}, {"apiKey": key}),
-    ]
+# MVP konularına karşılık gelen akışlar (docs/mvp-konu-kapsami.md).
+INTERESTING = ("UFE", "ISGUCU", "GSYH")
 
 
 def probe() -> int:
     load_env_file()
 
-    var = os.environ.get("PD_TUIK_API_KEY_ENV", "TUIK_API_KEY")
-    key = os.environ.get(var, "").strip()
+    with HttpClient(respect_robots=False, timeout=90.0) as client:
+        provider = TuikTokenProvider(client=client)
 
-    if not key:
-        print(f"[EKSIK] Anahtar bulunamadi. '{var}' ortam degiskeni bos.")
+        try:
+            header = provider.auth_header()
+        except TuikAuthError as exc:
+            print(f"[HATA] Belirtec alinamadi: {exc}")
+            print()
+            print("Yapilacak: .env dosyasina su iki satiri ekleyin")
+            print("    PD_TUIK_API_KEY_ENV=TUIK_API_KEY")
+            print("    TUIK_API_KEY=<anahtariniz>")
+            return 1
+
+        print(f"[OK] Belirtec alindi ({len(header['Authorization'])} karakter).")
+
+        try:
+            response = client.get(DATAFLOW_URL, headers=header, source_slug="tuik")
+        except Exception as exc:  # noqa: BLE001
+            print(f"[HATA] SDMX cagrisi basarisiz: {type(exc).__name__}")
+            return 2
+
+        body = response.text
+        flows = re.findall(
+            r'<structure:Dataflow[^>]*\bid="([^"]+)"[^>]*>(.*?)</structure:Dataflow>',
+            body, re.DOTALL,
+        )
+        print(f"[OK] SDMX {response.status_code} — {len(body):,} karakter, "
+              f"{len(flows)} veri akisi.")
         print()
-        print("Yapilacak: .env dosyasina su iki satiri ekleyin")
+        print("MVP konularina yakin akislar:")
+        shown = 0
+        for flow_id, inner in flows:
+            if not any(k in flow_id.upper() for k in INTERESTING):
+                continue
+            name = re.search(r'<common:Name xml:lang="tr">(.*?)</common:Name>',
+                             inner, re.DOTALL)
+            print(f"  {flow_id:44} {(name.group(1).strip() if name else '')[:58]}")
+            shown += 1
+            if shown >= 12:
+                break
+
         print()
-        print("    PD_TUIK_API_KEY_ENV=TUIK_API_KEY")
-        print("    TUIK_API_KEY=<anahtariniz>")
-        print()
-        print("Anahtari sohbete YAZMAYIN; yalnizca .env'e koyun.")
-        return 1
-
-    print(f"Anahtar '{var}' degiskeninde bulundu ({len(key)} karakter).")
-    print(f"Sonda ucu: {BASE}{PROBE_PATH}")
-    print()
-
-    results: list[Attempt] = []
-    with httpx.Client(timeout=25.0, follow_redirects=True) as client:
-        for label, headers, params in _schemes(key):
-            try:
-                r = client.get(
-                    f"{BASE}{PROBE_PATH}",
-                    headers={"User-Agent": UA, "Accept": "application/json", **headers},
-                    params=params,
-                )
-                detail = "" if r.status_code == 200 else r.text[:80].replace("\n", " ")
-                results.append(Attempt(label, r.status_code, detail))
-            except Exception as exc:  # noqa: BLE001
-                results.append(Attempt(label, 0, f"{type(exc).__name__}: {exc}"[:80]))
-
-    ok = [a for a in results if a.status == 200]
-    for a in results:
-        mark = "[OK]  " if a.status == 200 else "[--]  "
-        print(f"  {mark}{a.label:24} {a.status}  {a.detail}")
-
-    print()
-    if ok:
-        print(f"CALISAN SEMA: {ok[0].label}")
-        print("Adaptor bu semayla yazilacak (F5-02).")
+        print("NOT: TUFE (tuketici fiyat endeksi) bu listede YOKTUR — 'TR'")
+        print("ajansi yalnizca URETICI fiyat endekslerini (UFE) ve isgucu/GSYH")
+        print("serilerini yayimliyor. Enflasyonun TUFE ayagi bu API'den gelmez.")
         return 0
-
-    print("Hicbir sema 200 dondurmedi.")
-    print("Olasiliklar: anahtar farkli bir servise ait, sureli bir belirtec")
-    print("gerekiyor (giris.tuik.gov.tr / Keycloak), ya da IP kisiti var.")
-    return 2
 
 
 if __name__ == "__main__":

@@ -117,18 +117,66 @@ class HttpClient:
         self._limiter = RateLimiter(self.max_per_minute)
         self._robots = RobotsCache(self._client)
 
-    def get(self, url: str, *, source_slug: str = "") -> httpx.Response:
-        """Kibarca GET. 429/503'te üstel geri çekilme ile yeniden dener."""
+    def get(
+        self,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        source_slug: str = "",
+    ) -> httpx.Response:
+        """Kibarca GET. 429/503'te üstel geri çekilme ile yeniden dener.
+
+        `headers` kimlik doğrulama isteyen uçlar içindir (TÜİK SDMX
+        `Authorization: Bearer ...` bekler, F5-02).
+        """
         if self.respect_robots and not self._robots.allowed(url):
             raise RobotsDisallowed(f"robots.txt bu yolu yasaklıyor: {url}")
 
+        return self._send("GET", url, headers=headers, source_slug=source_slug)
+
+    def post(
+        self,
+        url: str,
+        *,
+        data: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        source_slug: str = "",
+    ) -> httpx.Response:
+        """Kibarca POST — kimlik doğrulama uçları için (F5-02).
+
+        `robots.txt` DENETLENMEZ ve bu bilinçlidir: robots bir tarama
+        (crawl) sözleşmesidir, kimliğimizle çağırdığımız bir API ucunu
+        kapsamaz. Oran sınırı ve geri çekilme aynen uygulanır.
+        """
+        return self._send("POST", url, data=data, headers=headers,
+                          source_slug=source_slug)
+
+    def _send(
+        self,
+        method: str,
+        url: str,
+        *,
+        data: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        source_slug: str = "",
+    ) -> httpx.Response:
+        """Ortak gövde: oran sınırı + üstel geri çekilme + yeniden deneme.
+
+        TLS el sıkışması ORTASINDA düşen sunucular var (TÜİK'in
+        `nsiws`/`giris` konakları aralıklı olarak
+        `UNEXPECTED_EOF_WHILE_READING` veriyor). Bu bir `httpx.HTTPError`
+        alt sınıfıdır ve zaten yeniden denenir — tek koşumda "kaynak
+        ölü" diye karar vermek yanlış olurdu.
+        """
         host = urlparse(url).netloc
         self._limiter.acquire(host)
 
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             try:
-                response = self._client.get(url)
+                response = self._client.request(
+                    method, url, data=data, headers=headers
+                )
             except httpx.HTTPError as exc:
                 last_error = exc
                 self._backoff(attempt, url, reason=type(exc).__name__)
