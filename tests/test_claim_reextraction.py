@@ -292,3 +292,46 @@ def test_new_evidence_link_retriggers_scoring(db_conn, fixtures):  # noqa: ANN00
         f"yeni kanit bagi geldigi halde durum '{final_status}' kaldi — "
         "capraz teyit veritabaninda olusuyor ama urune yansimiyor"
     )
+
+
+# ---------------------------------------------------------------- F5-18
+def test_database_rejects_duplicate_claim_signature(db_conn, fixtures):  # noqa: ANN001
+    """Aynı olayda aynı imza İKİ KEZ yazılamaz — kısıt veritabanında.
+
+    Python tarafındaki "zaten var mı" kontrolü yarışta YETMEZ: iki süreç
+    de "yok" görüp ikisi de yazabilir. 13 Ağustos'ta ölçülen buydu —
+    124 iddianın 9'u mükerrerdi ve çiftler 20-30 saniye arayla yazılmıştı.
+
+    Mükerrerliğin zararı, düzeltmeye çalıştığımız yerin tam kalbinde:
+    kanıt bağları iki satıra bölünür, `independent_count` hiçbirinde
+    eşiğe ulaşmaz, çapraz teyit sessizce çöker (B-79 / F5-16 ile aynı
+    sonuç, farklı yol).
+    """
+    import psycopg
+
+    event_id = fixtures["events"][1]
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_text, claim_type, evidence_status,
+                                status_reason, claim_signature)
+            VALUES (%s, 'pytest mukerrer', 'fact', 'unverified',
+                    '{"rule": "pending"}'::jsonb, 'fact:pytest mukerrer imza')
+            """,
+            (event_id,),
+        )
+    db_conn.commit()
+
+    # İkinci süreç aynı imzayı yazmayı denerse veritabanı reddeder.
+    with db_conn.cursor() as cur, pytest.raises(psycopg.errors.UniqueViolation):
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_text, claim_type, evidence_status,
+                                status_reason, claim_signature)
+            VALUES (%s, 'pytest mukerrer', 'fact', 'unverified',
+                    '{"rule": "pending"}'::jsonb, 'fact:pytest mukerrer imza')
+            """,
+            (event_id,),
+        )
+    db_conn.rollback()

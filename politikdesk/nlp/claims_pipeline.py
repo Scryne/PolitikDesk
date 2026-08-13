@@ -293,8 +293,11 @@ def _persist(
             cur.execute(
                 """
                 INSERT INTO claims (event_id, claim_text, claim_type, normalized_value,
-                                    evidence_status, status_reason)
-                VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb)
+                                    evidence_status, status_reason, claim_signature)
+                VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb, %s)
+                ON CONFLICT (event_id, claim_signature)
+                    WHERE claim_signature IS NOT NULL
+                    DO NOTHING
                 RETURNING id
                 """,
                 (
@@ -307,9 +310,21 @@ def _persist(
                     # güvenli varsayılandır — R0'ın tahmin kısıtıyla da uyumlu,
                     # ve DB CHECK'i ihlal etmez.
                     json.dumps({"rule": "pending", "engine_version": "not_yet_scored"}),
+                    signature,
                 ),
             )
-            claim_id = cur.fetchone()["id"]
+            row = cur.fetchone()
+            if row is None:
+                # Yarış: bu iddiayı aramızda başka bir süreç yazdı (F5-18).
+                # Python tarafındaki kontrol tek başına yetmez — iki süreç
+                # de "yok" görüp ikisi de yazabilir. Kısıt bunu keser;
+                # burada yalnızca kazananın kimliğini okuruz.
+                cur.execute(
+                    "SELECT id FROM claims WHERE event_id = %s AND claim_signature = %s",
+                    (event_id, signature),
+                )
+                row = cur.fetchone()
+            claim_id = row["id"]
             existing[signature] = claim_id
 
         for article_id, quote_span in sources:
