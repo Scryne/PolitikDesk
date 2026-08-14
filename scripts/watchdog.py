@@ -11,8 +11,9 @@ ve dışarıdan üç soruyu sorar:
     2. API yanıt veriyor mu?
     3. Boru hattının bir aşamasında birikme var mı?
 
-Çıktı hem konsola hem `backups/health.log`'a yazılır. Çıkış kodu 0 =
-sağlıklı, 1 = sorun var (Görev Zamanlayıcı "son sonuç" sütununda görünür).
+Çıktı hem konsola hem yedek dizinindeki `health.log`'a yazılır (konum
+kuralı: `politikdesk/backup_policy.py`, B-84). Çıkış kodu 0 = sağlıklı,
+1 = sorun var (Görev Zamanlayıcı "son sonuç" sütununda görünür).
 
     python -m scripts.watchdog
     python -m scripts.watchdog --quiet     # yalnızca sorun varsa yaz
@@ -30,9 +31,25 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 EXPECTED_CONTAINERS = ("pd-db", "pd-redis", "pd-api", "pd-worker", "pd-beat")
-API_URL = "http://localhost:8000/health/live"
-LOG_PATH = Path("backups") / "health.log"
+API_URL = "http://127.0.0.1:8000/health/live"
 HTTP_TIMEOUT = 10
+
+
+def log_path() -> Path:
+    """Sağlık günlüğü, yedeklerle aynı dizine yazılır (B-84).
+
+    Kayıt dökümler kadar hassas değildir ama aynı konum kuralına uyar:
+    ikisi de "makinenin dışına çıkmaması gereken işletim izi"dir.
+
+    Kural bir hata verirse nöbet DURMAZ — güvenli varsayılana düşer.
+    Kendi günlüğünü yazamadığı için susan bir nöbetçi, nöbetçi değildir.
+    """
+    from politikdesk.backup_policy import default_backup_dir, resolve_backup_dir
+
+    try:
+        return resolve_backup_dir() / "health.log"
+    except Exception:  # noqa: BLE001
+        return default_backup_dir() / "health.log"
 
 
 def _container_states() -> dict[str, str]:
@@ -123,8 +140,9 @@ def run(quiet: bool = False) -> int:
     lines = [header, *(f"  - {p}" for p in problems)]
     report = "\n".join(lines)
 
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_PATH.open("a", encoding="utf-8") as fh:
+    destination = log_path()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("a", encoding="utf-8") as fh:
         fh.write(report + "\n")
 
     if not quiet or not healthy:

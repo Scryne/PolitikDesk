@@ -82,15 +82,47 @@ edilebilir; makine paylaşılırsa parola değiştirilmeli ve Redis'e
 kendisini değil, anahtarın okunacağı **değişkenin adını** tutar. Bu,
 sağlayıcı değiştirmeyi anahtarı taşımadan mümkün kılar.
 
-⚠ **`backups/*.dump` şifresiz.** Makale alıntıları, editoryal profil ve
-taslaklar içerir. Disk şifrelemesi (BitLocker) açık olmalıdır; yedekler
-buluta senkronlanan bir klasöre konmamalıdır.
+### Yedeklerin konumu — B-84 ✅ **karara bağlandı (14 Ağustos 2026)**
 
-> Not: proje dizini `OneDrive` altında. `backups/` `.gitignore`'da ama
-> OneDrive senkronu `.gitignore`'a bakmaz — yedekler buluta çıkar.
-> Kabul edilebilir bir tercih olabilir (kişisel veri, kişisel bulut), ama
-> **bilinçli** olmalı: istenmiyorsa `PD_BACKUP_DIR` ile OneDrive dışına
-> alınabilir.
+**Karar: yedekler bulut eşitlemesi dışında tutulur; şifreleme zorunlu
+değildir.** Kural belgeye değil koda yazıldı:
+`politikdesk/backup_policy.py`.
+
+**Neden BitLocker yetmedi.** BitLocker *diski* korur — makine çalınırsa
+veri okunamaz. Ama `backups/` OneDrive altındayken dosyalar Microsoft'un
+sunucularına **kopyalanıyordu** ve orada BitLocker'ın hükmü yok. Asıl
+maruziyet "disk çalınırsa" değil, "veri zaten üçüncü tarafta" hâliydi.
+İçerik: makale alıntıları, **editoryal profil** (kullanıcının kendi yayın
+duruşu) ve **taslaklar**.
+
+`.gitignore` bu dizini koruyordu ama **OneDrive `.gitignore` okumaz** —
+yani depo koruması burada yanıltıcı bir güven veriyordu.
+
+**Neden şifreleme zorunlu değil.** Şifreleme anahtar yönetimi getirir ve
+anahtar kaybı = **yedek kaybı**. Dosyalar buluttan çıkarılıp BitLocker'lı
+bir birime alındıktan sonra şifrelemenin marjinal kazancı, yedeği tümden
+kaybetme riskinin altında kalır. Yedeğin birinci işlevi kurtarmaktır.
+İsteyen harici birim + `age`/GPG ekleyebilir; ürün zorunlu kılmaz.
+
+**Asıl tuzak varsayılandı.** `PD_BACKUP_DIR` yokken yol `"backups"` idi —
+depo kökünün altı, yani OneDrive'ın içi. Kimse yanlış bir şey yapmadı;
+varsayılan yanlıştı. Uygulanan düzeltme:
+
+| Değişiklik | Etki |
+|---|---|
+| Varsayılan → `%LOCALAPPDATA%\PolitikDesk\backups` | OneDrive "Bilinen Klasör Taşıma" buraya dokunmaz |
+| Bulut altındaki yol **reddedilir** (`BackupLocationError`) | Uyarı yazıp devam etmek yetmez; uyarılar okunmaz |
+| Kaçış kapısı `PD_BACKUP_ALLOW_CLOUD=1` | Bilerek buluta yazmak mümkün, ama **sessizce değil** |
+| `health.log` da aynı dizine taşındı | Aynı konum kuralı; nöbetçi kural hata verirse durmaz |
+| Mevcut dökümler OneDrive dışına **taşındı** | 1 döküm + `health.log` |
+
+Doğrulandı: yeni konumda al → oku → ayrı veritabanına geri yükle
+zinciri koşuldu, 6 tablo **birebir aynı** satır sayısıyla döndü.
+
+> ⚠ **Kalan işlem kullanıcıda:** OneDrive silinen dosyaları çevrimiçi geri
+> dönüşüm kutusunda ve sürüm geçmişinde bir süre tutar. Eski dökümün bulut
+> kopyasını tamamen kaldırmak için OneDrive web arayüzünden geri dönüşüm
+> kutusu boşaltılmalıdır.
 
 ---
 

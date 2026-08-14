@@ -19,25 +19,44 @@ konteyner silinince yedek de gitmesin.
 verilen yeni bir veritabanına yüklenir; hedef adı üretimle aynıysa komut
 reddeder. Yedeği "denenmiş" saymanın tek yolu onu gerçekten geri
 yüklemektir, ama geri yükleme denemesi verinin kendisini riske atmamalı.
+
+**Yedeğin NEREYE yazıldığı `politikdesk/backup_policy.py`'nin kararıdır
+(B-84).** Varsayılan bulut eşitlemesinin dışıdır; OneDrive/Dropbox gibi
+bir dizin verilirse komut reddeder. Gerekçe o modülün başlığında.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import subprocess
 import sys
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urlparse
 
+from politikdesk.backup_policy import BackupLocationError, resolve_backup_dir
+
 DB_CONTAINER = "pd-db"
-BACKUP_DIR = Path(os.environ.get("PD_BACKUP_DIR", "backups"))
 # Saklama: 14 günlük + 8 haftalık. Tek kullanıcılı bir araçta daha uzunu
 # disk yer; daha kısası "geçen hafta neyi bozdum" sorusunu yanıtlayamaz.
 KEEP_DAILY = 14
 RESTORE_DB_SUFFIX_RE = re.compile(r"^[a-z0-9_]+$")
+
+
+@lru_cache(maxsize=1)
+def backup_dir() -> Path:
+    """Yedek dizini — `backup_policy` kararına göre (B-84).
+
+    Varsayılan bulut eşitlemesi dışıdır ve bulut altındaki bir yol
+    REDDEDİLİR. Eski varsayılan (`"backups"` = depo kökü = OneDrive içi)
+    yedekleri sessizce üçüncü tarafa kopyalıyordu.
+
+    İçe aktarma anında değil ÇAĞRI anında çözülür: modül seviyesinde
+    hata fırlatmak `--help`'i bile ham bir yığın izine çevirirdi.
+    """
+    return resolve_backup_dir()
 
 
 def _dsn() -> str:
@@ -79,10 +98,11 @@ def create(label: str = "") -> Path:
             f"'{DB_CONTAINER}' konteyneri çalışmıyor. Önce: make up"
         )
 
-    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    target_dir = backup_dir()
+    target_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     suffix = f"-{label}" if label else ""
-    target = BACKUP_DIR / f"politikdesk-{stamp}{suffix}.dump"
+    target = target_dir / f"politikdesk-{stamp}{suffix}.dump"
 
     with target.open("wb") as fh:
         result = subprocess.run(  # noqa: S603
@@ -251,12 +271,18 @@ def _compare(production: str, restored: str) -> bool:
 
 # ----------------------------------------------------------------- list/prune
 def list_backups() -> list[Path]:
-    if not BACKUP_DIR.is_dir():
-        print(f"Yedek dizini yok: {BACKUP_DIR}")
+    directory = backup_dir()
+    if not directory.is_dir():
+        print(f"Yedek dizini yok: {directory}")
         return []
-    files = sorted(BACKUP_DIR.glob("politikdesk-*.dump"), reverse=True)
+    files = sorted(directory.glob("politikdesk-*.dump"), reverse=True)
     if not files:
-        print(f"Yedek yok: {BACKUP_DIR}")
+        print(f"Yedek yok: {directory}")
+        return files
+
+    # Dizin başlıkta yazılır: `verify`/`restore` tam yol ister ve yedekler
+    # artık depo altında değil (B-84), yani kullanıcı yolu tahmin edemez.
+    print(f"Dizin: {directory}\n")
     for f in files:
         print(f"{f.name:<45} {f.stat().st_size / 1_048_576:>8.2f} MB")
     return files
@@ -264,7 +290,7 @@ def list_backups() -> list[Path]:
 
 def prune(keep: int = KEEP_DAILY) -> int:
     """En yeni `keep` yedeği bırakır, gerisini siler."""
-    files = sorted(BACKUP_DIR.glob("politikdesk-*.dump"), reverse=True)
+    files = sorted(backup_dir().glob("politikdesk-*.dump"), reverse=True)
     removed = 0
     for old in files[keep:]:
         old.unlink()
@@ -297,6 +323,14 @@ def main(argv: list[str] | None = None) -> int:
     p_prune.add_argument("--keep", type=int, default=KEEP_DAILY)
 
     args = parser.parse_args(argv)
+
+    # Konum kuralı (B-84) burada yakalanır: kullanıcı ham yığın izi değil,
+    # ne yapacağını söyleyen bir mesaj görsün.
+    try:
+        backup_dir()
+    except BackupLocationError as exc:
+        print(f"[HATA] {exc}", file=sys.stderr)
+        return 2
 
     if args.command == "create":
         create(args.label)

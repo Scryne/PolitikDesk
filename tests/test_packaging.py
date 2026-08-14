@@ -67,6 +67,36 @@ def test_asset_dirs_exist_in_repo_and_are_not_empty() -> None:
         assert files, f"{name}/ bos — denetim anlamsizlasir"
 
 
+def test_windows_batch_files_use_crlf() -> None:
+    """`cmd.exe` `goto` etiketlerini BAYT OFSETİYLE arar.
+
+    Dosya yalnız LF ile bittiğinde arama satır ortasına düşebiliyor ve
+    komut satırın yarısını çalıştırıyor. Ölçülen belirti (14 Ağustos
+    2026): `pd.cmd` LF iken `pd arch` / `pd lint` / `pd status` şunu
+    veriyordu — yolun ilk harfi yutulmuştu:
+
+        'olitikDesk' is not recognized as an internal or external command
+
+    ⚠️ Arıza SABİT DEĞİLDİ: hangi komutun bozulacağı bayt kaymasına
+    bağlıydı, yani bir satır eklemek bambaşka bir komutu bozabiliyordu.
+    `.gitattributes` bunu `eol=crlf` ile sabitler; bu test de tutar.
+    """
+    for path in sorted(REPO_ROOT.glob("*.cmd")):
+        data = path.read_bytes()
+        lone_lf = data.replace(b"\r\n", b"").count(b"\n")
+        assert lone_lf == 0, (
+            f"{path.name}: {lone_lf} satir yalniz LF ile bitiyor. "
+            "Toplu is dosyalari CRLF olmali (.gitattributes eol=crlf)."
+        )
+
+
+def test_gitattributes_pins_batch_line_endings() -> None:
+    """Kural depoda sabitlenmeli; yoksa bir sonraki checkout geri alır."""
+    attributes = (REPO_ROOT / ".gitattributes").read_text(encoding="utf-8")
+    assert "*.cmd" in attributes
+    assert "eol=crlf" in attributes
+
+
 def test_certs_dir_read_by_code_is_the_one_that_is_copied() -> None:
     """`http.py`'nin okuduğu dizin ile imaja kopyalanan aynı olmalı.
 

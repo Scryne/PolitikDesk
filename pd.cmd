@@ -148,17 +148,18 @@ REM ------------------------------------------------------------------- yedek
 "%PY%" -m scripts.backup create
 goto :eof
 
+REM Yedek dizini bulut disindadir (B-84); tam yolu bu komut yazar.
 :cmd_backup-list
 "%PY%" -m scripts.backup list
 goto :eof
 
 :cmd_backup-verify
-if "%~2"=="" (echo Kullanim: pd backup-verify backups\^<dosya^>.dump & exit /b 1)
+if "%~2"=="" (echo Kullanim: pd backup-verify ^<tam-yol^>.dump ^(yollari icin: pd backup-list^) & exit /b 1)
 "%PY%" -m scripts.backup verify "%~2"
 goto :eof
 
 :cmd_backup-restore
-if "%~2"=="" (echo Kullanim: pd backup-restore backups\^<dosya^>.dump & exit /b 1)
+if "%~2"=="" (echo Kullanim: pd backup-restore ^<tam-yol^>.dump ^(yollari icin: pd backup-list^) & exit /b 1)
 "%PY%" -m scripts.backup restore "%~2" --into politikdesk_restore_test
 goto :eof
 

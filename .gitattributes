@@ -1,0 +1,22 @@
+# Windows toplu iş dosyaları CRLF OLMAK ZORUNDA.
+#
+# Bu bir biçim tercihi değil, bir hata düzeltmesidir. `cmd.exe` `goto`
+# etiketlerini BAYT OFSETİYLE arar; dosya yalnız LF ile bittiğinde arama
+# satır ortasına düşebiliyor ve komut, satırın yarısını çalıştırıyor.
+#
+# Ölçülen belirti (14 Ağustos 2026): `pd.cmd` LF ile kayıtlıyken
+# `pd arch`, `pd lint`, `pd status` şu hatayı veriyordu:
+#
+#     'olitikDesk' is not recognized as an internal or external command
+#
+# Yolun ilk harfi yutulmuştu. Arıza SABİT DEĞİLDİ: hangi komutun
+# bozulacağı dosyadaki bayt kaymasına bağlıydı, yani bir satır eklemek
+# bambaşka bir komutu bozabiliyordu. Teşhisi en zor arıza türü budur.
+*.cmd  text eol=crlf
+*.bat  text eol=crlf
+*.ps1  text eol=crlf
+
+# Kabuk betikleri ve Makefile'ın tersi geçerli: LF zorunlu (Docker imajı
+# Linux'tur; CRLF'li bir betik `bad interpreter` verir).
+*.sh       text eol=lf
+Dockerfile text eol=lf
