@@ -21,12 +21,17 @@ from politikdesk.db import connection, fetch_one
 def current_user_id() -> int:
     """Yerel kullanıcının kimliğini döndürür; yoksa oluşturur.
 
-    `PD_USER_EMAIL` ile yapılandırılır. `ON CONFLICT` sayesinde eşzamanlı
-    iki istek de aynı satırı bulur — worker ile API aynı anda açılırken
-    bu gerçekten oluyor.
+    `PD_USER_EMAIL` ile yapılandırılır. Read-first çalışır: mevcut kullanıcı
+    için yalnızca `SELECT` yapılır (GET isteklerinde gereksiz yazma işlemi ve
+    WAL oluşmaz). Kullanıcı henüz yoksa `ON CONFLICT` ile güvenle oluşturulur.
     """
     settings = get_settings()
     with connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE email = %s", (settings.user_email,))
+        row = cur.fetchone()
+        if row is not None:
+            return int(row["id"])
+
         cur.execute(
             """
             INSERT INTO users (email, display_name)
