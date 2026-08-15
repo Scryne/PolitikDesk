@@ -14,6 +14,7 @@ htmlcov/
 .env
 .env.local
 *.local
+config/editorial_stance.md
 
 # Docker / veri
 pgdata/
@@ -39,3 +40,9 @@ out/
 /tmp/
 *.log
 eval/_runs/
+
+# Tasarım döngüsü (DESIGN.md Bölüm 14) — ajanın kendi screenshot'ları
+design/shots/
+.env.claude
+*.local.json
+

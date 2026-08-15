@@ -88,7 +88,7 @@ test:
 
 lint:
 	ruff check .
-	mypy || true
+	mypy
 
 # B-83: bagimlilik guvenlik taramasi. CI'da zorunlu adim.
 audit:
@@ -183,6 +183,14 @@ feeds:
 
 cost:
 	python -m scripts.cost_model
+
+# DESIGN.md Bolum 14 denetimi: 7 ekran x 4 viewport'ta yatay tasma,
+# konsol hatasi ve h1/lang/aria kontrolu. `ci`ye DAHIL DEGIL cunku ayakta
+# bir sunucu ister ve CI isinde Docker yok. Arayuz degistiginde elle
+# kosulur; sonrasinda design/decisions.md guncellenir.
+ui-check:
+	python -m playwright install chromium
+	python scripts/ui_check.py --shots
 
 ci: lint audit arch verify-arch test
 

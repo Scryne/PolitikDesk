@@ -68,6 +68,7 @@ echo   pd test             Test paketi
 echo   pd lint             ruff + mypy
 echo   pd audit            Bagimlilik guvenlik taramasi
 echo   pd ci               lint + audit + mimari + test
+echo   pd ui-check         Arayuz denetimi (tasma/konsol/a11y)
 echo   pd migrate          Migration'lari uygula
 echo.
 echo   -- kurulum --
@@ -232,7 +233,14 @@ goto :eof
 "%PY%" -m pip_audit --skip-editable || goto :fail
 "%PY%" -m scripts.check_architecture || goto :fail
 "%PY%" -m scripts.verify_arch_guard || goto :fail
-"%PY%" -m pytest -q
+"%PY%" -m pytest -q || goto :fail
+goto :eof
+
+:cmd_ui-check
+REM DESIGN.md Bolum 14 denetimi. Test paketinden AYRI durur cunku ayakta
+REM bir sunucu ister; `pd ci` Docker'siz de kosabilmeli.
+"%PY%" -m playwright install chromium >nul 2>&1
+"%PY%" "%ROOT%scripts\ui_check.py" --shots
 goto :eof
 
 :cmd_migrate

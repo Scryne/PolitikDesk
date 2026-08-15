@@ -10,10 +10,13 @@ __pycache__
 tests
 docs
 eval
-web
+# NOT: kok seviyesine sabit. `web` yazilirsa politikdesk/web/static/
+# (fontlar) da dislanmis SANILIR; oyle degil ama okuyan tereddut eder.
+/web
 node_modules
 pgdata
 redisdata
 .env
 *.md
 !README.md
+config/editorial_stance.md

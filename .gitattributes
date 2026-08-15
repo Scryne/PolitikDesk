@@ -20,3 +20,8 @@
 # Linux'tur; CRLF'li bir betik `bad interpreter` verir).
 *.sh       text eol=lf
 Dockerfile text eol=lf
+
+# Fontlar ikilidir. Bu depoda eol donusumu acik; bir woff2'ye CRLF
+# donusumu uygulanirsa dosya bozulur ve taraycida sessizce fallback
+# fonta duser (arayuzde iki font karisir — DESIGN.md Bolum 6.1).
+*.woff2 binary
