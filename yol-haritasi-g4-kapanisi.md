@@ -65,13 +65,13 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | Sorumlu | İlgili Madde |
 |---|---|---|---|
-| [ ] | `PD_SMTP_HOST`, `PORT`, `USER`, `PASSWORD`, `FROM` değerlerini `.env`'e gir | Kullanıcı | 5 (G4′-9) |
-| [ ] | Test maili gönder, teslim edildiğini doğrula | Kullanıcı | 5 (G4′-9) |
+| [x] | `PD_SMTP_HOST`, `PORT`, `USER`, `PASSWORD`, `FROM` değerlerini `.env`'e gir | Kullanıcı | 5 (G4′-9) |
+| [x] | Test maili gönder, teslim edildiğini doğrula | Kullanıcı + Sistem | 5 (G4′-9) |
 | [x] | Anthropic sağlayıcısı kullanıcı kararıyla iptal edildi; proje NVIDIA NIM API (`openai_compat`) üzerinde sabitlendi | Kullanıcı + Sistem | 6 (B-67/68), 7 (B-51) |
 | [x] | Dockerfile/CI'a `GIT_SHA` build-arg'ı ekle; `check_deployment` script'ini `app_version` yanında `git_sha` eşitliğini de doğrulayacak şekilde genişlet | Sistem | 15 |
 | [x] | Deploy sonrası 3 container'ın (`pd-api`, `pd-worker`, `pd-beat`) `/version` cevabında gerçek SHA döndürdüğünü doğrula | Sistem | 15 |
 
-**Çıkış Kriteri:** `.env` içinde SMTP yapılandırması tamam, test maili ulaştı; `/version` üç container'da da `git_sha=unknown` yerine gerçek kısa SHA döndürüyor; LLM sağlayıcısı NVIDIA NIM API olarak tescillendi.
+**Çıkış Kriteri:** `.env` içinde SMTP yapılandırması tamam, test maili ulaştı; `/version` üç container'da da `git_sha=unknown` yerine gerçek kısa SHA döndürüyor; LLM sağlayıcısı NVIDIA NIM API olarak tescillendi. — **AŞAMA 1 TAMAMLANDI 🟢**
 
 ---
 
@@ -248,7 +248,7 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 | 2 | G4′-2 · Arıza oranı ≤%2 | AŞAMA 3 | 🟡 |
 | 3 | G4′-5/7/8 · Kümeleme/grounding regresyonu | AŞAMA 3 | 🟢 |
 | 4 | G4′-3 · Correction rate ≤%3 | AŞAMA 4 | 🟡 |
-| 5 | G4′-9 · 14 brifing slotu | AŞAMA 1 + 2 | 🔴 |
+| 5 | G4′-9 · 14 brifing slotu | AŞAMA 1 + 2 | 🟡 |
 | 6 | B-67/68 · Sağlayıcı karşılaştırma | AŞAMA 1 | 🟢 |
 | 7 | B-51 · LLM başlık üretimi | AŞAMA 1 | 🟢 |
 | 8 | B-57 · Golden Set 300+150 | AŞAMA 5 | 🟡 |

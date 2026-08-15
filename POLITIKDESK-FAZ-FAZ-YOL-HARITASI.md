@@ -1659,7 +1659,7 @@ Bu noktadan önce yapılacak işlerin amacı **özellik sayısını artırmak de
 - [ ] Golden Set 300 article / 150 claim (beklemede — bağımlı olduğu kalem: AŞAMA 5 / B-57)
 - [x] B-82 ölçülmüş
 - [ ] B-81 yalnızca precision kanıtıyla uygulanmış (beklemede — bağımlı olduğu kalem: AŞAMA 6 / B-81 Golden Set)
-- [ ] SMTP çalışıyor (beklemede — bağımlı olduğu kalem: AŞAMA 1 / kullanıcı .env SMTP)
+- [x] SMTP çalışıyor
 - [ ] 14 briefing slot gönderilmiş (beklemede — bağımlı olduğu kalem: AŞAMA 2 / G4′-9 14 slot)
 - [x] editorial stance aktif
 - [x] README güncel
