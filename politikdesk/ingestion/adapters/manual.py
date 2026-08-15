@@ -17,7 +17,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from html.parser import HTMLParser
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import RawItem
@@ -38,6 +38,9 @@ class UnsafeUrlError(ValueError):
     """URL güvenli değil (iç ağ, desteklenmeyen şema, çözülemeyen host)."""
 
 
+MAX_REDIRECTS = 3
+
+
 def validate_url(url: str, *, resolve_dns: bool = True) -> str:
     """SSRF koruması: yalnızca genel internet adreslerine izin verir."""
     parsed = urlparse(url.strip())
@@ -47,15 +50,22 @@ def validate_url(url: str, *, resolve_dns: bool = True) -> str:
     if not parsed.hostname:
         raise UnsafeUrlError("URL'de host yok")
 
-    host = parsed.hostname.lower()
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
-        raise UnsafeUrlError(f"Yerel adrese erişilemez: {host}")
+    host = parsed.hostname.lower().strip("[]")
+    if (
+        host in {"localhost", "localhost.localdomain", "0.0.0.0", "127.0.0.1", "::1"}
+        or host.endswith(".local")
+        or host.endswith(".internal")
+        or host.endswith(".corp")
+        or host.endswith(".lan")
+    ):
+        raise UnsafeUrlError(f"Yerel/özel adrese erişilemez: {host}")
 
     # Doğrudan IP verilmişse
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
         ip = None
+
     if ip is not None and _is_private(ip):
         raise UnsafeUrlError(f"Özel/ayrılmış IP adresine erişilemez: {host}")
 
@@ -76,8 +86,12 @@ def validate_url(url: str, *, resolve_dns: bool = True) -> str:
 
 def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_reserved or ip.is_multicast or ip.is_unspecified
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
     )
 
 
@@ -144,20 +158,45 @@ class ManualImportAdapter:
     def fetch_one(self, url: str, *, source_slug: str | None = None) -> RawItem:
         from politikdesk.ingestion.adapters.rss import parse_feed_date
 
-        safe_url = validate_url(url)
-        response = self.http.get(safe_url, source_slug="manual")
+        current_url = validate_url(url)
+        visited_urls: set[str] = {current_url}
+        response = None
+
+        # Güvenli adım-adım yönlendirme doğrulaması (SSRF bypass savunması)
+        for _ in range(MAX_REDIRECTS + 1):
+            response = self.http.get(
+                current_url, source_slug="manual", follow_redirects=False
+            )
+            if response.status_code in (301, 302, 303, 307, 308):
+                location = response.headers.get("Location")
+                if not location:
+                    break
+                next_url = urljoin(current_url, location)
+                safe_next_url = validate_url(next_url)
+                if safe_next_url in visited_urls:
+                    raise UnsafeUrlError(f"Yönlendirme döngüsü tespit edildi: {next_url}")
+                visited_urls.add(safe_next_url)
+                current_url = safe_next_url
+            else:
+                break
+        else:
+            raise UnsafeUrlError(f"Çok fazla yönlendirme (azami {MAX_REDIRECTS}): {url}")
+
+        if response.status_code >= 400:
+            response.raise_for_status()
+
         meta = parse_metadata(response.text)
 
-        title = meta["title"] or _fallback_title(safe_url)
+        title = meta["title"] or _fallback_title(current_url)
         published = parse_feed_date(meta["published_at"]) if meta["published_at"] else None
 
         return RawItem(
-            source_slug=source_slug or classify_host(safe_url),
-            url=str(response.url),
+            source_slug=source_slug or classify_host(current_url),
+            url=current_url,
             title=title,
             published_at=published,
             summary=meta["description"] or None,
-            guid=str(response.url),
+            guid=current_url,
             extra={"manual_import": True, "site_name": meta["site_name"]},
         )
 

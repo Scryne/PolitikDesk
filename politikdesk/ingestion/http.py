@@ -19,6 +19,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
@@ -116,11 +117,14 @@ def ca_bundle_path() -> str:
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     bundle = cache_dir / "ca-bundle.pem"
+    temp_bundle = cache_dir / "ca-bundle.pem.tmp"
     parts = [Path(certifi.where()).read_text(encoding="ascii")]
     parts.extend(p.read_text(encoding="ascii") for p in extras)
-    bundle.write_text("\n".join(parts), encoding="ascii")
+    
+    temp_bundle.write_text("\n".join(parts), encoding="ascii")
     with contextlib.suppress(OSError):
-        os.chmod(bundle, 0o600)
+        os.chmod(temp_bundle, 0o600)
+    temp_bundle.replace(bundle)
     log.debug("ca_bundle_built", extra_certs=[p.name for p in extras], path=str(bundle))
     return str(bundle)
 
@@ -273,6 +277,7 @@ class HttpClient:
         *,
         headers: dict[str, str] | None = None,
         source_slug: str = "",
+        follow_redirects: bool | None = None,
     ) -> httpx.Response:
         """Kibarca GET. 429/503'te üstel geri çekilme ile yeniden dener.
 
@@ -282,7 +287,13 @@ class HttpClient:
         if self.respect_robots and self._robots and not self._robots.allowed(url):
             raise RobotsDisallowed(f"robots.txt bu yolu yasaklıyor: {url}")
 
-        return self._send("GET", url, headers=headers, source_slug=source_slug)
+        return self._send(
+            "GET",
+            url,
+            headers=headers,
+            source_slug=source_slug,
+            follow_redirects=follow_redirects,
+        )
 
     def post(
         self,
@@ -291,6 +302,7 @@ class HttpClient:
         data: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         source_slug: str = "",
+        follow_redirects: bool | None = None,
     ) -> httpx.Response:
         """Kibarca POST — kimlik doğrulama uçları için (F5-02).
 
@@ -298,8 +310,14 @@ class HttpClient:
         (crawl) sözleşmesidir, kimliğimizle çağırdığımız bir API ucunu
         kapsamaz. Oran sınırı ve geri çekilme aynen uygulanır.
         """
-        return self._send("POST", url, data=data, headers=headers,
-                          source_slug=source_slug)
+        return self._send(
+            "POST",
+            url,
+            data=data,
+            headers=headers,
+            source_slug=source_slug,
+            follow_redirects=follow_redirects,
+        )
 
     def _send(
         self,
@@ -309,6 +327,7 @@ class HttpClient:
         data: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         source_slug: str = "",
+        follow_redirects: bool | None = None,
     ) -> httpx.Response:
         """Ortak gövde: oran sınırı + üstel geri çekilme + yeniden deneme.
 
@@ -323,8 +342,11 @@ class HttpClient:
         for attempt in range(self.max_retries):
             self._limiter.acquire(host)
             try:
+                req_kwargs: dict[str, Any] = {"data": data, "headers": headers}
+                if follow_redirects is not None:
+                    req_kwargs["follow_redirects"] = follow_redirects
                 response = self._client.request(
-                    method, url, data=data, headers=headers
+                    method, url, **req_kwargs
                 )
             except NON_RETRYABLE_ERRORS as exc:
                 # Kurtarılamaz hata (ör. geçersiz URL, protokol): yeniden deneme yapma
