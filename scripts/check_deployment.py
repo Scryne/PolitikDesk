@@ -78,13 +78,14 @@ for mod in ["politikdesk.verticals", "politikdesk.political_memory", "politikdes
         res["modules"][mod] = str(e)
 
 try:
-    from politikdesk.ingestion.sources import ADAPTERS
+    from politikdesk.ingestion.pipeline import ADAPTER_REGISTRY as ADAPTERS
     required = ["cumhurbaskanligi", "tbmm", "sayistay", "resmi_gazete", "tuik_sdmx"]
     missing = [a for a in required if a not in ADAPTERS]
     res["adapters"]["status"] = "ok" if not missing else f"missing: {missing}"
     res["adapters"]["registered"] = sorted(list(ADAPTERS.keys()))
 except Exception as e:
     res["adapters"]["status"] = f"error: {e}"
+
 
 print(json.dumps(res))
 """
