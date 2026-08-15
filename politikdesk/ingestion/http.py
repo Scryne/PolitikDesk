@@ -10,8 +10,9 @@ değil.
 
 from __future__ import annotations
 
+import contextlib
+import os
 import ssl
-import tempfile
 import threading
 import time
 from collections import defaultdict, deque
@@ -32,10 +33,48 @@ USER_AGENT = (
     "PolitikDeskBot/0.1 (+kisisel arastirma araci; "
     "kaynak gostererek alinti yapar; iletisim: repo sahibi)"
 )
+BROWSER_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+)
 
 DEFAULT_TIMEOUT = 20.0
+DEFAULT_CONNECT_TIMEOUT = 10.0
+DEFAULT_READ_TIMEOUT = 15.0
+DEFAULT_WRITE_TIMEOUT = 10.0
+DEFAULT_POOL_TIMEOUT = 5.0
 DEFAULT_MAX_RETRIES = 4
-RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
+NON_RETRYABLE_ERRORS = (
+    httpx.UnsupportedProtocol,
+    httpx.DecodingError,
+    httpx.InvalidURL,
+)
+
+
+def calculate_backoff(
+    attempt: int,
+    base: float = 1.0,
+    max_delay: float = 30.0,
+    *,
+    jitter: bool = False,
+    override: float | None = None,
+) -> float:
+    """Üstel geri çekilme süresini hesaplar (F1-07, F4).
+
+    Jitter etkinse retry storm'ları engellemek için gecikmeye rastgelelik ekler.
+    `override` (ör. Retry-After) verilmişse doğrudan kullanılır.
+    """
+    if override is not None:
+        return override
+    exp_delay = min(base * (2.0**attempt), max_delay)
+    if jitter:
+        import random
+
+        return random.uniform(0.5 * exp_delay, exp_delay)
+    return exp_delay
+
+
 
 # Sunucunun göndermeyi unuttuğu ARA sertifikalar (F5-20). Kök değildir;
 # güven sınırını genişletmez — gerekçe `certs/README.md`.
@@ -58,16 +97,31 @@ def ca_bundle_path() -> str:
     olduğunu doğrulamamak, kanıt zincirinin kendisini çürütürdü.
 
     Demet bir kez kurulur ve süreç boyunca yeniden kullanılır.
+
+    Dosya kullanıcıya özel bir dizine yazılır (D04 düzeltmesi): genel
+    temp dizini tahmin edilebilir ve çok kullanıcılı ortamda bir saldırgan
+    demeti kendi kök CA'sıyla değiştirebilirdi.
     """
     extras = sorted(CERTS_DIR.glob("*.pem")) if CERTS_DIR.is_dir() else []
     if not extras:
         return certifi.where()
 
-    bundle = Path(tempfile.gettempdir()) / "politikdesk-ca-bundle.pem"
+    # Kullanıcıya özel dizin: Windows'ta LOCALAPPDATA, Linux'ta ~/.cache.
+    if os.name == "nt":
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        cache_dir = Path(base) / "PolitikDesk" / "cache"
+    else:
+        xdg = os.environ.get("XDG_CACHE_HOME")
+        cache_dir = Path(xdg) if xdg else Path.home() / ".cache" / "politikdesk"
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    bundle = cache_dir / "ca-bundle.pem"
     parts = [Path(certifi.where()).read_text(encoding="ascii")]
     parts.extend(p.read_text(encoding="ascii") for p in extras)
     bundle.write_text("\n".join(parts), encoding="ascii")
-    log.debug("ca_bundle_built", extra_certs=[p.name for p in extras])
+    with contextlib.suppress(OSError):
+        os.chmod(bundle, 0o600)
+    log.debug("ca_bundle_built", extra_certs=[p.name for p in extras], path=str(bundle))
     return str(bundle)
 
 
@@ -111,19 +165,24 @@ class RobotsCache:
     """`robots.txt` saygısı. Alınamazsa erişime izin verilir (kısıt beyan
     edilmemiş sayılır), ancak bu durum loglanır."""
 
-    def __init__(self, client: httpx.Client) -> None:
+    def __init__(self, client: httpx.Client, ttl_seconds: float = 86400.0) -> None:
         self._client = client
-        self._cache: dict[str, RobotFileParser | None] = {}
+        self._ttl = ttl_seconds
+        self._cache: dict[str, tuple[float, RobotFileParser | None]] = {}
         self._lock = threading.Lock()
 
     def allowed(self, url: str, user_agent: str = USER_AGENT) -> bool:
         parsed = urlparse(url)
         origin = f"{parsed.scheme}://{parsed.netloc}"
+        now = time.monotonic()
 
         with self._lock:
-            if origin not in self._cache:
-                self._cache[origin] = self._load(origin)
-            parser = self._cache[origin]
+            cached = self._cache.get(origin)
+            if cached is None or (now - cached[0] > self._ttl):
+                parser = self._load(origin)
+                self._cache[origin] = (now, parser)
+            else:
+                parser = cached[1]
 
         if parser is None:
             return True
@@ -149,25 +208,54 @@ class HttpClient:
     """Kibar HTTP istemcisi: UA, oran sınırı, robots, üstel geri çekilme."""
 
     max_per_minute: int = 12
-    timeout: float = DEFAULT_TIMEOUT
+    timeout: float | httpx.Timeout = DEFAULT_TIMEOUT
+    connect_timeout: float | None = None
+    read_timeout: float | None = None
+    write_timeout: float | None = None
+    pool_timeout: float | None = None
     max_retries: int = DEFAULT_MAX_RETRIES
     respect_robots: bool = True
+    user_agent: str = USER_AGENT
+    custom_headers: dict[str, str] | None = None
+    enable_jitter: bool = False
 
     def __post_init__(self) -> None:
+        base_headers = {
+            "User-Agent": self.user_agent,
+            "Accept": "application/rss+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.8",
+            "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate",
+        }
+        if self.custom_headers:
+            base_headers.update(self.custom_headers)
+
+        if isinstance(self.timeout, httpx.Timeout):
+            client_timeout = self.timeout
+        elif any(
+            v is not None
+            for v in (self.connect_timeout, self.read_timeout, self.write_timeout, self.pool_timeout)
+        ):
+            client_timeout = httpx.Timeout(
+                timeout=self.timeout,
+                connect=self.connect_timeout,
+                read=self.read_timeout,
+                write=self.write_timeout,
+                pool=self.pool_timeout,
+            )
+        else:
+            client_timeout = httpx.Timeout(self.timeout)
+
         self._client = httpx.Client(
-            headers={
-                "User-Agent": USER_AGENT,
-                "Accept": "application/rss+xml, application/xml, text/xml, text/html;q=0.9",
-                "Accept-Language": "tr-TR,tr;q=0.9",
-            },
-            timeout=self.timeout,
+            headers=base_headers,
+            timeout=client_timeout,
             follow_redirects=True,
+            http2=False,
             # Eksik ara sertifikaları tamamlanmış demet (F5-20).
             # Doğrulama AÇIK kalır; `verify=False` kullanılmaz.
             verify=ssl_context(),
         )
         self._limiter = RateLimiter(self.max_per_minute)
-        self._robots = RobotsCache(self._client)
+        self._robots = RobotsCache(self._client) if self.respect_robots else None
 
     def get(
         self,
@@ -181,7 +269,7 @@ class HttpClient:
         `headers` kimlik doğrulama isteyen uçlar içindir (TÜİK SDMX
         `Authorization: Bearer ...` bekler, F5-02).
         """
-        if self.respect_robots and not self._robots.allowed(url):
+        if self.respect_robots and self._robots and not self._robots.allowed(url):
             raise RobotsDisallowed(f"robots.txt bu yolu yasaklıyor: {url}")
 
         return self._send("GET", url, headers=headers, source_slug=source_slug)
@@ -221,27 +309,31 @@ class HttpClient:
         ölü" diye karar vermek yanlış olurdu.
         """
         host = urlparse(url).netloc
-        self._limiter.acquire(host)
-
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
+            self._limiter.acquire(host)
             try:
                 response = self._client.request(
                     method, url, data=data, headers=headers
                 )
+            except NON_RETRYABLE_ERRORS as exc:
+                # Kurtarılamaz hata (ör. geçersiz URL, desteklenmeyen protokol): yeniden deneme yapma
+                raise exc
             except httpx.HTTPError as exc:
                 last_error = exc
-                self._backoff(attempt, url, reason=type(exc).__name__)
+                if attempt < self.max_retries - 1:
+                    self._backoff(attempt, url, reason=type(exc).__name__)
                 continue
 
             if response.status_code in RETRYABLE_STATUS:
-                retry_after = _parse_retry_after(response)
-                self._backoff(attempt, url, reason=str(response.status_code),
-                              override=retry_after)
                 last_error = httpx.HTTPStatusError(
                     f"HTTP {response.status_code}", request=response.request,
                     response=response,
                 )
+                if attempt < self.max_retries - 1:
+                    retry_after = _parse_retry_after(response)
+                    self._backoff(attempt, url, reason=str(response.status_code),
+                                  override=retry_after)
                 continue
 
             response.raise_for_status()
@@ -253,14 +345,20 @@ class HttpClient:
         raise last_error
 
     def _backoff(self, attempt: int, url: str, *, reason: str,
-                 override: float | None = None) -> None:
-        delay = override if override is not None else min(2.0**attempt, 30.0)
+                 override: float | None = None) -> float:
+        delay = calculate_backoff(
+            attempt,
+            jitter=self.enable_jitter,
+            override=override,
+        )
         log.warning("http_backoff", url=url, attempt=attempt + 1,
                     reason=reason, sleep_s=round(delay, 2))
         time.sleep(delay)
+        return delay
 
     def close(self) -> None:
         self._client.close()
+
 
     def __enter__(self) -> HttpClient:
         return self

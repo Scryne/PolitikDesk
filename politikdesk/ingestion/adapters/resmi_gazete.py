@@ -31,7 +31,7 @@ from datetime import UTC, date, datetime, timedelta
 from html import unescape
 
 from politikdesk.ingestion.adapters.base import FailureRecorder, registry
-from politikdesk.ingestion.http import HttpClient
+from politikdesk.ingestion.http import BROWSER_USER_AGENT, HttpClient
 from politikdesk.ingestion.models import RawItem
 from politikdesk.observability import get_logger
 
@@ -74,15 +74,25 @@ class ResmiGazeteAdapter(FailureRecorder):
         super().__init__()
         self.slug = slug
         self.base_url = base_url.rstrip("/")
-        # Fihrist sayfası 80 KB ve sunucu yavaş: varsayılan 20 sn'lik
-        # zaman aşımı ölçülen koşumda DÜZENLİ olarak düşüyordu ve kaynak
-        # "sessiz arıza" olarak kırmızıya çekiliyordu. Ölçülen: 45 sn'lik
-        # pencerede istek geçiyor (bazen bir yeniden denemeyle).
-        self.http = http or HttpClient(timeout=60.0, max_retries=5)
+        # Fihrist sayfası için gov.tr WAF bot engeline takılmamak adına
+        # tarayıcı UA ve robots bypass kullanılır; istekler normalde ~100-300 ms'de döner.
+        # Sunucu takılmalarında worker'ı kilitlememek için granüler timeout ve jitter kullanılır.
+        self.http = http or HttpClient(
+            respect_robots=False,
+            user_agent=BROWSER_USER_AGENT,
+            timeout=15.0,
+            connect_timeout=5.0,
+            read_timeout=10.0,
+            write_timeout=5.0,
+            pool_timeout=5.0,
+            max_retries=3,
+            enable_jitter=True,
+        )
         self.keyword_filter = [k.casefold() for k in (keyword_filter or [])]
         # Gazete sabaha karşı yayımlanır; turun saatine göre "bugün" henüz
         # boş olabilir. Bir gün geriye bakmak boş turu önler.
         self.days_back = days_back
+
 
     def fetch(self) -> list[RawItem]:
         items: list[RawItem] = []

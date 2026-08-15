@@ -173,3 +173,147 @@ def test_ca_bundle_includes_the_missing_intermediate() -> None:
     assert extra.strip() in bundle
     # certifi'nin kökleri de duruyor olmalı — demet onun YERİNE geçmez.
     assert bundle.count("BEGIN CERTIFICATE") > 100
+
+
+def test_http_retry_on_timeout(monkeypatch) -> None:
+    """ReadTimeout durumunda exponential backoff ve sınırlı retry işletilir."""
+    import httpx
+    from politikdesk.ingestion.http import HttpClient
+
+    attempts = 0
+
+    def mock_request(self, method, url, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            raise httpx.ReadTimeout("Sunucu yanit vermedi")
+        return httpx.Response(200, text=FIHRIST, request=httpx.Request(method, url))
+
+    monkeypatch.setattr(httpx.Client, "request", mock_request)
+
+    client = HttpClient(timeout=5.0, max_retries=4, respect_robots=False)
+    resp = client.get(f"{BASE}/fihrist?tarih=2026-08-13")
+    assert resp.status_code == 200
+    assert attempts == 3
+
+
+def test_http_non_retryable_error(monkeypatch) -> None:
+    """404 Not Found gibi kalıcı hatalarda retry yapılmaz, fail-closed fırlatılır."""
+    import httpx
+    import pytest
+    from politikdesk.ingestion.http import HttpClient
+
+    attempts = 0
+
+    def mock_request(self, method, url, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        req = httpx.Request(method, url)
+        return httpx.Response(404, request=req)
+
+    monkeypatch.setattr(httpx.Client, "request", mock_request)
+
+    client = HttpClient(timeout=5.0, max_retries=4, respect_robots=False)
+    with pytest.raises(httpx.HTTPStatusError):
+        client.get(f"{BASE}/fihrist?tarih=2026-08-13")
+
+    assert attempts == 1  # 404 retry edilmez
+
+
+def test_robots_txt_handling(monkeypatch) -> None:
+    """robots.txt açıkça yasakladığında RobotsDisallowed fırlatılır."""
+    import httpx
+    import pytest
+    from politikdesk.ingestion.http import HttpClient, RobotsDisallowed
+
+    robots_content = "User-agent: *\nDisallow: /ozel/\n"
+
+    def mock_get(self, url, **kwargs):
+        req = httpx.Request("GET", url)
+        if url.endswith("/robots.txt"):
+            return httpx.Response(200, text=robots_content, request=req)
+        return httpx.Response(200, text="OK", request=req)
+
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
+
+    client = HttpClient(timeout=5.0, respect_robots=True)
+    with pytest.raises(RobotsDisallowed):
+        client.get(f"{BASE}/ozel/gizli-sayfa")
+
+
+# ==================================================================== FAZ 4 TESTS
+def test_http_client_granular_timeout_construction() -> None:
+    """F4: Granüler connect/read/write/pool timeout değerleri httpx.Timeout'a dönüştürülür."""
+    import httpx
+    from politikdesk.ingestion.http import HttpClient
+
+    client = HttpClient(
+        timeout=20.0,
+        connect_timeout=5.0,
+        read_timeout=10.0,
+        write_timeout=4.0,
+        pool_timeout=3.0,
+    )
+    t = client._client.timeout
+    assert isinstance(t, httpx.Timeout)
+    assert t.connect == 5.0
+    assert t.read == 10.0
+    assert t.write == 4.0
+    assert t.pool == 3.0
+
+
+def test_calculate_backoff_deterministic_and_jitter() -> None:
+    """F4: calculate_backoff deterministik ve jitter seçeneklerinde beklenen aralıklarda kalır."""
+    from politikdesk.ingestion.http import calculate_backoff
+
+    # Jitter kapalıyken: deterministik 2^attempt
+    assert calculate_backoff(0, jitter=False) == 1.0
+    assert calculate_backoff(1, jitter=False) == 2.0
+    assert calculate_backoff(2, jitter=False) == 4.0
+    assert calculate_backoff(3, jitter=False) == 8.0
+    assert calculate_backoff(10, jitter=False) == 30.0  # max_delay=30
+
+    # Override (Retry-After) verildiğinde
+    assert calculate_backoff(0, override=15.0) == 15.0
+    assert calculate_backoff(0, override=60.0) == 60.0
+
+    # Jitter açıkken: [0.5 * exp_delay, exp_delay] arasında
+    for attempt in range(5):
+        exp = min(1.0 * (2.0**attempt), 30.0)
+        delay = calculate_backoff(attempt, jitter=True)
+        assert 0.5 * exp <= delay <= exp
+
+
+def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
+    """F4: Resmî Gazete bir gün için timeout alsa bile diğer günün verilerini başarıyla toplar."""
+    import httpx
+    from datetime import date, timedelta
+    from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
+
+    today_str = date.today().isoformat()
+
+    def mock_request(self, method, url, **kwargs):
+        req = httpx.Request(method, url)
+        if today_str in str(url):
+            raise httpx.ReadTimeout("Gecici gov.tr sunucu takilmasi")
+        return httpx.Response(200, text=FIHRIST, request=req)
+
+    monkeypatch.setattr(httpx.Client, "request", mock_request)
+
+    adapter = ResmiGazeteAdapter(
+        slug="resmi-gazete",
+        base_url=BASE,
+        days_back=1,
+    )
+    items = adapter.fetch()
+
+    # Dünkü fihristten 3 kalem başarıyla çekilmiş olmalı
+    assert len(items) == 3
+    # Bugünün timeout hatası FailureRecorder'a kaydedilmiş olmalı
+    failures = adapter.drain_failures()
+    assert len(failures) == 1
+    assert "ReadTimeout" in failures[0]
+    assert today_str in failures[0]
+
+
+
