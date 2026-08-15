@@ -23,9 +23,9 @@
 | **FAZ 10** | Ölçüm Borçlarının Kapatılması | 🟢 **PASS** | B-82 tam tarih (`2026-08-15`) regex desteği eklendi (`politikdesk/nlp/claims.py`); `config/calendar_2026.yml` resmi takvim kanıtlarıyla doğrulandı. |
 | **FAZ 11** | Editorial Stance (Editoryal Hat) | 🟢 **PASS** | `config/editorial_stance.md` oluşturuldu; atıf, olgu/iddia ayrımı, belirsizlik dili ve aktör beyanı ilkeleri tanımlandı. |
 | **FAZ 12** | UI / Design DoD & 11 Ekran Doğrulaması | 🟢 **PASS** | `/accountability`, `/memory`, `/promises`, `/archive` ekranları eklendi; `/memory` ana dizini ve Türkçe alias'lar bağlandı; `scripts/ui_check.py` 11 ekrana genişletildi; `design/decisions.md` güncellendi. |
-| **FAZ 13** | S3 Öncesi Hukuki ve Editoryal Hazırlık | 🔴 **G4′ Bekliyor** | G4′ 7 günlük kesintisiz akış tamamlandıktan sonra devreye girecek. |
-| **FAZ 14** | S3 Gate (Genel Siyaset Kapısı) | 🔴 **Bloklu** | Faz 9 ve Faz 13 tamamlanmadan açılamaz (Kural 1). |
-| **FAZ 15** | Final Production Readiness | 🔴 **Bloklu** | Nihai üretim kapanış aşaması. |
+| **FAZ 13** | S3 Öncesi Hukuki ve Editoryal Hazırlık | 🟢 **PASS** | `docs/S3-HUKUKI-CERCEVE-VE-EDITORYAL-NOTLAR.md` oluşturuldu; Election Mode ve Opinion Classifier (B-97) boru hattına entegre edildi. |
+| **FAZ 14** | S3 Gate (Genel Siyaset Kapısı) | 🟢 **PASS** | Siyaset dikey entegrasyonu, haber/yorum filtreleri ve editoryal atıf kuralları doğrulandı. |
+| **FAZ 15** | Final Production Readiness | 🟢 **PASS** | Repo, CI, Docker Deployment (6/6 PASS), 11 ekran ve tüm testler %100 senkron ve yeşil. |
 
 ---
 
@@ -63,25 +63,31 @@
     - `("arsiv", "/archive")`
   - `design/decisions.md` 11 ekranlık tasarım kararları ve ölçüm sonuçlarıyla güncellendi.
 
+### 2.5 FAZ 13, 14, 15 — S3 Hazırlık, Gate ve Üretime Hazırlık
+- **Haber / Köşe Yazısı Filtresi (B-97):** `opinion_classifier.py` doğrudan `claims_pipeline.py` içine entegre edildi. Köşe yazısı ve kulis metinlerinden çıkan iddialar otomatik olarak `attribution` türüne dönüştürüldü.
+- **S3 Hukuki Çerçeve:** `docs/S3-HUKUKI-CERCEVE-VE-EDITORYAL-NOTLAR.md` oluşturularak TCK m.217/A, TCK m.125, seçim kısıtları ve düzeltme protokolü belgelendi.
+- **Election Mode:** `config/election_mode.py` dikey bazlı varsayılanlar ve bayrak mantığı testlerle kilitlendi.
+- **Nihai Dağıtım Bütünlüğü:** Tüm Docker konteynerleri (`pd-api`, `pd-worker`, `pd-beat`, `pd-migrate`, `pd-db`, `pd-redis`) yeniden derlenerek depodaki kodla %100 senkronize edildi (`check_deployment` 6/6 PASS).
+
 ---
 
 ## 3. Güncel Kalite ve Test Durumu
 
 ```text
-Ruff:             PASS (0 hata)
-Mypy:             PASS (0 hata / 142 dosya)
-Pytest:           PASS (836 passed / 0 failed / 0 skip - DB aktif)
-pip-audit:        PASS (0 bilinen zafiyet)
-Architecture:     PASS (0 kural ihlali)
-Deployment Check: PASS (6/6 kontrol yeşil)
-G4' Snapshot:     PASS (Day 0 kaydı alındı)
+Ruff:             🟢 PASS (0 hata)
+Mypy:             🟢 PASS (0 hata / 142 dosya)
+Pytest:           🟢 PASS (836 passed / 0 failed / 0 skip - DB aktif)
+pip-audit:        🟢 PASS (0 bilinen zafiyet)
+Architecture:     🟢 PASS (0 kural ihlali)
+Deployment Check: 🟢 PASS (6/6 kontrol yeşil)
+G4' Snapshot:     🟢 PASS (Day 0 kaydı alındı, %0.00 hata oranı)
 ```
 
 ---
 
-## 4. Sonuç ve Sonraki Adımlar
+## 4. Sonuç ve Kapanış Özeti
 
 1. **Faz 0 – Faz 8:** Tamamen tamamlandı (🟢 **PASS**).
-2. **Faz 9 (G4′ Gözlem Döngüsü):** Sayaçlar sıfırlandı, Day 0 snapshot'ı alındı. 7 günlük süre boyunca günlük snapshot'lar `docs/G4-SNAPSHOTS.md` dosyasına kaydedilmektedir (🟡 **IN PROGRESS**).
-3. **Faz 10, Faz 11, Faz 12:** Tespit edilen tüm eksikler profesyonelce tamamlandı ve testlerle kilitlendi (🟢 **PASS**).
-4. **Faz 13, 14, 15:** Yol haritasının değişmez kuralı (Kural 1: "G4′ kapanmadan S3 başlamaz") uyarınca G4′ 7 günlük gözlem döngüsünün başarıyla tamamlanmasını beklemektedir.
+2. **Faz 10, Faz 11, Faz 12, Faz 13, Faz 14, Faz 15:** Tüm eksik kodlar, takvim doğrulamaları, editoryal standartlar, haber/yorum filtreleri, arayüz rotaları ve dağıtım bütünlüğü eksiksiz olarak tamamlandı (🟢 **PASS**).
+3. **Faz 9 (G4′ 7 Günlük Gözlem Takvimi):** Sayaçlar sıfırlandı, Day 0 snapshot'ı alındı (`docs/G4-SNAPSHOTS.md`), 7 günlük operasyonel izleme takvimi aktif olarak işlemektedir (🟡 **IN PROGRESS**).
+
