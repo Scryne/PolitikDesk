@@ -1634,7 +1634,7 @@ Bu noktadan önce yapılacak işlerin amacı **özellik sayısını artırmak de
 
 - [x] Repo clean
 - [x] Untracked production dosyası yok
-- [ ] Git SHA doğrulanıyor (beklemede — bağımlı olduğu kalem: AŞAMA 1 / Madde 15 GIT_SHA build-arg)
+- [x] Git SHA doğrulanıyor
 - [x] Image digest doğrulanıyor
 - [x] Container repo ile senkron
 - [x] legislation config image'da

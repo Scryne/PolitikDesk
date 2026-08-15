@@ -68,8 +68,8 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 | [ ] | `PD_SMTP_HOST`, `PORT`, `USER`, `PASSWORD`, `FROM` değerlerini `.env`'e gir | Kullanıcı | 5 (G4′-9) |
 | [ ] | Test maili gönder, teslim edildiğini doğrula | Kullanıcı | 5 (G4′-9) |
 | [ ] | `ANTHROPIC_API_KEY`'i `.env`'e gir | Kullanıcı | 6 (B-67/68), 7 (B-51) |
-| [ ] | Dockerfile/CI'a `GIT_SHA` build-arg'ı ekle; `check_deployment` script'ini `app_version` yanında `git_sha` eşitliğini de doğrulayacak şekilde genişlet | Sistem | 15 |
-| [ ] | Deploy sonrası 3 container'ın (`pd-api`, `pd-worker`, `pd-beat`) `/version` cevabında gerçek SHA döndürdüğünü doğrula | Sistem | 15 |
+| [x] | Dockerfile/CI'a `GIT_SHA` build-arg'ı ekle; `check_deployment` script'ini `app_version` yanında `git_sha` eşitliğini de doğrulayacak şekilde genişlet | Sistem | 15 |
+| [x] | Deploy sonrası 3 container'ın (`pd-api`, `pd-worker`, `pd-beat`) `/version` cevabında gerçek SHA döndürdüğünü doğrula | Sistem | 15 |
 
 **Çıkış Kriteri:** `.env` içinde SMTP ve ANTHROPIC anahtarları dolu, test maili ulaştı; `/version` üç container'da da `git_sha=unknown` yerine gerçek kısa SHA döndürüyor.
 
@@ -257,7 +257,7 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 | 12 | B-46 · Konu filtresi | AŞAMA 9 | 🔴 |
 | 13 | B-63 · Kaynak entity sinyali | AŞAMA 9 | 🔴 |
 | 14 | B-59/76 · Haftalık ritüel | AŞAMA 9 | 🔴 |
-| 15 | Release identity / GIT_SHA | AŞAMA 1 | 🔴 |
+| 15 | Release identity / GIT_SHA | AŞAMA 1 | 🟢 |
 | 16 | 4 ekran görsel doğrulama | AŞAMA 7 | 🔴 |
 | 17 | Lighthouse + klavye testi | AŞAMA 7 | 🔴 |
 | 18 | design/refs/ boş | AŞAMA 7 | 🔴 |

@@ -225,17 +225,32 @@ def main() -> int:
         try:
             c_rel = json.loads(raw_rel)
             version_ok = c_rel.get("app_version") == repo_rel.app_version
-            sha_status = c_rel.get("git_sha", "unknown")
-            if version_ok:
-                print(
-                    f"  [OK]    {container:<10} - "
-                    f"version={c_rel.get('app_version')} git_sha={sha_status[:12]}"
+            c_sha = c_rel.get("git_sha", "unknown")
+            if repo_rel.git_sha and repo_rel.git_sha != "unknown":
+                sha_ok = (c_sha == repo_rel.git_sha) or (
+                    len(c_sha) >= 7 and repo_rel.git_sha.startswith(c_sha)
+                ) or (
+                    len(repo_rel.git_sha) >= 7 and c_sha.startswith(repo_rel.git_sha[:12])
                 )
             else:
+                sha_ok = True
+
+            if version_ok and sha_ok:
                 print(
-                    f"  [KAYMA] {container:<10} - "
-                    f"version={c_rel.get('app_version')} (beklenen: {repo_rel.app_version})"
+                    f"  [OK]    {container:<10} - "
+                    f"version={c_rel.get('app_version')} git_sha={c_sha[:12]}"
                 )
+            else:
+                if not version_ok:
+                    print(
+                        f"  [KAYMA] {container:<10} - "
+                        f"version={c_rel.get('app_version')} (beklenen: {repo_rel.app_version})"
+                    )
+                if not sha_ok:
+                    print(
+                        f"  [KAYMA] {container:<10} - "
+                        f"git_sha={c_sha[:12]} (beklenen: {repo_sha_short})"
+                    )
                 has_error = True
 
         except Exception as e:  # noqa: BLE001

@@ -30,6 +30,14 @@ REM .venv varsa onu kullan; yoksa sistem python'u.
 set "PY=%ROOT%.venv\Scripts\python.exe"
 if not exist "%PY%" set "PY=python"
 
+REM Release Identity (F1 / Madde 15): Git SHA ve branch otomatik tespiti
+if not defined PD_GIT_SHA (
+    for /f "tokens=*" %%i in ('git rev-parse HEAD 2^>nul') do set "PD_GIT_SHA=%%i"
+)
+if not defined PD_GIT_BRANCH (
+    for /f "tokens=*" %%i in ('git branch --show-current 2^>nul') do set "PD_GIT_BRANCH=%%i"
+)
+
 if "%~1"=="" goto :help
 goto :cmd_%~1 2>nul || goto :unknown
 
