@@ -108,7 +108,11 @@ def test_health_live_endpoint() -> None:
     with TestClient(app) as client:
         response = client.get("/health/live")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": __version__}
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["version"] == __version__
+    assert "git_sha" in body
+    assert "env" in body
 
 
 def test_health_ready_reports_dependencies() -> None:

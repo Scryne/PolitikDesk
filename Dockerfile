@@ -4,11 +4,17 @@ FROM python:3.12-slim
 # transformers), API/beat imajı kurulmaz. Aksi halde her konteyner ~2,5 GB
 # taşır. Boş bırakılırsa temel kurulum yapılır.
 ARG PD_EXTRAS=""
+ARG GIT_SHA=""
+ARG BUILD_TIMESTAMP=""
+ARG IMAGE_DIGEST=""
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    HF_HOME=/opt/hf-cache
+    HF_HOME=/opt/hf-cache \
+    PD_GIT_SHA=$GIT_SHA \
+    PD_BUILD_TIMESTAMP=$BUILD_TIMESTAMP \
+    PD_IMAGE_DIGEST=$IMAGE_DIGEST
 
 WORKDIR /app
 

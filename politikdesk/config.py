@@ -41,10 +41,51 @@ EMBEDDING_PROVIDERS: Final[frozenset[str]] = frozenset(
 _INLINE_COMMENT_RE = re.compile(r"\s*#.*$", re.DOTALL)
 
 
+def resolve_env_file_path(custom: str | Path | None = None) -> Path | None:
+    """Güvenli `.env` dosya yolunu belirler (B-88, S0-2).
+
+    Öncelik sırası:
+      1. Parametre olarak verilen yol (varsa)
+      2. PD_ENV_FILE ortam değişkeni (varsa)
+      3. Windows: %LOCALAPPDATA%\\PolitikDesk\\.env (bulut eşitlemesi dışı)
+      4. Linux/macOS: ~/.config/politikdesk/.env
+      5. Geriye uyumluluk: Çalışma dizinindeki .env
+    """
+    if custom is not None:
+        p = Path(custom)
+        if p.is_file():
+            return p
+
+    env_var = os.environ.get("PD_ENV_FILE")
+    if env_var:
+        p = Path(env_var)
+        if p.is_file():
+            return p
+
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        p = Path(local_appdata) / "PolitikDesk" / ".env"
+        if p.is_file():
+            return p
+
+    home_config = Path.home() / ".config" / "politikdesk" / ".env"
+    if home_config.is_file():
+        return home_config
+
+    local_env = Path(".env")
+    if local_env.is_file():
+        return local_env
+
+    return None
+
+
+_resolved_env_file = resolve_env_file_path()
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="PD_",
-        env_file=".env",
+        env_file=str(_resolved_env_file) if _resolved_env_file else None,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -53,6 +94,19 @@ class Settings(BaseSettings):
     env: Environment = "development"
     log_level: str = "INFO"
     log_format: Literal["json", "console"] = "json"
+    timezone: str = "Europe/Istanbul"
+
+    # --- Release Kimliği (F1) ---
+    git_sha: str = ""
+    git_branch: str = ""
+    build_timestamp: str = ""
+    image_digest: str = ""
+    deployed_at: str = ""
+
+    # --- Kimlik doğrulama (I01 — denetim düzeltmesi) ---
+    # Ayarlanmışsa tüm uçlar (sağlık hariç) bu belirteci gerektirir.
+    # Boşsa kimlik doğrulama atlanır — geliştirme ortamında geriye uyumlu.
+    api_token: str = ""
 
     # --- Altyapı ---
     # `localhost` DEĞİL, `127.0.0.1`. F4-09'da yayımlanan portlar güvenlik
@@ -253,7 +307,7 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def load_env_file(path: str | Path = ".env") -> list[str]:
+def load_env_file(path: str | Path | None = None) -> list[str]:
     """`.env`'deki sağlayıcı anahtarlarını sürecin ortamına yükler.
 
     `Settings` yalnızca `PD_` önekli değişkenleri okur. API anahtarları ise
@@ -267,8 +321,8 @@ def load_env_file(path: str | Path = ".env") -> list[str]:
     Kabuktan verilen değer `.env`'i yener: var olan değişkenler EZİLMEZ.
     Değerler değil, yalnızca yüklenen değişken ADLARI döner (loglanabilsin).
     """
-    env_path = Path(path)
-    if not env_path.is_file():
+    env_path = Path(path) if path is not None else resolve_env_file_path()
+    if not env_path or not env_path.is_file():
         return []
 
     from dotenv import dotenv_values
