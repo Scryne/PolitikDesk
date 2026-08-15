@@ -95,3 +95,138 @@ def test_briefing_scheduled_twice() -> None:
         if entry["task"] == "politikdesk.generate_briefing"
     ]
     assert sorted(slots) == ["evening", "morning"]
+
+
+# ==================================================================== L1 (B-90)
+def test_celery_app_timezone_is_europe_istanbul() -> None:
+    """L1: Celery uygulama saat dilimi Europe/Istanbul olmalıdır."""
+    assert app.conf.timezone == "Europe/Istanbul"
+    assert app.conf.enable_utc is True
+
+
+def test_crontab_schedules_and_hours() -> None:
+    """L1: Zamanlanmış crontab saat ve dakikalarının doğrulanması."""
+    schedule = app.conf.beat_schedule
+
+    # briefing-morning: 08:00
+    bm = schedule["briefing-morning"]["schedule"]
+    assert 8 in bm.hour
+    assert 0 in bm.minute
+
+    # briefing-evening: 20:00
+    be = schedule["briefing-evening"]["schedule"]
+    assert 20 in be.hour
+    assert 0 in be.minute
+
+    # metrics-rollup-nightly: 23:50
+    mr = schedule["metrics-rollup-nightly"]["schedule"]
+    assert 23 in mr.hour
+    assert 50 in mr.minute
+
+    # llm-budget-check: 07:45 ve 15:45
+    bc = schedule["llm-budget-check"]["schedule"]
+    assert {7, 15} <= bc.hour
+    assert 45 in bc.minute
+
+
+def test_crontab_is_due_evaluates_in_europe_istanbul() -> None:
+    """L1: 08:00 Europe/Istanbul crontab zamanlaması 05:00 UTC'de (08:00 TSİ) tetiklenir."""
+    import datetime
+    import zoneinfo
+
+    from celery.schedules import crontab
+
+    tz_ist = zoneinfo.ZoneInfo("Europe/Istanbul")
+    s = crontab(hour=8, minute=0, app=app)
+    assert s.tz == "Europe/Istanbul" or s.tz == tz_ist
+
+    # 08:00 TSİ = 05:00 UTC
+    dt_due = datetime.datetime(2026, 8, 14, 5, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
+    dt_early = datetime.datetime(2026, 8, 14, 4, 59, tzinfo=datetime.UTC).astimezone(tz_ist)
+    dt_later = datetime.datetime(2026, 8, 14, 8, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
+
+    last_run_yesterday = datetime.datetime(2026, 8, 13, 5, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
+    last_run_today = datetime.datetime(2026, 8, 14, 5, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
+
+    # 1. 08:00 TSİ (05:00 UTC) anında: tetiklenmeli (is_due == True)
+    s_due = crontab(hour=8, minute=0, nowfun=lambda: dt_due, app=app)
+    assert s_due.is_due(last_run_yesterday).is_due is True
+
+    # 2. 07:59 TSİ (04:59 UTC) anında: henüz vakti gelmedi (is_due == False)
+    s_early = crontab(hour=8, minute=0, nowfun=lambda: dt_early, app=app)
+    assert s_early.is_due(last_run_yesterday).is_due is False
+
+    # 3. 11:00 TSİ (08:00 UTC) anında ve bugün 08:00'de zaten çalıştıysa: tekrar tetiklenmemeli (is_due == False)
+    s_later = crontab(hour=8, minute=0, nowfun=lambda: dt_later, app=app)
+    assert s_later.is_due(last_run_today).is_due is False
+
+
+def test_political_relations_task_scheduled_and_registered() -> None:
+    """F3: Siyasi ilişkiler görevi (political-relations) hem kayıtlı hem zamanlanmış olmalı."""
+    schedule = app.conf.beat_schedule
+    assert "political-relations-every-15-minutes" in schedule, (
+        "political-relations-every-15-minutes beat schedule içinde eksik."
+    )
+    entry = schedule["political-relations-every-15-minutes"]
+    assert entry["task"] == "politikdesk.link_political_relations"
+    assert entry["schedule"] == 900.0  # 15 dakika = 900 saniye
+    assert "politikdesk.link_political_relations" in app.tasks, (
+        "politikdesk.link_political_relations görevi Celery app.tasks içinde kayıtlı değil."
+    )
+
+
+def test_all_16_beat_schedule_tasks_registered_and_executable() -> None:
+    """F3: Beat schedule içindeki 16/16 tüm görevler Celery'ye kayıtlı ve çağrılabilir olmalı."""
+    schedule = app.conf.beat_schedule
+    assert len(schedule) == 16, f"Beklenen 16 zamanlanmış görev, bulunan: {len(schedule)}"
+    for name, entry in schedule.items():
+        task_name = entry["task"]
+        assert task_name in app.tasks, f"Schedule '{name}' için görev '{task_name}' app.tasks'ta kayıtlı değil."
+        task_fn = app.tasks[task_name]
+        assert callable(task_fn), f"Görev '{task_name}' çağrılabilir bir fonksiyon değil."
+
+
+def test_worker_ping_task_executes_synchronously() -> None:
+    """F3: Celery worker görevi (ping) senkron olarak hatasız sonuç üretir."""
+    from politikdesk.worker import ping
+
+    res = ping.apply()
+    assert res.get() == "pong"
+
+
+def test_daily_rollup_uses_application_timezone_date(monkeypatch) -> None:
+    """L1: daily_rollup timezone'a duyarlı gün belirler."""
+    import zoneinfo
+    from datetime import datetime
+
+    from politikdesk import metrics
+
+    recorded_day = None
+
+    def fake_compute(day, window_days=7):
+        nonlocal recorded_day
+        recorded_day = day
+        return []
+
+    monkeypatch.setattr(metrics, "compute_metrics", fake_compute)
+
+    # 23:50 Istanbul = 20:50 UTC
+    metrics.daily_rollup()
+    tz = zoneinfo.ZoneInfo("Europe/Istanbul")
+    expected_today = datetime.now(tz).date()
+    assert recorded_day == expected_today
+
+
+def test_beat_schedule_persists_on_fresh_app_instance() -> None:
+    """F3: Beat yeniden başlatıldığında / tasks modülü yeniden yüklendiğinde schedule 16/16 korunur."""
+    import importlib
+    import politikdesk.tasks
+
+    importlib.reload(politikdesk.tasks)
+    reloaded_schedule = politikdesk.tasks.app.conf.beat_schedule
+    assert len(reloaded_schedule) == 16
+    assert "political-relations-every-15-minutes" in reloaded_schedule
+    assert "briefing-morning" in reloaded_schedule
+    assert "briefing-evening" in reloaded_schedule
+
+
