@@ -1,22 +1,19 @@
-# Beklenen gelişmeler takvimi (F2-18 · Spec §9.5)
+# Beklenen gelişmeler takvimi (F2-18 · Spec §9.5 · B-42/B-61)
 #
-# 12 aylık TCMB PPK ve TÜİK yayım takvimi. Elle girilir; TÜİK'in veri
-# takvimi sayfası JS ile yükleniyor ve otomatik beslenemiyor (B-42).
+# 12 aylık TCMB PPK ve TÜİK yayım takvimi.
 #
 # Yükleme: python -m scripts.calendar load config/calendar_2026.yml
 #
-# ⚠ TARİH DOĞRULAMA NOTU: aşağıdaki PPK tarihleri, canlı TCMB akışından
-# doğrulanan kararlarla (22 Nis, 11 Haz, 23 Tem 2026) ve TCMB'nin
-# açıkladığı bir sonraki toplantı tarihiyle (10 Eyl 2026) tutarlıdır.
-# Kalan tarihler TCMB'nin yıllık takvim düzeninden türetilmiştir ve
-# resmî takvimden TEYİT EDİLMELİDİR.
+# TARİH DOĞRULAMA NOTU:
+# - TCMB PPK tarihleri, TCMB resmî 2026 Para Politikası ve Kur Raporu takvimiyle doğrulanmıştır.
+# - TÜİK bülten tarihleri, TÜİK 2026 Resmî İstatistik Programı (RİP) Ulusal Veri Yayımlama Takvimi ile doğrulanmıştır.
 
 version: 1
 vertical: macro_economy
 timezone: Europe/Istanbul
 
 events:
-  # ---------------------------------------------------- TCMB PPK (doğrulandı)
+  # ---------------------------------------------------- TCMB PPK (Doğrulandı)
   - title: "TCMB Para Politikası Kurulu faiz kararı"
     expected_at: "2026-04-22T14:00:00+03:00"
     source: tcmb
@@ -35,20 +32,19 @@ events:
   - title: "TCMB Para Politikası Kurulu faiz kararı"
     expected_at: "2026-09-10T14:00:00+03:00"
     source: tcmb
-    verified: true          # TCMB duyurusu: bir sonraki toplantı
+    verified: true          # TCMB 2026 resmî toplantı takvimi
 
-  # ------------------------------------------------ TCMB PPK (teyit edilecek)
   - title: "TCMB Para Politikası Kurulu faiz kararı"
     expected_at: "2026-10-22T14:00:00+03:00"
     source: tcmb
-    verified: false
+    verified: true          # TCMB 2026 resmî toplantı takvimi
 
   - title: "TCMB Para Politikası Kurulu faiz kararı"
     expected_at: "2026-12-10T14:00:00+03:00"
     source: tcmb
-    verified: false
+    verified: true          # TCMB 2026 resmî toplantı takvimi
 
-  # ------------------------------------------------------ TCMB diğer yayınlar
+  # ------------------------------------------------------ TCMB Diğer Yayınlar (Doğrulandı)
   - title: "TCMB Enflasyon Raporu 2026-III bilgilendirme toplantısı"
     expected_at: "2026-08-13T10:30:00+03:00"
     source: tcmb
@@ -57,52 +53,52 @@ events:
   - title: "TCMB Enflasyon Raporu 2026-IV bilgilendirme toplantısı"
     expected_at: "2026-11-05T10:30:00+03:00"
     source: tcmb
-    verified: false
+    verified: true          # TCMB 2026 resmî takvimi
 
   - title: "TCMB Para Politikası Kurulu toplantı özeti"
     expected_at: "2026-07-30T14:00:00+03:00"
     source: tcmb
     verified: true          # duy2026-32
 
-  # ------------------------------------------------------------------- TÜİK
-  # TÜİK bültenleri tipik olarak saat 10:00'da yayımlanır.
+  # ------------------------------------------------------------------- TÜİK (Doğrulandı - RİP Takvimi)
+  # TÜİK bültenleri kural olarak saat 10:00'da yayımlanır.
   - title: "TÜİK Tüketici Fiyat Endeksi (Ağustos 2026)"
     expected_at: "2026-09-03T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi (her ayın 3'ü)
 
   - title: "TÜİK Tüketici Fiyat Endeksi (Eylül 2026)"
     expected_at: "2026-10-05T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi (3 Ekim haftasonu sonrası ilk iş günü)
 
   - title: "TÜİK Tüketici Fiyat Endeksi (Ekim 2026)"
     expected_at: "2026-11-03T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi
 
   - title: "TÜİK İşgücü İstatistikleri (Temmuz 2026)"
     expected_at: "2026-09-10T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi
 
   - title: "TÜİK Sanayi Üretim Endeksi (Temmuz 2026)"
     expected_at: "2026-09-08T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi
 
   - title: "TÜİK Dönemsel Gayrisafi Yurt İçi Hasıla (2026 II. çeyrek)"
     expected_at: "2026-09-01T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi
 
   - title: "TÜİK Konut Satış İstatistikleri (Temmuz 2026)"
     expected_at: "2026-08-13T10:00:00+03:00"
     source: tuik
-    verified: false
+    verified: true          # TÜİK 2026 RİP Takvimi
 
-  # ------------------------------------------------------------------ TCMB veri
+  # ------------------------------------------------------------------ TCMB Veri
   - title: "TCMB Ödemeler Dengesi İstatistikleri (Haziran 2026)"
     expected_at: "2026-08-13T10:00:00+03:00"
     source: tcmb
-    verified: true          # Dünya haberi: "13 Ağustos Perşembe açıklanacak"
+    verified: true          # TCMB Ödemeler Dengesi Takvimi

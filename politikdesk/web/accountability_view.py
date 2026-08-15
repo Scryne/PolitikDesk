@@ -31,6 +31,7 @@ EPISTEMIC_BADGES: dict[str, tuple[str, str]] = {
 
 
 @router.get("/accountability", response_class=HTMLResponse)
+@router.get("/hesap-sor", response_class=HTMLResponse)
 def accountability_page() -> HTMLResponse:
     """Hesap Sor ana ekranı."""
     user_id = current_user_id()

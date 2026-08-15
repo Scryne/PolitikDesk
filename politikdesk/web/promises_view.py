@@ -34,6 +34,7 @@ def _status_badge(outcome: str, evidence_status: str) -> str:
 
 
 @router.get("/promises", response_class=HTMLResponse)
+@router.get("/vaatler", response_class=HTMLResponse)
 def promises_page() -> HTMLResponse:
     """Vaat Takibi ana ekranı."""
     user_id = current_user_id()

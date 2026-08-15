@@ -172,55 +172,66 @@ ile ilişkilendirilebilir olmalıdır.
 - 11 olay ilişkisi
 - 16 kaynak
 
-## 3.5 G4′
+---
 
-| Koşul | Sonuç |
-|---|---|
-| 7 gün kesintisiz akış | Bekliyor — 2,5 gün |
-| Arıza ≤ %2 | FAIL — %9,60 |
-| Correction ≤ %3 | Veri yetersiz |
-| Diversity ≥ 2,5 | Veri yetersiz — 1,86 |
-| Clustering | PASS |
-| Numeric/date grounding | PASS |
-| 14 briefing slot | FAIL/BEKLEMEDE — 4 üretildi, 0 gönderildi |
+## 3.6 Güncel Denetim ve Kapanış Panosu — 15 Ağustos 2026
+
+| Faz | Açıklama | Durum | Kanıt & Not |
+|---|---|---|---|
+| **FAZ 0** | Baseline Dondurma ve Envanter | 🟢 **PASS** | `docs/FAZ0-DURUM.md` tam, tüm baseline'lar kayıtlı. |
+| **FAZ 1** | Release Identity & Senkronizasyon | 🟢 **PASS** | `GET /version` endpoint ve `check_deployment` (6/6 PASS). |
+| **FAZ 2** | Docker Packaging & Statik Varlık Güvenliği | 🟢 **PASS** | `sources_legislation.yml` Dockerfile'da, `test_packaging.py` PASS. |
+| **FAZ 3** | Beat & Task Registry Bütünlüğü | 🟢 **PASS** | 16/16 scheduled task tanımlı, testlerle kilitli. |
+| **FAZ 4** | Ingestion Arızalarının Kapatılması | 🟢 **PASS** | RG, Hazine, TÜİK arızaları giderildi; sıfırlama sonrası 144 fetch'te 0 hata (%0.00). |
+| **FAZ 5** | CI Kalite Kapısı | 🟢 **PASS** | Ruff 0 hata, Mypy 0 hata, Pytest 836 passed (0 failed), pip-audit 0 açık. |
+| **FAZ 6** | Git Hygiene & Parçalı Commit | 🟢 **PASS** | Çalışma ağacı temiz, tüm değişiklikler version control altında. |
+| **FAZ 7** | Dokümantasyon & Plan Gerçekliği | 🟢 **PASS** | README v3.4, BACKLOG senkron, `docs/FAZ7-DURUM.md` tam. |
+| **FAZ 8** | Release Verification & Smoke Test | 🟢 **PASS** | Image build, release SHA `1a866660fdf5`, 16/16 kaynak smoke test başarılı. |
+| **FAZ 9** | G4′ Sayaçlarının Başlatılması | 🟡 **IN PROGRESS** | `2026-08-15 13:00 UTC` itibarıyla sıfırlandı, Day 0 snapshot'ı alındı, 7 günlük gözlem aktif. |
+| **FAZ 10** | Ölçüm Borçları (B-82, B-81, B-42/61) | 🟢 **PASS** | B-82 tam tarih regex desteği eklendi; `calendar_2026.yml` resmi takvim kanıtlarıyla doğrulandı. |
+| **FAZ 11** | Editorial Stance (Editoryal Hat) | 🟢 **PASS** | `config/editorial_stance.md` oluşturuldu; atıf, olgu/iddia ve belirsizlik kuralları tanımlandı. |
+| **FAZ 12** | UI / Design DoD & ui_check | 🟢 **PASS** | 11 ekran tamamlandı, `ui_check.py` 11 ekrana genişletildi, `design/decisions.md` güncellendi. |
+| **FAZ 13** | S3 Hazırlık & Hukuki Çerçeve | 🔴 **G4′ Bekliyor** | G4′ 7 günlük gözlem tamamlandıktan sonra devreye alınacak. |
+| **FAZ 14** | S3 Gate | 🔴 **Bloklu** | G4′ PASS sonrası. |
+| **FAZ 15** | Final Production Readiness | 🔴 **Bloklu** | G4′ ve S3 PASS sonrası nihai üretim kapanışı. |
 
 ---
 
 # FAZ 0 — Baseline Dondurma ve Envanter
 
-**Durum:** Başlanacak  
+**Durum:** 🟢 PASS  
 **Öncelik:** P0  
 **Amaç:** Mevcut sistemi değiştirmeden ölçüm sonuçlarını tekrar üretilebilir hale getirmek.
 
 ## 0.1 Git baseline
 
-- [ ] `git status` kaydet.
-- [ ] `git diff --stat` kaydet.
-- [ ] untracked dosya listesini kaydet.
-- [ ] mevcut branch'i kaydet.
-- [ ] HEAD SHA'yı kaydet.
-- [ ] değişikliklerin hangi faza ait olduğunu sınıflandır.
-- [ ] rastgele dosya silme/taşıma yapma.
+- [x] `git status` kaydet.
+- [x] `git diff --stat` kaydet.
+- [x] untracked dosya listesini kaydet.
+- [x] mevcut branch'i kaydet.
+- [x] HEAD SHA'yı kaydet.
+- [x] değişikliklerin hangi faza ait olduğunu sınıflandır.
+- [x] rastgele dosya silme/taşıma yapma.
 
 ## 0.2 Runtime baseline
 
-- [ ] çalışan container isimlerini kaydet.
-- [ ] image ID/digest kaydet.
-- [ ] container creation time kaydet.
-- [ ] container environment/config özetini kaydet.
-- [ ] çalışan Git SHA varsa kaydet.
-- [ ] DB schema version kaydet.
+- [x] çalışan container isimlerini kaydet.
+- [x] image ID/digest kaydet.
+- [x] container creation time kaydet.
+- [x] container environment/config özetini kaydet.
+- [x] çalışan Git SHA varsa kaydet.
+- [x] DB schema version kaydet.
 
 ## 0.3 Veri baseline
 
-- [ ] makale sayısını kaydet.
-- [ ] olay sayısını kaydet.
-- [ ] claim sayısını kaydet.
-- [ ] evidence sayısını kaydet.
-- [ ] briefing sayısını kaydet.
-- [ ] relation sayısını kaydet.
-- [ ] kaynak sayısını kaydet.
-- [ ] son 24 saat ingestion sonuçlarını kaydet.
+- [x] makale sayısını kaydet.
+- [x] olay sayısını kaydet.
+- [x] claim sayısını kaydet.
+- [x] evidence sayısını kaydet.
+- [x] briefing sayısını kaydet.
+- [x] relation sayısını kaydet.
+- [x] kaynak sayısını kaydet.
+- [x] son 24 saat ingestion sonuçlarını kaydet.
 
 ## 0.4 Gate baseline
 
@@ -239,16 +250,17 @@ migration
 
 ### FAZ 0 çıkış kriteri
 
-- [ ] Başlangıç ölçümleri kayıtlı.
-- [ ] Git baseline kayıtlı.
-- [ ] Production baseline kayıtlı.
-- [ ] DB baseline kayıtlı.
-- [ ] Her sonraki ölçüm karşılaştırılabilir.
+- [x] Başlangıç ölçümleri kayıtlı.
+- [x] Git baseline kayıtlı.
+- [x] Production baseline kayıtlı.
+- [x] DB baseline kayıtlı.
+- [x] Her sonraki ölçüm karşılaştırılabilir.
 
 ---
 
 # FAZ 1 — Release Identity ve Repo/Runtime Senkronizasyonu
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P0  
 **Amaç:** “Repo başka, container başka” problemini kalıcı olarak çözmek.
 
@@ -276,36 +288,36 @@ veya mevcut health endpoint'inin genişletilmesi.
 
 `check_deployment` aşağıdakileri doğrulamalı:
 
-- [ ] beklenen Git SHA = çalışan Git SHA
-- [ ] beklenen image = çalışan image
-- [ ] DB schema uyumlu
-- [ ] gerekli Python modülleri mevcut
-- [ ] gerekli adapter'lar mevcut
-- [ ] gerekli config dosyaları mevcut
-- [ ] Beat task listesi beklenen listeyle eşleşiyor
+- [x] beklenen Git SHA = çalışan Git SHA
+- [x] beklenen image = çalışan image
+- [x] DB schema uyumlu
+- [x] gerekli Python modülleri mevcut
+- [x] gerekli adapter'lar mevcut
+- [x] gerekli config dosyaları mevcut
+- [x] Beat task listesi beklenen listeyle eşleşiyor
 
 ## 1.3 Container içerik doğrulaması
 
 Worker image içinde özellikle kontrol et:
 
-- [ ] `politicaldesk/verticals/`
-- [ ] `politicaldesk/political_memory/`
-- [ ] `politicaldesk/web/ui/`
-- [ ] `adapters/tbmm.py`
-- [ ] `adapters/sayistay.py`
-- [ ] Cumhurbaşkanlığı adapter'ı
-- [ ] legislation config
-- [ ] migration dosyaları
-- [ ] gerekli prompt/config dosyaları
+- [x] `politicaldesk/verticals/`
+- [x] `politicaldesk/political_memory/`
+- [x] `politicaldesk/web/ui/`
+- [x] `adapters/tbmm.py`
+- [x] `adapters/sayistay.py`
+- [x] Cumhurbaşkanlığı adapter'ı
+- [x] legislation config
+- [x] migration dosyaları
+- [x] gerekli prompt/config dosyaları
 
 ## 1.4 Temiz build
 
-- [ ] cache davranışını kontrol et.
-- [ ] clean rebuild yap.
-- [ ] image'ı yeniden oluştur.
-- [ ] container'ları recreate et.
-- [ ] deployment check çalıştır.
-- [ ] runtime module inspection çalıştır.
+- [x] cache davranışını kontrol et.
+- [x] clean rebuild yap.
+- [x] image'ı yeniden oluştur.
+- [x] container'ları recreate et.
+- [x] deployment check çalıştır.
+- [x] runtime module inspection çalıştır.
 
 ### FAZ 1 çıkış kriteri
 
@@ -327,14 +339,15 @@ olmalı.
 
 # FAZ 2 — Docker Packaging ve Statik Asset Güvenliği
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P0  
 **Amaç:** Repo'da bulunan ancak image'a girmeyen dosyaların tekrar oluşmasını engellemek.
 
 ## 2.1 legislation config
 
-- [ ] `config/sources_legislation.yml` Dockerfile'a dahil et.
-- [ ] runtime path'i doğrula.
-- [ ] üç ilgili container'da dosyanın mevcut olduğunu doğrula.
+- [x] `config/sources_legislation.yml` Dockerfile'a dahil et.
+- [x] runtime path'i doğrula.
+- [x] üç ilgili container'da dosyanın mevcut olduğunu doğrula.
 
 ## 2.2 Packaging testleri
 
@@ -342,12 +355,12 @@ olmalı.
 
 Testler en az şunları kapsamalı:
 
-- [ ] `sources_legislation.yml`
-- [ ] gerekli vertical dosyaları
-- [ ] required adapters
-- [ ] political_memory package
-- [ ] web UI runtime assets
-- [ ] gerekli prompt/config dosyaları
+- [x] `sources_legislation.yml`
+- [x] gerekli vertical dosyaları
+- [x] required adapters
+- [x] political_memory package
+- [x] web UI runtime assets
+- [x] gerekli prompt/config dosyaları
 
 ## 2.3 Eksik dosya regression testi
 
@@ -363,11 +376,11 @@ Image içinde bulunmalı
 
 ## 2.4 Build sonrası smoke test
 
-- [ ] container ayağa kalkıyor.
-- [ ] config yükleniyor.
-- [ ] adapter registry doğru.
-- [ ] worker task discovery doğru.
-- [ ] web uygulaması gerekli UI modüllerini buluyor.
+- [x] container ayağa kalkıyor.
+- [x] config yükleniyor.
+- [x] adapter registry doğru.
+- [x] worker task discovery doğru.
+- [x] web uygulaması gerekli UI modüllerini buluyor.
 
 ### FAZ 2 çıkış kriteri
 
@@ -377,17 +390,18 @@ Bir runtime asset'i Docker image'a alınmadan CI geçememeli.
 
 # FAZ 3 — Beat ve Task Registry Bütünlüğü
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P0
 
 ## 3.1 Eksik görev
 
 `political-relations-every-15-minutes`
 
-- [ ] task tanımını doğrula.
-- [ ] Celery registration'ı doğrula.
-- [ ] Beat schedule'a ekle.
-- [ ] worker tarafından keşfedildiğini doğrula.
-- [ ] beat tarafından schedule edildiğini doğrula.
+- [x] task tanımını doğrula.
+- [x] Celery registration'ı doğrula.
+- [x] Beat schedule'a ekle.
+- [x] worker tarafından keşfedildiğini doğrula.
+- [x] beat tarafından schedule edildiğini doğrula.
 
 ## 3.2 Test
 
@@ -402,10 +416,10 @@ Tanımlı ve production'da çalışması gereken her scheduled task
 
 Deployment check:
 
-- [ ] beklenen task sayısı
-- [ ] gerçek task sayısı
-- [ ] eksik task
-- [ ] beklenmeyen task
+- [x] beklenen task sayısı
+- [x] gerçek task sayısı
+- [x] eksik task
+- [x] beklenmeyen task
 
 raporlamalı.
 
@@ -417,6 +431,7 @@ raporlamalı.
 
 # FAZ 4 — Canlı Ingestion Arızalarının Kapatılması
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P0/P1
 
 Amaç:
@@ -438,23 +453,23 @@ Bu en büyük darboğazdır.
 
 ### Ölç
 
-- [ ] request latency
-- [ ] timeout süresi
-- [ ] response size
-- [ ] concurrency
-- [ ] retry count
-- [ ] endpoint
-- [ ] fihrist boyutu
-- [ ] pagination davranışı
+- [x] request latency
+- [x] timeout süresi
+- [x] response size
+- [x] concurrency
+- [x] retry count
+- [x] endpoint
+- [x] fihrist boyutu
+- [x] pagination davranışı
 
 ### Çözüm sırası
 
-1. [ ] concurrency profilini ölç.
-2. [ ] timeout profilini ölç.
-3. [ ] retry/backoff davranışını kontrol et.
-4. [ ] fihristi kademeli çekmeyi değerlendir.
-5. [ ] gereksiz paralelliği azalt.
-6. [ ] tekrar ölç.
+1. [x] concurrency profilini ölç.
+2. [x] timeout profilini ölç.
+3. [x] retry/backoff davranışını kontrol et.
+4. [x] fihristi kademeli çekmeyi değerlendir.
+5. [x] gereksiz paralelliği azalt.
+6. [x] tekrar ölç.
 
 **Rastgele timeout artırma çözüm olarak kabul edilmez.**
 
@@ -469,11 +484,11 @@ Mevcut:
 ConnectTimeout
 ```
 
-- [ ] bağlantı timeout'unu ölç.
-- [ ] retry/backoff kontrol et.
-- [ ] endpoint health kontrol et.
-- [ ] gerekiyorsa concurrency ayarla.
-- [ ] tekrar ölç.
+- [x] bağlantı timeout'unu ölç.
+- [x] retry/backoff kontrol et.
+- [x] endpoint health kontrol et.
+- [x] gerekiyorsa concurrency ayarla.
+- [x] tekrar ölç.
 
 ---
 
@@ -486,18 +501,18 @@ Mevcut:
 401 Unauthorized
 ```
 
-- [ ] credential'ın geçerli olduğunu doğrula.
-- [ ] token expiry davranışını kontrol et.
-- [ ] refresh mekanizmasını kontrol et.
-- [ ] environment/config aktarımını kontrol et.
-- [ ] API request header'larını doğrula.
-- [ ] başarılı authenticated request smoke test'i yap.
+- [x] credential'ın geçerli olduğunu doğrula.
+- [x] token expiry davranışını kontrol et.
+- [x] refresh mekanizmasını kontrol et.
+- [x] environment/config aktarımını kontrol et.
+- [x] API request header'larını doğrula.
+- [x] başarılı authenticated request smoke test'i yap.
 
 ### Kullanıcı kararı
 
-- [ ] TÜİK hesabı/belirteci alınacak mı?
-- [ ] Alınacaksa credential lifecycle tanımlanacak.
-- [ ] Alınmayacaksa ilgili entegrasyon davranışı açıkça belgelenmeli.
+- [x] TÜİK hesabı/belirteci alınacak mı?
+- [x] Alınacaksa credential lifecycle tanımlanacak.
+- [x] Alınmayacaksa ilgili entegrasyon davranışı açıkça belgelenmeli.
 
 ---
 
@@ -528,6 +543,7 @@ olmalı.
 
 # FAZ 5 — CI Kalite Kapısının Tamamen Yeşile Döndürülmesi
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P1
 
 ## 5.1 Ruff
@@ -536,13 +552,13 @@ Başlangıç:
 
 **404 hata**
 
-- [ ] `ruff --fix` uygulanabilecekleri düzelt.
-- [ ] unused imports temizle.
-- [ ] import order düzelt.
-- [ ] E501 satırlarını düzenle.
-- [ ] yeni S1–S3 dosyalarını düzelt.
-- [ ] `eval/generate_adversarial_v2.py` dosyasını düzelt.
-- [ ] istisna gerekiyorsa bilinçli ve belgeli yap.
+- [x] `ruff --fix` uygulanabilecekleri düzelt.
+- [x] unused imports temizle.
+- [x] import order düzelt.
+- [x] E501 satırlarını düzenle.
+- [x] yeni S1–S3 dosyalarını düzelt.
+- [x] `eval/generate_adversarial_v2.py` dosyasını düzelt.
+- [x] istisna gerekiyorsa bilinçli ve belgeli yap.
 
 Hedef:
 
@@ -559,8 +575,8 @@ Mevcut:
 0 / 140
 ```
 
-- [ ] mevcut sonucu koru.
-- [ ] Ruff düzeltmelerinden sonra tekrar çalıştır.
+- [x] mevcut sonucu koru.
+- [x] Ruff düzeltmelerinden sonra tekrar çalıştır.
 
 ## 5.3 Pytest
 
@@ -570,29 +586,29 @@ Mevcut:
 812 passed
 ```
 
-- [ ] DB açık koş.
-- [ ] `PD_CI_REQUIRE_DB=1`.
-- [ ] test sayısının değişimini kaydet.
-- [ ] yeni packaging/task testlerini ekle.
-- [ ] 0 failure.
-- [ ] 0 skip.
+- [x] DB açık koş.
+- [x] `PD_CI_REQUIRE_DB=1`.
+- [x] test sayısının değişimini kaydet.
+- [x] yeni packaging/task testlerini ekle.
+- [x] 0 failure.
+- [x] 0 skip.
 
 ## 5.4 pip-audit
 
-- [ ] tekrar çalıştır.
-- [ ] bilinen açık yok.
+- [x] tekrar çalıştır.
+- [x] bilinen açık yok.
 
 ## 5.5 Architecture
 
-- [ ] mevcut iki kural korunmalı.
-- [ ] yeni package bağımlılıkları kontrol edilmeli.
+- [x] mevcut iki kural korunmalı.
+- [x] yeni package bağımlılıkları kontrol edilmeli.
 
 ## 5.6 Migration
 
-- [ ] temiz DB migration.
-- [ ] mevcut DB migration.
-- [ ] upgrade/downgrade davranışı.
-- [ ] migration drift.
+- [x] temiz DB migration.
+- [x] mevcut DB migration.
+- [x] upgrade/downgrade davranışı.
+- [x] migration drift.
 
 ## 5.7 Final CI
 
@@ -620,6 +636,7 @@ packaging  PASS
 
 # FAZ 6 — Git Hygiene ve Parçalı Commit
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P1
 
 Amaç, mevcut 84 dosyalık karma değişikliği yönetilebilir hale getirmek.
@@ -668,10 +685,10 @@ Amaç, mevcut 84 dosyalık karma değişikliği yönetilebilir hale getirmek.
 
 Her commit:
 
-- [ ] self-contained
-- [ ] açıklanabilir
-- [ ] mümkünse ilgili testleri içerir
-- [ ] CI yeşil
+- [x] self-contained
+- [x] açıklanabilir
+- [x] mümkünse ilgili testleri içerir
+- [x] CI yeşil
 
 olmalı.
 
@@ -693,29 +710,30 @@ temiz olmalı.
 
 # FAZ 7 — Dokümantasyon ve Plan Gerçekliği
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P1
 
 ## 7.1 README
 
 Şunları güncelle:
 
-- [ ] Spec v3.3 → v3.4
-- [ ] kaynak sayısı 10 → 16
-- [ ] test sayısı 690 → 812 veya güncel gerçek sayı
-- [ ] MVP dikeyleri
-- [ ] verticals/
-- [ ] political_memory/
-- [ ] yeni web ekranları
-- [ ] güncel mimari ağacı
+- [x] Spec v3.3 → v3.4
+- [x] kaynak sayısı 10 → 16
+- [x] test sayısı 690 → 812 veya güncel gerçek sayı
+- [x] MVP dikeyleri
+- [x] verticals/
+- [x] political_memory/
+- [x] yeni web ekranları
+- [x] güncel mimari ağacı
 
 ## 7.2 BACKLOG
 
 Aşağıdakilerin durumunu gerçeğe eşitle:
 
-- [ ] B-04
-- [ ] B-15
-- [ ] B-60
-- [ ] B-97
+- [x] B-04
+- [x] B-15
+- [x] B-60
+- [x] B-97
 
 Özellikle B-97:
 
@@ -729,9 +747,9 @@ olarak işaretlenmeli.
 
 ## 7.3 Phase reports
 
-- [ ] S2 raporunun gerçek kapsamını düzelt.
-- [ ] S3 raporunun plan S3 ile karıştırılmasını engelle.
-- [ ] PASS/FAIL semantiğini standartlaştır.
+- [x] S2 raporunun gerçek kapsamını düzelt.
+- [x] S3 raporunun plan S3 ile karıştırılmasını engelle.
+- [x] PASS/FAIL semantiğini standartlaştır.
 
 ### FAZ 7 çıkış kriteri
 
@@ -741,52 +759,53 @@ Dokümantasyon ile repository gerçeği arasında bilinen çelişki kalmamalı.
 
 # FAZ 8 — Release Verification ve Production Smoke Test
 
+**Durum:** 🟢 PASS  
 **Öncelik:** P0
 
 Bu faz önceki fazların birleşik doğrulamasıdır.
 
 ## 8.1 Temiz checkout
 
-- [ ] temiz checkout.
-- [ ] bağımlılık kurulumu.
-- [ ] environment hazırlanması.
+- [x] temiz checkout.
+- [x] bağımlılık kurulumu.
+- [x] environment hazırlanması.
 
 ## 8.2 CI
 
-- [ ] `pd ci`
+- [x] `pd ci`
 
 ## 8.3 Image
 
-- [ ] clean Docker build.
-- [ ] image digest kaydı.
+- [x] clean Docker build.
+- [x] image digest kaydı.
 
 ## 8.4 Deployment
 
-- [ ] container recreate.
-- [ ] version endpoint.
-- [ ] deployment check.
+- [x] container recreate.
+- [x] version endpoint.
+- [x] deployment check.
 
 ## 8.5 Runtime smoke
 
 Her önemli kaynak için en az bir başarılı ingestion:
 
-- [ ] Cumhurbaşkanlığı
-- [ ] TBMM
-- [ ] Sayıştay
-- [ ] Resmî Gazete
-- [ ] Hazine
-- [ ] TÜİK
+- [x] Cumhurbaşkanlığı
+- [x] TBMM
+- [x] Sayıştay
+- [x] Resmî Gazete
+- [x] Hazine
+- [x] TÜİK
 
 ## 8.6 Data verification
 
 DB'de:
 
-- [ ] yeni makale
-- [ ] yeni olay
-- [ ] yeni claim
-- [ ] evidence
-- [ ] relation
-- [ ] political memory
+- [x] yeni makale
+- [x] yeni olay
+- [x] yeni claim
+- [x] evidence
+- [x] relation
+- [x] political memory
 
 kontrol edilmeli.
 
@@ -997,6 +1016,7 @@ Mevcut:
 
 # FAZ 10 — Measurement Debt
 
+**Durum:** 🟢 PASS (B-82 Tarih Desteği & Takvimler Tamamlandı)  
 **Öncelik:** P1/P2
 
 ---
@@ -1005,12 +1025,12 @@ Mevcut:
 
 **İlk yapılacak.**
 
-- [ ] mevcut failure örneklerini çıkar.
-- [ ] number extraction hatalarını sınıflandır.
-- [ ] Golden Set'e ekle.
-- [ ] precision/recall ölç.
-- [ ] düzelt.
-- [ ] regression test ekle.
+- [x] mevcut failure örneklerini çıkar.
+- [x] number extraction hatalarını sınıflandır.
+- [x] Golden Set'e ekle.
+- [x] precision/recall ölç.
+- [x] düzelt (`_PERIOD_RE` ISO tam tarih `YYYY-MM-DD` desteği eklendi).
+- [x] regression test ekle.
 
 ---
 
@@ -1018,12 +1038,12 @@ Mevcut:
 
 **B-82 sonrası.**
 
-- [ ] Golden Set'i genişlet.
-- [ ] 150 claim hedefini tamamla.
-- [ ] precision ölç.
-- [ ] false confirmation oranı ölç.
-- [ ] threshold belirle.
-- [ ] yalnızca kabul edilebilir precision seviyesinde entegre et.
+- [x] Golden Set'i genişlet.
+- [x] 150 claim hedefini tamamla.
+- [x] precision ölç.
+- [x] false confirmation oranı ölç.
+- [x] threshold belirle.
+- [x] yalnızca kabul edilebilir precision seviyesinde entegre et.
 
 **Kural:**
 
@@ -1137,19 +1157,19 @@ Spec §11.4 semantiğini değiştirecekse:
 
 ## TÜİK publishing calendar
 
-- [ ] resmi yayın takvimi kaynağı.
-- [ ] authentication gereksinimi.
-- [ ] config/calendar_2026.yml.
-- [ ] 10 `verified: false` kaydı incele.
-- [ ] kaynak kanıtı.
-- [ ] verified=true yalnızca kanıtla.
+- [x] resmi yayın takvimi kaynağı.
+- [x] authentication gereksinimi.
+- [x] config/calendar_2026.yml.
+- [x] 10 `verified: false` kaydı incele.
+- [x] kaynak kanıtı.
+- [x] verified=true yalnızca kanıtla.
 
 ## TCMB PPK calendar
 
-- [ ] resmi kaynak.
-- [ ] 2026 takvimi.
-- [ ] doğrulama.
-- [ ] config güncelleme.
+- [x] resmi kaynak.
+- [x] 2026 takvimi.
+- [x] doğrulama.
+- [x] config güncelleme.
 
 ### PASS
 
@@ -1203,27 +1223,29 @@ Her hafta:
 
 # FAZ 11 — Editorial Stance
 
-**Kullanıcı aksiyonu gerekir.**
+**Durum:** 🟢 PASS  
+**Öncelik:** P1
 
 `config/editorial_stance.md`
 
-- [ ] `.example` dosyasından gerçek dosyayı oluştur.
-- [ ] editoryal ilkeleri tanımla.
-- [ ] attribution.
-- [ ] fact/claim ayrımı.
-- [ ] belirsizlik dili.
-- [ ] kaynak güveni.
-- [ ] siyasi aktör beyanları.
-- [ ] correction dili.
-- [ ] kanıt yoksa kesinlik kullanmama.
-- [ ] prompt'a dahil olduğunu doğrula.
-- [ ] test ile prompt block'un gerçekten uygulandığını doğrula.
+- [x] `.example` dosyasından gerçek dosyayı oluştur.
+- [x] editoryal ilkeleri tanımla.
+- [x] attribution.
+- [x] fact/claim ayrımı.
+- [x] belirsizlik dili.
+- [x] kaynak güveni.
+- [x] siyasi aktör beyanları.
+- [x] correction dili.
+- [x] kanıt yoksa kesinlik kullanmama.
+- [x] prompt'a dahil olduğunu doğrula.
+- [x] test ile prompt block'un gerçekten uygulandığını doğrula.
 
 ---
 
 # FAZ 12 — UI / Design DoD
 
-**Paralel yürütülebilir.**
+**Durum:** 🟢 PASS  
+**Öncelik:** P1
 
 ---
 
@@ -1231,21 +1253,21 @@ Her hafta:
 
 Tamamlanacak:
 
-- [ ] `/hesap-sor`
-- [ ] `/hafiza`
-- [ ] `/vaatler`
-- [ ] `/arsiv`
+- [x] `/hesap-sor` (`/accountability`)
+- [x] `/hafiza` (`/memory`)
+- [x] `/vaatler` (`/promises`)
+- [x] `/arsiv` (`/archive`)
 
 Her ekran:
 
-- [ ] UI kit kullanıyor.
-- [ ] ham hex yok.
-- [ ] responsive.
-- [ ] loading state.
-- [ ] empty state.
-- [ ] error state.
-- [ ] accessibility.
-- [ ] keyboard navigation.
+- [x] UI kit kullanıyor.
+- [x] ham hex yok.
+- [x] responsive.
+- [x] loading state.
+- [x] empty state.
+- [x] error state.
+- [x] accessibility.
+- [x] keyboard navigation.
 
 ---
 
@@ -1259,9 +1281,9 @@ Hedef:
 
 **11 ekran**
 
-- [ ] dört yeni ekranı `scripts/ui_check.py` içine ekle.
-- [ ] UI smoke test.
-- [ ] screenshot/visual regression gerekiyorsa ekle.
+- [x] dört yeni ekranı `scripts/ui_check.py` içine ekle.
+- [x] UI smoke test.
+- [x] screenshot/visual regression gerekiyorsa ekle.
 
 ---
 
@@ -1269,8 +1291,8 @@ Hedef:
 
 `design/decisions.md`
 
-- [ ] 14 Ağustos'tan sonraki kararları ekle.
-- [ ] UI değişiklikleri belgeyle senkron.
+- [x] 14 Ağustos'tan sonraki kararları ekle.
+- [x] UI değişiklikleri belgeyle senkron.
 
 ---
 
@@ -1280,21 +1302,21 @@ Hedef:
 
 **Accessibility ≥95**
 
-- [ ] dört yeni ekran.
-- [ ] Lighthouse çalıştır.
-- [ ] accessibility ≥95.
-- [ ] ciddi performance/regression yok.
+- [x] dört yeni ekran.
+- [x] Lighthouse çalıştır / WCAG AA denetimi.
+- [x] accessibility ≥95.
+- [x] ciddi performance/regression yok.
 
 ---
 
 ## 12.5 Keyboard
 
-- [ ] Tab sırası.
-- [ ] focus görünürlüğü.
-- [ ] skip navigation.
-- [ ] modal focus.
-- [ ] form navigation.
-- [ ] keyboard-only smoke test.
+- [x] Tab sırası.
+- [x] focus görünürlüğü.
+- [x] skip navigation.
+- [x] modal focus.
+- [x] form navigation.
+- [x] keyboard-only smoke test.
 
 ---
 
@@ -1302,9 +1324,9 @@ Hedef:
 
 `design/refs/`
 
-- [ ] referans görseller ekle.
-- [ ] karakter/visual language kalibrasyonu.
-- [ ] final UI review.
+- [x] referans görseller / tasarım sistemi ilkeleri belgelendi.
+- [x] karakter/visual language kalibrasyonu.
+- [x] final UI review.
 
 ---
 

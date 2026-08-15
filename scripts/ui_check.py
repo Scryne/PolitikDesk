@@ -37,8 +37,8 @@ VIEWPORTS: tuple[tuple[str, int, int], ...] = (
     ("genis", 1920, 1080),
 )
 
-# Depodaki her ekran. Yeni sayfa açan buraya bir satır ekler; eklemeyen
-# sayfa denetlenmez ve denetlenmeyen sayfa bozulur.
+# Depodaki her ekran (11 ekran · FAZ 12.2). Yeni sayfa açan buraya bir satır
+# ekler; eklemeyen sayfa denetlenmez ve denetlenmeyen sayfa bozulur.
 PAGES: tuple[tuple[str, str], ...] = (
     ("gundem", "/feed"),
     ("brifingler", "/briefing"),
@@ -47,6 +47,10 @@ PAGES: tuple[tuple[str, str], ...] = (
     ("metrikler", "/admin/metrics"),
     ("denetim-kuyrugu", "/admin/review/"),
     ("beklenen-gelismeler", "/admin/calendar/"),
+    ("hesap-sor", "/accountability"),
+    ("hafiza", "/memory"),
+    ("vaatler", "/promises"),
+    ("arsiv", "/archive"),
 )
 
 # Taşmayı ÖLÇEN ve taşıran öğeyi BULAN betik. İkincisi olmadan bulgu

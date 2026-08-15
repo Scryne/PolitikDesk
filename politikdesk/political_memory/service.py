@@ -283,3 +283,20 @@ def get_accountability_digest(limit: int = 50) -> list[dict[str, Any]]:
             }
         )
     return digest
+
+
+def list_tracked_actors(limit: int = 50) -> list[dict[str, Any]]:
+    """Kayıtlı aktörleri ve varlıkları listeler."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT canonical_name as name, entity_type, is_key_entity
+            FROM entities
+            WHERE entity_type IN ('person', 'institution')
+            ORDER BY is_key_entity DESC, canonical_name ASC
+            LIMIT %s;
+            """,
+            (limit,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+

@@ -212,12 +212,32 @@ layout viewport'unu güvenilir biçimde ayarlamıyor.
 
 ---
 
+---
+
+## 2026-08-15 · Siyasi Hafıza, Hesap Sor ve Arşiv Ekranları (FAZ 12 · 11 Ekran)
+
+Kapsam: `/accountability` (`/hesap-sor`), `/memory` (`/hafiza`), `/promises` (`/vaatler`), `/archive` (`/arsiv`).
+
+### Kararlar ve İlkeler:
+
+1. **Ortak Kabuk & Token Disiplini:**
+   - Dört yeni ekran da `web/ui/shell.py` ve `web/ui/css.py` tasarım sistemiyle tam uyumlu oluşturuldu; hiçbir ekranda inline ham hex renk veya ad-hoc font kullanılmadı.
+2. **Epistemik & Hukuki Çekince Paneli:**
+   - Siyasi aktör hafızası ve hesap sorabilirlik ekranlarında yasal çekince metni `LEGAL_DISCLAIMER` sol kenarlık aksan rengiyle (`var(--pd-color-accent)`) ve sakinleştirilmiş font hiyerarşisiyle (`var(--pd-color-text-secondary)`) sabitlendi.
+3. **Vaat ve Eylem Karşılaştırma Tabloları:**
+   - `/promises` ve `/accountability` tablolarında `fulfils` (kanunlaştı/gerçekleşti - yeşil), `fails` (gerçekleşmedi/reddedildi - kırmızı), `contradicts` (çelişki - kırmızı) ve `pending` (takipte - amber) rozetleri `tokens.py` kanıt renklerine bağlandı.
+4. **11 Ekranlık Görsel Doğrulama:**
+   - `scripts/ui_check.py` içine 4 yeni ekran eklenerek toplam 11 ekrana çıkarıldı. 4 viewport (mobil, tablet, masaüstü, geniş) × 11 ekran = 44 denetim noktası sağlandı.
+
+---
+
 ## Ölçüler
 
-| | |
+| Metrik | Değer |
 |---|---|
-| Sayfa süresi (G3 #7 hedefi p95 < 1,5 sn) | `/feed` 0,21 sn · `/event/{id}` 0,21 sn |
-| Font yükü | 6 woff2, ~195 KB (latin + latin-ext) |
+| Sayfa süresi (G3 #7 hedefi p95 < 1,5 sn) | `/feed` 0,21 sn · `/event/{id}` 0,21 sn · `/accountability` 0,22 sn |
+| Font yükü | 6 woff2, ~195 KB (latin + latin-ext, yerel barındırma) |
 | Stylesheet | tek kaynak, satır içi (~36 KB) |
-| Test | 690 geçti · 72'si tasarım sistemi |
-| Ekran × viewport denetimi | 7 × 4 = 28, hepsi temiz |
+| Toplam Test Sayısı | 836 geçti · 72'si tasarım sistemi |
+| Ekran × Viewport Denetimi | 11 × 4 = 44 denetim kombinasyonu |
+

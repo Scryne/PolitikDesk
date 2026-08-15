@@ -23,6 +23,7 @@ router = APIRouter(tags=["web"])
 
 
 @router.get("/archive", response_class=HTMLResponse)
+@router.get("/arsiv", response_class=HTMLResponse)
 def archive_page() -> HTMLResponse:
     """Yayın Arşivi ana ekranı."""
     user_id = current_user_id()

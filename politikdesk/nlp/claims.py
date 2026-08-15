@@ -89,13 +89,10 @@ CLAIMS_SCHEMA: dict[str, Any] = {
     },
 }
 
-# Dönem sözlüğü: yıl, ay, çeyrek ve YARIYIL.
-# Yarıyıl (`2026-H1`) canlı koşumda eklendi: Türkçe ekonomi haberciliğinde
-# "yılın ilk yarısı" yaygın bir dönemdir ve model bunu doğru üretmişken
-# doğrulama reddediyordu — model hatası değil, sözlük boşluğuydu.
-# Spec §11.5 `normalized_value` şeklini sabitler ama dönem sözlüğünü
-# saymaz; bu yüzden genişletme spec değişikliği gerektirmez.
-_PERIOD_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])|-Q[1-4]|-H[12])?$")
+# Dönem sözlüğü: yıl, ay, gün (tam tarih), çeyrek ve YARIYIL (B-82).
+# Yarıyıl (`2026-H1`) ve tam tarih (`2026-08-15`) ekonomi ve politika
+# verilerinde (günlük faiz, kur, bütçe bildirimi) mevcuttur.
+_PERIOD_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?|-Q[1-4]|-H[12])?$")
 
 
 @dataclass(frozen=True)

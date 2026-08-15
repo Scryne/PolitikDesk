@@ -1,10 +1,12 @@
-"""Siyasi Aktör Hafıza ve Kronoloji Ekranı (Spec v3.4 §7.3).
+"""Siyasi Aktör Hafıza ve Kronoloji Ekranı (Spec v3.4 §7.3 · B-15).
 
 Belirli bir siyasi aktörün (bakan, milletvekili, parti sözcüsü vb.)
 geçmiş beyanları, vaatleri ve bu beyanlara bağlı ilişki ağını sunar.
 """
 
 from __future__ import annotations
+
+import urllib.parse
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -21,17 +23,127 @@ from politikdesk.web.ui import (
 router = APIRouter(tags=["web"])
 
 
+@router.get("/memory", response_class=HTMLResponse)
+@router.get("/hafiza", response_class=HTMLResponse)
+def memory_directory_page() -> HTMLResponse:
+    """Siyasi Hafıza Dizin ve Aktör Listesi ana sayfası."""
+    user_id = current_user_id()
+    touch_last_seen(user_id)
+
+    actors = mem_service.list_tracked_actors()
+
+    head = page_head(
+        "Siyasi Hafıza Masası",
+        lede=(
+            "Siyasi aktörlerin, bakanların ve parti sözcülerinin geçmiş beyanları, "
+            "vaatleri ve teyit zincirleri."
+        ),
+    )
+
+    disc_style = (
+        "background: var(--pd-color-bg-subtle); "
+        "border-left: 4px solid var(--pd-color-accent); "
+        "padding: 0.85rem 1.25rem; font-size: 0.85rem; "
+        "color: var(--pd-color-text-secondary);"
+    )
+    disclaimer_text = (
+        "Siyasi Hafıza kayıtları, kamuoyuna açık resmî tutanaklar ve "
+        "haber kaynaklarından derlenen beyan ve olay eşleşmelerini sunar; "
+        "kişisel suçlama niteliği taşımaz."
+    )
+    disclaimer_html = f"""
+    <div class="pd-panel" style="{disc_style}">
+        <strong>Epistemik & Hukuki Çekince:</strong> {disclaimer_text}
+    </div>
+    """
+
+    actors_html = []
+    if not actors:
+        empty_text = (
+            "Henüz kayıtlı aktör profili bulunmuyor. "
+            "Ingestion akışı çalıştıkça aktörler listelenecektir."
+        )
+        actors_html.append(f"""
+            <div class="pd-panel pd-text-muted" style="text-align: center; padding: 2rem;">
+                {empty_text}
+            </div>
+        """)
+    else:
+        cards = []
+        for a in actors:
+            name_esc = esc(a["name"])
+            encoded_name = urllib.parse.quote(a["name"])
+            badge = ""
+            if a.get("is_key_entity"):
+                badge = '<span class="pd-badge pd-badge--neutral">Kilit Aktör</span>'
+            type_label = (
+                "Kurum / Parti" if a.get("entity_type") == "institution" else "Siyasi Aktör"
+            )
+            card_style = (
+                "text-decoration: none; color: inherit; display: block; "
+                "transition: border-color 0.2s;"
+            )
+            hdr_style = (
+                "display: flex; justify-content: space-between; "
+                "align-items: center; margin-bottom: 0.5rem;"
+            )
+            lbl_style = "font-size: 0.8rem; color: var(--pd-color-text-muted);"
+            h3_style = "margin: 0; font-size: 1.1rem; color: var(--pd-color-accent);"
+            p_style = (
+                "margin: 0.5rem 0 0 0; font-size: 0.85rem; "
+                "color: var(--pd-color-text-secondary);"
+            )
+            cards.append(f"""
+                <a href="/memory/{encoded_name}" class="pd-panel" style="{card_style}">
+                    <div style="{hdr_style}">
+                        <span style="{lbl_style}">{type_label}</span>
+                        {badge}
+                    </div>
+                    <h3 style="{h3_style}">{name_esc}</h3>
+                    <p style="{p_style}">
+                        Geçmiş beyanları, vaatleri ve çelişki ağlarını incele &rarr;
+                    </p>
+                </a>
+            """)
+        grid_style = (
+            "display: grid; grid-template-columns: "
+            "repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;"
+        )
+        actors_html.append(f"""
+            <div class="pd-grid" style="{grid_style}">
+                {''.join(cards)}
+            </div>
+        """)
+
+    content = f"""
+    <div class="pd-stack pd-stack--lg">
+        {head}
+        {disclaimer_html}
+        {''.join(actors_html)}
+    </div>
+    """
+
+    html = page(
+        "Siyasi Hafıza",
+        content,
+        active="/memory",
+        extra_js=ACTIVITY_JS,
+    )
+    return HTMLResponse(html)
+
+
 @router.get("/memory/{actor}", response_class=HTMLResponse)
+@router.get("/hafiza/{actor}", response_class=HTMLResponse)
 def actor_memory_page(actor: str) -> HTMLResponse:
     """Aktör hafıza profili sayfası."""
     user_id = current_user_id()
     touch_last_seen(user_id)
 
-    memory = mem_service.get_actor_memory(actor)
+    decoded_actor = urllib.parse.unquote(actor)
+    memory = mem_service.get_actor_memory(decoded_actor)
 
     head = page_head(
-        f"Siyasi Hafıza: {actor}",
-
+        f"Siyasi Hafıza: {decoded_actor}",
         lede=(
             f"Toplam {memory.total_claims} kayıtlı iddia, "
             f"{len(memory.promises)} vaat, {len(memory.attributions)} beyan."
@@ -130,10 +242,8 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     </div>
     """
 
-
-
     html = page(
-        f"Hafıza: {actor}",
+        f"Hafıza: {decoded_actor}",
         content,
         active="/memory",
         extra_js=ACTIVITY_JS,
