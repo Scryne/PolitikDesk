@@ -20,6 +20,24 @@
 # Docker ağı üzerinden (`db:5432`) bağlanır; loopback'e bağlamak onları
 # etkilemez, yalnızca dışarıyı keser.
 
+# I03 düzeltmesi: kimlik bilgileri TEK YERDE tanımlanır. Beş servis
+# aynı kullanıcı/parola/veritabanını tekrarlıyordu — birinde değiştirip
+# diğerini unutmak sessiz bağlantı hatalarına yol açardı.
+x-db-env: &db-env
+  PD_DB_USER: ${PD_DB_USER:-politikdesk}
+  PD_DB_PASS: ${PD_DB_PASS:-politikdesk}
+  PD_DB_NAME: ${PD_DB_NAME:-politikdesk}
+
+# I02 düzeltmesi: Redis kimlik doğrulaması. Parola yokken aynı ağdaki
+# herhangi bir süreç Celery kuyruğuna okuma/yazma yapabilirdi.
+x-redis-env: &redis-env
+  PD_REDIS_PASSWORD: ${PD_REDIS_PASSWORD:-politikdesk}
+
+x-build-args: &build-args
+  GIT_SHA: ${PD_GIT_SHA:-}
+  BUILD_TIMESTAMP: ${PD_BUILD_TIMESTAMP:-}
+  IMAGE_DIGEST: ${PD_IMAGE_DIGEST:-}
+
 services:
   db:
     image: pgvector/pgvector:pg16
@@ -37,15 +55,15 @@ services:
       - -c
       - pg_stat_statements.track=all
     environment:
-      POSTGRES_USER: politikdesk
-      POSTGRES_PASSWORD: politikdesk
-      POSTGRES_DB: politikdesk
+      POSTGRES_USER: ${PD_DB_USER:-politikdesk}
+      POSTGRES_PASSWORD: ${PD_DB_PASS:-politikdesk}
+      POSTGRES_DB: ${PD_DB_NAME:-politikdesk}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U politikdesk -d politikdesk"]
+      test: ["CMD-SHELL", "pg_isready -U ${PD_DB_USER:-politikdesk} -d ${PD_DB_NAME:-politikdesk}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -54,23 +72,27 @@ services:
     image: redis:7-alpine
     container_name: pd-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${PD_REDIS_PASSWORD:-politikdesk}"]
     ports:
       - "127.0.0.1:6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${PD_REDIS_PASSWORD:-politikdesk}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 20
 
   migrate:
-    build: .
+    build:
+      context: .
+      args:
+        <<: *build-args
     container_name: pd-migrate
     command: ["python", "-m", "scripts.migrate", "up"]
     environment:
-      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
+      <<: [*db-env, *redis-env]
+      PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
     env_file:
       - path: .env
         required: false
@@ -81,14 +103,18 @@ services:
       - ./migrations:/app/migrations:ro
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        <<: *build-args
     container_name: pd-api
     restart: unless-stopped
     command:
       ["uvicorn", "politikdesk.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
-      PD_REDIS_URL: redis://redis:6379/0
+      <<: [*db-env, *redis-env]
+      PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
+      PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       # Metrik panosu gün sınırına bakar (`date.today()`); UTC'de kalırsa
       # akşam üretilen bir taslak ertesi günün kutusuna düşerdi.
       TZ: ${TZ:-Europe/Istanbul}
@@ -116,6 +142,7 @@ services:
     build:
       context: .
       args:
+        <<: *build-args
         PD_EXTRAS: embed-local
     container_name: pd-worker
     restart: unless-stopped
@@ -123,8 +150,9 @@ services:
       ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
        "--concurrency", "2"]
     environment:
-      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
-      PD_REDIS_URL: redis://redis:6379/0
+      <<: [*db-env, *redis-env]
+      PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
+      PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       # D16 kararı imajın içinde sabit: .env eksik olsa bile worker sessizce
       # `hashing` embedder'a düşmesin (Faz 2 canlı koşumunda olan buydu).
       TZ: ${TZ:-Europe/Istanbul}
@@ -146,14 +174,18 @@ services:
   # Zamanlayıcı: 5 dakikalık toplama döngüsü, embed, purge (F1-05, F1-12)
   # + Faz 3: sabah/akşam brifingi ve gecelik metrik toplaması (F3-16, F3-19).
   beat:
-    build: .
+    build:
+      context: .
+      args:
+        <<: *build-args
     container_name: pd-beat
     restart: unless-stopped
     command:
       ["celery", "-A", "politikdesk.worker.app", "beat", "-l", "info"]
     environment:
-      PD_DATABASE_URL: postgresql://politikdesk:politikdesk@db:5432/politikdesk
-      PD_REDIS_URL: redis://redis:6379/0
+      <<: [*db-env, *redis-env]
+      PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
+      PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       # Brifing saatleri `crontab` ile kurulur ve konteynerin saat
       # dilimine bakar. TZ verilmezse UTC kullanılır ve "08:00 sabah
       # brifingi" Türkiye'de 11:00'e düşerdi.

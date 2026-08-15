@@ -13,6 +13,7 @@ from typing import Any
 
 import yaml
 
+from politikdesk.ingestion.pipeline import ADAPTERS
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -40,19 +41,29 @@ class SourceConfig:
     verified: bool = False
     probe: dict[str, Any] = field(default_factory=dict)
     notes: str = ""
+    vertical: str = "macro_economy"
 
     @property
     def is_ingestable(self) -> bool:
         """Bu kaynaktan şu an veri çekilebilir mi?"""
         return self.tos_status in {"allowed", "restricted"} and bool(
-            self.feed_url or self.probe or self.adapter in {"tuik", "generic_html"}
+            self.feed_url or self.probe or self.adapter in {"tuik", "generic_html", "tbmm", "sayistay", "tuik_sdmx", "resmi_gazete"}
         )
 
 
+VALID_VERTICALS = {"macro_economy", "legislation"}
+MAX_GLOBAL_SOURCES = 30
+MAX_VERTICAL_SOURCES = 12
+
+
 def load_config(path: Path = CONFIG_PATH) -> tuple[list[SourceConfig], dict[str, Any]]:
-    """`config/sources.yml`'yi okur ve doğrular."""
+    """`config/sources*.yml` dosyasını okur ve doğrular."""
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    max_sources = int(data.get("max_sources", 8))
+    if not isinstance(data, dict):
+        raise ValueError(f"Geçersiz yapılandırma biçimi: {path.name}")
+
+    max_sources = int(data.get("max_sources", MAX_VERTICAL_SOURCES))
+    default_vertical = data.get("vertical", "macro_economy")
     raw_sources = data.get("sources", [])
 
     if len(raw_sources) > max_sources:
@@ -61,29 +72,43 @@ def load_config(path: Path = CONFIG_PATH) -> tuple[list[SourceConfig], dict[str,
             "(Spec §9.2 / D6). Kaynak eklemek Faz 4 kalite hedeflerine bağlıdır."
         )
 
-    configs = [
-        SourceConfig(
-            slug=s["slug"],
-            name=s["name"],
-            tier=int(s["tier"]),
-            kind=s["kind"],
-            access_method=s["access_method"],
-            tos_status=s["tos_status"],
-            adapter=s.get("adapter") or _infer_adapter(s),
-            independence_group=s.get("independence_group"),
-            base_url=s.get("base_url"),
-            feed_url=s.get("feed_url"),
-            extra_feeds=list(s.get("extra_feeds") or []),
-            keyword_filter=list(s.get("keyword_filter") or []),
-            topics=list(s.get("topics") or []),
-            produces_scheduled_events=bool(s.get("produces_scheduled_events")),
-            is_wire_reference=bool(s.get("is_wire_reference")),
-            verified=bool(s.get("verified")),
-            probe=dict(s.get("probe") or {}),
-            notes=s.get("notes", "") or "",
+    seen_slugs: set[str] = set()
+    configs: list[SourceConfig] = []
+    for s in raw_sources:
+        slug = s.get("slug")
+        if not slug:
+            raise ValueError(f"Eksik kaynak slug'ı: {s}")
+        if slug in seen_slugs:
+            raise ValueError(f"Tekrarlanan kaynak slug'ı ({path.name}): {slug}")
+        seen_slugs.add(slug)
+
+        vert = s.get("vertical") or default_vertical
+        if vert not in VALID_VERTICALS:
+            log.warning("unrecognized_vertical", slug=slug, vertical=vert)
+
+        configs.append(
+            SourceConfig(
+                slug=slug,
+                name=s["name"],
+                tier=int(s["tier"]),
+                kind=s["kind"],
+                access_method=s["access_method"],
+                tos_status=s["tos_status"],
+                adapter=s.get("adapter") or _infer_adapter(s),
+                independence_group=s.get("independence_group"),
+                base_url=s.get("base_url"),
+                feed_url=s.get("feed_url"),
+                extra_feeds=list(s.get("extra_feeds") or []),
+                keyword_filter=list(s.get("keyword_filter") or []),
+                topics=list(s.get("topics") or []),
+                produces_scheduled_events=bool(s.get("produces_scheduled_events")),
+                is_wire_reference=bool(s.get("is_wire_reference")),
+                verified=bool(s.get("verified")),
+                probe=dict(s.get("probe") or {}),
+                notes=s.get("notes", "") or "",
+                vertical=vert,
+            )
         )
-        for s in raw_sources
-    ]
     return configs, data
 
 
@@ -92,7 +117,37 @@ def _infer_adapter(raw: dict[str, Any]) -> str:
         return "rss"
     if raw.get("slug") == "tuik":
         return "tuik"
+    if raw.get("slug") == "resmi-gazete":
+        return "resmi_gazete"
+    if "tbmm" in raw.get("slug", ""):
+        return "tbmm"
+    if "sayistay" in raw.get("slug", ""):
+        return "sayistay"
+    if "cb-" in raw.get("slug", "") or "cumhurbaskanligi" in raw.get("slug", ""):
+        return "cumhurbaskanligi"
     return "generic_html"
+
+
+def load_all_configs(config_dir: Path | None = None) -> list[SourceConfig]:
+    """Tüm dikey yapılandırma dosyalarını (sources*.yml) yükler ve global sınırları denetler."""
+    cdir = config_dir or (Path(__file__).resolve().parent.parent.parent / "config")
+    all_configs: list[SourceConfig] = []
+    global_seen: set[str] = set()
+
+    for yml_file in sorted(cdir.glob("sources*.yml")):
+        cfgs, _ = load_config(yml_file)
+        for cfg in cfgs:
+            if cfg.slug in global_seen:
+                raise ValueError(f"Dikey dosyaları arasında çakışan slug: {cfg.slug} ({yml_file.name})")
+            global_seen.add(cfg.slug)
+            all_configs.append(cfg)
+
+    if len(all_configs) > MAX_GLOBAL_SOURCES:
+        raise ValueError(
+            f"Toplam {len(all_configs)} kaynak tanımlı; global azami sınır {MAX_GLOBAL_SOURCES}'dur."
+        )
+
+    return all_configs
 
 
 def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int]:
@@ -104,7 +159,7 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
     """
     from politikdesk.db import connection
 
-    configs = configs if configs is not None else load_config()[0]
+    configs = configs if configs is not None else load_all_configs()
     inserted = updated = 0
 
     with connection() as conn, conn.cursor() as cur:
@@ -118,14 +173,14 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                     INSERT INTO sources (
                         name, slug, tier, kind, independence_group, access_method,
                         tos_status, base_url, feed_url, adapter, extra_feeds,
-                        keyword_filter, topics, is_wire_reference
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        keyword_filter, topics, is_wire_reference, vertical
+                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
                         cfg.name, cfg.slug, cfg.tier, cfg.kind, cfg.independence_group,
                         cfg.access_method, cfg.tos_status, cfg.base_url, cfg.feed_url,
                         cfg.adapter, cfg.extra_feeds, cfg.keyword_filter, cfg.topics,
-                        cfg.is_wire_reference,
+                        cfg.is_wire_reference, cfg.vertical,
                     ),
                 )
                 inserted += 1
@@ -137,14 +192,14 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                         name = %s, tier = %s, kind = %s, independence_group = %s,
                         access_method = %s, base_url = %s, feed_url = %s,
                         adapter = %s, extra_feeds = %s, keyword_filter = %s,
-                        topics = %s, is_wire_reference = %s
+                        topics = %s, is_wire_reference = %s, vertical = %s
                     WHERE slug = %s
                     """,
                     (
                         cfg.name, cfg.tier, cfg.kind, cfg.independence_group,
                         cfg.access_method, cfg.base_url, cfg.feed_url, cfg.adapter,
                         cfg.extra_feeds, cfg.keyword_filter, cfg.topics,
-                        cfg.is_wire_reference, cfg.slug,
+                        cfg.is_wire_reference, cfg.vertical, cfg.slug,
                     ),
                 )
                 updated += 1

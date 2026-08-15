@@ -107,3 +107,58 @@ def test_certs_dir_read_by_code_is_the_one_that_is_copied() -> None:
 
     assert CERTS_DIR.name in ASSET_DIRS
     assert CERTS_DIR.resolve() == (REPO_ROOT / CERTS_DIR.name).resolve()
+
+
+def test_sources_legislation_yml_is_in_asset_manifest() -> None:
+    """`config/sources_legislation.yml` varlık manifestinde bulunmalı ve geçerli olmalı (F2)."""
+    assets = expected_assets()
+    assert "sources_legislation.yml" in assets.get("config", []), (
+        "config/sources_legislation.yml beklenen asset listesinde bulunamadı."
+    )
+    leg_path = REPO_ROOT / "config" / "sources_legislation.yml"
+    assert leg_path.is_file(), "config/sources_legislation.yml dosyası mevcut değil."
+    import yaml
+
+    data = yaml.safe_load(leg_path.read_text(encoding="utf-8"))
+    assert isinstance(data, dict)
+    assert "sources" in data
+    assert len(data["sources"]) > 0
+
+
+def test_all_required_runtime_packages_exist() -> None:
+    """verticals, political_memory ve web.ui paketleri repo içinde mevcut ve import edilebilir (F2)."""
+    required_pkgs = [
+        "politikdesk.verticals",
+        "politikdesk.political_memory",
+        "politikdesk.web.ui",
+    ]
+    for pkg in required_pkgs:
+        mod = __import__(pkg, fromlist=["*"])
+        assert mod is not None, f"{pkg} modülü import edilemedi."
+
+
+def test_all_required_adapters_are_registered() -> None:
+    """Gerekli tüm adaptörler ADAPTERS sözlüğünde kayıtlı olmalı ve fetch metodu içermeli (F2)."""
+    from politikdesk.ingestion.pipeline import ADAPTERS
+
+    required = ["cumhurbaskanligi", "tbmm", "sayistay", "resmi_gazete", "tuik_sdmx", "rss"]
+    for adapter_name in required:
+        assert adapter_name in ADAPTERS, f"Adaptör kayıtlı değil: {adapter_name}"
+        adapter_cls = ADAPTERS[adapter_name]
+        assert hasattr(adapter_cls, "fetch"), f"{adapter_name} sınıfında 'fetch' metodu yok."
+        assert callable(getattr(adapter_cls, "fetch")), f"{adapter_name}.fetch çağrılabilir değil."
+
+
+def test_dockerignore_preserves_runtime_roots() -> None:
+    """.dockerignore dosyasının kritik çalışma zamanı dizinlerini dışlamadığını doğrular (F2)."""
+    dockerignore_path = REPO_ROOT / ".dockerignore"
+    assert dockerignore_path.is_file(), ".dockerignore dosyası bulunamadı."
+    lines = [line.strip() for line in dockerignore_path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+
+    forbidden_ignores = ["politikdesk", "config", "certs", "migrations", "scripts"]
+    for line in lines:
+        for root in forbidden_ignores:
+            assert line != root and line != f"{root}/" and line != f"/{root}", (
+                f".dockerignore çalışma zamanı kök dizini '{root}'u dışlıyor: '{line}'"
+            )
+

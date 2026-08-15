@@ -24,6 +24,8 @@ from politikdesk.ingestion.adapters.official import (
 )
 from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
 from politikdesk.ingestion.adapters.rss import RssAdapter
+from politikdesk.ingestion.adapters.sayistay import CumhurbaskanligiAdapter, SayistayAdapter
+from politikdesk.ingestion.adapters.tbmm import TbmmAdapter
 from politikdesk.ingestion.adapters.tuik_sdmx import TuikSdmxAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
 from politikdesk.ingestion.http import HttpClient
@@ -33,6 +35,20 @@ from politikdesk.ingestion.repository import SourceRow
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
+
+ADAPTER_REGISTRY: dict[str, type[SourceAdapter]] = {
+    "rss": RssAdapter,
+    "tuik": TuikAdapter,
+    "resmi_gazete": ResmiGazeteAdapter,
+    "tbmm": TbmmAdapter,
+    "sayistay": SayistayAdapter,
+    "cumhurbaskanligi": CumhurbaskanligiAdapter,
+    "cb_kararname": CumhurbaskanligiAdapter,
+    "tuik_sdmx": TuikSdmxAdapter,
+    "wp_rest": WordPressRestAdapter,
+    "generic_html": GenericHtmlAdapter,
+}
+ADAPTERS = ADAPTER_REGISTRY
 
 
 def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAdapter:
@@ -63,6 +79,27 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
             source.slug,
             base_url=source.base_url or "https://www.resmigazete.gov.tr",
             keyword_filter=list(source.keyword_filter or []),
+        )
+
+    if adapter_key == "tbmm":
+        return TbmmAdapter(
+            source.slug,
+            base_url=source.base_url or "https://www.tbmm.gov.tr",
+            feed_url=source.feed_url,
+            keyword_filter=list(source.keyword_filter or []),
+        )
+
+    if adapter_key == "sayistay":
+        return SayistayAdapter(
+            source.slug,
+            base_url=source.base_url or "https://www.sayistay.gov.tr",
+            keyword_filter=list(source.keyword_filter or []),
+        )
+
+    if adapter_key == "cumhurbaskanligi" or adapter_key == "cb_kararname":
+        return CumhurbaskanligiAdapter(
+            source.slug,
+            base_url=source.base_url or "https://www.tccb.gov.tr",
         )
 
     if adapter_key == "tuik_sdmx":
