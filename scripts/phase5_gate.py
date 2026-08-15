@@ -48,8 +48,46 @@ class GateResult:
         return self.status == GateStatus.PASS
 
 
-def check_continuity(cur: Any) -> GateResult:
+def check_continuity(cur: Any, since: datetime | None = None) -> GateResult:
     """1. Kesintisiz uçtan uca akış (Hedef: 7 gün)."""
+    if since is not None:
+        cur.execute(
+            """
+            SELECT min(first_seen_at) as min_ts, max(first_seen_at) as max_ts, count(*) as count
+            FROM articles
+            WHERE first_seen_at >= %s;
+            """,
+            (since,),
+        )
+        row = cur.fetchone()
+        now_ts = datetime.now(UTC)
+        if not row or not row["min_ts"] or not row["max_ts"] or (row["count"] or 0) == 0:
+            span = (now_ts - since).total_seconds() / 86400.0
+            return GateResult(
+                1,
+                "Kesintisiz uçtan uca akış",
+                "7 gün",
+                f"{span:.1f} gün (0 makale)",
+                GateStatus.PENDING_OBSERVATION,
+                f"Sıfırlama zamanı: {since.strftime('%Y-%m-%d %H:%M UTC')}",
+            )
+        max_ts: datetime = row["max_ts"]
+        span = (max_ts - since).total_seconds() / 86400.0
+        measured = f"{span:.1f} gün ({row['count']} makale)"
+        evidence = f"{since.strftime('%Y-%m-%d %H:%M')} -> {max_ts.strftime('%Y-%m-%d %H:%M')}"
+        if span >= 7.0:
+            return GateResult(
+                1, "Kesintisiz uçtan uca akış", "7 gün", measured, GateStatus.PASS, evidence
+            )
+        return GateResult(
+            1,
+            "Kesintisiz uçtan uca akış",
+            "7 gün",
+            measured,
+            GateStatus.PENDING_OBSERVATION,
+            evidence,
+        )
+
     cur.execute("""
         SELECT min(first_seen_at) as min_ts, max(first_seen_at) as max_ts, count(*) as count
         FROM articles;
@@ -66,10 +104,10 @@ def check_continuity(cur: Any) -> GateResult:
         )
 
     min_ts: datetime = row["min_ts"]
-    max_ts: datetime = row["max_ts"]
-    span = (max_ts - min_ts).total_seconds() / 86400.0
+    max_ts_all: datetime = row["max_ts"]
+    span = (max_ts_all - min_ts).total_seconds() / 86400.0
     measured = f"{span:.1f} gün ({row['count']} makale)"
-    evidence = f"{min_ts.strftime('%Y-%m-%d')} -> {max_ts.strftime('%Y-%m-%d')}"
+    evidence = f"{min_ts.strftime('%Y-%m-%d')} -> {max_ts_all.strftime('%Y-%m-%d')}"
 
     if span >= 7.0:
         return GateResult(
@@ -80,18 +118,35 @@ def check_continuity(cur: Any) -> GateResult:
     )
 
 
-def check_collection_failures(cur: Any, hours: int = 24) -> GateResult:
+def check_collection_failures(
+    cur: Any, hours: int = 24, since: datetime | None = None
+) -> GateResult:
     """2. Toplama arıza oranı (Hedef: <= %2, min 100 fetch)."""
-    cur.execute(
-        """
-        SELECT
-            count(*) as total,
-            count(*) FILTER (WHERE NOT succeeded) as failed
-        FROM source_fetch_log
-        WHERE started_at >= now() - make_interval(hours => %s);
-        """,
-        (hours,),
-    )
+    if since is not None:
+        cur.execute(
+            """
+            SELECT
+                count(*) as total,
+                count(*) FILTER (WHERE NOT succeeded) as failed
+            FROM source_fetch_log
+            WHERE started_at >= %s;
+            """,
+            (since,),
+        )
+        time_desc = f"Sıfırlamadan ({since.strftime('%Y-%m-%d %H:%M UTC')}) beri"
+    else:
+        cur.execute(
+            """
+            SELECT
+                count(*) as total,
+                count(*) FILTER (WHERE NOT succeeded) as failed
+            FROM source_fetch_log
+            WHERE started_at >= now() - make_interval(hours => %s);
+            """,
+            (hours,),
+        )
+        time_desc = f"Son {hours} saat"
+
     row = cur.fetchone()
     total = row["total"] or 0
     failed = row["failed"] or 0
@@ -103,31 +158,50 @@ def check_collection_failures(cur: Any, hours: int = 24) -> GateResult:
             "≤ %2",
             f"%0 ({total} fetch)",
             GateStatus.INSUFFICIENT_DATA,
-            f"Son {hours} saatte minimum 100 fetch gerekli (mevcut: {total})",
+            f"{time_desc} minimum 100 fetch gerekli (mevcut: {total})",
         )
 
     rate = (failed * 100.0) / total
     status = GateStatus.PASS if rate <= 2.0 else GateStatus.FAIL
     measured = f"%{rate:.2f}"
-    evidence = f"Son {hours} saat: {failed}/{total} arıza"
+    evidence = f"{time_desc}: {failed}/{total} arıza"
     return GateResult(2, "Toplama arıza oranı", "≤ %2", measured, status, evidence)
 
 
-def check_correction_rate(cur: Any) -> GateResult:
+def check_correction_rate(cur: Any, since: datetime | None = None) -> GateResult:
     """3. Correction / Düzeltme oranı (Hedef: <= %3, min 34 açılan olay)."""
-    cur.execute("""
-        WITH opened AS (
-            SELECT DISTINCT event_id
-            FROM user_activity
-            WHERE kind = 'event_open' AND event_id IS NOT NULL
+    if since is not None:
+        cur.execute(
+            """
+            WITH opened AS (
+                SELECT DISTINCT event_id
+                FROM user_activity
+                WHERE kind = 'event_open' AND event_id IS NOT NULL AND occurred_at >= %s
+            )
+            SELECT
+                (SELECT count(DISTINCT ef.event_id)
+                 FROM event_feedback ef
+                 JOIN opened o ON o.event_id = ef.event_id
+                 WHERE ef.created_at >= %s) as feedback_count,
+                count(*) as opened_count
+            FROM opened;
+            """,
+            (since, since),
         )
-        SELECT
-            (SELECT count(DISTINCT ef.event_id)
-             FROM event_feedback ef
-             JOIN opened o ON o.event_id = ef.event_id) as feedback_count,
-            count(*) as opened_count
-        FROM opened;
-    """)
+    else:
+        cur.execute("""
+            WITH opened AS (
+                SELECT DISTINCT event_id
+                FROM user_activity
+                WHERE kind = 'event_open' AND event_id IS NOT NULL
+            )
+            SELECT
+                (SELECT count(DISTINCT ef.event_id)
+                 FROM event_feedback ef
+                 JOIN opened o ON o.event_id = ef.event_id) as feedback_count,
+                count(*) as opened_count
+            FROM opened;
+        """)
     row = cur.fetchone()
     opened = row["opened_count"] or 0
     feedback = row["feedback_count"] or 0
@@ -147,7 +221,6 @@ def check_correction_rate(cur: Any) -> GateResult:
             evidence_msg,
         )
 
-
     rate = (feedback * 100.0) / opened
     status = GateStatus.PASS if rate <= 3.0 else GateStatus.FAIL
     measured = f"%{rate:.2f}"
@@ -155,19 +228,35 @@ def check_correction_rate(cur: Any) -> GateResult:
     return GateResult(3, "Correction oranı", "≤ %3", measured, status, evidence)
 
 
-def check_diversity_ratio(cur: Any) -> GateResult:
+def check_diversity_ratio(cur: Any, since: datetime | None = None) -> GateResult:
     """4. Diversity ratio (Hedef: >= 2.5, min 10 açılan olay)."""
-    cur.execute("""
-        SELECT avg(groups) AS val, count(*) AS n FROM (
-            SELECT ua.event_id,
-                   count(DISTINCT COALESCE(s.independence_group, s.slug)) AS groups
-            FROM user_activity ua
-            JOIN articles a ON a.event_id = ua.event_id
-            JOIN sources s ON s.id = a.source_id
-            WHERE ua.kind = 'event_open' AND ua.event_id IS NOT NULL
-            GROUP BY ua.event_id
-        ) seen;
-    """)
+    if since is not None:
+        cur.execute(
+            """
+            SELECT avg(groups) AS val, count(*) AS n FROM (
+                SELECT ua.event_id,
+                       count(DISTINCT COALESCE(s.independence_group, s.slug)) AS groups
+                FROM user_activity ua
+                JOIN articles a ON a.event_id = ua.event_id
+                JOIN sources s ON s.id = a.source_id
+                WHERE ua.kind = 'event_open' AND ua.event_id IS NOT NULL AND ua.occurred_at >= %s
+                GROUP BY ua.event_id
+            ) seen;
+            """,
+            (since,),
+        )
+    else:
+        cur.execute("""
+            SELECT avg(groups) AS val, count(*) AS n FROM (
+                SELECT ua.event_id,
+                       count(DISTINCT COALESCE(s.independence_group, s.slug)) AS groups
+                FROM user_activity ua
+                JOIN articles a ON a.event_id = ua.event_id
+                JOIN sources s ON s.id = a.source_id
+                WHERE ua.kind = 'event_open' AND ua.event_id IS NOT NULL
+                GROUP BY ua.event_id
+            ) seen;
+        """)
     row = cur.fetchone()
     val = row["val"]
     n = row["n"] or 0
@@ -297,19 +386,36 @@ def check_clustering_golden_set() -> tuple[GateResult, GateResult, GateResult]:
     return g5, g6, g7
 
 
-def check_grounding_rate(cur: Any) -> GateResult:
+def check_grounding_rate(cur: Any, since: datetime | None = None) -> GateResult:
     """8. Sayı/tarih grounding hatası (Hedef: %0)."""
-    cur.execute("""
-        SELECT
-            count(*) as total_drafts,
-            count(*) FILTER (
-                WHERE user_action IN ('accepted', 'edited', 'published')
-            ) as accepted_drafts,
-            count(*) FILTER (
-                WHERE user_action IN ('accepted', 'edited', 'published') AND is_grounded = false
-            ) as ungrounded_drafts
-        FROM drafts;
-    """)
+    if since is not None:
+        cur.execute(
+            """
+            SELECT
+                count(*) as total_drafts,
+                count(*) FILTER (
+                    WHERE user_action IN ('accepted', 'edited', 'published')
+                ) as accepted_drafts,
+                count(*) FILTER (
+                    WHERE user_action IN ('accepted', 'edited', 'published') AND is_grounded = false
+                ) as ungrounded_drafts
+            FROM drafts
+            WHERE created_at >= %s;
+            """,
+            (since,),
+        )
+    else:
+        cur.execute("""
+            SELECT
+                count(*) as total_drafts,
+                count(*) FILTER (
+                    WHERE user_action IN ('accepted', 'edited', 'published')
+                ) as accepted_drafts,
+                count(*) FILTER (
+                    WHERE user_action IN ('accepted', 'edited', 'published') AND is_grounded = false
+                ) as ungrounded_drafts
+            FROM drafts;
+        """)
     row = cur.fetchone()
     total = row["total_drafts"] or 0
     accepted = row["accepted_drafts"] or 0
@@ -334,15 +440,28 @@ def check_grounding_rate(cur: Any) -> GateResult:
     return GateResult(8, "Sayı/tarih grounding hatası", "%0", measured, status, evidence)
 
 
-def check_briefing_delivery(cur: Any) -> GateResult:
+def check_briefing_delivery(cur: Any, since: datetime | None = None) -> GateResult:
     """9. Brifing akışı ve dağıtım (Hedef: 14 beklenen slot)."""
-    cur.execute("""
-        SELECT
-            count(*) as total,
-            count(*) FILTER (WHERE sent_at IS NOT NULL) as sent,
-            count(*) FILTER (WHERE send_error IS NOT NULL) as errors
-        FROM briefings;
-    """)
+    if since is not None:
+        cur.execute(
+            """
+            SELECT
+                count(*) as total,
+                count(*) FILTER (WHERE sent_at IS NOT NULL) as sent,
+                count(*) FILTER (WHERE send_error IS NOT NULL) as errors
+            FROM briefings
+            WHERE generated_at >= %s;
+            """,
+            (since,),
+        )
+    else:
+        cur.execute("""
+            SELECT
+                count(*) as total,
+                count(*) FILTER (WHERE sent_at IS NOT NULL) as sent,
+                count(*) FILTER (WHERE send_error IS NOT NULL) as errors
+            FROM briefings;
+        """)
     row = cur.fetchone()
     total = row["total"] or 0
     sent = row["sent"] or 0
@@ -364,29 +483,36 @@ def check_briefing_delivery(cur: Any) -> GateResult:
             obs_msg,
         )
 
-
     status = GateStatus.PASS if (sent == total and errors == 0) else GateStatus.FAIL
     measured = f"{sent}/{total} gönderildi"
     evidence = f"SMTP Host: '{settings.smtp_host or 'yapılandırılmadı'}', Hatalar: {errors}"
     return GateResult(9, "Brifing akışı ve dağıtım", "7 gün (14 slot)", measured, status, evidence)
 
 
-def run_all_checks() -> list[GateResult]:
+def run_all_checks(since: datetime | None = None) -> list[GateResult]:
     results: list[GateResult] = []
     with connection() as conn, conn.cursor() as cur:
-        results.append(check_continuity(cur))
-        results.append(check_collection_failures(cur, hours=24))
-        results.append(check_correction_rate(cur))
-        results.append(check_diversity_ratio(cur))
+        results.append(check_continuity(cur, since=since))
+        results.append(check_collection_failures(cur, hours=24, since=since))
+        results.append(check_correction_rate(cur, since=since))
+        results.append(check_diversity_ratio(cur, since=since))
 
     g5, g6, g7 = check_clustering_golden_set()
     results.extend([g5, g6, g7])
 
     with connection() as conn, conn.cursor() as cur:
-        results.append(check_grounding_rate(cur))
-        results.append(check_briefing_delivery(cur))
+        results.append(check_grounding_rate(cur, since=since))
+        results.append(check_briefing_delivery(cur, since=since))
 
     return results
+
+
+def parse_iso_datetime(value: str) -> datetime:
+    val = value.replace("Z", "+00:00")
+    dt = datetime.fromisoformat(val)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
 
 
 def main() -> int:
@@ -397,14 +523,24 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description="Kapı G4′ Faz 5 Doğrulama Koşucusu")
     parser.add_argument("--strict", action="store_true", help="Tüm koşullar geçmezse exit(1)")
+    parser.add_argument(
+        "--since",
+        type=str,
+        default=None,
+        help="Ölçüm başlangıç zaman damgası (ISO-8601 formatı, örn: 2026-08-15T13:00:00Z)",
+    )
     args = parser.parse_args()
+
+    since_dt = parse_iso_datetime(args.since) if args.since else None
 
     print("=" * 80)
     print("POLİTİKDESK — KAPI G4′ FAZ 5 TEKNİK VE OPERASYONEL DENETİM RAPORU")
     print(f"Tarih: {datetime.now(UTC):%Y-%m-%d %H:%M:%S UTC}")
+    if since_dt:
+        print(f"Sıfırlanmış Başlangıç Zamanı: {since_dt:%Y-%m-%d %H:%M:%S UTC}")
     print("=" * 80)
 
-    results = run_all_checks()
+    results = run_all_checks(since=since_dt)
 
     print(f"{'#':<3} | {'Koşul':<35} | {'Hedef':<12} | {'Ölçülen':<22} | {'Durum':<20} | {'Kanıt'}")
     print("-" * 125)
@@ -424,7 +560,6 @@ def main() -> int:
             f"{r.measured:<22} | {status_label:<20} | {r.evidence}"
         )
         print(line)
-
 
     print("=" * 80)
     if all_passed:

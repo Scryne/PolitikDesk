@@ -123,3 +123,56 @@ def test_briefing_delivery_pending_observation_when_under_14_slots() -> None:
     res = check_briefing_delivery(cur)
     assert res.status == GateStatus.PENDING_OBSERVATION
     assert not res.passed
+
+
+def test_continuity_with_since_parameter() -> None:
+    cur = MagicMock()
+    since = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
+    t_max = datetime(2026, 8, 17, 13, 0, tzinfo=UTC)
+    cur.fetchone.return_value = {"min_ts": since, "max_ts": t_max, "count": 40}
+    res = check_continuity(cur, since=since)
+    assert res.status == GateStatus.PENDING_OBSERVATION
+    assert not res.passed
+    assert "2.0 gün (40 makale)" in res.measured
+
+
+def test_collection_failures_with_since_parameter() -> None:
+    cur = MagicMock()
+    since = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
+    cur.fetchone.return_value = {"total": 150, "failed": 0}
+    res = check_collection_failures(cur, since=since)
+    assert res.status == GateStatus.PASS
+    assert res.passed
+    assert res.measured == "%0.00"
+    assert "Sıfırlamadan" in res.evidence
+
+
+def test_correction_rate_with_since_parameter() -> None:
+    cur = MagicMock()
+    since = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
+    cur.fetchone.return_value = {"opened_count": 40, "feedback_count": 1}
+    res = check_correction_rate(cur, since=since)
+    assert res.status == GateStatus.PASS
+    assert res.passed
+    assert res.measured == "%2.50"
+
+
+def test_grounding_rate_with_since_parameter() -> None:
+    cur = MagicMock()
+    since = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
+    cur.fetchone.return_value = {"total_drafts": 20, "accepted_drafts": 15, "ungrounded_drafts": 0}
+    res = check_grounding_rate(cur, since=since)
+    assert res.status == GateStatus.PASS
+    assert res.passed
+    assert res.measured == "%0.0"
+
+
+def test_briefing_delivery_with_since_parameter() -> None:
+    cur = MagicMock()
+    since = datetime(2026, 8, 15, 13, 0, tzinfo=UTC)
+    cur.fetchone.return_value = {"total": 14, "sent": 14, "errors": 0}
+    res = check_briefing_delivery(cur, since=since)
+    assert res.status == GateStatus.PASS
+    assert res.passed
+    assert res.measured == "14/14 gönderildi"
+

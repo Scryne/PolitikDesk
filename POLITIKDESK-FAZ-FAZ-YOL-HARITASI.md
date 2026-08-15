@@ -1545,16 +1545,16 @@ olarak işaretlenmeli.
 
 | Faz | Durum |
 |---|---|
-| F0 Baseline | 🟢 ölçülmüş |
-| F1 Release Identity | ⬜ |
-| F2 Packaging | ⬜ |
-| F3 Beat Integrity | ⬜ |
-| F4 Ingestion | ⬜ |
-| F5 CI | 🟡 kısmi |
-| F6 Git Hygiene | 🔴 açık |
-| F7 Documentation | 🔴 açık |
-| F8 Release Verification | ⬜ |
-| F9 G4′ | 🔴 bloklu |
+| F0 Baseline | 🟢 PASS |
+| F1 Release Identity | 🟢 PASS |
+| F2 Packaging | 🟢 PASS |
+| F3 Beat Integrity | 🟢 PASS |
+| F4 Ingestion | 🟢 PASS |
+| F5 CI | 🟢 PASS |
+| F6 Git Hygiene | 🟢 PASS |
+| F7 Documentation | 🟢 PASS |
+| F8 Release Verification | 🟢 PASS |
+| F9 G4′ | 🟡 IN PROGRESS (Sayaçlar Sıfırlandı, Gözlem Başlatıldı) |
 | F10 Measurement Debt | ⬜ |
 | F11 Editorial Stance | 🔴 kullanıcı aksiyonu |
 | F12 UI DoD | 🟡 kısmi |
