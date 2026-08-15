@@ -286,10 +286,41 @@ def extract_people(text: str) -> list[ExtractedEntity]:
     return list(found.values())
 
 
-def extract(title: str, excerpt: str | None = None) -> list[ExtractedEntity]:
-    """Bir makaleden tüm varlıkları çıkarır (F1-15)."""
+# B-63 (Spec v3.5 §11.4): Tier 1 resmî kaynakların doğal varlık sinyali
+SOURCE_PRIMARY_ENTITIES: Final[dict[str, str]] = {
+    "tuik": "Türkiye İstatistik Kurumu",
+    "tuik_sdmx": "Türkiye İstatistik Kurumu",
+    "tcmb": "Türkiye Cumhuriyet Merkez Bankası",
+    "resmigazete": "Resmî Gazete",
+    "hazine": "Hazine ve Maliye Bakanlığı",
+    "bddk": "Bankacılık Düzenleme ve Denetleme Kurumu",
+    "spk": "Sermaye Piyasası Kurulu",
+    "sayistay": "Sayıştay",
+    "tbmm": "Türkiye Büyük Millet Meclisi",
+    "cumhurbaskanligi": "Cumhurbaşkanlığı",
+}
+
+
+def extract(
+    title: str, excerpt: str | None = None, source_slug: str | None = None
+) -> list[ExtractedEntity]:
+    """Bir makaleden tüm varlıkları çıkarır (F1-15 & B-63)."""
     text = f"{title}. {excerpt or ''}"
-    return [*extract_institutions(text), *extract_people(text)]
+    entities = [*extract_institutions(text), *extract_people(text)]
+
+    # B-63: Tier 1 resmî kaynak bültenlerinde kaynak adının kendisi birincil varlıktır
+    if source_slug and source_slug in SOURCE_PRIMARY_ENTITIES:
+        canonical = SOURCE_PRIMARY_ENTITIES[source_slug]
+        if not any(e.canonical_name == canonical for e in entities):
+            entities.append(
+                ExtractedEntity(
+                    canonical_name=canonical,
+                    entity_type="institution",
+                    matched_text=canonical,
+                    is_key_entity=canonical in KEY_ENTITIES or canonical in POLITICAL_KEY_ENTITIES,
+                )
+            )
+    return entities
 
 
 def entity_set(entities: list[ExtractedEntity]) -> frozenset[str]:

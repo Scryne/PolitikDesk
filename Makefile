@@ -140,7 +140,7 @@ context:
 	python -m scripts.ingest context
 
 calendar:
-	python -m scripts.calendar list
+	python -m scripts.calendar_tool list
 
 eval:
 	python -m eval.run

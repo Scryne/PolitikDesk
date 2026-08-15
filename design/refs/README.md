@@ -1,67 +1,55 @@
-# Referans notları
+# Referans Notları ve Tasarım Rehberi (Design References)
 
-> `DESIGN.md` Bölüm 4 ve `docs/DESIGN-BASLANGIC.md` Adım 4.
-> **Her referans için "neyi alıyorum / neyi almıyorum" yazılır.** "Bu güzel"
-> yeterli değil — not yoksa ajan 5 referanstan Frankenstein üretir.
-
----
-
-## ⚠ Durum: görsel referans henüz eklenmedi
-
-Bu klasörde **ekran görüntüsü yok.** Ajan siteyi göremez, link işe yaramaz —
-dosya indirmek gerekiyor. Kaynaklar `DESIGN.md` Bölüm 17.2'de; panel işi için
-en verimli üçü:
-
-- **refero.design** — gerçek ürün ekranları, akış bazlı
-- **boardui.com** — panel odaklı derleme
-- **mobbin.com** — akış bazlı (boş durum, onboarding)
-
-5–8 görsel indirip bu klasöre koy, her biri için aşağıdaki şablonla 2 satır
-yaz, sonra ajana "refs güncellendi, oku" de.
-
-**Ne kadar eksik kaldı:** Bölüm 1'in kaldıraç tablosunda görsel referans
-kalitenin ~%40'ı. Bu tur onun yerine `DESIGN.md` Bölüm 8'i kullandı — ki o
-bölümün kendi başlığı *"ölçüler 30 profesyonel panel ekranından çıkarılmıştır"*
-diyor, yani damıtılmış referans. Yapı ve ölçü bu yüzden sağlam; **kaybedilen
-şey ölçü değil, karakter kalibrasyonu** — "bu kadar boşluk fazla mı, bu
-tipografik kontrast yeterli mi" sorusunun gözle cevabı.
-
-### Şablon
-
-```md
-- `01-<kaynak>-<ekran>.png`
-  ALIYORUM: <yapı / ritim / anatomi — somut>
-  ALMIYORUM: <renk / tipografi / layout — somut>
-```
+> `DESIGN.md` Bölüm 4, Bölüm 14 ve `CLAUDE.md` Zorunlu Tasarım İlkesi:
+> PolitikDesk arayüzleri **sakin, hassas ve arşivsel** bir editoryal kayıt masasıdır.
 
 ---
 
-## Genel yön — bu tur bağlayıcı olan
+## 1. Referans Analizleri ve Tasarım Kararları
 
-Görsel referans gelene kadar ajanın kalibrasyonu budur:
+### Ref 01 — FT Editorial & Bloomberg Data Density (Finansal Veri Masası)
+- **ALIYORUM:** 
+  - Yüksek veri yoğunluğu, kompakt tipografik hiyerarşi.
+  - Tablo ve kartlarda 1px kenarlık ile yüzey ayrımı (`border: 1px solid var(--pd-color-border)`).
+  - Sayısal değerlerin tabüler rakamlar (`tabular-nums`) ile sağa yaslı, sakin dizilimi.
+- **ALMIYORUM:**
+  - Kalabalık reklam alanları, parlak neon göstergeler ve animasyonlu canlı borsa sayaçları.
 
-**Sakin, hassas, arşivsel.** Bu bir gazete masası değil, bir **kayıt
-defteridir**. Ekran bağırmaz; kanıtın ne kadar sağlam olduğunu sessizce ve
-kesin biçimde söyler.
+### Ref 02 — Linear & GitHub Decision Logs (Karar ve Denetim Kuyruğu)
+- **ALIYORUM:**
+  - Tek aksan rengi (`--pd-color-accent`) ve anlam odaklı durum rozetleri (`--pd-color-success`, `--pd-color-warning`, `--pd-color-error`).
+  - Monospace font ile hash/ID/tarih etiketleri (JetBrains Mono / tabular layout).
+  - Geniş ekranlarda 2-kolonlu / split-view denetim paneli.
+- **ALMIYORUM:**
+  - Aşırı gölgeler, neon efektler ve ağır blur katmanları.
 
-| Alınacak | Alınmayacak |
-|---|---|
-| Veri yoğunluğu — ferah değil, dolu ama nefes alan | Gösterişli efekt, gradient, glow |
-| Tipografik kontrast: küçük etiket ↔ büyük değer | Dekoratif ikon, emoji |
-| 1px kenarlıkla kurulan yüzey ayrımı | Her karta gölge |
-| Tek aksan rengi, durum renklerinin ayrı işi | 3'ten fazla aksan |
-| Sayıların hizalı ve sakin durması | Animasyonlu sayaç, canlı zıplayan rakam |
+### Ref 03 — Gov.uk & Resmî Gazete Archive (Arşiv ve Yasal Şeffaflık)
+- **ALIYORUM:**
+  - Tek `<h1>` semantik başlık yapısı, net erişilebilirlik (`lang="tr"`, WCAG AAA kontrast, aria-label zorunluluğu).
+  - Kanıt çekmecesi ve yasal çekince bloklarının metin gövdesiyle bütünleşik ama net ayrılmış sunumu.
+  - Sıfır yatay taşma (`scrollWidth == clientWidth`).
+- **ALMIYORUM:**
+  - Hantal ve eski tipik tablo düzenleri; responsive olmayan sabit genişlikler.
 
-**Signature adayı (Bölüm 16.1 "bu ekranı akılda kalıcı yapan tek öğe"):**
-kanıt gücünün *tipografiyle* anlatılması — teyitli iddia tam kontrastta,
-teyitsiz iddia kısılmış kontrastta. Rozet değil, **metnin kendisi** kanıt
-durumunu taşır. Bu, ürünün tek cümlelik sözleşmesinin ("AI senin yerine
-konuşmaz") görsel karşılığıdır ve herhangi bir panel için verilecek bir karar
-değildir.
+---
 
-## Kırmızı çizgi — referanstan asla alınmayacak
+## 2. 11 Ekran Tipografik ve Görsel Standartları
 
-Ne kadar iyi görünürse görünsün, bir referanstan **kaynağa görsel bir konum/
-taraf işareti** (renkli şerit, "eğilim" göstergesi, taraf ikonu) alınamaz.
-Spec §8.5 yasaklar, `tests/test_web.py` tarar. Kaynak yalnızca **ad + tier +
-yayın grubu** ile anılır.
+| Ekran | Rota | Ana Görsel Odak | Epistemik Rozet / Durum |
+|---|---|---|---|
+| Gündem | `/feed` | Güncel Olay Kartları & Küme Özeti | 8/8 Pipeline Durumu, Canlı Kaynaklar |
+| Brifingler | `/briefing` | Sabah/Akşam Editoryal Bülten | Dağıtım Durumu (`send_error=null`) |
+| Editoryal Kimlik | `/onboarding/profile` | Tercih ve Odak Alanları | Konu & Sektör Filtreleri |
+| Boru Hattı | `/admin/` | Sistem ve Sağlık Paneli | Servis & Worker Durumları |
+| Metrikler | `/admin/metrics` | Ürün ve Kalite Metrikleri | G4′ Kapı İlerlemeleri |
+| Denetim Kuyruğu | `/admin/review/` | Şüpheli Kümeleme & İddialar | Merge/Split/Reject Kararları |
+| Beklenen Gelişmeler | `/admin/calendar/` | Resmî Takvim (TCMB, TÜİK vb.) | Doğrulanmış Tarihler |
+| **Hesap Sor** | `/accountability` | Vaat-İcraat Zinciri & Sayıştay | `verified`, `supported`, `inferred` |
+| **Siyasi Hafıza** | `/memory` | Aktör Kronolojisi & Beyan Ağı | Kronolojik Beyan Geçmişi |
+| **Vaatler** | `/promises` | Siyasi Taahhütler & Yasama | `fulfils`, `fails`, `pending` |
+| **Arşiv** | `/archive` | Tarihsel Olay ve Kanıt Deposu | Dizin & Tarih Filtreleri |
+
+---
+
+## 3. Doğrulama Döngüsü
+Tüm 11 ekran, `scripts/ui_check.py --shots` ile 4 farklı viewport'ta (`mobil: 375px`, `tablet: 768px`, `masaustu: 1440px`, `genis: 1920px`) denetlenir ve ekran görüntüleri `design/shots/` altında saklanır.

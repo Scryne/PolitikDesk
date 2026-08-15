@@ -321,3 +321,19 @@ def test_production_and_benchmark_prefixes_agree() -> None:
                 f"{candidate.key}: benchmark oneki {candidate.text_prefix!r}, "
                 f"uretim oneki {text_prefix_for(candidate.model)!r}"
             )
+
+
+def test_b63_source_entity_signal() -> None:
+    """B-63 (Spec v3.5 §11.4): Tier 1 resmi kaynakların kaynak adı varlık sinyali sağlar."""
+    from politikdesk.nlp.entities import extract
+
+    # Metinde TÜİK veya Merkez Bankası açıkça yazmasa bile source_slug ile yakalanır
+    res = extract("Temmuz Ayı Sanayi Üretim Endeksi Sonuçları", "Aylık değişim yüzde 0,1 oldu.", source_slug="tuik")
+    names = {e.canonical_name for e in res}
+    assert "Türkiye İstatistik Kurumu" in names
+    assert any(e.canonical_name == "Türkiye İstatistik Kurumu" and e.is_key_entity for e in res)
+
+    # TCMB kaynağı
+    res_tcmb = extract("Faiz Kararı Basın Duyurusu", "Kurul faizi sabit tuttu.", source_slug="tcmb")
+    names_tcmb = {e.canonical_name for e in res_tcmb}
+    assert "Türkiye Cumhuriyet Merkez Bankası" in names_tcmb

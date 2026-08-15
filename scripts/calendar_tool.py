@@ -1,8 +1,8 @@
 """Beklenen gelişmeler takvimi aracı (F2-18, F2-19).
 
-python -m scripts.calendar load config/calendar_2026.yml
-python -m scripts.calendar list
-python -m scripts.calendar match
+python -m scripts.calendar_tool load config/calendar_2026.yml
+python -m scripts.calendar_tool list
+python -m scripts.calendar_tool match
 """
 
 from __future__ import annotations

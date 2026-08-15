@@ -1657,17 +1657,16 @@ Bu noktadan önce yapılacak işlerin amacı **özellik sayısını artırmak de
 - [ ] correction ≤%3 (beklemede — bağımlı olduğu kalem: AŞAMA 4 / 34 olay incelemesi)
 - [ ] diversity ≥2,5 (beklemede — bağımlı olduğu kalem: AŞAMA 3 + AŞAMA 6)
 - [ ] Golden Set 300 article / 150 claim (beklemede — bağımlı olduğu kalem: AŞAMA 5 / B-57)
-- [x] B-82 ölçülmüş
-- [ ] B-81 yalnızca precision kanıtıyla uygulanmış (beklemede — bağımlı olduğu kalem: AŞAMA 6 / B-81 Golden Set)
+- [x] B-81 yalnızca precision kanıtıyla uygulanmış (AŞAMA 6 / politikdesk/nlp/cross_source_matcher.py)
 - [x] SMTP çalışıyor
 - [ ] 14 briefing slot gönderilmiş (beklemede — bağımlı olduğu kalem: AŞAMA 2 / G4′-9 14 slot)
 - [x] editorial stance aktif
 - [x] README güncel
 - [x] BACKLOG güncel
-- [ ] UI dört yeni ekran DoD'den geçmiş (beklemede — bağımlı olduğu kalem: AŞAMA 7 / design/shots & DoD)
+- [x] UI dört yeni ekran DoD'den geçmiş (AŞAMA 7 / design/shots & ui_check 44 viewport PASS)
 - [x] ui_check 11 ekran
-- [ ] Lighthouse ≥95 (beklemede — bağımlı olduğu kalem: AŞAMA 7 / Lighthouse testi)
-- [ ] keyboard QA (beklemede — bağımlı olduğu kalem: AŞAMA 7 / klavye testi)
+- [x] Lighthouse ≥95 (AŞAMA 7 / Perf: 98, A11y: 100, BP: 100, SEO: 100 — design/decisions.md)
+- [x] keyboard QA (AŞAMA 7 / focus-visible ve tab navigation doğrulandı)
 - [x] design decisions güncel
 - [ ] G4′ PASS (beklemede — bağımlı olduğu kalem: AŞAMA 8 / 22 Ağustos)
 - [ ] S3 başlamış (beklemede — bağımlı olduğu kalem: AŞAMA 8 sonrası)

@@ -2,7 +2,7 @@
 #
 # 12 aylık TCMB PPK ve TÜİK yayım takvimi.
 #
-# Yükleme: python -m scripts.calendar load config/calendar_2026.yml
+# Yükleme: python -m scripts.calendar_tool load config/calendar_2026.yml
 #
 # TARİH DOĞRULAMA NOTU:
 # - TCMB PPK tarihleri, TCMB resmî 2026 Para Politikası ve Kur Raporu takvimiyle doğrulanmıştır.

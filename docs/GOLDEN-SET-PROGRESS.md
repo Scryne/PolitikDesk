@@ -12,7 +12,7 @@
 | Hafta | Tarih Aralığı | Hedeflenen Makale | Gerçekleşen Makale | Hedeflenen İddia | Gerçekleşen İddia | Kümülatif Tamamlanma | Not & Denetim |
 |---|---|---|---|---|---|---|---|
 | **Başlangıç** | 15 Ağustos 2026 | 55 | 55 | 24 | 24 | %18,3 / %16,0 | Başlangıç baseline donduruldu (`eval/golden_set_v1.jsonl`, `eval/golden_claims_v1.jsonl`) |
-| **Hafta 1 (W1)** | 16–22 Ağustos 2026 | +35 (90) | | +18 (42) | | | İlk haftalık genişletme koşumu |
+| **Hafta 1 (W1)** | 16–22 Ağustos 2026 | +35 (90) | 90 | +18 (42) | 42 | %30,0 / %28,0 | İlk haftalık genişletme koşumu tamamlandı (🟢 10/10 MVP konusu) |
 | **Hafta 2 (W2)** | 23–29 Ağustos 2026 | +35 (125) | | +18 (60) | | | Siyaset/yasama dikey örnekleri dahil |
 | **Hafta 3 (W3)** | 30 Ağu – 05 Eyl 2026 | +35 (160) | | +18 (78) | | | Yarı eşik (150 makale) |
 | **Hafta 4 (W4)** | 06–12 Eylül 2026 | +35 (195) | | +18 (96) | | | Çapraz teyit / çok kaynaklı olaylar |

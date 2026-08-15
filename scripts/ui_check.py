@@ -154,7 +154,8 @@ def main() -> int:
                 page.on("console", errors.on_console)
                 page.on("pageerror", errors.on_page_error)
 
-                page.goto(f"{args.base}{path}", wait_until="networkidle")
+                page.goto(f"{args.base}{path}", wait_until="domcontentloaded", timeout=15000)
+                page.wait_for_timeout(300)
                 result = page.evaluate(_PROBE)
 
                 where = f"{path} @ {label} ({width}px)"
@@ -188,7 +189,7 @@ def main() -> int:
                     )
                 context.close()
                 status = "ok" if not problems or where not in problems[-1] else "!!"
-                print(f"  [{status}] {where}")
+                print(f"  [{status}] {where}", flush=True)
         browser.close()
 
     print()

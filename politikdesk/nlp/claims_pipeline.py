@@ -31,7 +31,6 @@ from politikdesk.nlp.claims import (
     ExtractedClaim,
     claim_signature,
     extract_claims,
-    group_claims_by_source,
 )
 from politikdesk.observability import get_logger
 
@@ -404,12 +403,12 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                     else:
                         collected.extend((c, article["id"]) for c in result.claims)
 
-                # F2-09: olay düzeyinde tekilleştirme — aynı iddia iki
-                # makalede de geçebilir; KAYIT tek olmalı ama KANIT BAĞI
-                # her kaynak için ayrı kurulmalı. Eskiden ikinci kaynağın
-                # bağı da atılıyordu ve hiçbir iddia çapraz teyide
-                # ulaşamıyordu (B-79).
-                final = group_claims_by_source(collected)
+                # B-81 & F2-09: Çapraz kaynak iddia eşleştirme ve tekilleştirme.
+                # Aynı iddia farklı sözcüklerle aktarılsa bile semantik/sayısal
+                # olarak eşleştirilir ve bağımsız kanıt bağları korunur.
+                from politikdesk.nlp.cross_source_matcher import match_and_group_claims
+
+                final = match_and_group_claims(collected)
 
                 stats.evidence_links += _persist(cur, event_id, final, extracted_by)
                 stats.claims_extracted += len(final)

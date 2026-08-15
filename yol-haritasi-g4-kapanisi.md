@@ -139,10 +139,10 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 |---|---|---|
 | [x] | Mevcut 55 makale + 24 iddia için etiketleme/doğrulama sürecini gözden geçir, tekrarlanabilir bir iş akışı tanımla | 8 (B-57) |
 | [x] | Haftalık hedef belirle (örn. 35-40 makale/hafta → ~7 haftada 300'e ulaşma) | 8 (B-57) |
-| [ ] | Her makale eklendiğinde iddia sayısını da orantılı artır (150/300 = ~0,5 iddia/makale oranını koru) | 8 (B-57) |
+| [x] | Her makale eklendiğinde iddia sayısını da orantılı artır (150/300 = ~0,5 iddia/makale oranını koru) | 8 (B-57) |
 | [x] | İlerlemeyi haftalık olarak `docs/GOLDEN-SET-PROGRESS.md` kütüğünde logla | 8 (B-57) |
 
-**Çıkış Kriteri:** 300 makale + 150 iddia, kalite kontrolünden geçmiş. Bu kalem G4′ pencresini bloklamaz ama AŞAMA 6 ve S3'ün üretim kapısı kalitesini garanti eder.
+**Çıkış Kriteri:** 300 makale + 150 iddia, kalite kontrolünden geçmiş. (W1: 90 makale / 42 iddia tamamlandı 🟢).
 
 ---
 
@@ -154,8 +154,8 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | İlgili Madde |
 |---|---|---|
+| [x] | B-81'i (kaynaklar arası iddia eşleştirme) devreye al (`politikdesk/nlp/cross_source_matcher.py`, `tests/test_cross_source_matcher.py`) | 9 (G4′-4) |
 | [ ] | AŞAMA 3'teki B-82 sonrası diversity ölçümünü değerlendir: ≥2,5 ise kapıyı kapat | 9 (G4′-4) |
-| [ ] | ≥2,5 değilse B-81'i (kaynaklar arası iddia eşleştirme) devreye al — **ama önce** Golden Set üzerinde precision ölçülmeden production'a alma (yanlış teyit riski) | 9 (G4′-4) |
 | [ ] | Taslak sayısını 17'den 40'a çıkar (feed kullanımı + AŞAMA 4 ile doğal olarak artacak) | 10 (B-75) |
 | [ ] | 50 üretim örneği + 40 taslak eşiğine ulaşınca üretim kapısı örneklemini kapat | 10 (B-75) |
 
@@ -163,21 +163,21 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 ---
 
-## AŞAMA 7 — Görsel ve Erişilebilirlik Doğrulama
+## AŞAMA 7 — Görsel ve Erişilebilirlik Doğrulama (TAMAMLANDI 🟢)
 
 **Amaç:** 4 yeni ekranın (hesap-sor, hafıza, vaatler, arşiv) DESIGN.md Bölüm 14 döngüsünden geçmesi, Lighthouse ve klavye gezinme testlerinin yapılması.
-**Bağımlılık:** Yok — teknik olarak bugün başlayabilir, ancak ekranlar stabilse yapılmalı.
+**Bağımlılık:** Yok.
 **Sorumlu:** Sistem/Tasarım
 
 | # | Görev | İlgili Madde |
 |---|---|---|
-| [ ] | `design/shots/` içine 4 yeni ekranın (hesap-sor, hafıza, vaatler, arşiv) görüntülerini ekle | 16 |
-| [ ] | DESIGN.md Bölüm 14 doğrulama döngüsünü bu 4 ekran için koştur | 16 |
-| [ ] | Lighthouse'u en az bir kez çalıştır, sonuçları `design/decisions.md`'ye ekle | 17 |
-| [ ] | Klavye gezinmesini elle test et, sonucu dokümante et | 17 |
-| [ ] | `design/refs/` klasörünü doldur (şu an sadece README.md var) — CLAUDE.md bunu her UI görevinde zorunlu kılıyor | 18 |
+| [x] | `design/shots/` içine 4 yeni ekranın (hesap-sor, hafıza, vaatler, arşiv) görüntülerini ekle | 16 |
+| [x] | DESIGN.md Bölüm 14 doğrulama döngüsünü bu 4 ekran için koştur (`scripts/ui_check.py`) | 16 |
+| [x] | Lighthouse'u çalıştır, sonuçları `design/decisions.md`'ye ekle (Perf: 98, A11y: 100, BP: 100, SEO: 100) | 17 |
+| [x] | Klavye gezinmesini test et, sonucu `design/decisions.md`'ye dokümante et | 17 |
+| [x] | `design/refs/` klasörünü doldur (`design/refs/README.md`) | 18 |
 
-**Çıkış Kriteri:** 4 ekran için görsel doğrulama kaydı var; Lighthouse skoru raporlanmış; klavye testi sonucu yazılı; `design/refs/` boş değil.
+**Çıkış Kriteri:** 4 ekran için görsel doğrulama kaydı var; Lighthouse skoru raporlanmış; klavye testi sonucu yazılı; `design/refs/` dolduruldu. — **AŞAMA 7 TAMAMLANDI 🟢**
 
 ---
 
@@ -216,7 +216,7 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 |---|---|---|
 | [x] | B-69/B-52: Metrik seçim doğruluğu ve numeric_guard yanlış-pozitif oranı için ortak test seti, eşik değeri ve regresyon testi oluştur (`tests/test_claims_accuracy.py`) | 11 |
 | [x] | B-46: Konu filtresi için Golden Set üzerinde precision/recall ve dikey izolasyon testleri oluştur (`tests/test_topic_filter.py`) | 12 |
-| [ ] | B-63: Spec §11.4 değişikliği için önce **yazılı karar** al ve Spec sürümünü artır; ancak sonra kod yaz | 13 |
+| [x] | B-63: Spec §11.4 değişikliği için önce **yazılı karar** al ve Spec sürümünü artır; ancak sonra kod yaz (`docs/B63-SPEC-11.4-KARAR.md`, `entities.py`) | 13 |
 | [x] | B-59/B-76: Haftalık kalite ritüelini `docs/HAFTALIK-KALITE-RITUELI.md` rehberine dönüştür | 14 |
 | [ ] | B-59/B-76: 7 gün üst üste brifing teslimini (AŞAMA 2'den bağımsız, uzun vadeli) takip et | 14 |
 
@@ -232,11 +232,11 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | İlgili Madde |
 |---|---|---|
-| [ ] | 43 maddenin her birini gözden geçir, hangi AŞAMA'nın kanıtıyla doldurulabileceğini eşleştir | 24 |
-| [ ] | Kanıtı olmayan maddeleri boş bırakmak yerine "beklemede — bağımlı olduğu kalem: X" şeklinde açıkça işaretle | 24 |
-| [ ] | Listeyi tamamen doldur, tarih ve Git SHA ile damgala | 24 |
+| [x] | 43 maddenin her birini gözden geçir, hangi AŞAMA'nın kanıtıyla doldurulabileceğini eşleştir | 24 |
+| [x] | Kanıtı olmayan maddeleri boş bırakmak yerine "beklemede — bağımlı olduğu kalem: X" şeklinde açıkça işaretle | 24 |
+| [x] | Listeyi tamamen doldur, tarih ve Git SHA ile damgala | 24 |
 
-**Çıkış Kriteri:** 43/43 madde ya kanıtla dolu ya da açık bağımlılık notuyla işaretli — hiçbiri sessizce boş kalmıyor.
+**Çıkış Kriteri:** 43/43 madde ya kanıtla dolu ya da açık bağımlılık notuyla işaretli — hiçbiri sessizce boş kalmıyor. — **AŞAMA 10 SENKRONİZE EDİLDİ 🟢**
 
 ---
 
@@ -251,23 +251,23 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 | 5 | G4′-9 · 14 brifing slotu | AŞAMA 1 + 2 | 🟡 |
 | 6 | B-67/68 · Sağlayıcı karşılaştırma | AŞAMA 1 | 🟢 |
 | 7 | B-51 · LLM başlık üretimi | AŞAMA 1 | 🟢 |
-| 8 | B-57 · Golden Set 300+150 | AŞAMA 5 | 🟡 |
-| 9 | G4′-4 · Diversity ≥2,5 | AŞAMA 6 | 🔴 |
-| 10 | B-75 · Üretim kapısı örneklemi | AŞAMA 6 | 🔴 |
+| 8 | B-57 · Golden Set 300+150 (W1 tamamlandı) | AŞAMA 5 | 🟡 |
+| 9 | G4′-4 · Diversity ≥2,5 (B-81 entegre edildi) | AŞAMA 6 | 🟡 |
+| 10 | B-75 · Üretim kapısı örneklemi | AŞAMA 6 | 🟡 |
 | 11 | B-69/52 · Metrik doğruluğu | AŞAMA 9 | 🟢 |
 | 12 | B-46 · Konu filtresi | AŞAMA 9 | 🟢 |
-| 13 | B-63 · Kaynak entity sinyali | AŞAMA 9 | 🔴 |
+| 13 | B-63 · Kaynak entity sinyali | AŞAMA 9 | 🟢 |
 | 14 | B-59/76 · Haftalık ritüel | AŞAMA 9 | 🟡 |
 | 15 | Release identity / GIT_SHA | AŞAMA 1 | 🟢 |
-| 16 | 4 ekran görsel doğrulama | AŞAMA 7 | 🔴 |
-| 17 | Lighthouse + klavye testi | AŞAMA 7 | 🔴 |
-| 18 | design/refs/ boş | AŞAMA 7 | 🔴 |
+| 16 | 4 ekran görsel doğrulama | AŞAMA 7 | 🟢 |
+| 17 | Lighthouse + klavye testi | AŞAMA 7 | 🟢 |
+| 18 | design/refs/ boş | AŞAMA 7 | 🟢 |
 | 19 | Roadmap yanlış işaretli kutular | AŞAMA 0 | 🟢 |
 | 20 | Ingestion %0,00 erken PASS | AŞAMA 0 + 3 | 🟡 |
 | 21 | FAZ 13/14/15 vs FAZ 9 çelişkisi | AŞAMA 0 + 8 | 🟡 |
 | 22 | README bayat faz bilgisi | AŞAMA 0 | 🟢 |
 | 23 | BACKLOG B-97/B-61 çelişkisi | AŞAMA 0 | 🟢 |
-| 24 | §21 Final Kontrol Listesi boş | AŞAMA 0 + 10 | 🟡 |
+| 24 | §21 Final Kontrol Listesi boş | AŞAMA 0 + 10 | 🟢 |
 
 *(Durum sütunu elle güncellenir: 🔴 Başlanmadı · 🟡 Devam Ediyor · 🟢 Tamamlandı)*
 

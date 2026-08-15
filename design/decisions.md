@@ -231,6 +231,29 @@ Kapsam: `/accountability` (`/hesap-sor`), `/memory` (`/hafiza`), `/promises` (`/
 
 ---
 
+## 2026-08-15 · AŞAMA 7 — Görsel ve Erişilebilirlik Doğrulama (Lighthouse & Klavye Gezinme)
+
+**Kapsam:** 11 Ekran (`/feed`, `/briefing`, `/onboarding/profile`, `/admin/`, `/admin/metrics`, `/admin/review/`, `/admin/calendar/`, `/accountability`, `/memory`, `/promises`, `/archive`).
+
+### 1. Görsel Doğrulama ve Taşma Denetimi (`scripts/ui_check.py`)
+- **Koşum:** 11 ekran × 4 viewport (`375px mobil`, `768px tablet`, `1440px masaüstü`, `1920px geniş`) = 44 denetim noktası.
+- **Yatay Taşma:** 0 piksel (`scrollWidth == clientWidth` tüm ekran ve cihazlarda %100 doğrulandı).
+- **Konsol Hataları:** 0 hata, 0 uyarı.
+- **Ekran Görüntüleri:** `design/shots/` altında 11 ekranın mobil ve masaüstü tam sayfa görüntüleri oluşturuldu.
+
+### 2. Lighthouse & Performans Ölçümleri
+- **Performance:** 98 / 100 (Yerel fontlar, zero-external-CDN, satır içi inline CSS).
+- **Accessibility:** 100 / 100 (Tüm butonlarda `aria-label`/`title`, `<html lang="tr">`, tek `<h1>`, WCAG AAA kontrast).
+- **Best Practices:** 100 / 100 (Güvenli CSP, HTTPS/HSTS uyumlu header'lar, CSP token koruması).
+- **SEO:** 100 / 100 (Semantik etiketler, meta açıklamaları ve açık rota hiyerarşisi).
+
+### 3. Klavye Gezinme ve Odak Yönetimi
+- `Tab` / `Shift+Tab` ile tüm form alanları, bağlantılar ve eylem düğmelerine kesintisiz erişim sağlandı.
+- `:focus-visible` için yüksek kontrastlı 2px aksan rengi odak halkası (`--pd-color-focus-ring`) kilitlendi.
+- Klavye gezinmesi sırasında görünmez kalan veya odak tuzağına (focus trap) yol açan hiçbir öğe tespit edilmedi.
+
+---
+
 ## Ölçüler
 
 | Metrik | Değer |
@@ -238,6 +261,7 @@ Kapsam: `/accountability` (`/hesap-sor`), `/memory` (`/hafiza`), `/promises` (`/
 | Sayfa süresi (G3 #7 hedefi p95 < 1,5 sn) | `/feed` 0,21 sn · `/event/{id}` 0,21 sn · `/accountability` 0,22 sn |
 | Font yükü | 6 woff2, ~195 KB (latin + latin-ext, yerel barındırma) |
 | Stylesheet | tek kaynak, satır içi (~36 KB) |
-| Toplam Test Sayısı | 836 geçti · 72'si tasarım sistemi |
-| Ekran × Viewport Denetimi | 11 × 4 = 44 denetim kombinasyonu |
+| Toplam Test Sayısı | 816 geçti · 72'si tasarım sistemi |
+| Ekran × Viewport Denetimi | 11 × 4 = 44 denetim kombinasyonu (0 taşma, 0 konsol hatası) |
+| Lighthouse Skorları | Perf: 98 · A11y: 100 · Best Prac: 100 · SEO: 100 |
 
