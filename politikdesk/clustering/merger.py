@@ -28,10 +28,10 @@ turundan sonra kayan nokta birikimi biriktirir; yeniden hesaplama
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
+from politikdesk import audit
 from politikdesk.clustering.centroid import recompute
 from politikdesk.db import connection, fetch_one
 from politikdesk.nlp.embedder import to_pgvector
@@ -133,12 +133,9 @@ def _refresh_event(cur: Any, event_id: int) -> None:
     )
 
 
-def _audit(cur: Any, action: str, target: str, payload: dict[str, Any],
-           actor: str = "user:admin") -> None:
-    cur.execute(
-        "INSERT INTO audit_log (actor, action, target, payload) VALUES (%s,%s,%s,%s::jsonb)",
-        (actor, action, target, json.dumps(payload, ensure_ascii=False)),
-    )
+# D06 düzeltmesi: yerel _audit kaldırıldı. Tüm çağrılar merkezî
+# audit.write() üzerinden yapılır — eylem doğrulaması ve biçim
+# tutarlılığı tek noktada sağlanır.
 
 
 # ---------------------------------------------------------------- merge
@@ -153,7 +150,7 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
 
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT id, merged_into_id FROM events WHERE id = ANY(%s) FOR UPDATE",
+            "SELECT id, vertical, merged_into_id FROM events WHERE id = ANY(%s) FOR UPDATE",
             ([source_event_id, target_event_id],),
         )
         found = {r["id"]: r for r in cur.fetchall()}
@@ -166,6 +163,12 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
             )
         if found[source_event_id]["merged_into_id"] is not None:
             raise MergeError(f"Kaynak olay ({source_event_id}) zaten birleştirilmiş.")
+        if found[source_event_id]["vertical"] != found[target_event_id]["vertical"]:
+            raise MergeError(
+                f"Farklı dikeylerdeki olaylar birleştirilemez: "
+                f"kaynak={found[source_event_id]['vertical']!r}, "
+                f"hedef={found[target_event_id]['vertical']!r}"
+            )
 
         cur.execute(
             "SELECT id FROM articles WHERE event_id = %s ORDER BY id", (source_event_id,)
@@ -184,7 +187,8 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
         _refresh_event(cur, source_event_id)
 
         result = MergeResult(source_event_id, target_event_id, moved)
-        _audit(cur, "merge_events", f"events/{target_event_id}", result.as_dict())
+        audit.write("merge_events", f"events/{target_event_id}",
+                    actor="user:admin", payload=result.as_dict(), cursor=cur)
         conn.commit()
 
     log.info("events_merged", **result.as_dict())
@@ -238,7 +242,8 @@ def undo_merge(source_event_id: int) -> MergeResult:
         _refresh_event(cur, target_event_id)
 
         result = MergeResult(source_event_id, target_event_id, moved)
-        _audit(cur, "undo_merge", f"events/{source_event_id}", result.as_dict())
+        audit.write("undo_merge", f"events/{source_event_id}",
+                    actor="user:admin", payload=result.as_dict(), cursor=cur)
         conn.commit()
 
     log.info("merge_undone", **result.as_dict())
@@ -307,7 +312,8 @@ def split_event(source_event_id: int, article_ids: list[int]) -> SplitResult:
         _refresh_event(cur, source_event_id)
 
         result = SplitResult(source_event_id, new_event_id, moved)
-        _audit(cur, "split_event", f"events/{source_event_id}", result.as_dict())
+        audit.write("split_event", f"events/{source_event_id}",
+                    actor="user:admin", payload=result.as_dict(), cursor=cur)
         conn.commit()
 
     log.info("event_split", **result.as_dict())
@@ -346,7 +352,8 @@ def undo_split(new_event_id: int) -> SplitResult:
         )
 
         result = SplitResult(source_event_id, new_event_id, moved)
-        _audit(cur, "undo_split", f"events/{new_event_id}", result.as_dict())
+        audit.write("undo_split", f"events/{new_event_id}",
+                    actor="user:admin", payload=result.as_dict(), cursor=cur)
         conn.commit()
 
     log.info("split_undone", **result.as_dict())
@@ -387,7 +394,8 @@ def resolve_review(event_id: int, decision: str) -> dict[str, Any]:
         row = cur.fetchone()
         if row is None:
             raise MergeError(f"Olay bulunamadı: {event_id}")
-        _audit(cur, "resolve_review", f"events/{event_id}", {"decision": decision})
+        audit.write("resolve_review", f"events/{event_id}",
+                    actor="user:admin", payload={"decision": decision}, cursor=cur)
         conn.commit()
 
     log.info("review_resolved", event_id=event_id, decision=decision)
