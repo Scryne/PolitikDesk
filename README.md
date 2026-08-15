@@ -15,8 +15,8 @@ insan onayı olmadan *mümkün değildir*. Bunlar yorum değil, kodda ve veritab
 |---|---|
 | **Spesifikasyon** | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.4 donduruldu** |
 | **Yol haritası** | [`POLITIKDESK-FAZ-FAZ-YOL-HARITASI.md`](POLITIKDESK-FAZ-FAZ-YOL-HARITASI.md) — "ne zaman ve nasıl" |
-| **Mevcut faz** | **Faz 7 — Dokümantasyon ve Plan Gerçekliği** · Faz 0–6 tamamlandı |
-| **Faz kayıtları** | [Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md) · [Faz 4](docs/FAZ4-DURUM.md) · [Faz 5](docs/FAZ5-KAPI.md) |
+| **Mevcut faz** | **Faz 9 — G4′ Gözlem ve Kapanış Aşaması** · Faz 0–8 tamamlandı, 7 günlük gözlem aktif |
+| **Faz kayıtları** | [Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md) · [Faz 4](docs/FAZ4-DURUM.md) · [Faz 5](docs/FAZ5-KAPI.md) · [Faz 7](docs/FAZ7-DURUM.md) · [Faz 8](docs/FAZ8-DURUM.md) · [Faz 9](docs/FAZ9-DURUM.md) · [G4-Snapshots](docs/G4-SNAPSHOTS.md) |
 | **Güvenlik** | [`docs/guvenlik-notu.md`](docs/guvenlik-notu.md) — F4-09 gözden geçirmesi + bağımlılık taraması |
 | **Ölçüm** | [`eval/eval_report.md`](eval/eval_report.md) · [eşik kalibrasyonu](eval/threshold_report.md) · [embedding kararı](docs/embedding-benchmark.md) · [üretim modeli kararı](docs/llm-generation-benchmark.md) |
 | **Açık kalemler** | [`BACKLOG.md`](BACKLOG.md) — kapanan ve bekleyen her madde gerekçesiyle |

@@ -191,9 +191,9 @@ ile ilişkilendirilebilir olmalıdır.
 | **FAZ 10** | Ölçüm Borçları (B-82, B-81, B-42/61) | 🟢 **PASS** | B-82 tam tarih regex desteği eklendi; `calendar_2026.yml` resmi takvim kanıtlarıyla doğrulandı. |
 | **FAZ 11** | Editorial Stance (Editoryal Hat) | 🟢 **PASS** | `config/editorial_stance.md` oluşturuldu; atıf, olgu/iddia ve belirsizlik kuralları tanımlandı. |
 | **FAZ 12** | UI / Design DoD & ui_check | 🟢 **PASS** | 11 ekran tamamlandı, `ui_check.py` 11 ekrana genişletildi, `design/decisions.md` güncellendi. |
-| **FAZ 13** | S3 Hazırlık & Hukuki Çerçeve | 🟢 **PASS** | `docs/S3-HUKUKI-CERCEVE-VE-EDITORYAL-NOTLAR.md` oluşturuldu; Election Mode ve Opinion Classifier (B-97) boru hattına entegre edildi. |
-| **FAZ 14** | S3 Gate | 🟢 **PASS** | Siyaset dikey entegrasyonu, haber/yorum filtreleri ve editoryal atıf kuralları doğrulandı. |
-| **FAZ 15** | Final Production Readiness | 🟢 **PASS** | Repo, CI, Docker Deployment (6/6 PASS), 11 ekran ve tüm testler %100 senkron ve yeşil. |
+| **FAZ 13** | S3 Hazırlık & Hukuki Çerçeve | 🟡 **IN PROGRESS / KOŞULLU** | `docs/S3-HUKUKI-CERCEVE-VE-EDITORYAL-NOTLAR.md` oluşturuldu; Election Mode ve Opinion Classifier (B-97) boru hattına entegre edildi. *(Not: Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan bu fazlar nihai PASS sayılamaz)* |
+| **FAZ 14** | S3 Gate | 🟡 **IN PROGRESS / KOŞULLU** | Siyaset dikey entegrasyonu, haber/yorum filtreleri ve editoryal atıf kuralları doğrulandı. *(Not: Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan bu fazlar nihai PASS sayılamaz)* |
+| **FAZ 15** | Final Production Readiness | 🟡 **IN PROGRESS / KOŞULLU** | Repo, CI, Docker Deployment (6/6 PASS), 11 ekran ve tüm testler %100 senkron ve yeşil. *(Not: Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan bu fazlar nihai PASS sayılamaz)* |
 
 ---
 
@@ -1332,7 +1332,7 @@ Hedef:
 
 # FAZ 13 — S3 Öncesi Hukuki ve Editoryal Hazırlık
 
-**Durum:** 🟢 PASS  
+**Durum:** 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan nihai PASS sayılamaz)  
 **Öncelik:** P1
 
 ## S3-1 — Election Mode
@@ -1392,16 +1392,16 @@ Kurallar:
 
 # FAZ 14 — S3 Gate
 
-**Durum:** 🟢 PASS  
+**Durum:** 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan nihai PASS sayılamaz)  
 **Öncelik:** P1
 
 ## Correction
 
-**≤ %3**
+**≤ %3** — 🔴 *Mevcut ölçüm: %25,00 (sample_size=4, 15 Ağustos 2026)*
 
 ## Diversity
 
-**≥ 2,5**
+**≥ 2,5** — 🔴 *Mevcut ölçüm: 1,75 (15 Ağustos 2026)*
 
 ## Attribution
 
@@ -1417,7 +1417,7 @@ Kontrol:
 
 # FAZ 15 — Final Production Readiness
 
-**Durum:** 🟢 PASS  
+**Durum:** 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 (G4′) kapanmadan nihai PASS sayılamaz)  
 **Öncelik:** P0
 
 ## Repository
@@ -1450,9 +1450,9 @@ Kontrol:
 
 ## Data
 
-- [x] ingestion ≤ %2 (0/320 fetch - %0.00)
-- [x] correction ≤ %3
-- [x] diversity ≥ 2,5
+- [ ] ingestion ≤ %2 (Kısa pencere post-reset: %0,00 [0/144 fetch]; 24h pencere: %8,68 [14-15 Ağustos 2026 13:00 UTC]; Temiz 24h ölçümü 16 Ağustos 13:00 UTC'de)
+- [ ] correction ≤ %3 (Mevcut ölçüm: %25,00, sample_size=4 — 15 Ağustos 2026)
+- [ ] diversity ≥ 2,5 (Mevcut ölçüm: 1,75 — 15 Ağustos 2026)
 - [x] clustering regression PASS (1.000 precision, 0 false merge)
 - [x] grounding PASS
 
@@ -1569,12 +1569,12 @@ olarak işaretlenmeli.
 | F7 Documentation | 🟢 PASS |
 | F8 Release Verification | 🟢 PASS |
 | F9 G4′ | 🟡 IN PROGRESS (Sayaçlar Sıfırlandı, Gözlem Başlatıldı) |
-| F10 Measurement Debt | ⬜ |
-| F11 Editorial Stance | 🔴 kullanıcı aksiyonu |
-| F12 UI DoD | 🟡 kısmi |
-| F13 S3 Preparation | 🔴 G4′ bloklu |
-| F14 S3 Gate | 🔴 bloklu |
-| F15 Final Production Readiness | 🔴 bloklu |
+| F10 Measurement Debt | 🟢 PASS (B-82 regex ve takvim doğrulaması tamamlandı) |
+| F11 Editorial Stance | 🟢 PASS (config/editorial_stance.md ve mimari kural aktif) |
+| F12 UI DoD | 🟢 PASS (11 ekran ve ui_check aktif) |
+| F13 S3 Preparation | 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 kapanması bekleniyor) |
+| F14 S3 Gate | 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 kapanması bekleniyor) |
+| F15 Final Production Readiness | 🟡 IN PROGRESS / KOŞULLU (Değişmez Kural 1 gereği FAZ 9 kapanması bekleniyor) |
 
 ---
 
@@ -1632,48 +1632,48 @@ Bu noktadan önce yapılacak işlerin amacı **özellik sayısını artırmak de
 
 # 21. Final Kontrol Listesi
 
-- [ ] Repo clean
-- [ ] Untracked production dosyası yok
-- [ ] Git SHA doğrulanıyor
-- [ ] Image digest doğrulanıyor
-- [ ] Container repo ile senkron
-- [ ] legislation config image'da
-- [ ] tüm adapter'lar image'da
-- [ ] tüm scheduled task'lar Beat'te
-- [ ] Ruff 0
-- [ ] Mypy 0
-- [ ] Pytest 0 failure / 0 skip
-- [ ] pip-audit temiz
-- [ ] architecture temiz
-- [ ] migration temiz
-- [ ] packaging temiz
-- [ ] deployment check temiz
-- [ ] Resmî Gazete düzeltilmiş
-- [ ] Hazine düzeltilmiş
-- [ ] TÜİK authentication düzeltilmiş
-- [ ] ingestion ≤%2
-- [ ] 7 günlük akış tamam
-- [ ] ≥34 correction sample
-- [ ] correction ≤%3
-- [ ] diversity ≥2,5
-- [ ] Golden Set 300 article / 150 claim
-- [ ] B-82 ölçülmüş
-- [ ] B-81 yalnızca precision kanıtıyla uygulanmış
-- [ ] SMTP çalışıyor
-- [ ] 14 briefing slot gönderilmiş
-- [ ] editorial stance aktif
-- [ ] README güncel
-- [ ] BACKLOG güncel
-- [ ] UI dört yeni ekran DoD'den geçmiş
-- [ ] ui_check 11 ekran
-- [ ] Lighthouse ≥95
-- [ ] keyboard QA
-- [ ] design decisions güncel
-- [ ] G4′ PASS
-- [ ] S3 başlamış
-- [ ] S3-1…S3-6 tamam
-- [ ] S3 gate PASS
-- [ ] Final production readiness PASS
+- [x] Repo clean
+- [x] Untracked production dosyası yok
+- [ ] Git SHA doğrulanıyor (beklemede — bağımlı olduğu kalem: AŞAMA 1 / Madde 15 GIT_SHA build-arg)
+- [x] Image digest doğrulanıyor
+- [x] Container repo ile senkron
+- [x] legislation config image'da
+- [x] tüm adapter'lar image'da
+- [x] tüm scheduled task'lar Beat'te
+- [x] Ruff 0
+- [x] Mypy 0
+- [x] Pytest 0 failure / 0 skip
+- [x] pip-audit temiz
+- [x] architecture temiz
+- [x] migration temiz
+- [x] packaging temiz
+- [x] deployment check temiz
+- [x] Resmî Gazete düzeltilmiş
+- [x] Hazine düzeltilmiş
+- [x] TÜİK authentication düzeltilmiş
+- [ ] ingestion ≤%2 (beklemede — bağımlı olduğu kalem: AŞAMA 3 / 16 Ağu 13:00 UTC 24h temiz pencere)
+- [ ] 7 günlük akış tamam (beklemede — bağımlı olduğu kalem: AŞAMA 2 / 22 Ağu 13:00 UTC)
+- [ ] ≥34 correction sample (beklemede — bağımlı olduğu kalem: AŞAMA 4 / kullanıcı incelemesi)
+- [ ] correction ≤%3 (beklemede — bağımlı olduğu kalem: AŞAMA 4 / 34 olay incelemesi)
+- [ ] diversity ≥2,5 (beklemede — bağımlı olduğu kalem: AŞAMA 3 + AŞAMA 6)
+- [ ] Golden Set 300 article / 150 claim (beklemede — bağımlı olduğu kalem: AŞAMA 5 / B-57)
+- [x] B-82 ölçülmüş
+- [ ] B-81 yalnızca precision kanıtıyla uygulanmış (beklemede — bağımlı olduğu kalem: AŞAMA 6 / B-81 Golden Set)
+- [ ] SMTP çalışıyor (beklemede — bağımlı olduğu kalem: AŞAMA 1 / kullanıcı .env SMTP)
+- [ ] 14 briefing slot gönderilmiş (beklemede — bağımlı olduğu kalem: AŞAMA 2 / G4′-9 14 slot)
+- [x] editorial stance aktif
+- [x] README güncel
+- [x] BACKLOG güncel
+- [ ] UI dört yeni ekran DoD'den geçmiş (beklemede — bağımlı olduğu kalem: AŞAMA 7 / design/shots & DoD)
+- [x] ui_check 11 ekran
+- [ ] Lighthouse ≥95 (beklemede — bağımlı olduğu kalem: AŞAMA 7 / Lighthouse testi)
+- [ ] keyboard QA (beklemede — bağımlı olduğu kalem: AŞAMA 7 / klavye testi)
+- [x] design decisions güncel
+- [ ] G4′ PASS (beklemede — bağımlı olduğu kalem: AŞAMA 8 / 22 Ağustos)
+- [ ] S3 başlamış (beklemede — bağımlı olduğu kalem: AŞAMA 8 sonrası)
+- [x] S3-1…S3-6 tamam (Faz 13 / kod ve mimari hazır)
+- [ ] S3 gate PASS (beklemede — bağımlı olduğu kalem: AŞAMA 8 / G4′ PASS sonrası)
+- [ ] Final production readiness PASS (beklemede — bağımlı olduğu kalem: AŞAMA 8 / G4′ PASS sonrası)
 
 ---
 
