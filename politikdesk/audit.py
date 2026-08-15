@@ -46,6 +46,8 @@ ACTIONS: dict[str, str] = {
     "reset_derived_state": "Türetilmiş durum sıfırlandı (yeniden embed/kümeleme)",
     # --- iddia ve kanıt ---
     "claims_reextracted": "İddialar güncel prompt sürümüyle yeniden çıkarıldı",
+    "political_relations_evaluated": "Siyasi olay ilişkileri deterministik motorla değerlendirildi",
+    "context_evaluated": "Tarihsel bağlam ilişkileri değerlendirildi",
     # --- editoryal ---
     "editorial_profile_updated": "Editoryal Kimlik Kartı güncellendi",
     "draft_generated": "Taslak üretildi (LLM çağrısı yapıldı)",

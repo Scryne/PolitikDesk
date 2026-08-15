@@ -36,7 +36,6 @@ içerir, `same_thread` yalnızca benzerlik gözlemidir (P4).
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -182,34 +181,42 @@ def link_related(event_id: int, **kwargs: Any) -> int:
     Sorgu tarafı iki yönü de okuyabilir; çift kayıt, geri alma ve
     tekilleştirmeyi zorlaştırırdı.
     """
+    from politikdesk import audit
+
     related = find_related(event_id, **kwargs)
-    if not related:
-        return 0
 
     with connection() as conn, conn.cursor() as cur:
-        for item in related:
-            cur.execute(
-                """
-                INSERT INTO event_relations
-                    (from_event_id, to_event_id, relation, similarity, created_by)
-                VALUES (%s, %s, 'same_thread', %s, 'system')
-                ON CONFLICT (from_event_id, to_event_id, relation) DO UPDATE
-                  SET similarity = EXCLUDED.similarity
-                """,
-                (event_id, item.event_id, item.similarity),
-            )
-        cur.execute(
-            "INSERT INTO audit_log (actor, action, target, payload) "
-            "VALUES (%s,%s,%s,%s::jsonb)",
-            (
-                "system:context@1.0.0",
+        if related:
+            for item in related:
+                cur.execute(
+                    """
+                    INSERT INTO event_relations
+                        (from_event_id, to_event_id, relation, similarity, created_by)
+                    VALUES (%s, %s, 'same_thread', %s, 'system')
+                    ON CONFLICT (from_event_id, to_event_id, relation) DO UPDATE
+                      SET similarity = EXCLUDED.similarity
+                    """,
+                    (event_id, item.event_id, item.similarity),
+                )
+            audit.write(
                 "link_same_thread",
                 f"events/{event_id}",
-                json.dumps(
-                    {"linked": [r.event_id for r in related],
-                     "similarities": [round(r.similarity, 4) for r in related]},
-                ),
-            ),
+                actor="system:context@1.0.0",
+                payload={
+                    "linked": [r.event_id for r in related],
+                    "similarities": [round(r.similarity, 4) for r in related],
+                },
+                cursor=cur,
+            )
+
+        # Değerlendirme damgası: sıfır geçmiş bağ bulunsa dahi olay audit loga
+        # yazılır; böylece her 30 dakikada bir sonsuz yeniden sorgulanmaz.
+        audit.write(
+            "context_evaluated",
+            f"events/{event_id}",
+            actor="system:context@1.0.0",
+            payload={"linked_count": len(related)},
+            cursor=cur,
         )
         conn.commit()
 
@@ -227,6 +234,12 @@ def run(limit: int = 50, **kwargs: Any) -> dict[str, int]:
               AND e.centroid_embedding IS NOT NULL
               AND NOT EXISTS (
                 SELECT 1 FROM event_relations r WHERE r.from_event_id = e.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM audit_log a
+                WHERE a.target = 'events/' || e.id
+                  AND a.action = 'context_evaluated'
+                  AND a.created_at >= e.last_update_at
               )
             ORDER BY e.last_update_at DESC
             LIMIT %s
