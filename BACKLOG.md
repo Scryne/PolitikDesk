@@ -22,19 +22,20 @@ olmasına bağlıdır.
 | B-01 | **Stil öğrenme** (tweet arşivinden biçimsel çıkarım) | DRAFT adımına katkısı marjinal; form ile %80'i alınıyor (Spec §10.2). Ayrı KVKK rıza metni gerektirir. | G4 + ayrı açık rıza metni + ham arşivin işleme sonrası silinmesi garantisi |
 | B-02 | **İçerik kuyruğu** (taslak / onay bekleyen / zamanlanmış / yayınlanan) | Bir çıktı; ürünün merkezi kanıt katmanı (Spec §3.3). | G4 + draft acceptance rate ≥ %40 |
 | B-03 | **Yayın takvimi** | B-02'ye bağlı. | B-02 |
-| B-04 | **İçerik arşivi ve arama** | B-02'ye bağlı. | B-02 |
+| B-04 | **İçerik arşivi ve arama** | B-02'ye bağlı. | 🟡 **Kısmen uygulandı** — `/archive` ekranı ve taslak filtreleme devrede; tam metin arama ve indeksleme B-02'yi bekliyor. |
 | B-05 | **Tekrarlayan içerik kontrolü** ("bunu daha önce paylaştın") | B-04 olmadan anlamsız. | B-04 |
 | B-06 | **Karşı görüş kontrolü** (tam sürüm) | REVIEW adımına hizmet eder ama MVP'de basit sürümü var (framing paneli + `independence_group` çeşitliliği). | G4 + diversity ratio ≥ 2,5 sürdürülüyor |
 | B-07 | **"Bana katılmayan kaynaklar"** | Echo chamber karşı-mekanizmasının derinleşmesi. | B-06 |
 | B-08 | **Kaynak/kategori genişlemesi** (8 → azami 15) | Spec §9.2 sert kural: 9. kaynak ancak Faz 4 kalite hedefleri tutulduktan sonra. | G4 + G2 metrikleri regresyona uğramamış |
-| B-09 | **Dikey genişleme: Yasama/TBMM** | Motor makro ekonomide kalibre edilmeden yeni dikey açılmaz (Spec §5). | Kümeleme precision ≥ %88 (yeni Golden Set 150 makale) |
+| B-09 | **Dikey genişleme: Yasama/TBMM** | Motor makro ekonomide kalibre edilmeden yeni dikey açılmaz (Spec §5). | ✅ **Kapandı (15 Ağu 2026)** — `verticals/legislation.py` + TBMM & Sayıştay adaptörleri |
 | B-10 | **Dikey genişleme: Yargı/hukuk** | En yüksek isimli-kişi riski. | `unverified` iddiada isimli kişi taslak engeli |
 | B-11 | **Dikey genişleme: Dış politika** | Çok dilli embedding + çeviri katmanı gerektirir. | Çok dilli kümeleme precision ≥ %85 |
 | B-12 | **Dikey genişleme: Genel siyaset** | Kasıtlı olarak en sona bırakıldı — en yüksek risk (Spec §5). | Election Mode canlı testi |
 | B-13 | **Konu ve kişi/kurum takibi** (istihbarat) | CONTEXTUALIZE adımını derinleştirir; MVP'de olay grafiği yeterli. | G4 |
 | B-14 | **Günlük/haftalık rapor arşivi** | Brifing üretiliyor ama arşivlenmiyor. | B-04 |
-| B-15 | **Political Memory v1** (olay zinciri sorgusu) | MVP'de `event_relations` var, sorgu arayüzü yok. | G4 |
+| B-15 | **Political Memory v1** (olay zinciri sorgusu) | MVP'de `event_relations` var, sorgu arayüzü yok. | ✅ **Kapandı (15 Ağu 2026)** — `political_memory` paketi, `/memory`, `/accountability`, `/promises` ekranları |
 | B-16 | **Election Mode aktivasyonu** | Spec §12.6: Faz 1'de flag olarak hazırlanır, Faz 5'te uygulanır. | F4-15 tamamlanmış |
+
 | B-17 | **Yarı-otomasyon** (resmî X API üzerinden, kullanıcı her seferinde onaylar) | P5 (insan onayı) korunmalı; yalnızca `strongly_corroborated` + `number` + Tier 1 içerik için. | X API maliyet modeli gelir modelini karşılıyorsa (B-18) |
 | B-18 | **X API ile okuma** | Spec §9.4 / D7: MVP'de kullanılmaz. Maliyet modeli doğrulanmadı. | Kullanıcı başına aylık $ hesabı gelir modelini karşılıyorsa |
 | ~~B-19~~ | ~~Ücretlendirme / ödeme altyapısı~~ | ⛔ **KAPSAM DIŞI** — kişisel araç, müşteri yok (D19 geçersiz). | — |
@@ -117,8 +118,9 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-70~~ | ~~Mevcut 4 iddianın `claims.v2` ile yeniden çıkarılması~~ | Karışık prompt sürümü | ✅ **Kapandı** — kullanıcı onayıyla koşuldu (13 Ağu). 4 iddia silindi, claims.v2 ile 2 iddia + 2 kanıt bağı, 0 hata. Araç: `make reclaim` (`--yes` zorunlu) |
 | ~~B-71~~ | ~~Üretim modelinin kendi ölçümüyle seçilmesi~~ | D17 yalnız *çıkarım* görevini ölçtü | 🟡 **Kapandı ama karar ZAYIF** — D18 (`docs/llm-generation-benchmark.md`): `nemotron-3-super`. Ölçüm ilk iki adayı ayıramadı; karar gecikmeye ve operasyonel tekliğe dayanıyor. Araç: `make genbench` |
 | B-59 | Haftalık kalite ritüeli (F2-21, ≥3 hafta) | Takvim zamanı gerektirir | **Faz 3 boyunca** |
-| B-60 | `event_relations`'ta `updates` / `contradicts` ilişkileri | F2-17 yalnız `same_thread` kuruyor (yargı içermeyen tek tip) | Faz 3 |
+| ~~B-60~~ | ~~`event_relations`'ta `updates` / `contradicts` / `fulfils` / `fails` ilişkileri~~ | F2-17 yalnız `same_thread` kuruyor | ✅ **Kapandı (15 Ağu 2026)** — `relation_engine.py`, `migrations/0010`, `0011`, `0012` ile 6 ilişki türü ve puanlama motoru entegre edildi. |
 | B-61 | Takvimin `verified: false` kayıtlarının resmî takvimden teyidi | `config/calendar_2026.yml` — 10 kayıt | 🔴 **BLOKE (13 Ağu 2026)** — TÜİK Veri Yayımlama Takvimi JS duvarının ardında (B-42 ile aynı kök neden); TCMB PPK takvim sayfası 404. Resmî takvim okunamadan teyit edilemez |
+
 | ~~B-53~~ | ~~Mevcut makalelerin e5 ile yeniden embed edilmesi + kümelemenin tekrar koşulması~~ | D16 kararı | ✅ **Kapandı** — `ingest reembed --yes` aracı + koşuldu. 11 makale e5 ile gömüldü, 9 olay, 1 `same_thread`. **Koşum gizli bir hata ortaya çıkardı → B-65** |
 | ~~B-54~~ | ~~Worker konteynerine `embed-local` ekstrası~~ | D16 self-host seçimi | ✅ **Kapandı** — `Dockerfile` `ARG PD_EXTRAS` + CPU torch indeksi; compose'da yalnız worker kurar; `hfcache` volume. Konteynerde doğrulandı: `local`, üretime uygun, 1024 boyut |
 | ~~B-55~~ | ~~Spec §11.4'e varlık kısıtının **boş küme** davranışının yazılması~~ | Faz 2 canlı koşum: 11 makalenin 6'sı varlıksız | ✅ **Kapandı** — Spec v3.2 §11.4 "Varlık kısıtının boş küme davranışı": boş küme çelişki kanıtı değil kanıt yokluğudur; kısıt *uygulanamaz* sayılır ve reddetmez |
@@ -177,8 +179,9 @@ Yol haritasında olmayan, uygulama sırasında ortaya çıkan işler:
 | ~~B-94~~ | ~~**"Hesap Sor" 4. taslak açısı**~~ | Hesap sorma katmanı | ✅ **Kapandı (14 Ağu 2026)** — `editorial/generator.py` içine 4. açı olarak `accountability` ("Hesap Sor") eklendi. |
 | ~~B-95~~ | ~~**Dosya tabanlı Editoryal Hat (Editorial Stance)**~~ | KVKK m.6 / Kişisel Araç | ✅ **Kapandı (14 Ağu 2026)** — `editorial/stance.py` ve `config/editorial_stance.example.md` oluşturuldu; DB izolasyonu sağlandı ve mimari kuralla korundu. |
 | ~~B-96~~ | ~~**Pre-publish check isnat dili kontrolü**~~ | Hukuki risk ve TCK m. 267 | ✅ **Kapandı (14 Ağu 2026)** — `editorial/checker.py` 7. kontrol olarak doğrudan suç isnadı uyarısı (`imputation_language`) ile donatıldı. |
-| ~~B-97~~ | ~~**Haber / Yorum ve köşe yazısı filtresi**~~ | Siyaset kulis/köşe yazısı gürültüsü | ✅ **Kapandı (14 Ağu 2026)** — `nlp/opinion_classifier.py` oluşturuldu ve test edildi. |
+| B-97 | **Haber / Yorum ve köşe yazısı filtresi** | Siyaset kulis/köşe yazısı gürültüsü | 🟡 **implemented but not integrated** — `nlp/opinion_classifier.py` yazıldı ve unit testleri (`tests/test_opinion_classifier.py`) geçiyor; canlı ingestion pipeline'a henüz bağlanmadı. |
 | ~~B-98~~ | ~~**Makefile ve pd.cmd CI sertleştirmesi**~~ | `mypy || true` açığı | ✅ **Kapandı (14 Ağu 2026)** — `Makefile` ve `pd.cmd` içindeki atlama açıkları kapatıldı. |
+
 | ~~B-99~~ | ~~**`entities.py` ölü regex kodu temizliği**~~ | Kod hijyeni | ✅ **Kapandı (14 Ağu 2026)** — `_STANDALONE_NAME_RE` temizlendi. |
 
 ---

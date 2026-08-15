@@ -1,6 +1,6 @@
 # PolitikDesk
 
-> Makro ekonomi gündemini 10 kaynaktan toplayan, haberleri **olaya** çeviren, her iddiayı
+> Makro ekonomi ve yasama/siyaset gündemini 16 kaynaktan toplayan, haberleri **olaya** çeviren, her iddiayı
 > **deterministik kurallarla kanıta** bağlayan ve kaynaklı editoryal taslak üreten bir
 > çalışma masası.
 
@@ -13,15 +13,15 @@ insan onayı olmadan *mümkün değildir*. Bunlar yorum değil, kodda ve veritab
 
 | | |
 |---|---|
-| **Spesifikasyon** | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.3 donduruldu** |
-| **Yol haritası** | [`PolitikDesk_Yol_Haritasi_v1.md`](PolitikDesk_Yol_Haritasi_v1.md) — "ne zaman ve nasıl" |
-| **Mevcut faz** | **Faz 5 — Doğrulanmış Büyüme** (sürüyor) · Faz 0–4 tamamlandı |
-| **Faz kayıtları** | [Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md) · [Faz 4](docs/FAZ4-DURUM.md) |
+| **Spesifikasyon** | [`PolitikDesk_Master_Spec_v3.md`](PolitikDesk_Master_Spec_v3.md) — "ne ve neden" · 🔒 **v3.4 donduruldu** |
+| **Yol haritası** | [`POLITIKDESK-FAZ-FAZ-YOL-HARITASI.md`](POLITIKDESK-FAZ-FAZ-YOL-HARITASI.md) — "ne zaman ve nasıl" |
+| **Mevcut faz** | **Faz 7 — Dokümantasyon ve Plan Gerçekliği** · Faz 0–6 tamamlandı |
+| **Faz kayıtları** | [Faz 0](docs/FAZ0-DURUM.md) · [Faz 1](docs/FAZ1-DURUM.md) · [Faz 2](docs/FAZ2-DURUM.md) · [Faz 3](docs/FAZ3-DURUM.md) · [denetim](docs/FAZ3-SONRASI-DENETIM.md) · [Faz 4](docs/FAZ4-DURUM.md) · [Faz 5](docs/FAZ5-KAPI.md) |
 | **Güvenlik** | [`docs/guvenlik-notu.md`](docs/guvenlik-notu.md) — F4-09 gözden geçirmesi + bağımlılık taraması |
 | **Ölçüm** | [`eval/eval_report.md`](eval/eval_report.md) · [eşik kalibrasyonu](eval/threshold_report.md) · [embedding kararı](docs/embedding-benchmark.md) · [üretim modeli kararı](docs/llm-generation-benchmark.md) |
 | **Açık kalemler** | [`BACKLOG.md`](BACKLOG.md) — kapanan ve bekleyen her madde gerekçesiyle |
 | **Kapsam** | Tek kullanıcılı **kişisel araç** — beta / ücretlendirme / hukuk adımları kapsam dışı |
-| **MVP dikeyi** | Makro ekonomi / para politikası (D4) |
+| **MVP dikeyleri** | Makro ekonomi / para politikası (D4) + Yasama / Siyaset (`verticals/`, `political_memory/`) |
 
 ---
 
@@ -31,8 +31,8 @@ insan onayı olmadan *mümkün değildir*. Bunlar yorum değil, kodda ve veritab
 
 ```
 TOPLA  ──▶  KÜMELE  ──▶  KANITLA  ──▶  BAĞLAMLANDIR  ──▶  TASLAK
-10 kaynak   haber →      her iddia      olay ↔ olay        3 açı,
-5 dk'da     olay         R0–R7 kural    ilişkileri         yalnız kanıttan
+16 kaynak   haber →      her iddia      olay ↔ olay        4 açı,
+5 dk'da     olay         R0–R8 kural    ilişkileri         yalnız kanıttan
 bir tur                  motoru                            beslenir
 ```
 
@@ -70,6 +70,10 @@ Sonra günlük akış:
 | Adres | Ne var |
 |---|---|
 | `http://localhost:8000/feed` | Live Feed — gündem, salience sırasıyla |
+| `http://localhost:8000/accountability` | Hesap Sor — vaat, icraat ve Sayıştay denetim zinciri |
+| `http://localhost:8000/promises` | Siyasi Vaatler — taahhüt ve gerçekleşme takip tablosu |
+| `http://localhost:8000/memory` | Political Memory — olay grafiği ve ilişki ağları |
+| `http://localhost:8000/archive` | İçerik Arşivi — üretilen taslaklar ve geçmiş analizler |
 | `http://localhost:8000/admin/` | sağlık panosu — kaynaklar + boru hattı aşamaları |
 | `http://localhost:8000/admin/metrics` | 8 ürün metriği + LLM bütçe sayacı |
 | `http://localhost:8000/briefing/<tarih>` | sabah/akşam brifingi |
@@ -129,31 +133,47 @@ Modüler monolit (Spec §11.2, D12). Mikroservis MVP'de yasak; Kubernetes MVP'de
 ```
 politikdesk/
 ├── ingestion/   kaynak adaptörleri, normalizasyon, dedup          [Faz 1 ✓]
-│   ├── adapters/  rss · official · resmi_gazete · tuik_sdmx · wp_rest · manual
+│   ├── adapters/  rss · official · resmi_gazete · tuik_sdmx · wp_rest · tbmm · sayistay · manual
 │   ├── http.py    kibarlık: UA, oran sınırı, robots, geri çekilme, CA demeti
 │   ├── guard.py   ToS koruması — forbidden kaynakta istisna
 │   ├── dedup.py   content_hash + simhash + n-gram içermesi
-│   └── topics.py  MVP konu + Türkiye bağlamı filtresi
-├── nlp/         embedding, ANN, NER, alias çözümleme              [Faz 1 ✓]
+│   └── topics.py  Çoklu dikey konu ve bağlam filtresi
+├── verticals/   dikey soyutlamaları (makro ekonomi + yasama)     [Faz 5 ✓]
+│   ├── base.py            Vertical sözleşmesi
+│   ├── macro_economy.py   Makro ekonomi dikey kuralları
+│   └── legislation.py     Yasama & Siyaset dikey kuralları
+├── political_memory/ olay ilişkileri, vaat-denetim grafı, aday kısıtı [Faz 5 ✓]
+│   ├── relation_engine.py   deterministik ilişki motoru (fulfils, fails, contradicts, updates)
+│   ├── candidate_filter.py  sert aday tavanı (bounded retrieval)
+│   ├── orchestrator.py      idempotent ilişki kurucu (s3.v1)
+│   ├── accountability.py    kanıt zinciri ve vaka modelleri
+│   └── service.py           ilişki CRUD ve sorgulama servisi
+├── nlp/         embedding, ANN, NER, alias, iddia çıkarımı        [Faz 1/5 ✓]
+│   └── opinion_classifier.py haber/yorum filtresi (hazır)
 ├── clustering/  olay kümeleme + merge/split                       [Faz 2 ✓]
 │   ├── assigner.py      saf karar mantığı (DB'ye dokunmaz)
 │   ├── centroid.py      artımlı merkez — üyelerinden yeniden hesaplanabilir
 │   ├── indicators.py    aynı kurumun farklı göstergesi ayrı olaydır (B-62)
 │   ├── numeric_guard.py "faiz %40" vs "%42" -> needs_review
 │   └── merger.py        merge/split — %100 geri alınabilir
-├── evidence/    ⛔ DETERMİNİSTİK — llm/ import edemez             [Faz 2 ✓]
+├── evidence/    ⛔ DETERMİNİSTİK — llm/ import edemez             [Faz 2/5 ✓]
 │   ├── independence.py  Spec §8.2 bağımsız sayım (3 kural)
-│   ├── rules.py         R0–R7 kural motoru
+│   ├── rules.py         R0–R8 kural motoru (`attribution_verified` dahil)
 │   └── salience.py      global 0–90 + kişisel 0–10
 ├── context/     olay-olay ilişkileri, tarihsel bağlam             [Faz 2 ✓]
-├── editorial/   taslak üretimi, pre-publish check                 [Faz 3 ✓]
+├── editorial/   taslak üretimi (4 açı), pre-publish check         [Faz 3/5 ✓]
 │   ├── guards.py          kanıtsız olayda üretim YOK (409, P1)
-│   ├── generator.py       3 açı — girdi yalnızca claims+evidence
+│   ├── generator.py       4 açı — Bilgilendir, Analiz Et, Eleştir, Hesap Sor
 │   ├── grounding_check.py kanıtta olmayan sayı/tarih/alıntı (sert kapı)
-│   ├── checker.py         Spec §14.4'ün 6 kontrolü + engelleyici durum
-│   └── profile_compiler.py  form -> statik prompt bloğu (ideoloji YOK)
+│   ├── checker.py         Spec §14.4'ün 7 kontrolü + isnat dili uyarısı
+│   ├── stance.py          dosya tabanlı editoryal hat (DB dışı)
+│   └── profile_compiler.py form -> statik prompt bloğu (ideoloji YOK)
 ├── briefing/    sabah/akşam brifingi — DETERMİNİSTİK, LLM yok      [Faz 3 ✓]
-├── web/         feed, olay sayfası, taslak, brifing, metrik panosu [Faz 3 ✓]
+├── web/         feed, hesap sor, vaatler, hafıza, arşiv, admin    [Faz 3/5 ✓]
+│   ├── accountability_view.py  hesap sorma ve denetim görünümü
+│   ├── promises_view.py        vaat takip tablosu
+│   ├── memory_view.py          ilişki grafiği ve hafıza zinciri
+│   ├── archive_view.py         taslak arşivi ve arama
 │   └── ui/        tasarım sistemi — TEK kabuk, TEK stylesheet (DESIGN.md Ek A)
 │       ├── tokens.py     renk/spacing/tipografi — ham hex YALNIZ burada
 │       ├── css.py        stylesheet, tokens'tan türetilir
@@ -175,6 +195,7 @@ scripts/watchdog.py          dışarıdan sağlık nöbeti (Docker kapalıysa da
 scripts/check_deployment.py  imaj kayması + varlık denetimi                [Faz 4/5 ✓]
 scripts/perf_check.py        p95 + N+1 ölçümü                              [Faz 4 ✓]
 ```
+
 
 ### Pazarlık edilemez kısıtlar
 
@@ -238,17 +259,19 @@ Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm art
 
 ## Kaynaklar
 
-D6 (v3.3): azami 15 kaynak, **kademeli** — 8 → 10 → ölç → 15. Ölçüt bağımsızlık
-grubudur, hacim değil. Şu an 10 kaynak canlı:
+D6 (v3.4): Çoklu dikey (Makro Ekonomi + Yasama/Siyaset) mimarisinde toplam 16 kaynak tanımlı:
 
-| Kademe | Kaynak | Nasıl okunuyor |
-|---|---|---|
-| T1 | TCMB | RSS |
-| T1 | TÜİK | SDMX (`nsiws.tuik.gov.tr`, Bearer belirteç) |
-| T1 | Hazine ve Maliye Bakanlığı | WordPress REST (`/portal/v2/posts`) |
-| T1 | Resmî Gazete | günlük fihrist (`/fihrist?tarih=…`) |
-| T2 | Anadolu Ajansı — Ekonomi | RSS |
-| T3 | Dünya · BloombergHT · TRT Haber · CNN Türk · Habertürk | RSS |
+| Dikey | Kademe | Kaynak | Nasıl okunuyor |
+|---|---|---|---|
+| Makro Ekonomi | T1 | TCMB | RSS |
+| Makro Ekonomi | T1 | TÜİK | SDMX (`nsiws.tuik.gov.tr`, Bearer belirteç) |
+| Makro Ekonomi | T1 | Hazine ve Maliye Bakanlığı | WordPress REST (`/portal/v2/posts`) |
+| Makro Ekonomi | T1 | Resmî Gazete | günlük fihrist (`/fihrist?tarih=…`) |
+| Yasama & Siyaset | T1 | TBMM | Özel adaptör (`tbmm`) |
+| Yasama & Siyaset | T1 | Sayıştay Başkanlığı | Özel adaptör (`sayistay`) |
+| Yasama & Siyaset | T1 | Cumhurbaşkanlığı Kararnameleri | Özel adaptör (`cumhurbaskanligi`) |
+| Genel / Medya | T2 | Anadolu Ajansı — Ekonomi & Güncel | RSS |
+| Genel / Medya | T3 | Dünya · BloombergHT · TRT Haber · CNN Türk · Habertürk · NTV | RSS |
 
 Kaynak kayıt defteri ve ToS durumları: [`docs/kaynak-kayit-defteri.md`](docs/kaynak-kayit-defteri.md).
 
@@ -273,17 +296,18 @@ her adımı koşar:
 
 | Adım | Kapsam |
 |---|---|
-| `ruff` | biçim + lint |
-| `mypy` | `politikdesk` paketi, `continue-on-error` **değil** (B-40) |
-| `pip-audit` | bağımlılık açıkları (B-83) |
-| `check_architecture` | `evidence/` → `llm/` yasağı |
+| `ruff` | biçim + lint (0 hata) |
+| `mypy` | `politikdesk` paketi (141 dosya, 0 hata, `continue-on-error` **değil**) |
+| `pip-audit` | bağımlılık açıkları (0 açık) |
+| `check_architecture` | `evidence/` → `llm/` yasağı + Stance DB yasağı |
 | `verify_arch_guard` | korumanın kendisi çalışıyor mu — canlı deney |
-| `migrate up` ×2 | gerçek Postgres+pgvector, ikinci koşum idempotent |
-| `pytest` | **690 test** (33 dosya), DB testleri dahil |
+| `migrate up` ×2 | gerçek Postgres+pgvector (12 migration), ikinci koşum idempotent |
+| `pytest` | **831 test** (52 dosya), canlı DB testleri dahil |
 
 Model kalitesi ayrıca Golden Set üzerinde ölçülür (`pd eval`): kümeleme
 precision/recall, `evidence_status` doğruluğu ve sayısal normalizasyon —
 G2 eşikleriyle birlikte [`eval/eval_report.md`](eval/eval_report.md)'de.
+
 
 ---
 
