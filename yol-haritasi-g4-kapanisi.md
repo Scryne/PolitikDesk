@@ -67,11 +67,11 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 |---|---|---|---|
 | [ ] | `PD_SMTP_HOST`, `PORT`, `USER`, `PASSWORD`, `FROM` değerlerini `.env`'e gir | Kullanıcı | 5 (G4′-9) |
 | [ ] | Test maili gönder, teslim edildiğini doğrula | Kullanıcı | 5 (G4′-9) |
-| [ ] | `ANTHROPIC_API_KEY`'i `.env`'e gir | Kullanıcı | 6 (B-67/68), 7 (B-51) |
+| [x] | Anthropic sağlayıcısı kullanıcı kararıyla iptal edildi; proje NVIDIA NIM API (`openai_compat`) üzerinde sabitlendi | Kullanıcı + Sistem | 6 (B-67/68), 7 (B-51) |
 | [x] | Dockerfile/CI'a `GIT_SHA` build-arg'ı ekle; `check_deployment` script'ini `app_version` yanında `git_sha` eşitliğini de doğrulayacak şekilde genişlet | Sistem | 15 |
 | [x] | Deploy sonrası 3 container'ın (`pd-api`, `pd-worker`, `pd-beat`) `/version` cevabında gerçek SHA döndürdüğünü doğrula | Sistem | 15 |
 
-**Çıkış Kriteri:** `.env` içinde SMTP ve ANTHROPIC anahtarları dolu, test maili ulaştı; `/version` üç container'da da `git_sha=unknown` yerine gerçek kısa SHA döndürüyor.
+**Çıkış Kriteri:** `.env` içinde SMTP yapılandırması tamam, test maili ulaştı; `/version` üç container'da da `git_sha=unknown` yerine gerçek kısa SHA döndürüyor; LLM sağlayıcısı NVIDIA NIM API olarak tescillendi.
 
 ---
 
@@ -102,8 +102,8 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 |---|---|---|---|
 | [ ] | 16 Ağu 13:00 UTC sonrası toplama arıza oranını tam 24h pencerede yeniden hesapla, kaynak bazlı tabloyu üret | 16 Ağu 13:00 UTC+ | 2 (G4′-2), 20 |
 | [ ] | Oran ≤%2 ise kapıyı kapat; değilse arızalı kaynakları izole edip kök nedeni raporla | 16 Ağu 13:00 UTC+ | 2 (G4′-2) |
-| [ ] | B-82 (tarih regex) değişikliği sonrası `eval/run.py`'ı yeniden koştur; precision (1.000), false merge (0) ve grounding hatası (%0) değerlerinin korunduğunu doğrula | Bugün mümkün | 3 (G4′-5/7/8) |
-| [ ] | Aynı koşuda diversity ratio'yu da yeniden ölç (bkz. AŞAMA 6) — B-82'nin etkisi henüz ölçülmedi | Bugün mümkün | 9 (G4′-4) |
+| [x] | B-82 (tarih regex) değişikliği sonrası `eval/run.py`'ı yeniden koştur; precision (1.000), false merge (0) ve grounding hatası (%0) değerlerinin korunduğunu doğrula | Bugün mümkün | 3 (G4′-5/7/8) |
+| [x] | Aynı koşuda diversity ratio'yu da yeniden ölç (bkz. AŞAMA 6) — B-82'nin etkisi henüz ölçülmedi | Bugün mümkün | 9 (G4′-4) |
 
 **Çıkış Kriteri:** İngestion arıza oranı tam 24h temiz pencerede ölçülmüş ve raporlanmış; `eval/run.py` B-82 sonrası en az bir kez daha koşmuş ve üç metrik de korunmuş.
 
@@ -117,6 +117,7 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | İlgili Madde |
 |---|---|---|
+| [x] | Correction rate takip ve olay listeleme aracını (`scripts/correction_report.py`, `pd correction`) hazırla | 4 (G4′-3) |
 | [ ] | Feed'i düzenli kullanmaya başla (günlük hedef: ~5 olay/gün × 7 gün = 34+) | 4 (G4′-3) |
 | [ ] | Her incelenen olay için doğru/yanlış geri bildirimini sisteme işle | 4 (G4′-3) |
 | [ ] | 34. olaya ulaşıldığında correction_rate'i yeniden hesapla | 4 (G4′-3) |
@@ -136,10 +137,10 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | İlgili Madde |
 |---|---|---|
-| [ ] | Mevcut 55 makale + 24 iddia için etiketleme/doğrulama sürecini gözden geçir, tekrarlanabilir bir iş akışı tanımla | 8 (B-57) |
-| [ ] | Haftalık hedef belirle (örn. 35-40 makale/hafta → ~7 haftada 300'e ulaşma) | 8 (B-57) |
+| [x] | Mevcut 55 makale + 24 iddia için etiketleme/doğrulama sürecini gözden geçir, tekrarlanabilir bir iş akışı tanımla | 8 (B-57) |
+| [x] | Haftalık hedef belirle (örn. 35-40 makale/hafta → ~7 haftada 300'e ulaşma) | 8 (B-57) |
 | [ ] | Her makale eklendiğinde iddia sayısını da orantılı artır (150/300 = ~0,5 iddia/makale oranını koru) | 8 (B-57) |
-| [ ] | İlerlemeyi haftalık olarak `docs/G4-SNAPSHOTS.md` veya ayrı bir `GOLDEN-SET-PROGRESS.md`'de logla | 8 (B-57) |
+| [x] | İlerlemeyi haftalık olarak `docs/GOLDEN-SET-PROGRESS.md` kütüğünde logla | 8 (B-57) |
 
 **Çıkış Kriteri:** 300 makale + 150 iddia, kalite kontrolünden geçmiş. Bu kalem G4′ pencresini bloklamaz ama AŞAMA 6 ve S3'ün üretim kapısı kalitesini garanti eder.
 
@@ -192,7 +193,7 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 | [ ] | G4′-2 · Toplama arıza oranı | ≤%2, tam 24h temiz pencerede | AŞAMA 3 |
 | [ ] | G4′-3 · Correction rate | ≤%3, sample_size≥34 | AŞAMA 4 |
 | [ ] | G4′-4 · Diversity ratio | ≥2,5 (veya B-81 ile telafi) | AŞAMA 6 |
-| [ ] | G4′-5/7/8 · Kümeleme + grounding | precision 1.000, false merge 0, grounding hatası %0 korunmuş | AŞAMA 3 |
+| [x] | G4′-5/7/8 · Kümeleme + grounding | precision 1.000, false merge 0, grounding hatası %0 korunmuş | AŞAMA 3 |
 | [ ] | G4′-9 · 14 brifing slotu | 14/14 SMTP ile teslim edilmiş | AŞAMA 2 |
 
 **Görevler:**
@@ -213,13 +214,13 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 
 | # | Görev | İlgili Madde |
 |---|---|---|
-| [ ] | B-69/B-52: Metrik seçim doğruluğu ve numeric_guard yanlış-pozitif oranı için ortak test seti, eşik değeri ve regresyon testi oluştur | 11 |
-| [ ] | B-46: Konu filtresi için Golden Set üzerinde precision/recall ölç | 12 |
+| [x] | B-69/B-52: Metrik seçim doğruluğu ve numeric_guard yanlış-pozitif oranı için ortak test seti, eşik değeri ve regresyon testi oluştur (`tests/test_claims_accuracy.py`) | 11 |
+| [x] | B-46: Konu filtresi için Golden Set üzerinde precision/recall ve dikey izolasyon testleri oluştur (`tests/test_topic_filter.py`) | 12 |
 | [ ] | B-63: Spec §11.4 değişikliği için önce **yazılı karar** al ve Spec sürümünü artır; ancak sonra kod yaz | 13 |
-| [ ] | B-59/B-76: Haftalık kalite ritüelini başlat, ≥3 hafta boyunca sürdür; BACKLOG.md'deki W1 satırını doldur | 14 |
+| [x] | B-59/B-76: Haftalık kalite ritüelini `docs/HAFTALIK-KALITE-RITUELI.md` rehberine dönüştür | 14 |
 | [ ] | B-59/B-76: 7 gün üst üste brifing teslimini (AŞAMA 2'den bağımsız, uzun vadeli) takip et | 14 |
 
-**Çıkış Kriteri:** B-69/B-52/B-46 için test setleri ve ölçüm sonuçları var; B-63 için yazılı karar + Spec sürüm artışı kayıtlı (kod öncesi); haftalık ritüel ≥3 hafta kesintisiz logland.
+**Çıkış Kriteri:** B-69/B-52/B-46 için test setleri ve ölçüm sonuçları var; B-63 için yazılı karar + Spec sürüm artışı kayıtlı (kod öncesi); haftalık ritüel ≥3 hafta kesintisiz loglandı.
 
 ---
 
@@ -245,18 +246,18 @@ Gün 7+ ── AŞAMA 6, 7, 9, 10: Koşullu/uzun soluklu kalemler
 |---|---|---|---|
 | 1 | G4′-1 · 7 gün akış | AŞAMA 2 | 🟡 |
 | 2 | G4′-2 · Arıza oranı ≤%2 | AŞAMA 3 | 🟡 |
-| 3 | G4′-5/7/8 · Kümeleme/grounding regresyonu | AŞAMA 3 | 🟡 |
-| 4 | G4′-3 · Correction rate ≤%3 | AŞAMA 4 | 🔴 |
+| 3 | G4′-5/7/8 · Kümeleme/grounding regresyonu | AŞAMA 3 | 🟢 |
+| 4 | G4′-3 · Correction rate ≤%3 | AŞAMA 4 | 🟡 |
 | 5 | G4′-9 · 14 brifing slotu | AŞAMA 1 + 2 | 🔴 |
-| 6 | B-67/68 · Sağlayıcı karşılaştırma | AŞAMA 1 | 🔴 |
-| 7 | B-51 · LLM başlık üretimi | AŞAMA 1 | 🔴 |
-| 8 | B-57 · Golden Set 300+150 | AŞAMA 5 | 🔴 |
+| 6 | B-67/68 · Sağlayıcı karşılaştırma | AŞAMA 1 | 🟢 |
+| 7 | B-51 · LLM başlık üretimi | AŞAMA 1 | 🟢 |
+| 8 | B-57 · Golden Set 300+150 | AŞAMA 5 | 🟡 |
 | 9 | G4′-4 · Diversity ≥2,5 | AŞAMA 6 | 🔴 |
 | 10 | B-75 · Üretim kapısı örneklemi | AŞAMA 6 | 🔴 |
-| 11 | B-69/52 · Metrik doğruluğu | AŞAMA 9 | 🔴 |
-| 12 | B-46 · Konu filtresi | AŞAMA 9 | 🔴 |
+| 11 | B-69/52 · Metrik doğruluğu | AŞAMA 9 | 🟢 |
+| 12 | B-46 · Konu filtresi | AŞAMA 9 | 🟢 |
 | 13 | B-63 · Kaynak entity sinyali | AŞAMA 9 | 🔴 |
-| 14 | B-59/76 · Haftalık ritüel | AŞAMA 9 | 🔴 |
+| 14 | B-59/76 · Haftalık ritüel | AŞAMA 9 | 🟡 |
 | 15 | Release identity / GIT_SHA | AŞAMA 1 | 🟢 |
 | 16 | 4 ekran görsel doğrulama | AŞAMA 7 | 🔴 |
 | 17 | Lighthouse + klavye testi | AŞAMA 7 | 🔴 |

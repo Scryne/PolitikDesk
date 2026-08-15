@@ -56,6 +56,7 @@ echo   -- saglik --
 echo   pd watchdog         Disaridan saglik nobeti
 echo   pd pipeline-health  Hangi asamada birikme var?
 echo   pd health           Kaynak saglik raporu
+echo   pd correction       Correction rate ve 34 olay inceleme takibi
 echo   pd deploy-check     Konteynerler depodaki kodu mu tasiyor?
 echo   pd logs [servis]    Konteyner loglari
 echo.
@@ -150,6 +151,10 @@ goto :eof
 
 :cmd_deploy-check
 "%PY%" -m scripts.check_deployment
+goto :eof
+
+:cmd_correction
+"%PY%" -m scripts.correction_report %*
 goto :eof
 
 REM ------------------------------------------------------------------- yedek

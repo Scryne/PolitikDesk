@@ -157,6 +157,9 @@ genbench:
 health:
 	python -m scripts.ingest health
 
+correction:
+	python -m scripts.correction_report
+
 # Boru hattının İÇİ: bir aşamada birikme var mı? (B-78)
 pipeline-health:
 	python -c "from politikdesk import pipeline_health as p; [print(f'{r.status:6} {r.label:22} bekleyen={r.backlog:4} en_eski={r.oldest_hours} esik={r.threshold_hours}') for r in p.stage_report()]"
