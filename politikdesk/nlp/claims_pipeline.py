@@ -374,7 +374,35 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                     )
                     extracted_by = result.extracted_by
                     stats.claims_rejected += len(result.rejected)
-                    collected.extend((c, article["id"]) for c in result.claims)
+
+                    # B-97: Haber / Köşe Yazısı ayrımı (Spec v3.4 §5, §14.4).
+                    # Köşe yazısı, kulis veya kişisel yorum içeren metinlerden
+                    # çıkan iddialar doğrudan 'fact' veya 'number' olamaz;
+                    # 'attribution' (aktör/yazar beyanı) olarak kaydedilir.
+                    from politikdesk.nlp.opinion_classifier import classify_content_kind
+
+                    classification = classify_content_kind(
+                        title=article["title"],
+                        text=article["excerpt"] or "",
+                    )
+                    if classification.is_opinion:
+                        adjusted: list[ExtractedClaim] = []
+                        for c in result.claims:
+                            if c.claim_type in ("fact", "number"):
+                                adjusted.append(
+                                    ExtractedClaim(
+                                        claim_text=c.claim_text,
+                                        claim_type="attribution",
+                                        quote_span=c.quote_span,
+                                        normalized_value=None,
+                                        problems=c.problems,
+                                    )
+                                )
+                            else:
+                                adjusted.append(c)
+                        collected.extend((c, article["id"]) for c in adjusted)
+                    else:
+                        collected.extend((c, article["id"]) for c in result.claims)
 
                 # F2-09: olay düzeyinde tekilleştirme — aynı iddia iki
                 # makalede de geçebilir; KAYIT tek olmalı ama KANIT BAĞI
