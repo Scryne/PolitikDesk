@@ -42,7 +42,7 @@ ve Golden Set'te bir fikstür kirliliği ortaya çıkardı.
 
 | ID | Görev | Durum | Çıktı |
 |---|---|---|---|
-| F3-08 | Editoryal Kimlik Kartı (7 soru) | ✅ | `editorial/profile.py` + `/onboarding/profile` |
+| F3-08 | Editoryal Kimlik Kartı (10 soru) | ✅ | `editorial/profile.py` + `/onboarding/profile` |
 | F3-09 | Profil → sistem promptu derleyicisi | ✅ | `editorial/profile_compiler.py` — beyaz listeli |
 | F3-10 | Taslak üretimi — 3 açı | ✅ | `editorial/generator.py` + `prompts/draft.v1.md` |
 | F3-11 | P1 zorlaması | ✅ | `editorial/guards.py` — **409, kapı LLM çağrısından önce** |

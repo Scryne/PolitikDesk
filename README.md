@@ -60,7 +60,7 @@ pd open                       :: Live Feed'i tarayıcıda açar
 (**yeniden kurarak**) → `deploy-check`. Sonrası kendiliğinden akar; boru hattı
 5 dakikada bir toplar, embed eder, kümeler, iddia çıkarır, kanıta bağlar.
 
-İlk kurulumda bir kez: `/onboarding/profile` — **Editoryal Kimlik Kartı** (7 soru).
+İlk kurulumda bir kez: `/onboarding/profile` — **Editoryal Kimlik Kartı** (10 soru).
 Sonra günlük akış:
 
 > **feed → olay → [Bilgilendir | Analiz Et | Eleştir] → yayın öncesi kontrol → kopyala**
@@ -113,6 +113,7 @@ başlığında; bilerek buluta yazmak için `PD_BACKUP_ALLOW_CLOUD=1`.
 ```bat
 pd setup                      :: bağımlılıkları kur
 pd ci                         :: lint + mypy + pip-audit + mimari kural + testler
+pd ui-check                   :: arayüz denetimi — 7 ekran x 4 viewport
 pd help                       :: tüm komutlar
 ```
 
@@ -153,6 +154,13 @@ politikdesk/
 │   └── profile_compiler.py  form -> statik prompt bloğu (ideoloji YOK)
 ├── briefing/    sabah/akşam brifingi — DETERMİNİSTİK, LLM yok      [Faz 3 ✓]
 ├── web/         feed, olay sayfası, taslak, brifing, metrik panosu [Faz 3 ✓]
+│   └── ui/        tasarım sistemi — TEK kabuk, TEK stylesheet (DESIGN.md Ek A)
+│       ├── tokens.py     renk/spacing/tipografi — ham hex YALNIZ burada
+│       ├── css.py        stylesheet, tokens'tan türetilir
+│       ├── icons.py      lucide satır içi SVG — tek set, emoji yok
+│       ├── format.py     Türkçe sayı/tarih/para (Ek B)
+│       ├── components.py DESIGN.md Bölüm 8 bileşen spec'leri
+│       └── shell.py      sidebar + topbar + tema; TÜM sayfalar bunu kullanır
 ├── llm/         sağlayıcı-agnostik adapter + bütçe sayacı + alarm  [Faz 0/4 ✓]
 ├── api/         FastAPI router'ları + manuel içe aktarma          [Faz 0–1 ✓]
 ├── admin/       kaynak yönetimi, makale denetimi, sağlık          [Faz 1 ✓]
@@ -218,6 +226,11 @@ denetleyicisi vardır; denetleyici kırmızıya dönerse CI kırılır.
 | Election Mode varsayılan KAPALI | `tests/test_election_mode.py::test_default_is_off` |
 | Veritabanı/Redis portları dışarı açılmamalı | `docker-compose.yml` → `127.0.0.1:` bağlama (F4-09) |
 | Bağımlılıklarda bilinen açık bulunmamalı | `pip-audit` — CI adımı, `pd audit` (B-83) |
+| Arayüzde ham hex yok — renk yalnız `web/ui/tokens.py`'de | `tests/test_design_tokens.py` |
+| Palet WCAG AA geçer (açık + koyu tema, her metin/zemin çifti) | aynı dosya — oranlar her koşumda hesaplanır |
+| Arayüz fontlarında Türkçe glif tam (`İ ı Ğ ğ Ş ş`) | aynı dosya — woff2 cmap okunur |
+| Ekranlarda emoji ikon yok, tek ikon seti | aynı dosya |
+| `text-transform: uppercase` yok (Türkçede `i`→`I` bozar) | aynı dosya |
 
 Bu kısıtlardan birini gevşetmek isteyen bir değişiklik, Spec'te sürüm artışı gerektirir.
 
@@ -266,7 +279,7 @@ her adımı koşar:
 | `check_architecture` | `evidence/` → `llm/` yasağı |
 | `verify_arch_guard` | korumanın kendisi çalışıyor mu — canlı deney |
 | `migrate up` ×2 | gerçek Postgres+pgvector, ikinci koşum idempotent |
-| `pytest` | **615 test** (32 dosya), DB testleri dahil |
+| `pytest` | **690 test** (33 dosya), DB testleri dahil |
 
 Model kalitesi ayrıca Golden Set üzerinde ölçülür (`pd eval`): kümeleme
 precision/recall, `evidence_status` doğruluğu ve sayısal normalizasyon —

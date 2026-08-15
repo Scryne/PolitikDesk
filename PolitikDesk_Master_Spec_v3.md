@@ -1,5 +1,5 @@
 # PolitikDesk
-## Nihai Ürün Spesifikasyonu — v3.3 (Master Spec)
+## Nihai Ürün Spesifikasyonu — v3.4 (Master Spec)
 ### AI Political Intelligence & Editorial Workspace
 
 ---
@@ -7,12 +7,12 @@
 | | |
 |---|---|
 | **Doküman türü** | Nihai ürün spesifikasyonu — kararların *verildiği* belge |
-| **Sürüm** | 3.3 |
-| **Tarih** | 11 Ağustos 2026 (v3.0) · 12 Ağustos 2026 (v3.1) · 13 Ağustos 2026 (v3.2) · **13 Ağustos 2026 (v3.3)** |
-| **Önceki sürümler** | `PROJE FİKİR RAPORU.md` (v1, vizyon) → `PolitikDesk_Konsolide_Proje_Raporu.md` (eleştirel konsolidasyon) → `PolitikDesk_Proje_Raporu_v2.md` (daraltılmış kapsam) |
-| **Eşlik eden belge** | `PolitikDesk_Yol_Haritasi_v1.md` (faz-faz uygulama planı) |
-| **Statü** | 🔒 **DONDURULDU** — `spec-v3.3`. D1–D15 değiştirmek için yazılı gerekçe + sürüm artışı gerekir (Bölüm 17). |
-| **Değişiklik gerekçesi** | `docs/karar-itirazlari.md` — D1–D15'in madde madde denetimi. v3.1'e taşıyan itirazlar: İtiraz-4 (D8), İtiraz-7 (D9), İtiraz-3 (D11), İtiraz-1 (D14). v3.2: B-55, B-62, B-66, B-72 (uygulama bulguları). **v3.3: D6 kaynak sınırı 8 → azami 15 (F5-01).** Gerekçe ölçümdür, tercih değil: 8 sınırıyla hiçbir olayda `independent_count ≥ 3` sağlanamıyordu, yani §8.3 R2'nin 🟢 durumu ve §13.3'ün `diversity_ratio` hedefi **yapısal olarak erişilemezdi**. Kademe ve bağımsızlık kuralı §9.2'de. |
+| **Sürüm** | 3.4 |
+| **Tarih** | 11 Ağustos 2026 (v3.0) · 12 Ağustos 2026 (v3.1) · 13 Ağustos 2026 (v3.2) · 13 Ağustos 2026 (v3.3) · **14 Ağustos 2026 (v3.4)** |
+| **Önceki sürümler** | `PROJE FİKİR RAPORU.md` (v1) → `PolitikDesk_Konsolide_Proje_Raporu.md` → `PolitikDesk_Proje_Raporu_v2.md` → `v3.0..v3.3` |
+| **Eşlik eden belge** | `PolitikDesk_Yol_Haritasi_v1.md` · `docs/PLAN-SIYASET-DIKEYI.md` |
+| **Statü** | 🔒 **DONDURULDU** — `spec-v3.4`. D1–D15 ve §15 tavizsiz kısıtları korunmuştur. |
+| **Değişiklik gerekçesi** | **v3.4 Siyaset Dikeyine Geçiş:** §5 Çoklu dikey (`verticals/`), §9.2 / D6 dikey başına azami 12 kaynak / toplam 30 tavanı, §8.1 / §8.3 R8 "Beyan Kaydı" (`attribution_verified`), §7.3 `promise` iddia tipi ve `event_relations` (`updates`, `contradicts`, `fulfils`, `fails`), §14.3 "Hesap Sor" 4. taslak açısı, §10.1 dosya tabanlı Editoryal Hat, §12.6 dikey Election Mode varsayılanı, §14.4 isnat dili denetimi. |
 
 ---
 
@@ -765,7 +765,7 @@ KVKK m.6 uyarınca **siyasi düşünce özel nitelikli kişisel veridir.** Bu, h
 
 ### 10.2 MVP'de nasıl toplanır
 
-**Form.** Stil öğrenme (tweet analizi) MVP'de **yoktur.** Kullanıcı onboarding'de 7 soruluk bir formu doldurur ve bir *Editoryal Kimlik Kartı* oluşur. Bu kart bir sistem promptu bloğuna derlenir ve her üretimde statik olarak kullanılır — ham arşiv her seferinde yeniden işlenmez (token maliyeti optimizasyonu).
+**Form.** Stil öğrenme (tweet analizi) MVP'de **yoktur.** Kullanıcı onboarding'de 10 soruluk bir formu doldurur ve bir *Editoryal Kimlik Kartı* oluşur. Bu kart bir sistem promptu bloğuna derlenir ve her üretimde statik olarak kullanılır — ham arşiv her seferinde yeniden işlenmez (token maliyeti optimizasyonu).
 
 **Faz 5'te opsiyonel stil çıkarımı:** kullanıcı kendi tweet arşivini **bir kez** yükler → yalnızca yukarıdaki sol kolondaki biçimsel öznitelikler çıkarılır → kart güncellenir → **ham arşiv işleme sonrası silinir.** Açık rıza metni bu sınırı kelimesi kelimesine belirtir.
 
