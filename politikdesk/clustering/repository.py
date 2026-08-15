@@ -33,8 +33,10 @@ def pending_clustering(limit: int = 50) -> list[dict[str, Any]]:
         cur.execute(
             """
             SELECT a.id, a.title, a.excerpt, a.published_at, a.first_seen_at,
-                   a.embedding::text AS embedding
+                   a.embedding::text AS embedding,
+                   COALESCE(a.vertical, s.vertical, 'macro_economy') AS vertical
             FROM articles a
+            LEFT JOIN sources s ON s.id = a.source_id
             WHERE a.event_id IS NULL
               AND a.embedding IS NOT NULL
               AND a.entities_extracted_at IS NOT NULL
@@ -85,6 +87,7 @@ def load_features(row: dict[str, Any]) -> ArticleFeatures:
         key_entities=key_entities,
         published_at=row["published_at"] or row["first_seen_at"],
         text=" ".join(filter(None, (row["title"], row.get("excerpt")))),
+        vertical=row.get("vertical", "macro_economy"),
     )
 
 
@@ -133,7 +136,7 @@ def candidate_events(
     return candidates
 
 
-def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int:
+def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
     """Yeni olay yaratır; merkez ilk üyenin vektörüdür.
 
     `title`/`summary` tohum makaleden gelir. Spec §7.3 bu alanlar için
@@ -158,8 +161,21 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int:
                 article.published_at,
             ),
         )
-        event_id = fetch_one(cur)["id"]
-        _attach_article(cur, event_id, article.article_id, similarity=None)
+        event_id = int(fetch_one(cur)["id"])
+        attached = _attach_article(
+            cur,
+            event_id,
+            article.article_id,
+            similarity=None,
+            must_be_unassigned=True,
+        )
+        if not attached:
+            # Yarış durumu: makale başka bir worker tarafından çoktan bir olaya atandı.
+            # Oluşturulan olayı geri al ve işlemi iptal et (orphan/ghost event kalmasını önle).
+            conn.rollback()
+            log.warning("event_creation_aborted_already_assigned", article_id=article.article_id)
+            return None
+
         conn.commit()
 
     log.info("event_created", event_id=event_id, article_id=article.article_id)
@@ -167,12 +183,30 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int:
 
 
 def _attach_article(
-    cur: Any, event_id: int, article_id: int, similarity: float | None
-) -> None:
-    cur.execute(
-        "UPDATE articles SET event_id = %s, cluster_score = %s WHERE id = %s",
-        (event_id, similarity, article_id),
-    )
+    cur: Any,
+    event_id: int,
+    article_id: int,
+    similarity: float | None,
+    *,
+    must_be_unassigned: bool = False,
+) -> bool:
+    if must_be_unassigned:
+        cur.execute(
+            """
+            UPDATE articles SET event_id = %s, cluster_score = %s
+            WHERE id = %s AND event_id IS NULL
+            """,
+            (event_id, similarity, article_id),
+        )
+    else:
+        cur.execute(
+            "UPDATE articles SET event_id = %s, cluster_score = %s WHERE id = %s",
+            (event_id, similarity, article_id),
+        )
+
+    if cur.rowcount == 0:
+        return False
+
     # Makalenin varlıkları olayın varlık kümesine katılır — sonraki
     # makalelerin varlık kısıtı bu birikmiş küme üzerinden çalışır.
     cur.execute(
@@ -185,9 +219,10 @@ def _attach_article(
         """,
         (event_id, article_id),
     )
+    return True
 
 
-def assign_article(article: ArticleFeatures, decision: Assignment) -> None:
+def assign_article(article: ArticleFeatures, decision: Assignment) -> bool:
     """Makaleyi mevcut bir olaya atar ve merkezi artımlı günceller (F2-02)."""
     if decision.event_id is None:
         raise ValueError("assign_article yalnızca mevcut bir olay için çağrılır")
@@ -207,6 +242,18 @@ def assign_article(article: ArticleFeatures, decision: Assignment) -> None:
         event = cur.fetchone()
         if event is None:
             raise ValueError(f"Olay bulunamadı: {decision.event_id}")
+
+        attached = _attach_article(
+            cur, decision.event_id, article.article_id, decision.similarity, must_be_unassigned=True
+        )
+        if not attached:
+            conn.rollback()
+            log.warning(
+                "article_assignment_aborted_already_assigned",
+                article_id=article.article_id,
+                event_id=decision.event_id,
+            )
+            return False
 
         new_centroid = add_member(
             _parse_vector(event["centroid"]), event["article_count"], article.embedding
@@ -228,7 +275,6 @@ def assign_article(article: ArticleFeatures, decision: Assignment) -> None:
                 decision.event_id,
             ),
         )
-        _attach_article(cur, decision.event_id, article.article_id, decision.similarity)
 
         if decision.needs_review:
             cur.execute(
@@ -262,3 +308,4 @@ def assign_article(article: ArticleFeatures, decision: Assignment) -> None:
         similarity=decision.similarity,
         needs_review=decision.needs_review,
     )
+    return True

@@ -64,11 +64,13 @@ def run(limit: int = 50, thresholds: Thresholds | None = None) -> ClusterStats:
             stats.processed += 1
 
             if decision.creates_event:
-                repo.create_event(article, row)
-                stats.created += 1
+                created_id = repo.create_event(article, row)
+                if created_id is not None:
+                    stats.created += 1
             else:
-                repo.assign_article(article, decision)
-                stats.assigned += 1
+                assigned = repo.assign_article(article, decision)
+                if assigned:
+                    stats.assigned += 1
 
             if decision.needs_review:
                 stats.needs_review += 1
