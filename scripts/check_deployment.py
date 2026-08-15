@@ -27,7 +27,6 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
 
 # Windows konsolunda UTF-8 / cp1254 kodlama hatalarını önle
 if hasattr(sys.stdout, "reconfigure"):
@@ -191,7 +190,8 @@ def main() -> int:
     from politikdesk.release import get_release_info
 
     repo_rel = get_release_info(include_db_schema=False)
-    print(f"Depo surumu: {repo_rel.app_version} | Git SHA: {repo_rel.git_sha[:12] if repo_rel.git_sha else 'unknown'}")
+    repo_sha_short = repo_rel.git_sha[:12] if repo_rel.git_sha else "unknown"
+    print(f"Depo surumu: {repo_rel.app_version} | Git SHA: {repo_sha_short}")
     print()
 
     has_error = False
@@ -207,7 +207,10 @@ def main() -> int:
         if actual == expected:
             print(f"  [OK]           {container:<10} - kod ozeti: {actual[:16]}")
         else:
-            print(f"  [KAYMA]        {container:<10} - kod ozeti: {actual[:16]} (beklenen: {expected[:16]})")
+            print(
+                f"  [KAYMA]        {container:<10} - "
+                f"kod ozeti: {actual[:16]} (beklenen: {expected[:16]})"
+            )
             has_error = True
 
     # 2. Release Identity Kontrolü
@@ -223,10 +226,17 @@ def main() -> int:
             version_ok = c_rel.get("app_version") == repo_rel.app_version
             sha_status = c_rel.get("git_sha", "unknown")
             if version_ok:
-                print(f"  [OK]    {container:<10} - version={c_rel.get('app_version')} git_sha={sha_status[:12]}")
+                print(
+                    f"  [OK]    {container:<10} - "
+                    f"version={c_rel.get('app_version')} git_sha={sha_status[:12]}"
+                )
             else:
-                print(f"  [KAYMA] {container:<10} - version={c_rel.get('app_version')} (beklenen: {repo_rel.app_version})")
+                print(
+                    f"  [KAYMA] {container:<10} - "
+                    f"version={c_rel.get('app_version')} (beklenen: {repo_rel.app_version})"
+                )
                 has_error = True
+
         except Exception as e:  # noqa: BLE001
             print(f"  [HATA]  {container:<10} - JSON parse hatasi: {e}")
             has_error = True
@@ -299,7 +309,10 @@ def main() -> int:
                     eksik = sorted(set(want_files) - set(got_files))
                     print(f"  [EKSIK DOSYA] {container:<10} - /app/{name}/: {eksik}")
                 else:
-                    print(f"  [OK]          {container:<10} - /app/{name}/ ({len(got_files)} dosya tam)")
+                    print(
+                        f"  [OK]          {container:<10} - "
+                        f"/app/{name}/ ({len(got_files)} dosya tam)"
+                    )
         except Exception as e:  # noqa: BLE001
             print(f"  [HATA]  {container:<10} - Varlik JSON parse hatasi: {e}")
             has_error = True
@@ -308,7 +321,11 @@ def main() -> int:
     print("\n[6/6] Veritabani Sema ve Migration Uyumlulugu:")
     mig_ok, applied_migs, pending_migs = check_db_migrations()
     if mig_ok:
-        print(f"  [OK]    Veritabani guncel. Uygulanan: {len(applied_migs)} migration (Son: {applied_migs[-1] if applied_migs else 'Yok'})")
+        last_mig = applied_migs[-1] if applied_migs else "Yok"
+        print(
+            f"  [OK]    Veritabani guncel. "
+            f"Uygulanan: {len(applied_migs)} migration (Son: {last_mig})"
+        )
     else:
         print(f"  [KAYMA] Bekleyen/Uygulanmamis migration'lar var: {pending_migs}")
         has_error = True
@@ -317,8 +334,12 @@ def main() -> int:
     if has_error:
         print("[SONUC] [FAIL] DAGITIM VE SURUM BUTUNLUGU KAPISI BASARISIZ OLDU.")
         print("        Konteynerler depodaki kod/yapilandirma/sema ile senkron degil.")
-        print("        Duzeltme: docker compose --profile workers up -d --build && python -m scripts.migrate up")
+        print(
+            "        Duzeltme: docker compose --profile workers up -d --build "
+            "&& python -m scripts.migrate up"
+        )
         return 1
+
 
     print("[SONUC] [PASS] DAGITIM VE SURUM BUTUNLUGU KAPISI BASARIYLA GECTI.")
     print("        Tum servisler, moduller, zamanlamalar ve semalar depoyla tam senkron.")

@@ -33,34 +33,34 @@ class Assumptions:
     """Model girdileri. Değiştirmek isteyen buradan değiştirir; hesap otomatik güncellenir."""
 
     # --- Hacim (8 kaynak, MVP dikeyi) ---
-    articles_per_day: int = 200           # 8 kaynak × ~25 yayın/gün
-    events_per_day: int = 35              # ~5-6 makale bir olayda birleşir
-    dedup_rate: float = 0.25              # tekrar/ajans kopyası oranı (LLM'e gitmez)
+    articles_per_day: int = 200  # 8 kaynak × ~25 yayın/gün
+    events_per_day: int = 35  # ~5-6 makale bir olayda birleşir
+    dedup_rate: float = 0.25  # tekrar/ajans kopyası oranı (LLM'e gitmez)
 
     # --- Sabit: makale başına çıkarım (ucuz model) ---
     extraction_model: str = "claude-sonnet-5"
-    tokens_in_per_article: int = 1_200    # başlık + lead + prompt
-    tokens_out_per_article: int = 400     # yapılandırılmış iddia JSON'u
-    cache_hit_ratio: float = 0.85         # sistem promptu önbellekten okunur
+    tokens_in_per_article: int = 1_200  # başlık + lead + prompt
+    tokens_out_per_article: int = 400  # yapılandırılmış iddia JSON'u
+    cache_hit_ratio: float = 0.85  # sistem promptu önbellekten okunur
 
     # --- Sabit: olay başına özetleme (ucuz model) ---
-    tokens_in_per_event: int = 3_000      # kanıt listesi
-    tokens_out_per_event: int = 500       # TL;DR + ne biliyoruz/bilmiyoruz
+    tokens_in_per_event: int = 3_000  # kanıt listesi
+    tokens_out_per_event: int = 500  # TL;DR + ne biliyoruz/bilmiyoruz
 
     # --- Sabit: embedding ---
-    embedding_usd_per_million: float = 0.06   # F0-13 sonucuna göre güncellenir
+    embedding_usd_per_million: float = 0.06  # F0-13 sonucuna göre güncellenir
     tokens_per_embedding: int = 700
 
     # --- Sabit: altyapı ---
-    vps_usd_per_month: float = 30.0       # Hetzner/DO sınıfı tek VPS
+    vps_usd_per_month: float = 30.0  # Hetzner/DO sınıfı tek VPS
     backup_and_monitoring_usd: float = 8.0
 
     # --- Değişken: kullanıcı başına (pahalı model) ---
     generation_model: str = "claude-opus-5"
-    drafts_per_user_per_month: int = 60   # ~2/gün
+    drafts_per_user_per_month: int = 60  # ~2/gün
     tokens_in_per_draft: int = 4_000
     tokens_out_per_draft: int = 800
-    regeneration_rate: float = 0.35       # taslakların %35'i bir kez yeniden üretiliyor
+    regeneration_rate: float = 0.35  # taslakların %35'i bir kez yeniden üretiliyor
 
     briefings_per_user_per_month: int = 60  # sabah + akşam × 30 gün
     tokens_in_per_briefing: int = 2_500
@@ -146,9 +146,7 @@ def compute(a: Assumptions) -> CostBreakdown:
         output_tokens=a.tokens_out_per_event,
     )
 
-    fixed_embedding = (
-        processed * a.tokens_per_embedding / 1_000_000 * a.embedding_usd_per_million
-    )
+    fixed_embedding = processed * a.tokens_per_embedding / 1_000_000 * a.embedding_usd_per_million
     fixed_infra = a.vps_usd_per_month + a.backup_and_monitoring_usd
 
     drafts = a.drafts_per_user_per_month * (1 + a.regeneration_rate)
@@ -184,8 +182,10 @@ def render(a: Assumptions, b: CostBreakdown) -> str:
     add("SABIT MALIYETLER (tum kullanicilar arasinda paylasilir, $/ay)")
     add(f"  Iddia cikarimi   ({a.extraction_model:>18}) : {b.fixed_extraction:8.2f}")
     add(f"  Olay ozetleme    ({a.extraction_model:>18}) : {b.fixed_summarization:8.2f}")
-    add(f"  Embedding        ({a.embedding_usd_per_million:>9.3f} $/M tok) : "
-        f"{b.fixed_embedding:8.2f}")
+    add(
+        f"  Embedding        ({a.embedding_usd_per_million:>9.3f} $/M tok) : "
+        f"{b.fixed_embedding:8.2f}"
+    )
     add(f"  Altyapi (VPS + yedek + izleme)          : {b.fixed_infra:8.2f}")
     add(f"  {'TOPLAM SABIT':<40}: {b.fixed_total:8.2f}")
     add("")
@@ -217,15 +217,14 @@ def to_csv(a: Assumptions, b: CostBreakdown, path: Path) -> None:
         w.writerow(["olay_ozetleme", "sabit", round(b.fixed_summarization, 2)])
         w.writerow(["embedding", "sabit", round(b.fixed_embedding, 2)])
         w.writerow(["altyapi", "sabit", round(b.fixed_infra, 2)])
-        w.writerow(["taslak_uretimi", "degisken_kullanici_basina",
-                    round(b.variable_drafts, 2)])
-        w.writerow(["brifingler", "degisken_kullanici_basina",
-                    round(b.variable_briefings, 2)])
+        w.writerow(["taslak_uretimi", "degisken_kullanici_basina", round(b.variable_drafts, 2)])
+        w.writerow(["brifingler", "degisken_kullanici_basina", round(b.variable_briefings, 2)])
         w.writerow([])
         w.writerow(["kullanici_sayisi", "usd_kullanici_ay", "usd_toplam_ay"])
         for n in a.user_scenarios:
-            w.writerow([n, round(b.per_user(n), 2),
-                        round(b.fixed_total + b.variable_per_user * n, 2)])
+            w.writerow(
+                [n, round(b.per_user(n), 2), round(b.fixed_total + b.variable_per_user * n, 2)]
+            )
 
 
 def main() -> int:

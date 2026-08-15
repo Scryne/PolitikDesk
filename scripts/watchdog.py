@@ -155,8 +155,7 @@ def run(quiet: bool = False) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scripts.watchdog", description=__doc__)
-    parser.add_argument("--quiet", action="store_true",
-                        help="Yalnızca sorun varsa konsola yaz")
+    parser.add_argument("--quiet", action="store_true", help="Yalnızca sorun varsa konsola yaz")
     args = parser.parse_args(argv)
     return run(quiet=args.quiet)
 

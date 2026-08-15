@@ -220,9 +220,13 @@ class HttpClient:
     enable_jitter: bool = False
 
     def __post_init__(self) -> None:
+        accept_hdr = (
+            "application/rss+xml, application/xml, text/xml, "
+            "text/html;q=0.9, */*;q=0.8"
+        )
         base_headers = {
             "User-Agent": self.user_agent,
-            "Accept": "application/rss+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.8",
+            "Accept": accept_hdr,
             "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
             "Accept-Encoding": "gzip, deflate",
         }
@@ -233,7 +237,12 @@ class HttpClient:
             client_timeout = self.timeout
         elif any(
             v is not None
-            for v in (self.connect_timeout, self.read_timeout, self.write_timeout, self.pool_timeout)
+            for v in (
+                self.connect_timeout,
+                self.read_timeout,
+                self.write_timeout,
+                self.pool_timeout,
+            )
         ):
             client_timeout = httpx.Timeout(
                 timeout=self.timeout,
@@ -244,6 +253,7 @@ class HttpClient:
             )
         else:
             client_timeout = httpx.Timeout(self.timeout)
+
 
         self._client = httpx.Client(
             headers=base_headers,
@@ -317,8 +327,9 @@ class HttpClient:
                     method, url, data=data, headers=headers
                 )
             except NON_RETRYABLE_ERRORS as exc:
-                # Kurtarılamaz hata (ör. geçersiz URL, desteklenmeyen protokol): yeniden deneme yapma
+                # Kurtarılamaz hata (ör. geçersiz URL, protokol): yeniden deneme yapma
                 raise exc
+
             except httpx.HTTPError as exc:
                 last_error = exc
                 if attempt < self.max_retries - 1:

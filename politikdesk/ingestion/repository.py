@@ -276,7 +276,7 @@ def health_report(stale_after_hours: int = 6) -> list[dict[str, Any]]:
             status = "inactive"
         elif row["tos_status"] == "pending_review":
             status = "blocked"
-        elif last is None or hours_since is not None and hours_since > stale_after_hours:
+        elif last is None or (hours_since is not None and hours_since > stale_after_hours):
             status = "red"
         elif row["consecutive_errors"] > 0:
             status = "amber"

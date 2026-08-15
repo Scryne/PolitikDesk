@@ -45,7 +45,7 @@ def _topic_priorities(user_id: int) -> list[str]:
     return list(row["topic_priorities"] or []) if row else []
 
 
-def feed(user_id: int, *, limit: int = 40) -> list[dict[str, Any]]:
+def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[dict[str, Any]]:
     """Salience sıralı olay kartları (F3-02).
 
     Kişisel bileşen (0-10) **burada** hesaplanır ve saklanmaz
@@ -53,13 +53,15 @@ def feed(user_id: int, *, limit: int = 40) -> list[dict[str, Any]]:
     saklanan `salience_score` yalnızca global kısımdır.
     """
     priorities = _topic_priorities(user_id)
+    vertical_clause = "AND e.vertical = %s" if vertical and vertical != "all" else ""
+    params: list[Any] = [limit] if not vertical_clause else [vertical, limit]
 
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"""
             SELECT e.id, e.title, e.status, e.salience_score, e.salience_breakdown,
                    e.topic_tags, e.article_count, e.independent_count,
-                   e.has_primary_source, e.review_flag,
+                   e.has_primary_source, e.review_flag, e.vertical,
                    e.first_reported_at, e.last_update_at,
                    (SELECT count(DISTINCT COALESCE(s.independence_group, s.slug))
                       FROM articles a JOIN sources s ON s.id = a.source_id
@@ -73,13 +75,25 @@ def feed(user_id: int, *, limit: int = 40) -> list[dict[str, Any]]:
                    (SELECT count(*) FROM claims c
                      WHERE c.event_id = e.id
                        AND c.evidence_status IN ('unverified','single_source','contradicted')
-                   ) AS weak_claim_count
+                   ) AS weak_claim_count,
+                   -- Çelişkili iddia AYRI sayılır: "zayıf" kümesinin içinde
+                   -- kaybolmamalı. Bir olayda çelişki varsa kartın taşıması
+                   -- gereken sinyal odur, teyit oranı değil.
+                   (SELECT count(*) FROM claims c
+                     WHERE c.event_id = e.id AND c.evidence_status = 'contradicted'
+                   ) AS contradicted_count,
+                   -- Üretim kapısının iki koşulundan ikincisi (guards.py:
+                   -- "no_evidence"). Kartın "kanıta bağlı" etiketi bundan
+                   -- türer; üçüncü koşul (isimli kişi hakkında doğrulanmamış
+                   -- iddia) NER gerektirir ve olay sayfasında sorulur.
+                   (SELECT count(*) FROM evidence ev JOIN claims c ON c.id = ev.claim_id
+                     WHERE c.event_id = e.id) AS evidence_count
             FROM events e
-            WHERE {_VISIBLE}
+            WHERE {_VISIBLE} {vertical_clause}
             ORDER BY e.salience_score DESC NULLS LAST, e.last_update_at DESC
             LIMIT %s
             """,  # noqa: S608 — _VISIBLE sabit bir dize
-            (limit,),
+            params,
         )
         rows = [dict(r) for r in cur.fetchall()]
 
@@ -180,10 +194,11 @@ def event_page(event_id: int, user_id: int) -> dict[str, Any] | None:
             ORDER BY
               CASE c.evidence_status
                 WHEN 'strongly_corroborated' THEN 0
-                WHEN 'partially_corroborated' THEN 1
-                WHEN 'contradicted' THEN 2
-                WHEN 'single_source' THEN 3
-                ELSE 4
+                WHEN 'attribution_verified' THEN 1
+                WHEN 'partially_corroborated' THEN 2
+                WHEN 'contradicted' THEN 3
+                WHEN 'single_source' THEN 4
+                ELSE 5
               END, c.id
             """,
             (event_id,),

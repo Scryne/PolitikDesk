@@ -81,6 +81,27 @@ class GenerationBlocked(Exception):
         return {"blocked": True, "reason": self.reason, "message": self.message, **self.details}
 
 
+class GroundingBlocked(Exception):
+    """Grounding denetiminden geçmemiş taslak doğrudan kabul edilemez veya yayınlanamaz (D12)."""
+
+    def __init__(
+        self,
+        message: str = "Grounding denetiminden geçmemiş taslak kabul edilemez veya yayınlanamaz.",
+        details: dict[str, Any] | None = None,
+    ):
+        super().__init__(message)
+        self.message = message
+        self.details = details or {}
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "blocked": True,
+            "reason": "grounding_failed",
+            "message": self.message,
+            **self.details,
+        }
+
+
 @dataclass(frozen=True)
 class ClaimForGeneration:
     """Üretime girecek tek bir iddia ve kanıtı.

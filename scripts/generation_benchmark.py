@@ -142,9 +142,7 @@ def load_events(path: Path, limit: int) -> list[tuple[str, list[ClaimForGenerati
     imkânsız kılardı — D17'nin aynı gerekçesi.
     """
     rows = [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
     ]
 
     by_event: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -183,14 +181,15 @@ def load_events(path: Path, limit: int) -> list[tuple[str, list[ClaimForGenerati
     return events
 
 
-def _settings_for(
-    provider: str, model: str, timeout: float, retries: int
-) -> Settings:
+def _settings_for(provider: str, model: str, timeout: float, retries: int) -> Settings:
     if provider == "anthropic":
         return Settings(
-            env="test", llm_provider="anthropic",
-            llm_model_extraction=model, llm_model_generation=model,
-            llm_timeout_seconds=timeout, llm_max_retries=retries,
+            env="test",
+            llm_provider="anthropic",
+            llm_model_extraction=model,
+            llm_model_generation=model,
+            llm_timeout_seconds=timeout,
+            llm_max_retries=retries,
         )
     return Settings(
         env="test",
@@ -307,16 +306,15 @@ def render_table(scores: list[GenerationScore]) -> str:
 def main(argv: list[str] | None = None) -> int:
     load_env_file()
 
-    parser = argparse.ArgumentParser(
-        description="Üretim modeli kıyaslaması (taslak yazımı, B-71)"
-    )
+    parser = argparse.ArgumentParser(description="Üretim modeli kıyaslaması (taslak yazımı, B-71)")
     parser.add_argument(
         "--provider", choices=["openai_compat", "anthropic"], default="openai_compat"
     )
     parser.add_argument("--models", help="Virgülle ayrık model listesi")
     parser.add_argument("--events", type=int, default=4)
     parser.add_argument(
-        "--angles", default="inform,analyze,critique",
+        "--angles",
+        default="inform,analyze,critique",
         help=f"Virgülle ayrık açı listesi. Seçenekler: {sorted(ANGLES)}",
     )
     parser.add_argument("--golden", type=Path, default=GOLDEN_CLAIMS)
@@ -328,7 +326,8 @@ def main(argv: list[str] | None = None) -> int:
 
     models = (
         [m.strip() for m in args.models.split(",") if m.strip()]
-        if args.models else list(DEFAULT_CANDIDATES)
+        if args.models
+        else list(DEFAULT_CANDIDATES)
     )
     angles = [a.strip() for a in args.angles.split(",") if a.strip()]
     unknown = [a for a in angles if a not in ANGLES]
@@ -340,16 +339,19 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(f"{args.golden} içinde ≥2 iddialı olay bulunamadı.")
 
     total = len(events) * len(angles) * len(models)
-    print(
-        f"{len(events)} olay x {len(angles)} açı x {len(models)} model = {total} çağrı\n"
-    )
+    print(f"{len(events)} olay x {len(angles)} açı x {len(models)} model = {total} çağrı\n")
 
     scores: list[GenerationScore] = []
     for model in models:
         print(f"-> {model}")
         score = score_model(
-            args.provider, model, events, angles,
-            verbose=args.verbose, timeout=args.timeout, retries=args.retries,
+            args.provider,
+            model,
+            events,
+            angles,
+            verbose=args.verbose,
+            timeout=args.timeout,
+            retries=args.retries,
         )
         scores.append(score)
         print(
@@ -365,7 +367,8 @@ def main(argv: list[str] | None = None) -> int:
         args.out.write_text(
             json.dumps(
                 [{**s.as_dict(), "samples": s.samples} for s in scores],
-                ensure_ascii=False, indent=2,
+                ensure_ascii=False,
+                indent=2,
             ),
             encoding="utf-8",
         )

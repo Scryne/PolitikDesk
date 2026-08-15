@@ -50,6 +50,10 @@ def build_message(
 
 
 def _send_smtp(message: EmailMessage, settings: Settings) -> None:
+    if settings.smtp_host.strip().lower() in ("mock", "test", "file", "local"):
+        log.info("mock_smtp_delivered", to=message["To"], subject=message["Subject"])
+        return
+
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
         if settings.smtp_starttls:
             smtp.starttls()

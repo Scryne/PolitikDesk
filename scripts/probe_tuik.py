@@ -67,18 +67,19 @@ def probe() -> int:
         body = response.text
         flows = re.findall(
             r'<structure:Dataflow[^>]*\bid="([^"]+)"[^>]*>(.*?)</structure:Dataflow>',
-            body, re.DOTALL,
+            body,
+            re.DOTALL,
         )
-        print(f"[OK] SDMX {response.status_code} — {len(body):,} karakter, "
-              f"{len(flows)} veri akisi.")
+        print(
+            f"[OK] SDMX {response.status_code} — {len(body):,} karakter, {len(flows)} veri akisi."
+        )
         print()
         print("MVP konularina yakin akislar:")
         shown = 0
         for flow_id, inner in flows:
             if not any(k in flow_id.upper() for k in INTERESTING):
                 continue
-            name = re.search(r'<common:Name xml:lang="tr">(.*?)</common:Name>',
-                             inner, re.DOTALL)
+            name = re.search(r'<common:Name xml:lang="tr">(.*?)</common:Name>', inner, re.DOTALL)
             print(f"  {flow_id:44} {(name.group(1).strip() if name else '')[:58]}")
             shown += 1
             if shown >= 12:

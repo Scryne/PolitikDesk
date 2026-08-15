@@ -36,7 +36,7 @@ log = get_logger(__name__)
 
 PROMPT_VERSION: Final[str] = "draft.v2"
 
-# Spec §14.3 dil kararı — anahtar, etiket, açıklama.
+# Spec §14.3 dil kararı — anahtar, etiket, açıklama (v3.4: 4. Açı eklendi).
 ANGLES: Final[dict[str, tuple[str, str]]] = {
     "inform": (
         "Bilgilendir",
@@ -51,6 +51,11 @@ ANGLES: Final[dict[str, tuple[str, str]]] = {
         "Eleştir",
         "Kanıttaki boşluğu, çelişkiyi veya eksik bağlamı sorgula. "
         "Eleştiri VERİYE yöneliktir, kişiye değil.",
+    ),
+    "accountability": (
+        "Hesap Sor",
+        "Vaat ve hedefleri gerçekleşmesiyle veya geçmiş beyanları güncel durumla "
+        "yan yana koy. Her iki ucu da doğrudan kanıta ve kayda bağla.",
     ),
 }
 
@@ -74,6 +79,7 @@ STATUS_LABELS: Final[dict[str, str]] = {
     "single_source": "🟠 tek kaynaklı",
     "contradicted": "🔴 çelişkili",
     "unverified": "⚪ doğrulanmamış",
+    "attribution_verified": "🔵 beyan sabit",
 }
 
 TYPE_LABELS: Final[dict[str, str]] = {
@@ -81,6 +87,7 @@ TYPE_LABELS: Final[dict[str, str]] = {
     "number": "sayısal",
     "attribution": "aktarım",
     "prediction": "tahmin",
+    "promise": "vaat/taahhüt",
 }
 
 # Yalnızca bu durumlar "biliniyor" gibi yazılabilir. Diğerleri çekinceyle

@@ -122,6 +122,36 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
         "ebrd", "avrupa imar ve kalkınma bankası",
     ),
     "Dünya Ticaret Örgütü": ("dünya ticaret örgütü", "world trade organization"),
+    # --- Yasama, Yargı ve Siyaset Kurumları (Spec v3.4 §5) ---
+    "Sayıştay": ("sayıştay", "sayistay", "sayıştay başkanlığı"),
+    "Anayasa Mahkemesi": ("anayasa mahkemesi", "aym"),
+    "Yargıtay": ("yargıtay", "yargitay", "yargıtay cumhuriyet başsavcılığı"),
+    "Danıştay": ("danıştay", "danistay"),
+    "Hâkimler ve Savcılar Kurulu": (
+        "hsk", "hâkimler ve savcılar kurulu", "hakimler ve savcilar kurulu",
+    ),
+    "Yüksek Seçim Kurulu": ("ysk", "yüksek seçim kurulu", "yuksek secim kurulu"),
+    "Adalet Bakanlığı": ("adalet bakanlığı", "adalet bakanligi"),
+    "İçişleri Bakanlığı": ("içişleri bakanlığı", "icisleri bakanligi"),
+    "Dışişleri Bakanlığı": ("dışişleri bakanlığı", "disisleri bakanligi"),
+    "Millî Savunma Bakanlığı": ("millî savunma bakanlığı", "milli savunma bakanlığı", "msb"),
+    "İletişim Başkanlığı": ("iletişim başkanlığı", "iletisim baskanligi"),
+    "Radyo ve Televizyon Üst Kurulu": ("rtük", "rtuk", "radyo ve televizyon üst kurulu"),
+    "Bilgi Teknolojileri ve İletişim Kurumu": ("btk", "bilgi teknolojileri ve iletişim kurumu"),
+    # --- Siyasi Partiler ---
+    "Adalet ve Kalkınma Partisi": ("ak parti", "akp", "adalet ve kalkınma partisi"),
+    "Cumhuriyet Halk Partisi": ("chp", "cumhuriyet halk partisi"),
+    "Milliyetçi Hareket Partisi": ("mhp", "milliyetçi hareket partisi"),
+    "Halkların Eşitlik ve Demokrasi Partisi": (
+        "dem parti", "dem", "halkların eşitlik ve demokrasi partisi",
+    ),
+    "İYİ Parti": ("iyi parti", "i̇yi parti"),
+    "Saadet Partisi": ("saadet partisi", "saadet"),
+    "Demokrasi ve Atılım Partisi": ("deva partisi", "deva"),
+    "Gelecek Partisi": ("gelecek partisi", "gelecek"),
+    "Türkiye İşçi Partisi": ("tip", "türkiye işçi partisi", "turkiye isci partisi"),
+    "Yeniden Refah Partisi": ("yrp", "yeniden refah partisi", "yeniden refah"),
+    "Zafer Partisi": ("zafer partisi",),
 }
 
 # Salience formülünün "varlik_onemi" bileşeni (Spec §8.4) için anahtar varlıklar
@@ -134,22 +164,37 @@ KEY_ENTITIES: Final[frozenset[str]] = frozenset({
     "Cumhurbaşkanlığı",
 })
 
+POLITICAL_KEY_ENTITIES: Final[frozenset[str]] = frozenset({
+    "Türkiye Büyük Millet Meclisi",
+    "Sayıştay",
+    "Anayasa Mahkemesi",
+    "Yüksek Seçim Kurulu",
+    "Cumhurbaşkanlığı",
+})
+
 # --------------------------------------------------------------------------
 # Kişi çıkarımı: unvan kalıbı
 # --------------------------------------------------------------------------
-# "Hazine ve Maliye Bakanı Mehmet Şimşek", "TCMB Başkanı Fatih Karahan"
+# "Hazine ve Maliye Bakanı Mehmet Şimşek", "TBMM Başkanı Numan Kurtulmuş"
 _TITLES = (
-    "Bakanı", "Bakan", "Başkanı", "Başkan", "Başkan Yardımcısı",
-    "Genel Müdürü", "Genel Müdür", "Müsteşarı", "Cumhurbaşkanı",
+    "Cumhurbaşkanı Yardımcısı", "Cumhurbaşkanı",
+    "TBMM Başkanı", "Meclis Başkanı",
+    "Grup Başkanvekili", "Grup Başkan Vekili",
+    "Genel Başkan Yardımcısı", "Genel Başkanı", "Genel Başkan",
+    "Bakan Yardımcısı", "Bakanı", "Bakan",
+    "Milletvekili",
+    "Parti Sözcüsü", "Sözcüsü", "Sözcü",
+    "Büyükşehir Belediye Başkanı", "Belediye Başkanı",
+    "Cumhuriyet Başsavcısı", "Başsavcısı", "Başsavcı",
+    "Valisi", "Vali",
+    "Başkan Vekili", "Başkanvekili", "Başkan Yardımcısı", "Başkanı", "Başkan",
+    "Genel Müdürü", "Genel Müdür", "Müsteşarı",
 )
 _TITLE_ALT = "|".join(sorted(_TITLES, key=len, reverse=True))
 _NAME_PART = r"[A-ZÇĞİÖŞÜ][a-zçğıöşü]+"
 _PERSON_RE = re.compile(
     rf"(?:{_TITLE_ALT})\s+((?:{_NAME_PART}\s+){{0,2}}{_NAME_PART})"
 )
-
-# "Mehmet Şimşek, ..." biçiminde tekrar geçen isimler için ikinci geçiş
-_STANDALONE_NAME_RE = re.compile(rf"\b({_NAME_PART}\s+{_NAME_PART})\b")
 
 
 def _fold(text: str) -> str:

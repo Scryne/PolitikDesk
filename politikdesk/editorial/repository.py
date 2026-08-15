@@ -33,10 +33,11 @@ def load_claims_for_generation(event_id: int) -> list[ClaimForGeneration]:
             ORDER BY
               CASE c.evidence_status
                 WHEN 'strongly_corroborated' THEN 0
-                WHEN 'partially_corroborated' THEN 1
-                WHEN 'contradicted' THEN 2
-                WHEN 'single_source' THEN 3
-                ELSE 4
+                WHEN 'attribution_verified' THEN 1
+                WHEN 'partially_corroborated' THEN 2
+                WHEN 'contradicted' THEN 3
+                WHEN 'single_source' THEN 4
+                ELSE 5
               END,
               c.id
             """,

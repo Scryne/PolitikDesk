@@ -10,8 +10,7 @@ sürdürmekten ucuzdur. Otomatik besleme, akış bulunduğunda gelir (B-42).
 
 from __future__ import annotations
 
-import html
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -62,39 +61,155 @@ def calendar_match() -> dict[str, int]:
     return match_pending()
 
 
-def _linked_cell(row: dict[str, Any]) -> str:
-    event_id = row.get("linked_event_id")
-    if not event_id:
-        return "—"
-    title = html.escape((row.get("linked_event_title") or "")[:50])
-    return f"<a href='/admin/events/{event_id}'>{title}</a>"
+# Durum -> (token, etiket). Ham anahtar gösterilmez (Ek B.2 sistem dili).
+_STATUS = {
+    "pending": ("neutral", "bekliyor"),
+    "matched": ("strong", "gerçekleşti"),
+    "missed": ("single", "kaçırıldı"),
+    "cancelled": ("unverified", "iptal"),
+}
 
 
 @router.get("/calendar/", response_class=HTMLResponse)
 def calendar_dashboard() -> str:
-    rows = "".join(
-        "<tr>"
-        f"<td>{html.escape(str(r['expected_at'])[:16])}</td>"
-        f"<td>{html.escape(r['title'][:80])}</td>"
-        f"<td>{html.escape(r['source_slug'] or '—')}</td>"
-        f"<td>{html.escape(r['status'])}</td>"
-        f"<td>{_linked_cell(r)}</td>"
-        "</tr>"
-        for r in list_scheduled(limit=200)
+    """Beklenen gelişmeler ekranı (F2-18/F2-19).
+
+    Bu sayfanın tek işi (BRIEF): *"Sırada ne var ve gerçekleşen olayla
+    eşleşti mi?"* — bu yüzden **bekleyenler üstte** durur ve geçmiş
+    kayıtlar altta. Tabloyu tarihe göre tek blokta dizmek, kullanıcıyı
+    "bugün nerede" diye aramaya zorlardı.
+    """
+    from datetime import datetime
+
+    from politikdesk.web.ui import (
+        button,
+        card,
+        cell,
+        empty_state,
+        esc,
+        kpi,
+        page,
+        page_head,
+        relative_time,
+        table,
     )
-    return (
-        "<!doctype html><html lang='tr'><head><meta charset='utf-8'>"
-        "<title>PolitikDesk — Beklenen Gelişmeler</title><style>"
-        "body{font-family:system-ui,sans-serif;margin:2rem;max-width:1000px}"
-        "table{border-collapse:collapse;width:100%}"
-        "th,td{border-bottom:1px solid #d0d7de;padding:.5rem;text-align:left;font-size:.9rem}"
-        "th{background:#f6f8fa}small{color:#656d76}"
-        "</style></head><body>"
-        "<h1>Beklenen Gelişmeler</h1>"
-        "<p><small>Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. "
-        "Gerçekleşen olay otomatik bağlanır (F2-19).</small></p>"
-        "<table><tr><th>Beklenen zaman</th><th>Başlık</th><th>Kaynak</th>"
-        f"<th>Durum</th><th>Bağlanan olay</th></tr>{rows}</table>"
-        "<p><a href='/admin/'>← panoya dön</a></p>"
-        "</body></html>"
+    from politikdesk.web.ui import (
+        format as fmt,
+    )
+
+    items = list_scheduled(limit=200)
+    now = datetime.now(UTC)
+
+    def is_upcoming(row: dict[str, Any]) -> bool:
+        expected = row.get("expected_at")
+        if not isinstance(expected, datetime):
+            return row.get("status") == "pending"
+        reference = now if expected.tzinfo else now.replace(tzinfo=None)
+        return expected >= reference and row.get("status") == "pending"
+
+    upcoming = [r for r in items if is_upcoming(r)]
+    past = [r for r in items if not is_upcoming(r)]
+    matched = sum(1 for r in items if r.get("status") == "matched")
+
+    def build_rows(rows: list[dict[str, Any]]) -> list[str]:
+        out = []
+        for r in rows:
+            token, label = _STATUS.get(r["status"], ("neutral", r["status"]))
+            event_id = r.get("linked_event_id")
+            linked = (
+                f'<a href="/event/{event_id}">'
+                f'{esc((r.get("linked_event_title") or "")[:50])}</a>'
+                if event_id
+                else '<span class="subtle">—</span>'
+            )
+            out.append(
+                "<tr>"
+                + cell(
+                    f'{esc(fmt.date_time(r["expected_at"]))}'
+                    f'<div class="cell-sub">{relative_time(r["expected_at"])}</div>',
+                    label="Beklenen zaman",
+                )
+                + cell(esc(r["title"][:100]), label="Başlık")
+                + cell(
+                    f'<span class="mono subtle">{esc(r["source_slug"] or "—")}</span>',
+                    label="Kaynak",
+                )
+                + cell(f'<span class="badge {token}">{esc(label)}</span>',
+                       label="Durum")
+                + cell(linked, label="Bağlanan olay")
+                + "</tr>"
+            )
+        return out
+
+    headers = (
+        ("Beklenen zaman", ""), ("Başlık", ""), ("Kaynak", ""),
+        ("Durum", ""), ("Bağlanan olay", ""),
+    )
+
+    if items:
+        upcoming_card = card(
+            table(headers, build_rows(upcoming))
+            if upcoming
+            else empty_state(
+                "Sırada bekleyen yok",
+                "Takvim elle girilir (TÜİK veri takvimi, TCMB PPK tarihleri). "
+                "Yeni kayıt için POST /admin/calendar.",
+                icon_name="calendar",
+            ),
+            title=f"Sırada · {len(upcoming)}",
+        )
+        past_card = (
+            card(table(headers, build_rows(past)), title=f"Geçmiş · {len(past)}")
+            if past
+            else ""
+        )
+    else:
+        upcoming_card = card(
+            empty_state(
+                "Takvim boş",
+                "Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. TÜİK "
+                "veri takvimi ve TCMB PPK tarihleri elle girilir — yılda bir "
+                "kez değişen 12 aylık bir listeyi elle girmek, kırılgan bir "
+                "kazıyıcı sürdürmekten ucuzdur (B-42).",
+                action=button("Boru hattına dön", href="/admin/", variant="primary"),
+                icon_name="calendar",
+            )
+        )
+        past_card = ""
+
+    body = f"""
+{page_head(
+    "Beklenen gelişmeler",
+    lede="Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. "
+         "Gerçekleşen olay otomatik bağlanır (F2-19).",
+    actions=button("Eşleştirmeyi çalıştır", icon_name="refresh",
+                   onclick="pdMatch()"),
+)}
+<div class="stack">
+  <div class="kpis">
+    {kpi("Sırada", fmt.number(len(upcoming)), unit="kayıt", icon_name="calendar")}
+    {kpi("Gerçekleşti", fmt.number(matched), unit="kayıt", icon_name="check")}
+    {kpi("Toplam", fmt.number(len(items)), unit="kayıt", icon_name="briefing")}
+  </div>
+  {upcoming_card}
+  {past_card}
+</div>
+"""
+    js = """
+async function pdMatch(){
+  try {
+    var r = await fetch('/admin/calendar/match', {method:'POST'});
+    if (!r.ok) throw new Error(r.status);
+    location.reload();
+  } catch (e) {
+    alert('Eşleştirme çalıştırılamadı. Veritabanına ulaşılamıyor olabilir.');
+  }
+}
+"""
+    return page(
+        "Beklenen gelişmeler",
+        body,
+        active="/admin/calendar/",
+        crumbs=(("Denetim", None), ("Beklenen gelişmeler", None)),
+        extra_js=js,
     )

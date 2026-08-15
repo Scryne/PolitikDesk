@@ -1,0 +1,926 @@
+"""Adversarial Holdout V2 Üretici (N=200)
+
+20 Kategori x 10 Vaka = 200 Bağımsız Test Vakası.
+Kod tabanına sızıntı içermez; bağımsız morfolojik, anlamsal ve anayasal test oraklı olarak üretilir.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+OUT_FILE = Path(__file__).resolve().parent / "golden_set_adversarial_v2.jsonl"
+
+
+def build_cases() -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    case_idx = 0
+
+    def add(
+        cat: str,
+        is_pos: bool,
+        expected: str,
+        s_title: str,
+        s_date: str,
+        s_inst: str | None,
+        s_actor: str | None,
+        s_topics: list[str],
+        s_claim: str,
+        s_ctype: str,
+        t_title: str,
+        t_date: str,
+        t_inst: str | None,
+        t_actor: str | None,
+        t_topics: list[str],
+        t_claim: str,
+        t_ctype: str,
+        s_entities: list[str] | None = None,
+        t_entities: list[str] | None = None,
+        sim: float | None = None,
+    ) -> None:
+        nonlocal case_idx
+        case_idx += 1
+        cid = f"ADV2-{case_idx:03d}"
+        cases.append(
+            {
+                "case_id": cid,
+                "category": cat,
+                "is_positive": is_pos,
+                "expected_relation": expected,
+                "source_event": {
+                    "event_id": 2000 + case_idx * 2 - 1,
+                    "title": s_title,
+                    "published_at": s_date,
+                    "institution": s_inst,
+                    "actor": s_actor,
+                    "topics": s_topics,
+                    "entities": s_entities or [],
+                    "claims": [{"claim_text": s_claim, "claim_type": s_ctype}],
+                },
+                "target_event": {
+                    "event_id": 2000 + case_idx * 2,
+                    "title": t_title,
+                    "published_at": t_date,
+                    "institution": t_inst,
+                    "actor": t_actor,
+                    "topics": t_topics,
+                    "entities": t_entities or [],
+                    "claims": [{"claim_text": t_claim, "claim_type": t_ctype}],
+                },
+                "semantic_similarity": sim,
+            }
+        )
+
+    # =========================================================================
+    # 1. NEGATION INFLECTION (10 cases: 5 polar contradicts, 5 negative checks)
+    # =========================================================================
+    add(
+        "negation_inflection", True, "contradicts",
+        "Hükümet: Emeklilere bayram ikramiyesi artırılacak", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanı", ["sosyal_guvenlik"], "Bayram ikramiyesi artırılacak", "promise",
+        "Bakanlık: İkramiyelerde artış yapılmayacak ve mevcut tutar korunacak", "2026-08-10T10:00:00+03:00",
+        "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", ["sosyal_guvenlik"], "Artış yapılmayacak", "fact"
+    )
+    add(
+        "negation_inflection", True, "contradicts",
+        "Ulaştırma Bakanı: Köprü ve otoyol geçiş ücretlerine bu yıl zam yapılmayacak", "2026-08-01T10:00:00+03:00",
+        "Ulaştırma ve Altyapı Bakanlığı", "Ulaştırma Bakanı", ["ulasim"], "Köprü geçişlerine zam yapılmayacak", "promise",
+        "Karayolları Genel Müdürlüğü: Otoyol ve köprü geçiş tarifesi yüzde 30 artırıldı", "2026-08-15T10:00:00+03:00",
+        "Ulaştırma ve Altyapı Bakanlığı", "Karayolları Genel Müdürü", ["ulasim"], "Tarife artırıldı", "fact"
+    )
+    add(
+        "negation_inflection", True, "contradicts",
+        "Maliye Bakanlığı: Kira stopaj oranlarında artış düşünülmüyor ve planlanmıyor", "2026-08-01T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", ["vergi_politikasi"], "Stopaj artışı planlanmıyor", "promise",
+        "Resmi Gazete: Kira gelirlerinde tevkifat ve stopaj oranı yükseltildi", "2026-08-12T04:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanlığı", ["vergi_politikasi"], "Stopaj yükseltildi", "fact"
+    )
+    add(
+        "negation_inflection", True, "contradicts",
+        "Bakan: Öğretmen atamalarında mülakat sistemi devam etmeyecek", "2026-08-01T10:00:00+03:00",
+        "Milli Eğitim Bakanlığı", "Milli Eğitim Bakanı", ["egitim"], "Mülakat devam etmeyecek", "promise",
+        "MEB: Yeni sözleşmeli öğretmenlik alımında mülakat uygulanması zorunlu kılındı", "2026-08-14T10:00:00+03:00",
+        "Milli Eğitim Bakanlığı", "Milli Eğitim Bakanlığı", ["egitim"], "Mülakat zorunlu kılındı", "fact"
+    )
+    add(
+        "negation_inflection", True, "contradicts",
+        "Enerji Bakanı: Doğalgaz faturalarına kış boyunca sübvansiyon devam edecek zam verilmeyecek", "2026-08-01T10:00:00+03:00",
+        "Enerji ve Tabii Kaynaklar Bakanlığı", "Enerji Bakanı", ["enerji"], "Doğalgaza zam verilmeyecek", "promise",
+        "BOTAŞ: Konut doğalgaz tarifesinde yüzde 20 oranında fiyat artışı yapıldı", "2026-08-16T10:00:00+03:00",
+        "Enerji ve Tabii Kaynaklar Bakanlığı", "BOTAŞ", ["enerji"], "Tarife artırıldı", "fact"
+    )
+    add(
+        "negation_inflection", False, "none",
+        "Tarım Bakanlığı: Hububat alım fiyatlarında indirim yapılmayacak", "2026-08-01T10:00:00+03:00",
+        "Tarım ve Orman Bakanlığı", "Tarım Bakanı", ["tarim"], "Fiyat indirimi yapılmayacak", "promise",
+        "TMO: Buğday taban alım fiyatı geçen yılki seviyenin üzerinde belirlendi", "2026-08-10T10:00:00+03:00",
+        "Tarım ve Orman Bakanlığı", "TMO", ["tarim"], "Alım fiyatı artırıldı", "fact"
+    )
+    add(
+        "negation_inflection", False, "none",
+        "Çevre Bakanlığı: Koruma altındaki göl kıyısında imar izni verilmeyecek", "2026-08-01T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "Çevre Bakanı", ["cevre"], "İmar izni verilmeyecek", "promise",
+        "Bakanlık Kararı: Göl havzası kesin korunacak hassas alan ilan edildi", "2026-08-10T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "Çevre ve Şehircilik Bakanlığı", ["cevre"], "Kesin koruma kararı alındı", "fact"
+    )
+    add(
+        "negation_inflection", False, "none",
+        "Sağlık Bakanlığı: Aşı takviminde herhangi bir kesinti veya kısıtlama söz konusu değil", "2026-08-01T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Sağlık Bakanı", ["saglik"], "Kısıtlama söz konusu değil", "fact",
+        "Sağlık Bakanlığı: Tüm sağlık ocaklarında rutin aşı tedariği eksiksiz sağlandı", "2026-08-10T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Sağlık Bakanlığı", ["saglik"], "Tedarik sağlandı", "fact"
+    )
+    add(
+        "negation_inflection", False, "none",
+        "Ticaret Bakanlığı: İthalat kotalarında esneme gündemde değil", "2026-08-01T10:00:00+03:00",
+        "Ticaret Bakanlığı", "Ticaret Bakanı", ["ticaret"], "Esneme gündemde değil", "fact",
+        "Gümrükler Genel Müdürlüğü: İlave gümrük vergisi denetimleri sıkılaştırıldı", "2026-08-10T10:00:00+03:00",
+        "Ticaret Bakanlığı", "Gümrükler Genel Müdürlüğü", ["ticaret"], "Denetim sıkılaştırıldı", "fact"
+    )
+    add(
+        "negation_inflection", False, "none",
+        "Sanayi Bakanlığı: Teknoloji destek bütçesinde kesinti öngörülmüyor", "2026-08-01T10:00:00+03:00",
+        "Sanayi ve Teknoloji Bakanlığı", "Sanayi Bakanı", ["sanayi"], "Kesinti öngörülmüyor", "fact",
+        "TÜBİTAK: 2026 Yılı Ar-Ge ve Yenilik Hibe Çağrısı Bütçesi Artırılarak Yayımlandı", "2026-08-10T10:00:00+03:00",
+        "Sanayi ve Teknoloji Bakanlığı", "TÜBİTAK", ["sanayi"], "Hibe çağrısı açıldı", "fact"
+    )
+
+    # =========================================================================
+    # 2. ATTRIBUTION & SPEAKER STANCE (10 cases)
+    # =========================================================================
+    add(
+        "attribution_speaker", True, "contradicts",
+        "Muhalefet Sözcüsü: Hükümet elektrik tarifelerine yüzde 50 zam yapmaya hazırlanıyor", "2026-08-01T10:00:00+03:00",
+        "TBMM", "Muhalefet Sözcüsü", ["enerji"], "Yüzde 50 zam planlanıyor iddiası", "attribution",
+        "Enerji Bakanlığı: Muhalefetin elektrik zammı iddiası asılsızdır öyle bir zam gündemde değildir", "2026-08-02T10:00:00+03:00",
+        "Enerji ve Tabii Kaynaklar Bakanlığı", "Enerji Bakanı", ["enerji"], "Zam iddiası reddedildi", "fact"
+    )
+    add(
+        "attribution_speaker", True, "contradicts",
+        "Sendika Başkanı: Asgari ücrete ek zam verileceği bilgisini aldık", "2026-08-01T10:00:00+03:00",
+        "İşçi Sendikası", "Sendika Başkanı", ["calisma"], "Ek zam verilecek", "attribution",
+        "Çalışma Bakanı: Asgari ücrete ara zam yapılması kesinlikle söz konusu değildir", "2026-08-03T10:00:00+03:00",
+        "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", ["calisma"], "Ara zam yalanlandı", "fact"
+    )
+    add(
+        "attribution_speaker", True, "updates",
+        "Bakanlık Sözcüsü: Yeni vergi paketi üzerinde teknik çalışmalar devam ediyor", "2026-08-01T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Bakanlık Sözcüsü", ["vergi"], "Çalışmalar sürüyor", "fact",
+        "Hazine Bakanı: Vergi adaletini güçlendirecek yasa taslağını Meclise sunuyoruz", "2026-08-08T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", ["vergi"], "Taslak Meclise sunuldu", "fact"
+    )
+    add(
+        "attribution_speaker", False, "none",
+        "Gazete Haberi: Ulaştırma Bakanı yeni otoyol projesini duyurdu", "2026-08-01T10:00:00+03:00",
+        "Medya", "Gazeteci", ["ulasim"], "Otoyol projesi duyuruldu", "attribution",
+        "Çevre Derneği: Maden sahalarında ağaç kesimi durdurulmalı", "2026-08-10T10:00:00+03:00",
+        "Sivil Toplum", "Dernek Başkanı", ["maden"], "Ağaç kesimi durdurulsun", "fact"
+    )
+    add(
+        "attribution_speaker", False, "none",
+        "Ekonomist Yorumu: Faiz artışı gelebilir", "2026-08-01T10:00:00+03:00",
+        "Medya", "Ekonomist", ["finans"], "Faiz artışı beklentisi", "prediction",
+        "TCMB Para Politikası Kurulu: Politika faizi yüzde 50 seviyesinde sabit tutuldu", "2026-08-15T14:00:00+03:00",
+        "TCMB", "TCMB", ["finans"], "Faiz sabit tutuldu", "fact"
+    )
+    add(
+        "attribution_speaker", False, "none",
+        "Parti İl Başkanı: Yerel seçimde ilimize hafif raylı sistem kazandıracağız", "2026-08-01T10:00:00+03:00",
+        "Siyasi Parti", "İl Başkanı", ["ulasim"], "Raylı sistem sözü verildi", "promise",
+        "Farklı İlçe Belediyesi: Park bakım ihalesi sözleşmesi imzalandı", "2026-08-10T10:00:00+03:00",
+        "İlçe Belediyesi", "Belediye Başkanı", ["belediye"], "Park ihalesi yapıldı", "fact"
+    )
+    add(
+        "attribution_speaker", True, "contradicts",
+        "Bakan Danışmanı: Yurtdışı harçlarının kaldırılması gündemde", "2026-08-01T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Bakan Danışmanı", ["vergi"], "Harç kaldırılacak iddiası", "attribution",
+        "Hazine Bakanlığı: Yurtdışı çıkış harcının kaldırılacağı yönündeki haberler gerçeği yansıtmamaktadır", "2026-08-05T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine ve Maliye Bakanlığı", ["vergi"], "Haberler yalanlandı", "fact"
+    )
+    add(
+        "attribution_speaker", False, "none",
+        "Yazar İddiası: Sağlıkta yeni reform paketi rafa kalktı", "2026-08-01T10:00:00+03:00",
+        "Medya", "Köşe Yazarı", ["saglik"], "Reform paketi iptal oldu", "attribution",
+        "Milli Savunma Bakanlığı: Hudut güvenliği haftalık bilgilendirme toplantısı", "2026-08-10T10:00:00+03:00",
+        "Milli Savunma Bakanlığı", "MSB Sözcüsü", ["savunma"], "Hudut güvenliği sağlandı", "fact"
+    )
+    add(
+        "attribution_speaker", True, "updates",
+        "Belediye Sözcüsü: Kentsel dönüşüm kira desteği artışı için çalışma yürütülüyor", "2026-08-01T10:00:00+03:00",
+        "Büyükşehir Belediyesi", "Belediye Sözcüsü", ["konut"], "Kira desteği çalışması yapılıyor", "fact",
+        "Belediye Meclisi Kararı: Dönüşüm kira yardımı aylık 10 bin TL olarak güncellendi", "2026-08-12T10:00:00+03:00",
+        "Büyükşehir Belediyesi", "Belediye Meclisi", ["konut"], "Kira yardımı güncellendi", "fact"
+    )
+    add(
+        "attribution_speaker", False, "none",
+        "Borsa Aracılık Şirketi: Sanayi hisselerinde ralli beklentisi", "2026-08-01T10:00:00+03:00",
+        "Özel Sektör", "Analist", ["borsa"], "Hisselerde yükseliş tahmini", "prediction",
+        "Sanayi Bakanlığı: Organize Sanayi Bölgeleri Altyapı Yönetmeliği Değişti", "2026-08-10T10:00:00+03:00",
+        "Sanayi ve Teknoloji Bakanlığı", "Sanayi Bakanlığı", ["sanayi"], "Yönetmelik değişti", "fact"
+    )
+
+    # =========================================================================
+    # 3. QUOTATION & STANCE INVERSION (10 cases)
+    # =========================================================================
+    add(
+        "quotation_rejection", True, "contradicts",
+        "Vaat: Konut alımında ilk evim konut kredisi faizi yüzde 1 altına indirilecek", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanı", ["konut_kredisi"], "Konut kredisi faizi düşürülecek", "promise",
+        "BDDK ve Bankalar: 'Konut kredisi faizleri düşürülecek' iddialarını yalanladı kampanya yok", "2026-08-10T10:00:00+03:00",
+        "BDDK", "BDDK Başkanı", ["konut_kredisi"], "Kredi indirimi yalanlandı", "fact"
+    )
+    add(
+        "quotation_rejection", True, "contradicts",
+        "Açıklama: Kamuda 3 maaş alan bürokratların ek gelirleri kesilecek", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Hükümet Sözcüsü", ["kamu_istihdami"], "Ek yönetim kurulu maaşları kaldırılacak", "promise",
+        "Bakanlık: 'Çift dikiş maaşlar kesildi' haberlerinin gerçeği yansıtmadığı açıklandı uygulama sürüyor", "2026-08-12T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine Bakanlığı", ["kamu_istihdami"], "Maaş kısıtı yalanlandı", "fact"
+    )
+    add(
+        "quotation_rejection", True, "fulfils",
+        "Vaat: Esnafa 250 bin TL faizsiz cansuyu kredisi verilecek", "2026-08-01T10:00:00+03:00",
+        "Ticaret Bakanlığı", "Ticaret Bakanı", ["esnaf_kredi"], "250 bin TL kredi sağlanacak", "promise",
+        "Halkbank: Esnaf Cansuyu Kredisi Başvuruları Resmi Olarak Başladı Kredi Tahsisleri Yapıldı", "2026-08-15T10:00:00+03:00",
+        "Ticaret Bakanlığı", "Halkbank", ["esnaf_kredi"], "Kredi kullandırımı başladı", "fact"
+    )
+    add(
+        "quotation_rejection", False, "none",
+        "Soru Önergesi: 'Bakanlık binası tadilatı için 50 milyon TL harcandı mı?'", "2026-08-01T10:00:00+03:00",
+        "TBMM", "Milletvekili", ["kamu_harcamalari"], "Tadilat harcaması soruldu", "fact",
+        "Enerji Bakanlığı: Rüzgar Enerjisi Santrali Kapasite Tahsis İhalesi Tamamlandı", "2026-08-10T10:00:00+03:00",
+        "Enerji ve Tabii Kaynaklar Bakanlığı", "Enerji Bakanlığı", ["enerji"], "RES ihalesi sonuçlandı", "fact"
+    )
+    add(
+        "quotation_rejection", True, "fails",
+        "Taahhüt: Şehir hastanesi inşaatı 2026 Ağustos ayında eksiksiz tamamlanacak", "2026-08-01T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Sağlık Bakanı", ["hastane_yatirimi"], "Hastane tamamlanacak", "promise",
+        "Sayıştay Raporu: Şehir hastanesi inşaatında yüzde 40 gecikme ve haksız ödenek aşımı usulsüzlüğü", "2026-08-20T10:00:00+03:00",
+        "Sayıştay", "Sayıştay", ["hastane_yatirimi"], "Ödenek aşımı ve gecikme tespit edildi", "fact"
+    )
+    add(
+        "quotation_rejection", False, "none",
+        "Ziyaret Haberi: Bakan 'Çiftçimizin yanındayız' dedi", "2026-08-01T10:00:00+03:00",
+        "Tarım ve Orman Bakanlığı", "Tarım Bakanı", ["tarim"], "Çiftçiye destek mesajı", "fact",
+        "Kültür Bakanlığı: Tarihi surların restorasyon ihalesi yayımlandı", "2026-08-10T10:00:00+03:00",
+        "Kültür ve Turizm Bakanlığı", "Kültür Varlıkları Genel Müdürlüğü", ["kultur"], "Restorasyon ihalesi yapıldı", "fact"
+    )
+    add(
+        "quotation_rejection", True, "contradicts",
+        "Hükümet: İlaç fiyat farkı ödemeleri kaldırılacak vatandaşa ek yük gelmeyecek", "2026-08-01T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Sağlık Bakanı", ["saglik"], "Fiyat farkı kaldırılacak", "promise",
+        "SGK Tebliği: Eşdeğer ilaç taban fiyat baremi düşürüldü vatandaşın ödeyeceği fark artırıldı", "2026-08-15T04:00:00+03:00",
+        "Sağlık Bakanlığı", "SGK", ["saglik"], "İlaç farkı artırıldı", "fact"
+    )
+    add(
+        "quotation_rejection", False, "none",
+        "Röportaj: 'Yatırımların artmasını umuyoruz'", "2026-08-01T10:00:00+03:00",
+        "Özel Sektör", "İş İnsanı", ["ekonomi"], "Yatırım temennisi", "fact",
+        "Milli Savunma Bakanlığı: Savunma Sanayii İcra Komitesi Kararları Açıklandı", "2026-08-10T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanlığı", ["savunma"], "SSİK kararları alındı", "fact"
+    )
+    add(
+        "quotation_rejection", True, "fulfils",
+        "Taahhüt: Deprem bölgesindeki hafif hasarlı binalara güçlendirme hibesi ödenecek", "2026-08-01T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "Çevre Bakanı", ["deprem_konut"], "Güçlendirme hibesi verilecek", "promise",
+        "AFAD: Deprem Güçlendirme Hibe Ödemeleri Hak Sahiplerinin Banka Hesaplarına Yatırıldı", "2026-08-15T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "AFAD", ["deprem_konut"], "Hibe hesaplara yatırıldı", "fact"
+    )
+    add(
+        "quotation_rejection", False, "none",
+        "Akademik Çalışma: 'Trafik yoğunluğu son beş yılda arttı'", "2026-08-01T10:00:00+03:00",
+        "Üniversite", "Araştırmacı", ["ulasim"], "Trafik analizi", "fact",
+        "Hazine Bakanlığı: Devlet Borçlanma Senedi İhale Sonuçları", "2026-08-10T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine ve Maliye Bakanlığı", ["finans"], "DİBS ihalesi yapıldı", "fact"
+    )
+
+    # =========================================================================
+    # 4. TEMPORAL INVERSION & CHRONOLOGY (10 cases: all negative controls)
+    # =========================================================================
+    for i in range(10):
+        add(
+            "temporal_inversion", False, "none",
+            f"Gelecek Vaat {i+1}: 2027 Yılında Kamu Çalışanlarına Yeni Ek Gösterge Verilecek", "2026-08-20T10:00:00+03:00",
+            "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", ["kamu_istihdami"], "Ek gösterge düzenlenecek", "promise",
+            f"Geçmiş Olay {i+1}: Sayıştay 2024 Yılı Kamu Personel Harcamaları Denetim Raporu", f"2025-0{i%8+1}-10T10:00:00+03:00",
+            "Sayıştay", "Sayıştay", ["kamu_istihdami"], "Geçmiş bütçe açığı", "fact"
+        )
+
+    # =========================================================================
+    # 5. INSTITUTION / CITY / REGION COLLISIONS (10 cases)
+    # =========================================================================
+    add(
+        "institution_city_collision", False, "none",
+        "Bursa Ticaret ve Sanayi Odası: Üyelerimize Düşük Faizli İhracat Kredisi Sağlanacak", "2026-08-01T10:00:00+03:00",
+        "Bursa Ticaret ve Sanayi Odası", "Oda Başkanı", ["sanayi_ihracat"], "İhracat kredisi verilecek", "promise",
+        "Bursa Valiliği İl Umumi Hıfzıssıhha Meclisi: Orman Yangınlarına Karşı Giriş Yasağı Kararı", "2026-08-10T10:00:00+03:00",
+        "Bursa Valiliği", "Bursa Valisi", ["orman_yangini"], "Orman giriş yasağı getirildi", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "İzmir Tabip Odası: Aile Sağlığı Merkezlerinde Güvenlik Tedbirleri Artırılmalı", "2026-08-01T10:00:00+03:00",
+        "İzmir Tabip Odası", "Oda Başkanı", ["saglik"], "Güvenlik tedbiri talebi", "fact",
+        "İzmir Büyükşehir Belediyesi: Şehirlerarası Otobüs Terminali Yenileme İhalesi", "2026-08-10T10:00:00+03:00",
+        "İzmir Büyükşehir Belediyesi", "Belediye Başkanı", ["ulasim"], "Terminal ihalesi yapıldı", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "Ankara Sanayi Odası: Mesleki Eğitim Merkezleri İçin Sanayi Odası Fonu Kurulacak", "2026-08-01T10:00:00+03:00",
+        "Ankara Sanayi Odası", "Başkan", ["mesleki_egitim"], "Eğitim fonu kurulacak", "promise",
+        "Ankara Emniyet Müdürlüğü: Başkentte Trafik Denetimlerinde Radar Sayısı Artırıldı", "2026-08-10T10:00:00+03:00",
+        "Ankara Emniyet Müdürlüğü", "İl Emniyet Müdürü", ["trafik"], "Radar sayısı artırıldı", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "Antalya Ziraat Odası: Narenciye Üreticisine Destekleme Primi Ödensin", "2026-08-01T10:00:00+03:00",
+        "Antalya Ziraat Odası", "Başkan", ["tarim"], "Destekleme primi talebi", "fact",
+        "Antalya Defterdarlığı: Hazineye Ait Turizm Tahsisli Taşınmaz İhalesi İlanı", "2026-08-10T10:00:00+03:00",
+        "Antalya Defterdarlığı", "Defterdar", ["hazine_arazi"], "Arsa tahsis ihalesi açıldı", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "Kocaeli Barosu: Adliye Binası Ek Hizmet Birimi Açılması Talebi", "2026-08-01T10:00:00+03:00",
+        "Kocaeli Barosu", "Baro Başkanı", ["hukuk"], "Adliye binası talebi", "fact",
+        "Kocaeli Büyükşehir Belediyesi: Körfez Dip Çamuru Temizleme Projesi 2. Etabı Başladı", "2026-08-10T10:00:00+03:00",
+        "Kocaeli Büyükşehir Belediyesi", "Büyükşehir Belediye Başkanı", ["cevre"], "Çamur temizleme başladı", "fact"
+    )
+    add(
+        "institution_city_collision", True, "fulfils",
+        "Bursa Büyükşehir Belediyesi: Tarihi Çarşı ve Hanlar Bölgesi Meydan Düzenlemesi Tamamlanacak", "2026-08-01T10:00:00+03:00",
+        "Bursa Büyükşehir Belediyesi", "Büyükşehir Belediye Başkanı", ["kent_estetigi"], "Meydan projesi bitirilecek", "promise",
+        "Bursa Büyükşehir Belediyesi: Tarihi Hanlar Bölgesi Çevre Düzenlemesi Törenle Hizmete Girdi", "2026-08-15T10:00:00+03:00",
+        "Bursa Büyükşehir Belediyesi", "Büyükşehir Belediye Başkanı", ["kent_estetigi"], "Meydan açıldı", "fact"
+    )
+    add(
+        "institution_city_collision", True, "fails",
+        "Antalya Büyükşehir Belediyesi: Toplu Ulaşımda Klimalı Otobüs Filosu Genişletilecek", "2026-08-01T10:00:00+03:00",
+        "Antalya Büyükşehir Belediyesi", "Belediye Başkanı", ["ulasim"], "Yeni otobüsler alınacak", "promise",
+        "Sayıştay Raporu: Antalya Büyükşehir Belediyesinde Otobüs Alım İhalesinde Usulsüzlük ve Kamu Zararı", "2026-08-20T10:00:00+03:00",
+        "Sayıştay", "Sayıştay", ["ulasim"], "Otobüs ihalesinde kamu zararı tespit edildi", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "Eskişehir Sanayi Odası: Demiryolu Bağlantılı Lojistik Köy Kurulacak", "2026-08-01T10:00:00+03:00",
+        "Eskişehir Sanayi Odası", "Başkan", ["lojistik"], "Lojistik köy projesi", "promise",
+        "Eskişehir İl Sağlık Müdürlüğü: Şehir Hastanesinde Yeni Diyaliz Ünitesi Açıldı", "2026-08-10T10:00:00+03:00",
+        "Eskişehir İl Sağlık Müdürlüğü", "İl Sağlık Müdürü", ["saglik"], "Diyaliz ünitesi açıldı", "fact"
+    )
+    add(
+        "institution_city_collision", False, "none",
+        "Trabzon Ticaret Borsası: Fındık İhracatında Kalite Güvence Laboratuvarı Kuruluyor", "2026-08-01T10:00:00+03:00",
+        "Trabzon Ticaret Borsası", "Borsa Başkanı", ["tarim"], "Laboratuvar kurulacak", "promise",
+        "Trabzon Emniyet Müdürlüğü: Sahil Yolunda Hız Koridoru Uygulaması Başlatıldı", "2026-08-10T10:00:00+03:00",
+        "Trabzon Emniyet Müdürlüğü", "Emniyet Müdürü", ["trafik"], "Hız koridoru açıldı", "fact"
+    )
+    add(
+        "institution_city_collision", True, "fulfils",
+        "Konya Büyükşehir Belediyesi: Şehir Genelinde Akıllı Sulama Sistemine Geçilecek", "2026-08-01T10:00:00+03:00",
+        "Konya Büyükşehir Belediyesi", "Belediye Başkanı", ["park_bahce"], "Akıllı sulama uygulanacak", "promise",
+        "Konya Büyükşehir Belediyesi: Tüm Park ve Yeşil Alanlarda Akıllı Sulama Otomasyonu Devreye Alındı", "2026-08-15T10:00:00+03:00",
+        "Konya Büyükşehir Belediyesi", "Belediye Başkanı", ["park_bahce"], "Otomasyon devreye alındı", "fact"
+    )
+
+    # =========================================================================
+    # 6. ACTOR NAME TOKEN / SUBSTRING ISOLATION (10 cases)
+    # =========================================================================
+    add(
+        "actor_name_substring", False, "none",
+        "Ali Beyaz: İlçe Ziraat Odası Gübre Dağıtımı Yapacak", "2026-08-01T10:00:00+03:00",
+        "Ziraat Odası", "Ali Beyaz", ["tarim"], "Gübre verilecek", "promise",
+        "Halil Beyazıt: Lojistik Şirketi Yeni Antrepo Binası Açtı", "2026-08-10T10:00:00+03:00",
+        "Özel Şirket", "Halil Beyazıt", ["lojistik"], "Antrepo açıldı", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Mehmet Şimşek: Enflasyonla mücadelede maliye politikası tavizsiz sürecek", "2026-08-01T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Mehmet Şimşek", ["makro_ekonomi"], "Maliye programı uygulanacak", "promise",
+        "Mehmet Muş: TBMM Plan ve Bütçe Komisyonunda Yeni Kanun Teklifi Görüşüldü", "2026-08-10T10:00:00+03:00",
+        "TBMM", "Mehmet Muş", ["yasama"], "Komisyon toplandı", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Can Erbil: Şirket Yönetim Kurulu Başkanlığına Atandı", "2026-08-01T10:00:00+03:00",
+        "Özel Sektör", "Can Erbil", ["ticaret"], "Atama yapıldı", "fact",
+        "Ali Babacan: Ekonomi ve İstihdam Eylem Planını Açıkladı", "2026-08-10T10:00:00+03:00",
+        "Siyasi Parti", "Ali Babacan", ["ekonomi"], "Eylem planı açıklandı", "fact"
+    )
+    add(
+        "actor_name_substring", True, "fulfils",
+        "Mehmet Şimşek: Kayıt dışı ekonomiyle mücadelede yeni dijital POS denetimi başlayacak", "2026-08-01T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Mehmet Şimşek", ["vergi"], "POS denetimi başlayacak", "promise",
+        "Mehmet Şimşek: Gelir İdaresi Yeni Nesil Ödeme Kaydedici Cihaz Genelgesini Yürürlüğe Koydu", "2026-08-15T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Mehmet Şimşek", ["vergi"], "Genelge yürürlüğe girdi", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Murat Kurum: Kentsel Dönüşüm Seferberliği Başlatılacak", "2026-08-01T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "Murat Kurum", ["konut"], "Dönüşüm başlayacak", "promise",
+        "Murat Aydın: Tiyatro Festivali Açılış Konuşması Yaptı", "2026-08-10T10:00:00+03:00",
+        "Kültür Sanat Derneği", "Murat Aydın", ["kultur"], "Konuşma yapıldı", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Ece Hanım: Çevre Gönüllüleri Derneği Fidan Dikti", "2026-08-01T10:00:00+03:00",
+        "Dernek", "Ece Hanım", ["cevre"], "Fidan dikildi", "fact",
+        "Gelecek Partisi: Haftalık Basın Açıklaması Gerçekleştirildi", "2026-08-10T10:00:00+03:00",
+        "Siyasi Parti", "Parti Sözcüsü", ["politika"], "Basın açıklaması yapıldı", "fact"
+    )
+    add(
+        "actor_name_substring", True, "contradicts",
+        "Ahmet Arslan: Bölünmüş yol inşaatında geçiş ücreti uygulanmayacak", "2026-08-01T10:00:00+03:00",
+        "Ulaştırma ve Altyapı Bakanlığı", "Ahmet Arslan", ["ulasim"], "Yol ücretsiz olacak", "promise",
+        "Ahmet Arslan: Bölünmüş yol otoyol statüsüne alınarak ücretli geçiş tarifesi Resmi Gazetede yayımlandı", "2026-08-15T10:00:00+03:00",
+        "Ulaştırma ve Altyapı Bakanlığı", "Ahmet Arslan", ["ulasim"], "Ücretli tarife yayımlandı", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Kemal Memişoğlu: Sağlıkta randevu bekleme süreleri kısalacak", "2026-08-01T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Kemal Memişoğlu", ["saglik"], "Randevu süresi kısalacak", "promise",
+        "Kemal Kılıçdaroğlu: Vakıf Merkezinde Ziyaretçileri Kabul Etti", "2026-08-10T10:00:00+03:00",
+        "Vakıf", "Kemal Kılıçdaroğlu", ["sosyal"], "Görüşme yapıldı", "fact"
+    )
+    add(
+        "actor_name_substring", True, "fulfils",
+        "Cevdet Yılmaz: Orta Vadeli Program hedefleri doğrultusunda yatırım taahhütlü avans kredisi genişletilecek", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cevdet Yılmaz", ["kalkinma"], "YTAK kredisi genişletilecek", "promise",
+        "Cevdet Yılmaz: Yeni YTAK Kredi Limitleri ve Başvuru Şartları Resmi Olarak Açıklandı", "2026-08-15T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cevdet Yılmaz", ["kalkinma"], "Kredi şartları açıklandı", "fact"
+    )
+    add(
+        "actor_name_substring", False, "none",
+        "Hasan Öztürk: Amatör Spor Kulüpleri Federasyonu Malzeme Desteği İstedi", "2026-08-01T10:00:00+03:00",
+        "Spor Federasyonu", "Hasan Öztürk", ["spor"], "Malzeme talebi", "fact",
+        "Hasan Basri Yalçın: Televizyon Programında Dış Politikayı Değerlendirdi", "2026-08-10T10:00:00+03:00",
+        "Medya", "Hasan Basri Yalçın", ["dis_politika"], "Analiz yaptı", "fact"
+    )
+
+    # =========================================================================
+    # 7. GEOGRAPHIC MISMATCH (10 cases: 10 negative controls)
+    # =========================================================================
+    cities = [
+        ("İstanbul", "Ankara", "Metro İhalesi"),
+        ("İzmir", "Antalya", "Tramvay Hattı"),
+        ("Bursa", "Eskişehir", "Hafif Raylı Sistem"),
+        ("Adana", "Gaziantep", "Kavşak ve Köprü Projesi"),
+        ("Trabzon", "Samsun", "Sahil Dolgu Alanı"),
+        ("Konya", "Kayseri", "Organize Sanayi Arıtma Tesisi"),
+        ("Diyarbakır", "Şanlıurfa", "Kırsal Sulama Kanalı"),
+        ("Mersin", "Hatay", "Konteyner Limanı Bağlantısı"),
+        ("Denizli", "Aydın", "Jeotermal Isıtma Şebekesi"),
+        ("Balıkesir", "Çanakkale", "Rüzgar Enerjisi İmar Planı"),
+    ]
+    for c1, c2, topic in cities:
+        add(
+            "geographic_mismatch", False, "none",
+            f"{c1} Büyükşehir Belediyesi: {topic} Yapılacak ve Hizmete Girecek", "2026-08-01T10:00:00+03:00",
+            f"{c1} Büyükşehir Belediyesi", f"{c1} Belediye Başkanı", ["ulasim_altyapi"], f"{topic} yapılacak", "promise",
+            f"{c2} Büyükşehir Belediyesi: {topic} İhalesi Tamamlandı Sözleşme İmzalandı", "2026-08-15T10:00:00+03:00",
+            f"{c2} Büyükşehir Belediyesi", f"{c2} Belediye Başkanı", ["ulasim_altyapi"], f"{topic} tamamlandı", "fact"
+        )
+
+    # =========================================================================
+    # 8. TOPIC & BUZZWORD MISMATCH (10 cases: 10 negative controls)
+    # =========================================================================
+    buzzwords = [
+        ("Yapay Zeka Destekli Sağlık Teşhis Sistemi", "Sağlık Bakanlığı", "saglik", "Yapay Zeka Tabanlı Vergi Kaçağı Risk Analizi", "Hazine ve Maliye Bakanlığı", "vergi"),
+        ("Yeşil Enerji ve Güneş Paneli Teşvikleri", "Enerji ve Tabii Kaynaklar Bakanlığı", "enerji", "Yeşil Alan ve Park Ağaçlandırma Seferberliği", "Orman Genel Müdürlüğü", "orman"),
+        ("Dijital Arşiv ve Belge Yönetim Sistemi", "Milli Kütüphane", "kultur", "Dijital Takograf ve Sürücü Denetim Sistemi", "Emniyet Genel Müdürlüğü", "trafik"),
+        ("Sürdürülebilir Tarım ve Damla Sulama Desteği", "Tarım ve Orman Bakanlığı", "tarim", "Sürdürülebilir Turizm Tesis Sertifikasyon Tebliği", "Kültür ve Turizm Bakanlığı", "turizm"),
+        ("Siber Güvenlik Ulusal Eylem Planı", "Ulaştırma ve Altyapı Bakanlığı", "bilisim", "Gıda Güvenliği Denetim Genelgesi", "Tarım ve Orman Bakanlığı", "gida"),
+        ("Akıllı Şehir Trafik Sinyalizasyon Ağı", "Büyükşehir Belediyesi", "ulasim", "Akıllı Şebeke Elektrik Dağıtım Otomasyonu", "EPDK", "enerji"),
+        ("Blokzincir Tabanlı Tapu Kadastro Pilot Projesi", "Tapu ve Kadastro Genel Müdürlüğü", "tapu", "Blokzincir Finansal Teknolojiler Raporu", "SPK", "finans"),
+        ("Sıfır Atık Mavi Deniz Temizliği Seferberliği", "Çevre ve Şehircilik Bakanlığı", "cevre", "Sıfır Faizli İhracatçı Reeskont Kredisi", "TCMB", "ihracat"),
+        ("Yerli Çip ve Yarı İletken Yatırım Teşviki", "Sanayi ve Teknoloji Bakanlığı", "sanayi", "Yerli Aşı ve Biyoteknoloji Üretim Merkezi", "Sağlık Bakanlığı", "saglik"),
+        ("Enflasyon Muhasebesi Uygulama Rehberi", "Gelir İdaresi Başkanlığı", "vergi", "TÜİK Yıllık Tüketici Fiyat Endeksi Bülteni", "TÜİK", "enflasyon"),
+    ]
+    for b1, inst1, t1, b2, inst2, t2 in buzzwords:
+        add(
+            "topic_mismatch", False, "none",
+            f"{inst1}: {b1} Projesi Hayata Geçirilecek", "2026-08-01T10:00:00+03:00",
+            inst1, None, [t1], f"{b1} yapılacak", "promise",
+            f"{inst2}: {b2} Resmi Olarak Yürürlüğe Girdi", "2026-08-12T10:00:00+03:00",
+            inst2, None, [t2], f"{b2} yürürlükte", "fact"
+        )
+
+    # =========================================================================
+    # 9. CONDITIONAL & HYPOTHETICAL LANGUAGE (10 cases)
+    # =========================================================================
+    add(
+        "conditional_language", False, "none",
+        "Milletvekili: Bütçe komisyondan geçerse öğretmen ataması sayısı artırılabilir", "2026-08-01T10:00:00+03:00",
+        "TBMM", "Milletvekili", ["egitim"], "Bütçe onaylanırsa atama yapılabilir", "fact",
+        "Milli Eğitim Bakanlığı: 10 Bin Yeni Öğretmen Kadrosu Açıldı Tercih Kılavuzu Yayımlandı", "2026-08-15T10:00:00+03:00",
+        "Milli Eğitim Bakanlığı", "Milli Eğitim Bakanı", ["egitim"], "10 bin atama yapıldı", "fact"
+    )
+    add(
+        "conditional_language", False, "none",
+        "Uzman: Enflasyon hedefin altına inerse Merkez Bankası faiz indirebilir", "2026-08-01T10:00:00+03:00",
+        "Medya", "Ekonomist", ["ekonomi"], "Faiz indirilebilir tahmini", "prediction",
+        "TCMB: Politika Faiz Oranını Yüzde 50 Seviyesinde Sabit Bıraktı", "2026-08-20T14:00:00+03:00",
+        "TCMB", "TCMB Başkanı", ["ekonomi"], "Faiz sabit bırakıldı", "fact"
+    )
+    add(
+        "conditional_language", True, "fulfils",
+        "Cumhurbaşkanı: 3600 Ek Gösterge Düzenlemesi Meclis Açılınca Yasalaştırılacak", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanı", ["kamu_istihdami"], "3600 ek gösterge yasalaşacak", "promise",
+        "TBMM Genel Kurulu: 3600 Ek Gösterge Kanun Teklifi Kabul Edilerek Yasalaştı", "2026-08-15T18:00:00+03:00",
+        "TBMM", "TBMM", ["kamu_istihdami"], "Kanun teklifi yasalaştı", "fact"
+    )
+    add(
+        "conditional_language", False, "none",
+        "Dernek Başkanı: Destek sağlanırsa depremzedelere konteyner temin edilebilir", "2026-08-01T10:00:00+03:00",
+        "Dernek", "Dernek Başkanı", ["deprem"], "Konteyner verilebilir", "fact",
+        "AFAD: Kalıcı Deprem Konutları Hak Sahiplerine Kura İle Teslim Edildi", "2026-08-10T10:00:00+03:00",
+        "AFAD", "AFAD", ["deprem"], "Konutlar teslim edildi", "fact"
+    )
+    add(
+        "conditional_language", True, "fails",
+        "Hükümet: Kamuda Taşıt Tasarruf Tedbirleri Tavizsiz Uygulanacak", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Hükümet Sözcüsü", ["tasarruf"], "Lüks araç kiralama durdurulacak", "promise",
+        "Sayıştay Raporu: Bakanlık Merkez Teşkilatında Tasarruf Genelgesine Aykırı Lüks Araç Alımı ve Kamu Zararı", "2026-08-20T10:00:00+03:00",
+        "Sayıştay", "Sayıştay", ["tasarruf"], "Genelgeye aykırı harcama tespit edildi", "fact"
+    )
+    add(
+        "conditional_language", False, "none",
+        "Kulis Haberi: İddiaya göre kabinede revizyon değerlendiriliyor olabilir", "2026-08-01T10:00:00+03:00",
+        "Medya", "Gazeteci", ["kabine"], "Kabine değişebilir iddiası", "fact",
+        "Resmi Gazete: Bazı Bakan Yardımcılıklarına Yapılan Atama Kararları Yayımlandı", "2026-08-10T04:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanlığı", ["atama"], "Bakan yardımcıları atandı", "fact"
+    )
+    add(
+        "conditional_language", True, "fulfils",
+        "Bakan: Lisanslı depoculuk destekleme ödemeleri bu ay hesaplara aktarılacak", "2026-08-01T10:00:00+03:00",
+        "Tarım ve Orman Bakanlığı", "Tarım Bakanı", ["tarim"], "Depoculuk desteği aktarılacak", "promise",
+        "Tarım Bakanlığı: Lisanslı Depo Kira ve Nakliye Destekleme Ödemeleri Çiftçilere Ödendi", "2026-08-15T10:00:00+03:00",
+        "Tarım ve Orman Bakanlığı", "Tarım ve Orman Bakanlığı", ["tarim"], "Destekler ödendi", "fact"
+    )
+    add(
+        "conditional_language", False, "none",
+        "Sektör Temsilcisi: KDV iadeleri hızlanırsa sanayici rahat nefes alabilir", "2026-08-01T10:00:00+03:00",
+        "İş Dünyası", "Temsilci", ["vergi"], "KDV iadesi temennisi", "fact",
+        "Gelir İdaresi: Yıllık Kurumlar Vergisi Beyanname Verme Süresi Uzatıldı", "2026-08-10T10:00:00+03:00",
+        "Gelir İdaresi Başkanlığı", "GİB", ["vergi"], "Beyanname süresi uzatıldı", "fact"
+    )
+    add(
+        "conditional_language", True, "contradicts",
+        "Vaat: Şehir içi otopark ücretleri 2026 yılı sonuna kadar dondurulacak artırılmayacak", "2026-08-01T10:00:00+03:00",
+        "Büyükşehir Belediyesi", "Belediye Başkanı", ["otopark"], "Otopark ücreti dondurulacak", "promise",
+        "Belediye Meclisi Kararı: Belediye Otopark Tarifelerine Yüzde 40 Oranında Zam Yapıldı", "2026-08-15T10:00:00+03:00",
+        "Büyükşehir Belediyesi", "Belediye Meclisi", ["otopark"], "Otoparka zam yapıldı", "fact"
+    )
+    add(
+        "conditional_language", False, "none",
+        "Köşe Yazarı: İmar affı çıkabileceği yönünde söylentiler konuşuluyor", "2026-08-01T10:00:00+03:00",
+        "Medya", "Yazar", ["imar"], "İmar affı dedikodusu", "attribution",
+        "Çevre ve Şehircilik Bakanlığı: Kaçak Yapılarla Mücadele Genelgesi Yayımlandı Kesinlikle İmar Affı Yoktur", "2026-08-10T10:00:00+03:00",
+        "Çevre ve Şehircilik Bakanlığı", "Çevre Bakanı", ["imar"], "İmar affı yalanlandı", "fact"
+    )
+
+    # =========================================================================
+    # 10. PREDICTION VS OUTCOME (10 cases)
+    # =========================================================================
+    add(
+        "prediction_vs_fact", True, "contradicts",
+        "Hazine Bakanlığı Yıl Sonu Enflasyon Tahmini: Yıllık Enflasyon Yüzde 15 Seviyesine Düşecek", "2026-01-05T10:00:00+03:00",
+        "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", ["enflasyon"], "Enflasyon yüzde 15 olacak tahmini", "promise",
+        "TÜİK: Yıllık Tüketici Fiyat Endeksi Yüzde 42 Olarak Gerçekleşti ve Artış Gösterdi", "2026-08-10T10:00:00+03:00",
+        "TÜİK", "TÜİK", ["enflasyon"], "Enflasyon yüzde 42 oldu", "fact"
+    )
+    add(
+        "prediction_vs_fact", True, "fulfils",
+        "Cumhurbaşkanı: Cari Açık Yılın İkinci Yarısında 20 Milyar Doların Altına İndirilecek", "2026-01-10T10:00:00+03:00",
+        "Cumhurbaşkanlığı", "Cumhurbaşkanı", ["makro_ekonomi"], "Cari açık 20 milyar dolar altına inecek", "promise",
+        "TCMB Ödemeler Dengesi İstatistiği: Yıllıklandırılmış Cari Açık 18 Milyar Dolara Geriledi ve Hedef Sağlandı", "2026-08-12T10:00:00+03:00",
+        "TCMB", "TCMB", ["makro_ekonomi"], "Cari açık 18 milyara indi", "fact"
+    )
+    add(
+        "prediction_vs_fact", False, "none",
+        "Özel Banka Raporu: Büyüme Oranı Yüzde 2 Seviyesinde Kalabilir", "2026-08-01T10:00:00+03:00",
+        "Banka", "Başekonomist", ["buyume"], "Büyüme yüzde 2 tahmini", "prediction",
+        "Ulaştırma Bakanlığı: Bölünmüş Yol Asfaltlama Çalışmaları Tamamlandı", "2026-08-10T10:00:00+03:00",
+        "Ulaştırma ve Altyapı Bakanlığı", "Ulaştırma Bakanlığı", ["ulasim"], "Yol tamamlandı", "fact"
+    )
+    add(
+        "prediction_vs_fact", True, "contradicts",
+        "Enerji Bakanı: Bu Yıl Elektrik Üretiminde Doğalgaz Payı Yüzde 10 Altına Azaltılacak", "2026-01-15T10:00:00+03:00",
+        "Enerji ve Tabii Kaynaklar Bakanlığı", "Enerji Bakanı", ["enerji"], "Doğalgaz payı yüzde 10 altına indirilecek", "promise",
+        "EPDK Elektrik Piyasası Raporu: Doğalgaz Santrallerinin Üretimdeki Payı Yüzde 32 Seviyesine Yükseldi", "2026-08-14T10:00:00+03:00",
+        "EPDK", "EPDK", ["enerji"], "Doğalgaz payı yükseldi", "fact"
+    )
+    add(
+        "prediction_vs_fact", False, "none",
+        "Uluslararası Derecelendirme Kuruluşu: Türkiye Kredi Notu Görünümü Pozitife Çevrilebilir", "2026-08-01T10:00:00+03:00",
+        "Derecelendirme Şirketi", "Analist", ["kredi_notu"], "Kredi notu tahmini", "prediction",
+        "Sağlık Bakanlığı: Yeni Doğan Tarama Programı Kapsamı Genişletildi", "2026-08-10T10:00:00+03:00",
+        "Sağlık Bakanlığı", "Sağlık Bakanlığı", ["saglik"], "Tarama genişletildi", "fact"
+    )
+    add(
+        "prediction_vs_fact", True, "fulfils",
+        "Sanayi Bakanlığı: 2026 İhracat Hedefimiz 280 Milyar Dolara Ulaşacak", "2026-01-01T10:00:00+03:00",
+        "Sanayi ve Teknoloji Bakanlığı", "Sanayi Bakanı", ["ihracat"], "İhracat 280 milyar dolar olacak", "promise",
+        "Ticaret Bakanlığı: 2026 Yıllık İhracat Rakamı 282 Milyar Dolar Olarak Rekor Kırdı", "2026-08-15T10:00:00+03:00",
+        "Ticaret Bakanlığı", "Ticaret Bakanı", ["ihracat"], "İhracat 282 milyar dolar oldu", "fact"
+    )
+    add(
+        "prediction_vs_fact", False, "none",
+        "Meteoroloji: Marmarada Kuvvetli Yağış Bekleniyor", "2026-08-01T10:00:00+03:00",
+        "MGM", "MGM", ["hava"], "Yağış uyarısı", "fact",
+        "Kültür Bakanlığı: Tiyatro Sezonu Oyun Programı Açıklandı", "2026-08-10T10:00:00+03:00",
+        "Kültür ve Turizm Bakanlığı", "Devlet Tiyatroları", ["kultur"], "Tiyatro programı açıklandı", "fact"
+    )
+    add(
+        "prediction_vs_fact", True, "contradicts",
+        "Çalışma Bakanı: İşsizlik Oranı Yıl Ortasında Tek Haneye Yüzde 7 Seviyesine İndirilecek", "2026-01-10T10:00:00+03:00",
+        "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", ["istihdam"], "İşsizlik yüzde 7 seviyesine indirilecek", "promise",
+        "TÜİK İşgücü İstatistikleri: Mevsim Etkisinden Arındırılmış İşsizlik Oranı Yüzde 11 Olarak Artış Gösterdi", "2026-08-10T10:00:00+03:00",
+        "TÜİK", "TÜİK", ["istihdam"], "İşsizlik yüzde 11 oldu", "fact"
+    )
+    add(
+        "prediction_vs_fact", False, "none",
+        "Sektör Analizi: Otomotiv Satışlarında Yüzde 10 Daralma Bekleniyor", "2026-08-01T10:00:00+03:00",
+        "Otomotiv Derneği", "Başkan", ["otomotiv"], "Satış daralma beklentisi", "prediction",
+        "Milli Savunma Bakanlığı: Askeri Ataşeler Toplantısı Yapıldı", "2026-08-10T10:00:00+03:00",
+        "Milli Savunma Bakanlığı", "MSB", ["savunma"], "Toplantı tamamlandı", "fact"
+    )
+    add(
+        "prediction_vs_fact", True, "fulfils",
+        "Turizm Bakanı: 2026 Yılı Turizm Gelirimiz 60 Milyar Dolar Olarak Gerçekleşecek", "2026-01-10T10:00:00+03:00",
+        "Kültür ve Turizm Bakanlığı", "Turizm Bakanı", ["turizm"], "Turizm geliri 60 milyar dolar olacak", "promise",
+        "TÜİK ve Bakanlık: 2026 Yıllık Turizm Geliri 61 Milyar Dolar Olarak Hedefi Aştı", "2026-08-15T10:00:00+03:00",
+        "Kültür ve Turizm Bakanlığı", "Turizm Bakanlığı", ["turizm"], "Gelir 61 milyar dolar oldu", "fact"
+    )
+
+    # =========================================================================
+    # 11. PLAN VS EXECUTION (10 cases)
+    # =========================================================================
+    for i in range(5):
+        add(
+            "plan_vs_execution", True, "fulfils",
+            f"Bakanlık Eylem Planı {i+1}: Kamu Hizmetlerinde Dijital Doğrulama Altyapısı Kurulacak", "2026-08-01T10:00:00+03:00",
+            "Cumhurbaşkanlığı", "Dijital Dönüşüm Ofisi Başkanı", ["dijital_kamu"], "Dijital altyapı kurulacak", "promise",
+            f"Cumhurbaşkanlığı Kararnamesi {i+1}: Dijital Doğrulama Sistemi Resmi Gazetede Yayımlanarak Yürürlüğe Girdi", "2026-08-15T04:00:00+03:00",
+            "Resmi Gazete", "Cumhurbaşkanlığı", ["dijital_kamu"], "Kararname yürürlüğe girdi", "fact"
+        )
+    for i in range(5):
+        add(
+            "plan_vs_execution", False, "none",
+            f"Strateji Belgesi Taslağı {i+1}: Bölgesel Kalkınma Modeli Görüşe Açıldı", "2026-08-01T10:00:00+03:00",
+            "Sanayi ve Teknoloji Bakanlığı", "Kalkınma Ajansı", ["kalkinma"], "Taslak görüşe açıldı", "fact",
+            f"Alakasız İdari Tebliğ {i+1}: İthalat Rejim Kararına Ek Karar Yayımlandı", "2026-08-10T04:00:00+03:00",
+            "Ticaret Bakanlığı", "Ticaret Bakanlığı", ["ticaret"], "Tebliğ yayımlandı", "fact"
+        )
+
+    # =========================================================================
+    # 12. PROMISE VS FULFILMENT (10 cases: 10 positives)
+    # =========================================================================
+    fulfils_data = [
+        ("Milli Eğitim Bakanı: Köy okullarında görev yapan öğretmenlere ek tazminat ödenecek", "Milli Eğitim Bakanlığı", "Milli Eğitim Bakanı", ["egitim"], "Köy öğretmenine ek tazminat verilecek", "Resmi Gazete: Köy Okulu Öğretmenlerine Ek Tazminat Ödenmesine Dair Karar Yayımlandı ve Yürürlüğe Girdi", "Resmi Gazete", ["egitim"], "Tazminat kararı yürürlüğe girdi"),
+        ("Çalışma Bakanı: Engelli vatandaşlarımızın kamuda E-KPSS ile istihdam kontenjanı artırılacak", "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", ["kamu_istihdami"], "E-KPSS kontenjanı artırılacak", "ÖSYM ve Bakanlık: 5 Bin Engelli Personel Alımı Tercih Kılavuzu Yayımlandı Atamalar Başladı", "ÖSYM", ["kamu_istihdami"], "5 bin engelli ataması başladı"),
+        ("Ulaştırma Bakanı: Çukurova Uluslararası Havalimanı bu ay uçuş trafiğine açılacak", "Ulaştırma ve Altyapı Bakanlığı", "Ulaştırma Bakanı", ["havacilik"], "Havalimanı açılacak", "DHMİ: Çukurova Uluslararası Havalimanı Törenle Hizmete Girdi ve Tarifeli Seferler Başladı", "Ulaştırma ve Altyapı Bakanlığı", ["havacilik"], "Havalimanı hizmete girdi"),
+        ("İçişleri Bakanlığı: Nüfus müdürlüklerinde pasaport ve ehliyet randevu kapasitesi iki katına çıkarılacak", "İçişleri Bakanlığı", "İçişleri Bakanı", ["kamu_hizmeti"], "Randevu kapasitesi artırılacak", "Nüfus ve Vatandaşlık İşleri Genel Müdürlüğü: Randevu Slot Kapasiteleri Artırıldı Yeni Masalar Faaliyete Başladı", "İçişleri Bakanlığı", ["kamu_hizmeti"], "Kapasite artırıldı"),
+        ("Tarım Bakanı: Küçük aile işletmelerine hayvan başına 2000 TL yem desteği ödenecek", "Tarım ve Orman Bakanlığı", "Tarım Bakanı", ["hayvancilik"], "Yem desteği ödenecek", "Tarım ve Orman Bakanlığı: Hayvancılık Destekleme Ödemeleri Kapsamında Yem Primleri Hesaplara Yatırıldı", "Tarım ve Orman Bakanlığı", ["hayvancilik"], "Yem primleri ödendi"),
+        ("Adalet Bakanı: Arabuluculuk uygulaması kira uyuşmazlıklarında zorunlu hale getirilecek", "Adalet Bakanlığı", "Adalet Bakanı", ["yargi"], "Arabuluculuk zorunlu olacak", "TBMM Genel Kurulu: Kira Uyuşmazlıklarında Arabuluculuğu Zorunlu Kılan Kanun Teklifini Kabul Etti", "TBMM", ["yargi"], "Kanun teklifi kabul edildi"),
+        ("Gençlik ve Spor Bakanı: Kredi ve Yurtlar Kurumu yurt ücretlerine bu yıl zam yapılmayacak ücretler sabit tutulacak", "Gençlik ve Spor Bakanlığı", "Gençlik ve Spor Bakanı", ["genclik"], "Yurt ücreti artırılmayacak", "KYK Genel Müdürlüğü: 2026-2027 Öğrenim Yılı Yurt Ücret Tarifesi Değiştirilmedi Sabit Kaldı", "Gençlik ve Spor Bakanlığı", ["genclik"], "Yurt ücreti sabit kaldı"),
+        ("Hazine Bakanı: Esnaf muaflığı limiti 1 milyon TL seviyesine yükseltilecek", "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", ["vergi"], "Esnaf muafiyeti yükseltilecek", "Cumhurbaşkanlığı Kararı: Esnaf Vergi Muafiyeti Hasılat Haddi 1 Milyon TL Olarak Yürürlüğe Girdi", "Cumhurbaşkanlığı", ["vergi"], "Muafiyet sınırı yürürlüğe girdi"),
+        ("Kültür Bakanı: Arkeolojik kazı sezonu 12 aya yayılacak ve ödenekler genişletilecek", "Kültür ve Turizm Bakanlığı", "Kültür Bakanı", ["arkeoloji"], "Kazı ödeneği genişletilecek", "Kültür Varlıkları Genel Müdürlüğü: Geleceğe Miras Projesi Kapsamında 12 Aylık Kazı Ödenekleri Tahsis Edildi", "Kültür ve Turizm Bakanlığı", ["arkeoloji"], "Ödenek tahsisi yapıldı"),
+        ("Sağlık Bakanı: Nadir hastalıklar için SMA ilaçları geri ödeme listesine eklenecek", "Sağlık Bakanlığı", "Sağlık Bakanı", ["ilac_tedarik"], "SMA ilaçları listeye alınacak", "Resmi Gazete: Sağlık Uygulama Tebliğinde Değişiklik Yapılarak Yeni SMA İlaçları Geri Ödeme Listesine Alındı", "Resmi Gazete", ["ilac_tedarik"], "İlaçlar geri ödeme listesine alındı"),
+    ]
+    for s_title, s_inst, s_act, s_top, s_cl, t_title, t_inst, t_top, t_cl in fulfils_data:
+        add(
+            "promise_vs_fulfilment", True, "fulfils",
+            s_title, "2026-08-01T10:00:00+03:00",
+            s_inst, s_act, s_top, s_cl, "promise",
+            t_title, "2026-08-15T10:00:00+03:00",
+            t_inst, None, t_top, t_cl, "fact"
+        )
+
+    # =========================================================================
+    # 13. PROMISE VS FAILURE / AUDIT (10 cases: 10 positives fails)
+    # =========================================================================
+    fails_data = [
+        ("Ulaştırma Bakanlığı: Tünel inşaatında ek maliyet çıkmayacak ve bütçesinde tamamlanacak", "Ulaştırma ve Altyapı Bakanlığı", ["kamu_yatirimlari"], "Ek maliyet çıkmayacak", "Sayıştay Raporu: Karayolları Tünel İhalesinde Usulsüz Keşif Artışı ve Mükerrer Ödeme Kamu Zararı", "Sayıştay", ["kamu_yatirimlari"], "Keşif artışı ve kamu zararı tespit edildi"),
+        ("Büyükşehir Belediyesi: İtfaiye aracı alımı şeffaf ihale ile en uygun bedelle yapılacak", "Büyükşehir Belediyesi", ["belediye_harcama"], "İtfaiye aracı ihalesi şeffaf yapılacak", "Sayıştay Raporu: İtfaiye Aracı Alımında Şartnameye Aykırı Kabul Yapıldığı ve Kamu Zararına Yol Açıldığı Tespiti", "Sayıştay", ["belediye_harcama"], "Şartnameye aykırı kabul ve kamu zararı"),
+        ("Devlet Su İşleri: Sulama barajı projesinde yükleniciye haksız avans verilmeyecek", "DSİ", ["kamu_yatirimlari"], "Haksız avans verilmeyecek", "Sayıştay KİT Raporu: DSİ Sulama Projesinde Teminatsız Avans Ödenerek Haksız Menfaat ve Kamu Zararı Oluştu", "Sayıştay", ["kamu_yatirimlari"], "Teminatsız avans ve kamu zararı tespit edildi"),
+        ("Üniversite Rektörlüğü: Döner sermaye gelirleri mevzuata uygun dağıtılacak", "Devlet Üniversitesi", ["universite_butce"], "Döner sermaye mevzuata uygun dağıtılacak", "Sayıştay Raporu: Tıp Fakültesi Döner Sermaye Dağıtımında Mevzuata Aykırı Tavan Aşımı ve Usulsüzlük", "Sayıştay", ["universite_butce"], "Tavan aşımı ve usulsüzlük bulundu"),
+        ("Orman Genel Müdürlüğü: Yangın söndürme helikopteri kiralama bütçesi aşılmayacak", "Orman Genel Müdürlüğü", ["orman_yangini"], "Bütçe aşılmayacak", "Sayıştay Raporu: Helikopter Kiralama İhalesinde Fahiş Fiyat Farkı ve Bütçe Aşımı Kamu Zararı Tespiti", "Sayıştay", ["orman_yangini"], "Bütçe aşımı ve kamu zararı"),
+        ("İl Özel İdaresi: Köy yolları kilit parke taşı döşemesi eksiksiz teslim alınacak", "İl Özel İdaresi", ["koy_altyapi"], "Kilit parke eksiksiz döşenecek", "Sayıştay Raporu: İl Özel İdaresinde İmalatı Yapılmayan Parke Taşı İçin Ödeme Yapıldığı Usulsüzlüğü", "Sayıştay", ["koy_altyapi"], "Yapılmayan imalata ödeme usulsüzlüğü"),
+        ("Kültür Bakanlığı: Müze restorasyonunda tarihi doku korunacak ve ihale bedeli aşılmayacak", "Kültür ve Turizm Bakanlığı", ["restorasyon"], "İhale bedeli aşılmayacak", "Sayıştay Raporu: Müze Restorasyonunda Yetkisiz Fiyat Artışı ve Mevzuata Aykırı Ödenek Aktarımı", "Sayıştay", ["restorasyon"], "Mevzuata aykırı ödenek aktarımı"),
+        ("Vakıflar Genel Müdürlüğü: Vakıf gayrimenkul kiraları piyasa rayicinde eksiksiz tahsil edilecek", "Vakıflar Genel Müdürlüğü", ["vakif_tasinmaz"], "Kiralar eksiksiz toplanacak", "Sayıştay Raporu: Tarihi Vakıf Mülklerinde Yıllarca Kira Tahsil Edilmeyerek Kamu Zararı Yaratıldığı Tespiti", "Sayıştay", ["vakif_tasinmaz"], "Tahsil edilmeyen kiralar ve kamu zararı"),
+        ("TCDD Genel Müdürlüğü: Yüksek hızlı tren ray bakım ihaleleri mevzuata uygun gerçekleştirilecek", "TCDD", ["demiryolu"], "İhaleler mevzuata uygun yapılacak", "Sayıştay Raporu: Ray Bakım İhalesinde Doğrudan Temin Sınırının Aşılarak İhalenin Bölündüğü Usulsüzlüğü", "Sayıştay", ["demiryolu"], "İhale bölme usulsüzlüğü tespit edildi"),
+        ("Toplu Konut İdaresi: Sosyal konut hak sahiplerine gecikme olmadan zamanında teslim edilecek", "TOKİ", ["sosyal_konut"], "Konutlar zamanında teslim edilecek", "Sayıştay Raporu: TOKİ Konut Şantiyelerinde 36 Ayı Aşan Gecikmeler ve Yükleniciye Cezai Şart Uygulanmaması Kusuru", "Sayıştay", ["sosyal_konut"], "Cezai şart uygulanmaması ve gecikme"),
+    ]
+    for s_title, s_inst, s_top, s_cl, t_title, t_inst, t_top, t_cl in fails_data:
+        add(
+            "promise_vs_failure", True, "fails",
+            s_title, "2026-08-01T10:00:00+03:00",
+            s_inst, None, s_top, s_cl, "promise",
+            t_title, "2026-08-25T10:00:00+03:00",
+            t_inst, None, t_top, t_cl, "fact"
+        )
+
+    # =========================================================================
+    # 14. PROMISE VS CONTRADICTION (10 cases: 10 positives contradicts)
+    # =========================================================================
+    contra_data = [
+        ("Bakan: İkinci el araç satışında noter harçları indirilecek", "Hazine ve Maliye Bakanlığı", ["vergi"], "Noter harçları indirilecek", "Resmi Gazete: Araç Devir ve Tescil Noter Harçları Yüzde 35 Artırıldı", "Cumhurbaşkanlığı", ["vergi"], "Noter harçları artırıldı"),
+        ("Hükümet: Tarımsal sulama elektrik faturalarında yüzde 50 indirim yapılacak", "Cumhurbaşkanlığı", ["tarim_enerji"], "Sulamada yüzde 50 indirim yapılacak", "EPDK: Tarımsal Sulama Elektrik Tarifesine Yüzde 20 Zam Yapıldı", "EPDK", ["tarim_enerji"], "Elektrik tarifesine zam yapıldı"),
+        ("Ulaştırma Bakanı: Marmaray ve banliyö tren seferleri 24 saat ücretsiz olacak", "Ulaştırma ve Altyapı Bakanlığı", ["ulasim"], "Trenler 24 saat ücretsiz olacak", "TCDD Taşımacılık: Marmaray Gece Seferlerinde Çift Tarife Ücret Alınması Kararlaştırıldı", "TCDD", ["ulasim"], "Gece seferleri çift tarifeli oldu"),
+        ("Çevre Bakanı: Plastik poşet ücretlerine zam yapılmayacak 25 kuruş olarak kalacak", "Çevre ve Şehircilik Bakanlığı", ["cevre"], "Poşet ücreti artırılmayacak", "Bakanlık Tebliği: Plastik Alışveriş Poşeti Ücreti 1 TL Olarak Yeniden Belirlendi ve Yükseltildi", "Çevre ve Şehircilik Bakanlığı", ["cevre"], "Poşet fiyatı 1 TL'ye yükseltildi"),
+        ("Sanayi Bakanı: Organize Sanayi Bölgelerinde arsa tahsis bedelleri düşürülecek", "Sanayi ve Teknoloji Bakanlığı", ["sanayi"], "Arsa bedeli düşürülecek", "Sanayi Bakanlığı Genelgesi: OSB Parsel Tahsis Asgari Metrekare Fiyatları Artırıldı", "Sanayi ve Teknoloji Bakanlığı", ["sanayi"], "Arsa fiyatları artırıldı"),
+        ("Milli Eğitim Bakanı: Liselerde sınıf tekrarı uygulaması tamamen kaldırılacak", "Milli Eğitim Bakanlığı", ["egitim"], "Sınıf tekrarı kaldırılacak", "MEB Ortaöğretim Yönetmeliği: Liselerde 50 Ortalama ve 3 Ders Başarısızlığında Sınıf Tekrarı Zorunlu Kılındı", "Milli Eğitim Bakanlığı", ["egitim"], "Sınıf tekrarı zorunlu oldu"),
+        ("Sağlık Bakanı: Şehir hastanelerinde otopark hizmeti hastalara ve hasta yakınlarına ücretsiz olacak", "Sağlık Bakanlığı", ["saglik"], "Otopark ücretsiz olacak", "Şehir Hastanesi İşletmesi: Kapalı Otopark Giriş Tarifesi Saatlik 50 TL Olarak Ücretli Hale Getirildi", "Sağlık Bakanlığı", ["saglik"], "Otopark ücretli yapıldı"),
+        ("İçişleri Bakanı: Pasaport harç pulu bedellerinde artış olmayacak", "İçişleri Bakanlığı", ["harclar"], "Pasaport harcı artmayacak", "Resmi Gazete: Değerli Kağıtlar Tebliği İle Pasaport Cüzdan Bedeli Yüzde 40 Artırıldı", "Cumhurbaşkanlığı", ["harclar"], "Pasaport bedeli artırıldı"),
+        ("Tarım Bakanı: Şeker fabrikalarında kota uygulaması kaldırılacak üretici serbest ekecek", "Tarım ve Orman Bakanlığı", ["seker_pancari"], "Pancar kotası kaldırılacak", "Türkşeker: Şeker Pancarı Üretiminde Sözleşmeli Kota Sınırlandırılması Devam Edecek", "Tarım ve Orman Bakanlığı", ["seker_pancari"], "Kota sınırlandırılması devam edecek"),
+        ("Çalışma Bakanı: Kamu işçisi toplu sözleşme ikramiyeleri vergiden muaf tutulacak", "Çalışma ve Sosyal Güvenlik Bakanlığı", ["kamu_iscisi"], "İkramiyeden vergi kesilmeyecek", "Gelir İdaresi: Toplu Sözleşme İkramiyelerinin Gelir Vergisi Tevkifatına Tabi Olduğu Tebliğ Edildi", "Hazine ve Maliye Bakanlığı", ["kamu_iscisi"], "İkramiyeler vergiye tabi tutuldu"),
+    ]
+    for s_title, s_inst, s_top, s_cl, t_title, t_inst, t_top, t_cl in contra_data:
+        add(
+            "promise_vs_contradiction", True, "contradicts",
+            s_title, "2026-08-01T10:00:00+03:00",
+            s_inst, None, s_top, s_cl, "promise",
+            t_title, "2026-08-15T10:00:00+03:00",
+            t_inst, None, t_top, t_cl, "fact"
+        )
+
+    # =========================================================================
+    # 15. AMBIGUOUS CONTEXT / LOW CONFIDENCE (10 cases: 10 negative controls)
+    # =========================================================================
+    for i in range(10):
+        add(
+            "ambiguous_context", False, "none",
+            f"Belirsiz Beyan {i+1}: Kamu kuruluşlarında çalışma saatlerinin düzenlenmesi konusu istişare ediliyor", "2026-08-01T10:00:00+03:00",
+            None, None, ["kamu_yonetimi"], "Mesai saatleri istişare ediliyor", "fact",
+            f"Farklı Olay {i+1}: Sosyal Güvenlik Kurumu Yeni Hizmet Binası Açılış Töreni", "2026-08-10T10:00:00+03:00",
+            "SGK", None, ["kamu_yonetimi"], "Bina açılışı yapıldı", "fact"
+        )
+
+    # =========================================================================
+    # 16. INSUFFICIENT EVIDENCE (10 cases: 10 negative controls)
+    # =========================================================================
+    for i in range(10):
+        add(
+            "insufficient_evidence", False, "none",
+            f"İsimsiz Kısa Not {i+1}", "2026-08-01T10:00:00+03:00",
+            None, None, [], "", "fact",
+            f"İsimsiz Hedef Kaydı {i+1}", "2026-08-10T10:00:00+03:00",
+            None, None, [], "", "fact"
+        )
+
+    # =========================================================================
+    # 17. HARD NEGATIVES (10 cases: 10 negative controls)
+    # =========================================================================
+    hard_negs = [
+        ("Hazine Bakanlığı: KOBİ Finansman Destek Paketi Şartları Belirlendi", "Hazine ve Maliye Bakanlığı", ["kobi_destek"], "Ticaret Bakanlığı: İkinci El Motorlu Kara Taşıtı Ticareti Yönetmeliği", "Ticaret Bakanlığı", ["otomotiv"]),
+        ("Enerji Bakanlığı: Akkuyu Nükleer Güç Santrali 1. Ünitesi Test Aşamasına Geldi", "Enerji ve Tabii Kaynaklar Bakanlığı", ["nukleer"], "Çevre Bakanlığı: Atık Su Arıtma Tesisleri Denetim Raporu", "Çevre ve Şehircilik Bakanlığı", ["atik_su"]),
+        ("Milli Eğitim Bakanlığı: Yeni Müfredat Taslağı Kamuoyunun Görüşüne Sunuldu", "Milli Eğitim Bakanlığı", ["egitim_mufredat"], "Gençlik ve Spor Bakanlığı: Üniversiteler Arası Spor Oyunları Başladı", "Gençlik ve Spor Bakanlığı", ["spor"]),
+        ("Ulaştırma Bakanlığı: Türksat 6A Uydusu Yörünge Testlerini Başarıyla Tamamladı", "Ulaştırma ve Altyapı Bakanlığı", ["uzay_uydu"], "Sanayi Bakanlığı: Organize Sanayi Bölgeleri Parsel Tahsis Listesi", "Sanayi ve Teknoloji Bakanlığı", ["sanayi"]),
+        ("İçişleri Bakanlığı: Sahil Güvenlik Komutanlığına Yeni Devriye Botları Teslim Edildi", "İçişleri Bakanlığı", ["sahil_guvenlik"], "Kültür Bakanlığı: Bodrum Kalesi Sualtı Arkeoloji Müzesi Ziyaretçi Sayısı", "Kültür ve Turizm Bakanlığı", ["muze"]),
+        ("Tarım Bakanlığı: Şap Hastalığına Karşı Aşılama Kampanyası Başlatıldı", "Tarım ve Orman Bakanlığı", ["hayvan_sagligi"], "Orman Genel Müdürlüğü: Yangın Gözetleme Kulelerinde Termal Kamera Kurulumu", "Orman Genel Müdürlüğü", ["orman"]),
+        ("Sağlık Bakanlığı: Ulusal Kanser Tarama Programında Mobil TIR Sayısı Artırıldı", "Sağlık Bakanlığı", ["kanser_tarama"], "Çalışma Bakanlığı: İş Sağlığı ve Güvenliği Sertifika Sınav Takvimi", "Çalışma ve Sosyal Güvenlik Bakanlığı", ["is_guvenligi"]),
+        ("Adalet Bakanlığı: İcra Dairelerinin Yenilenmesi ve Dijital Dosya Sistemi Tamamlandı", "Adalet Bakanlığı", ["yargi_icra"], "İçişleri Bakanlığı: Karayolları Trafik Güvenliği Strateji Belgesi", "İçişleri Bakanlığı", ["trafik"]),
+        ("Savunma Sanayii Başkanlığı: Milli Muharip Uçak KAAN İkinci Test Uçuşunu Yaptı", "Cumhurbaşkanlığı", ["savunma_havacilik"], "Ulaştırma Bakanlığı: Bölgesel Havalimanı Pist Genişletme İhalesi", "Ulaştırma ve Altyapı Bakanlığı", ["havacilik"]),
+        ("Hazine Bakanlığı: Gayrimenkul Yatırım Fonlarına İlişki Kurumlar Vergisi İstisnası Düzenlemesi", "Hazine ve Maliye Bakanlığı", ["gyf_vergi"], "Çevre Bakanlığı: İklim Değişikliği Uyum Stratejisi Eylem Planı", "Çevre ve Şehircilik Bakanlığı", ["iklim"]),
+    ]
+    for s_title, s_inst, s_top, t_title, t_inst, t_top in hard_negs:
+        add(
+            "hard_negatives", False, "none",
+            s_title, "2026-08-01T10:00:00+03:00",
+            s_inst, None, s_top, s_title, "fact",
+            t_title, "2026-08-10T10:00:00+03:00",
+            t_inst, None, t_top, t_title, "fact"
+        )
+
+    # =========================================================================
+    # 18. DUPLICATE & NEAR DUPLICATE (10 cases)
+    # =========================================================================
+    for i in range(5):
+        add(
+            "duplicate_near_duplicate", True, "updates",
+            f"Hazine Bakanlığı Gelir Uzman Yardımcılığı Sınav Duyurusu {i+1}", "2026-08-01T10:00:00+03:00",
+            "Hazine ve Maliye Bakanlığı", "Hazine Bakanlığı", ["kamu_istihdami"], "Sınav açıldı", "fact",
+            f"Hazine Bakanlığı Gelir Uzman Yardımcılığı Giriş Sınavı Başvuru Takvimi Güncellendi {i+1}", "2026-08-05T10:00:00+03:00",
+            "Hazine ve Maliye Bakanlığı", "Hazine Bakanlığı", ["kamu_istihdami"], "Takvim güncellendi", "fact"
+        )
+    for i in range(5):
+        add(
+            "duplicate_near_duplicate", False, "none",
+            f"Farklı İki Kurumun Aynı Tarihli Rutin Personel Alım İlanı A {i+1}", "2026-08-01T10:00:00+03:00",
+            "Kurum A", None, ["istihdam"], "Personel alımı", "fact",
+            f"Farklı İki Kurumun Aynı Tarihli Rutin Personel Alım İlanı B {i+1}", "2026-08-02T10:00:00+03:00",
+            "Kurum B", None, ["istihdam"], "Personel alımı", "fact"
+        )
+
+    # =========================================================================
+    # 19. ASCII & TURKISH CHARACTER VARIANTS (10 cases)
+    # =========================================================================
+    add(
+        "ascii_turkish_variants", True, "fulfils",
+        "Bakanlik: Emekli maaslarinda refah payi artisi uygulanacak", "2026-08-01T10:00:00+03:00",
+        "Calisma ve Sosyal Guvenlik Bakanligi", "Bakan", ["sosyal_guvenlik"], "Refah payi artirilacak", "promise",
+        "Resmi Gazete: Emekli Ayliklarina Refah Payi Eklenmesine Dair Karar Yayimlandi ve Yururluge Girdi", "2026-08-10T04:00:00+03:00",
+        "Cumhurbaskanligi", "Cumhurbaskanligi", ["sosyal_guvenlik"], "Kararname yururlukte", "fact"
+    )
+    add(
+        "ascii_turkish_variants", True, "contradicts",
+        "Hukumet: Akaryakit Uzerindeki OTV Indirilecek", "2026-08-01T10:00:00+03:00",
+        "Cumhurbaskanligi", "Hukumet", ["enerji_vergi"], "OTV indirilecek", "promise",
+        "Cumhurbaskani Karari: Akaryakit OTV Oranlari Yuzde 20 Artirildi", "2026-08-12T04:00:00+03:00",
+        "Cumhurbaskanligi", "Cumhurbaskanligi", ["enerji_vergi"], "OTV artirildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", True, "fails",
+        "Ulastirma Bakanligi: Kopru insaatinda butce asimi yapilmayacak", "2026-08-01T10:00:00+03:00",
+        "Ulastirma ve Altyapi Bakanligi", "Bakan", ["kamu_yatirimi"], "Butce asilmayacak", "promise",
+        "Sayistay Raporu: Kopru baglanti yolu ihalesinde mevzuata aykiri butce asimi ve kamu zarari", "2026-08-20T10:00:00+03:00",
+        "Sayistay", "Sayistay", ["kamu_yatirimi"], "Kamu zarari tespit edildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", False, "none",
+        "Istanbul Buyuksehir Belediyesi: Rayli Sistem Hatti Acilisi", "2026-08-01T10:00:00+03:00",
+        "Istanbul Buyuksehir Belediyesi", "Baskan", ["ulasim"], "Metro acilacak", "promise",
+        "Ankara Buyuksehir Belediyesi: Otobus Alim Ihalesi", "2026-08-10T10:00:00+03:00",
+        "Ankara Buyuksehir Belediyesi", "Baskan", ["ulasim"], "Otobus ihalesi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", True, "fulfils",
+        "Milli Egitim Bakanligi: Ogretmenlik Meslek Kanunu TBMMde gorusulecek", "2026-08-01T10:00:00+03:00",
+        "Milli Egitim Bakanligi", "Bakan", ["egitim"], "Kanun gorusulecek", "promise",
+        "TBMM Genel Kurulu: Ogretmenlik Meslek Kanunu Teklifi Kabul Edilerek Yasallasti", "2026-08-15T18:00:00+03:00",
+        "TBMM", "TBMM", ["egitim"], "Kanun kabul edildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", False, "none",
+        "Tarim Il Mudurlugu Arac Kiralama Ilani", "2026-08-01T10:00:00+03:00",
+        "Tarim Il Mudurlugu", None, ["ihale"], "Arac kiralama", "fact",
+        "Cevre Bakanligi Kentsel Donusum Raporu", "2026-08-10T10:00:00+03:00",
+        "Cevre Bakanligi", None, ["donusum"], "Donusum raporu", "fact"
+    )
+    add(
+        "ascii_turkish_variants", True, "contradicts",
+        "Vaat: Sehirlerarasi otobus biletlerinde KDV sifirlanacak", "2026-08-01T10:00:00+03:00",
+        "Ulastirma ve Altyapi Bakanligi", "Bakan", ["ulasim"], "KDV sifirlanacak", "promise",
+        "Resmi Gazete: Yolcu Tasimaciligi KDV Orani Yuzde 10dan Yuzde 20ye Yukseltilerek Artirildi", "2026-08-15T04:00:00+03:00",
+        "Cumhurbaskanligi", "Cumhurbaskanligi", ["ulasim"], "KDV yukseltildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", False, "none",
+        "Saglik Ocagi Doktor Atamasi", "2026-08-01T10:00:00+03:00",
+        "Saglik Bakanligi", None, ["saglik"], "Atama yapildi", "fact",
+        "Maden Sahalari Ruhsat Duyurusu", "2026-08-10T10:00:00+03:00",
+        "Enerji Bakanligi", None, ["maden"], "Ruhsat verildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", True, "fulfils",
+        "Adalet Bakani: Yeni adliye sarayi insaati bu ay tamamlanarak faaliyete gececek", "2026-08-01T10:00:00+03:00",
+        "Adalet Bakanligi", "Adalet Bakani", ["adliye"], "Bina tamamlanacak", "promise",
+        "Adalet Bakanligi: Yeni Adliye Sarayi Hizmet Binasi Torenle Hizmete Girdi ve Acildi", "2026-08-15T10:00:00+03:00",
+        "Adalet Bakanligi", "Adalet Bakani", ["adliye"], "Bina acildi", "fact"
+    )
+    add(
+        "ascii_turkish_variants", False, "none",
+        "Gecmis Tarihli Bulten: 2024 Yili Sayistay Denetim Ozeti", "2026-08-20T10:00:00+03:00",
+        "Sayistay", "Sayistay", ["denetim"], "Eski denetim", "fact",
+        "2025 Yili Butce Kanun Teklifi Mecliste", "2025-01-01T10:00:00+03:00",
+        "TBMM", "TBMM", ["butce"], "Eski butce teklifi", "fact"
+    )
+
+    # =========================================================================
+    # 20. EXPLICIT LAW & AUDIT CROSS-REFERENCES (10 cases)
+    # =========================================================================
+    laws = [
+        ("657 Sayılı Devlet Memurları Kanununda Değişiklik Teklifi Meclise Sunuldu", "Cumhurbaşkanlığı", "TBMM", "657 Sayılı Kanununda Değişiklik Yapılmasına Dair Kanun TBMMde Kabul Edildi", "TBMM", "TBMM"),
+        ("5510 Sayılı Sosyal Sigortalar Kanunu Prim Düzenlemesi Hazırlandı", "Çalışma ve Sosyal Güvenlik Bakanlığı", "Çalışma Bakanı", "5510 Sayılı Kanunda Değişiklik Yapılmasına Dair Kanun Resmi Gazetede Yayımlandı", "Resmi Gazete", "Cumhurbaşkanlığı"),
+        ("4734 Sayılı Kamu İhale Kanunu İstisna Maddesi Değişecek", "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", "4734 Sayılı Kamu İhale Kanununda Değişiklik Teklifi TBMM Genel Kurulunda Kabul Edildi", "TBMM", "TBMM"),
+        ("5018 Sayılı Kamu Mali Yönetimi Kanunu Tasarruf Genelgesi Yayımlandı", "Hazine ve Maliye Bakanlığı", "Hazine Bakanı", "5018 Sayılı Kanun Kapsamında Harcama Yetkilileri Denetim Genelgesi Yürürlüğe Girdi", "Hazine ve Maliye Bakanlığı", "Hazine Bakanı"),
+        ("2872 Sayılı Çevre Kanunu Plastik Poşet Düzenlemesi Meclise Geldi", "Çevre ve Şehircilik Bakanlığı", "Çevre Bakanı", "2872 Sayılı Çevre Kanununda Değişiklik Yapılmasına Dair Kanun TBMMde Kabul Edilerek Yasalaştı", "TBMM", "TBMM"),
+    ]
+    for s_title, s_inst, s_act, t_title, t_inst, t_act in laws:
+        add(
+            "explicit_law_match", True, "fulfils",
+            s_title, "2026-08-01T10:00:00+03:00",
+            s_inst, s_act, ["yasama"], s_title, "promise",
+            t_title, "2026-08-15T10:00:00+03:00",
+            t_inst, t_act, ["yasama"], t_title, "fact"
+        )
+    for i in range(5):
+        add(
+            "explicit_law_match", False, "none",
+            f"Farklı Kanun No A {i+1}: 657 Sayılı Kanun Personel İntibak Düzenlemesi", "2026-08-01T10:00:00+03:00",
+            "Bakanlık A", None, ["kamu"], "657 sayılı kanun", "fact",
+            f"Farklı Kanun No B {i+1}: 3194 Sayılı İmar Kanunu Parselasyon Genelgesi", "2026-08-10T10:00:00+03:00",
+            "Bakanlık B", None, ["imar"], "3194 sayılı kanun", "fact"
+        )
+
+    return cases
+
+
+def main() -> None:
+    cases = build_cases()
+    with OUT_FILE.open("w", encoding="utf-8") as f:
+        for c in cases:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    print(f"Başarıyla {len(cases)} vaka '{OUT_FILE.name}' dosyasına yazıldı.")
+
+
+if __name__ == "__main__":
+    main()

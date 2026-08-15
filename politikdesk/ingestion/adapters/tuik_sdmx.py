@@ -188,12 +188,48 @@ class TuikSdmxAdapter(FailureRecorder):
     def _fetch_one(self, indicator: TrackedIndicator) -> RawItem | None:
         assert self.http is not None and self.tokens is not None
 
+        url = self._data_url(indicator)
         response = self.http.get(
-            self._data_url(indicator),
+            url,
             headers=self.tokens.auth_header(),
             source_slug=self.slug,
         )
-        root = ElementTree.fromstring(response.text)
+
+        if getattr(response, "status_code", 200) in (401, 403):
+            log.warning("tuik_token_expired_retrying", status=getattr(response, "status_code", 200))
+            self.tokens.invalidate()
+            response = self.http.get(
+                url,
+                headers=self.tokens.auth_header(),
+                source_slug=self.slug,
+            )
+
+        text = response.text.strip()
+        if not text:
+            log.warning("tuik_empty_response", dataflow=indicator.dataflow)
+            return None
+
+        if text.startswith("<html") or text.startswith("<!DOCTYPE html"):
+            log.warning(
+                "tuik_html_response_unexpected",
+                dataflow=indicator.dataflow,
+                preview=text[:200],
+            )
+            raise ValueError(f"TÜİK SDMX ucu HTML döndürdü (beklenen SDMX-ML XML): {text[:100]}")
+
+        try:
+            root = ElementTree.fromstring(text)
+        except ElementTree.ParseError as exc:
+            log.error(
+                "tuik_sdmx_parse_error",
+                dataflow=indicator.dataflow,
+                metric=indicator.metric,
+                error=str(exc),
+                preview=text[:300],
+            )
+            err_msg = f"TÜİK SDMX XML ayrıştırma hatası ({indicator.dataflow}): {exc}"
+            raise ValueError(err_msg) from exc
+
 
         matches: list[tuple[str, str]] = []
         for series in root.findall(f".//{GENERIC_NS}Series"):

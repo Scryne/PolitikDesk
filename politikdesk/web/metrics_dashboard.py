@@ -5,18 +5,27 @@ DoD: 8 metrik günlük olarak görüntüleniyor.
 ### Neden Metabase/Grafana değil
 
 Yol Haritası F3-20 "Metabase/Grafana panosu" diyordu. İkisi de ayrı bir
-konteyner, ayrı bir veritabanı bağlantısı ve panonun sürüm kontrolü
-dışında kalan bir tanımı demek. Tek kullanıcılı bir araçta sekiz sayı
-için bu, çalıştırılacak yeni bir servis ve bakımı yapılacak yeni bir
-yapılandırma yükü getirir.
+konteyner, ayrı bir veritabanı bağlantısı ve panonun sürüm kontrolü dışında
+kalan bir tanımı demek. Tek kullanıcılı bir araçta sekiz sayı için bu,
+çalıştırılacak yeni bir servis ve bakımı yapılacak yeni bir yapılandırma
+yükü getirir.
 
 Panonun asıl işlevi Spec §13.4'ün haftalık ritüelidir: *"metrik panosu
 gözden geçirilir, regresyon varsa kök neden aranır."* Bunun için gereken
-şey hedefe göre durum (✓/✗) ve 30 günlük eğilimdir; ikisi de burada var
-ve **testle korunuyor** — harici bir pano tanımı olamazdı.
+şey hedefe göre durum (✓/✗) ve 30 günlük eğilimdir; ikisi de burada var ve
+**testle korunuyor** — harici bir pano tanımı olamazdı.
 
-Ham veri `metrics` tablosundadır; Grafana istenirse aynı tabloya
-bağlanır, bu ekran onu engellemez.
+Ham veri `metrics` tablosundadır; Grafana istenirse aynı tabloya bağlanır,
+bu ekran onu engellemez.
+
+### Bu sayfanın tek işi (BRIEF `birincil_is`)
+
+> "Ürün sözünü tutuyor mu, hangi metrik hedef dışı?"
+
+Bu yüzden **hedef dışı metrikler listenin başında** durur ve sayfanın en
+büyük tipografisi "kaç metrik hedefte" sayısıdır. Sekiz metriği alfabetik
+veya sabit sırada dizmek, kullanıcıyı sekizini de okumaya zorlardı —
+Bölüm 8.1: 4'ten fazla eşit ağırlıklı kart okunmaz.
 """
 
 from __future__ import annotations
@@ -27,110 +36,182 @@ from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
 from politikdesk import metrics
-from politikdesk.web.layout import esc, page
+from politikdesk.web.ui import (
+    button,
+    card,
+    charts,
+    esc,
+    kpi,
+    notice,
+    page,
+    page_head,
+)
+from politikdesk.web.ui import format as fmt
 
 router = APIRouter(prefix="/admin", tags=["admin", "metrics"])
 
-_STATUS_STYLE = {
-    "ok": ("var(--ok)", "✓ hedefte"),
-    "off": ("var(--bad)", "✗ hedef dışı"),
-    "no_data": ("var(--muted)", "— veri yok"),
+_STATUS = {
+    "ok": ("strong", "hedefte"),
+    "off": ("contra", "hedef dışı"),
+    "no_data": ("neutral", "veri yok"),
 }
 
-
-def _format(value: float | None, unit: str) -> str:
-    if value is None:
-        return "—"
-    if unit == "%":
-        return f"{value:.0f}%"
-    if unit == "oran":
-        return f"{value:.3f}"
-    return f"{value:,.1f}".replace(",", " ")
+# Hedef dışı olanlar önce, sonra veri yok, en sonda hedefte olanlar.
+_ORDER = {"off": 0, "no_data": 1, "ok": 2}
 
 
-def _sparkline(points: list[dict], direction: str, target: float) -> str:
-    """30 günlük eğilim — çubuklar, hedef çizgisi renkte.
+def _value_and_unit(value: float | None, unit: str) -> tuple[str, str]:
+    """Değeri ve GÖSTERİLECEK birimi ayrı döner.
 
-    SVG/JS grafik kütüphanesi yok: sekiz metrik için bir bağımlılık
-    eklemek, ekranın kendi gerekçesiyle çelişirdi.
+    Yüzde metrikleri Türkçede işareti **önde** taşır (`%20`, Ek B.1); ayrıca
+    bir de arkasına `%` basmak `%20 %` üretiyordu. Birim, sayının içine
+    girdiği durumda ayrıca yazılmaz.
     """
-    if not points:
-        return '<span class="meta">geçmiş yok</span>'
-    values = [p["value"] for p in points[-30:]]
-    top = max(values) or 1.0
-    bars = "".join(
-        f'<span title="{esc(p["day"])}: {p["value"]:.2f}" style="display:inline-block;'
-        f"width:6px;margin-right:2px;vertical-align:bottom;"
-        f'height:{max(2, int(28 * p["value"] / top))}px;'
-        f"background:{'var(--ok)' if _hits(p['value'], direction, target) else 'var(--bad)'}"
-        f'"></span>'
-        for p in points[-30:]
+    if value is None:
+        return fmt.EMPTY, unit
+    if unit == "%":
+        return fmt.percent(value, 1), ""
+    if unit == "oran":
+        return fmt.number(value, 3), unit
+    return fmt.number(value, 1), unit
+
+
+def _metric_card(data: dict, history: list[dict]) -> str:
+    token, label = _STATUS[data["status"]]
+    higher_is_better = data["direction"] != "lower"
+    arrow = "düşük iyi" if data["direction"] == "lower" else "yüksek iyi"
+
+    value, unit = _value_and_unit(data["value"], data["unit"])
+    target_value, target_unit = _value_and_unit(
+        float(data["target"]), data["unit"]
     )
-    return f'<div style="height:30px">{bars}</div>'
+    unit_html = f'<span class="kpi-unit">{esc(unit)}</span>' if unit else ""
 
+    window = history[-30:]
+    trend = charts.bar_trend(
+        [(str(point["day"]), float(point["value"])) for point in window],
+        target=float(data["target"]),
+        higher_is_better=higher_is_better,
+        unit=data["unit"],
+    )
+    # Eğilim yoksa açıklama satırı da basılmaz — boş bir grafiğin altına
+    # "amber çubuklar…" yazmak, olmayan bir şeyi tarif etmektir.
+    trend_block = (
+        f'<div style="margin-top:var(--space-4)">{trend}</div>'
+        f'<p class="subtle" style="margin:6px 0 0;font-size:11px">'
+        f'{esc(fmt.plural_count(len(window), "günlük eğilim"))} · '
+        f"kesikli çizgi hedef · amber çubuklar hedefin dışında kalan günler</p>"
+        if window
+        else '<p class="subtle" style="margin:var(--space-4) 0 0;'
+             'font-size:var(--text-xs)">Günlük geçmiş henüz yok — '
+             "aşağıdan geçmiş günleri toplayabilirsin.</p>"
+    )
 
-def _hits(value: float, direction: str, target: float) -> bool:
-    return value <= target if direction == "lower" else value >= target
+    return card(
+        f"""
+<div class="row" style="align-items:flex-start;flex-wrap:nowrap">
+  <div style="min-width:0">
+    <div class="kpi-label">{esc(data["label"])}</div>
+    <div class="kpi-value" style="margin-top:6px">{esc(value)}{unit_html}</div>
+  </div>
+  <span class="spacer badge {token}">{esc(label)}</span>
+</div>
+<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">
+  Hedef <b class="num">{esc(target_value)}</b> {esc(target_unit)} ({arrow}) ·
+  örneklem <span class="num">{esc(fmt.number(data["sample_size"]))}</span>
+</p>
+<p class="subtle" style="margin:4px 0 0;font-size:var(--text-xs)">
+  {esc(data["note"])}</p>
+{trend_block}""",
+        cls="metric",
+    )
 
 
 @router.get("/metrics", response_class=HTMLResponse)
 def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLResponse:
     today = date.today()
-    current = metrics.compute_metrics(today)
+    current = [metric.as_dict() for metric in metrics.compute_metrics(today)]
     past = metrics.history(days)
 
-    cards = ""
-    for metric in current:
-        data = metric.as_dict()
-        color, label = _STATUS_STYLE[data["status"]]
-        arrow = "↓ düşük iyi" if data["direction"] == "lower" else "↑ yüksek iyi"
-        cards += f"""
-<div class="card" style="margin-bottom:.8rem">
-  <div class="row">
-    <b>{esc(data["label"])}</b>
-    <span class="badge" style="color:{color}">{esc(label)}</span>
-    <span style="margin-left:auto;font-size:1.5rem">
-      {esc(_format(data["value"], data["unit"]))}
-      <span class="meta" style="font-size:.8rem">{esc(data["unit"])}</span></span>
-  </div>
-  <div class="meta">Hedef {esc(data["target"])} {esc(data["unit"])} ({arrow}) ·
-    örneklem {data["sample_size"]} · {esc(data["note"])}</div>
-  <div style="margin-top:.5rem">
-    {_sparkline(past.get(data["name"], []), data["direction"], float(data["target"]))}
-  </div>
-</div>"""
+    on_target = sum(1 for d in current if d["status"] == "ok")
+    off_target = sum(1 for d in current if d["status"] == "off")
+    no_data = sum(1 for d in current if d["status"] == "no_data")
+    with_history = sum(1 for name in past if past[name])
 
-    rolled = sum(1 for name in past if past[name])
+    ordered = sorted(current, key=lambda d: (_ORDER[d["status"]], d["label"]))
+    cards = "".join(_metric_card(d, past.get(d["name"], [])) for d in ordered)
+
+    lede = (
+        "Spec §13.3'ün sekiz metriği. Oran metrikleri 7 günlük kayan pencerede "
+        "hesaplanır; hedef dışı olanlar listenin başında durur."
+    )
+
     body = f"""
-<h1>Ürün metrikleri</h1>
-<p class="meta">Spec §13.3'ün sekiz metriği · oran metrikleri 7 günlük kayan
-  pencerede · {rolled}/8 metriğin günlük geçmişi var</p>
+{page_head(
+    "Ürün metrikleri",
+    lede=lede,
+    actions=button("Şimdi topla", icon_name="refresh", onclick="pdRollup()")
+            + '<span id="rollup-status" class="subtle" aria-live="polite" '
+              'style="font-size:var(--text-xs)"></span>',
+)}
+<div class="stack">
+  <div class="kpis">
+    {kpi("Hedefte", fmt.number(on_target), unit=f"/ {len(current)} metrik",
+         icon_name="check")}
+    {kpi("Hedef dışı", fmt.number(off_target), unit="metrik", icon_name="warning")}
+    {kpi("Veri yok", fmt.number(no_data), unit="metrik", icon_name="clock")}
+    {kpi("Günlük geçmişi olan", fmt.number(with_history),
+         unit=f"/ {len(current)} metrik", icon_name="metrics")}
+  </div>
 
-<div class="notice">
-  <b>Daily active minutes'ın düşük olması hedeftir.</b> Ürünün vaadi zaman
-  tasarrufudur, etkileşim değil; bu metriği yukarı çekmeye çalışan hiçbir
-  özellik kabul edilmez (Spec §13.3).
+  {notice(
+    "<p><b>Daily active minutes'ın düşük olması hedeftir.</b></p>"
+    "<p>Ürünün vaadi zaman tasarrufudur, etkileşim değil; bu metriği yukarı "
+    "çekmeye çalışan hiçbir özellik kabul edilmez (Spec §13.3).</p>"
+  )}
+
+  <div class="halves">{cards}</div>
+
+  {card(
+    '<p style="margin:0">Toplama her gece 23:50\'de koşar '
+    '(<span class="mono">metrics_rollup</span>). Pano ilk açıldığında eğilim '
+    'boş kalmasın diye geçmiş günler toplanabilir.</p>'
+    '<div class="btn-row" style="margin-top:var(--space-4)">'
+    + button("Son 7 günü topla", onclick="pdBackfill(7)")
+    + button("Son 30 günü topla", onclick="pdBackfill(30)")
+    + '</div>',
+    title="Günlük toplama",
+  )}
 </div>
-
-<div style="margin-top:1rem">{cards}</div>
-
-<h2>Günlük toplama</h2>
-<p class="meta">Toplama her gece 23:50'de koşar (<code>metrics_rollup</code>).
-  Elle koşmak için: <code>make metrics</code></p>
-<button onclick="pdRollup()">Şimdi topla</button>
-<span id="rollup-status" class="meta" style="margin-left:.6rem"></span>
 """
     js = """
-async function pdRollup(){
+async function pdRun(url, note){
   var s = document.getElementById('rollup-status');
-  s.textContent = 'Hesaplanıyor…';
-  var r = await fetch('/admin/metrics/rollup', {method:'POST'});
-  var d = await r.json();
-  s.textContent = r.ok ? (d.written + ' metrik yazıldı.') : 'Hata.';
-  if (r.ok) setTimeout(function(){ location.reload(); }, 600);
+  s.textContent = note;
+  try {
+    var r = await fetch(url, {method:'POST'});
+    if (!r.ok) throw new Error(r.status);
+    var d = await r.json();
+    s.textContent = (d.written || 0) + ' metrik yazıldı.';
+    setTimeout(function(){ location.reload(); }, 600);
+  } catch (e) {
+    s.textContent = 'Toplanamadı. Veritabanına ulaşılamıyor olabilir.';
+  }
+}
+function pdRollup(){ pdRun('/admin/metrics/rollup', 'Hesaplanıyor…'); }
+function pdBackfill(n){
+  pdRun('/admin/metrics/backfill?days=' + n, n + ' gün toplanıyor…');
 }
 """
-    return HTMLResponse(page("Metrikler", body, active="/admin/metrics", extra_js=js))
+    return HTMLResponse(
+        page(
+            "Metrikler",
+            body,
+            active="/admin/metrics",
+            crumbs=(("Denetim", None), ("Metrikler", None)),
+            extra_js=js,
+        )
+    )
 
 
 @router.post("/metrics/rollup")

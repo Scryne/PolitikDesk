@@ -111,5 +111,10 @@ class TuikTokenProvider:
         log.info("tuik_token_acquired", ttl_seconds=ttl)
         return token
 
+    def invalidate(self) -> None:
+        """Önbellekteki belirteci temizler; sonraki çağrıda yenisini zorlar."""
+        self._token = ""
+        self._expires_at = 0.0
+
     def auth_header(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self.token()}"}

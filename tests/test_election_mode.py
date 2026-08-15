@@ -196,8 +196,8 @@ def test_banner_is_visible_when_on(election_on) -> None:  # noqa: ANN001
     assert "12.6" in banner
 
 
-def test_layout_renders_the_banner(monkeypatch) -> None:  # noqa: ANN001
-    from politikdesk.web.layout import page
+def test_shell_renders_the_banner(monkeypatch) -> None:  # noqa: ANN001
+    from politikdesk.web.ui import page
 
     monkeypatch.setenv(election_mode.ENV_VAR, "true")
     assert "ELECTION MODE" in page("Test", "<p>govde</p>")

@@ -188,6 +188,7 @@ def score_claims(limit: int = 200) -> int:
         )
         rows = list(cur.fetchall())
 
+        BATCH_COMMIT_SIZE = 50
         for row in rows:
             evidence = _load_evidence(cur, row["id"])
             claim = Claim(
@@ -210,6 +211,8 @@ def score_claims(limit: int = 200) -> int:
                 (result.status, json.dumps(result.reason, ensure_ascii=False), row["id"]),
             )
             scored += 1
+            if scored % BATCH_COMMIT_SIZE == 0:
+                conn.commit()
         conn.commit()
 
     return scored
@@ -275,6 +278,7 @@ def score_events(limit: int = 200) -> int:
         )
         event_ids = [r["id"] for r in cur.fetchall()]
 
+        BATCH_COMMIT_SIZE = 50
         for event_id in event_ids:
             signals = _event_signals(cur, event_id)
             if signals is None:
@@ -298,6 +302,8 @@ def score_events(limit: int = 200) -> int:
                 ),
             )
             scored += 1
+            if scored % BATCH_COMMIT_SIZE == 0:
+                conn.commit()
         conn.commit()
 
     return scored

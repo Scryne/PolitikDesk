@@ -25,17 +25,13 @@ from politikdesk.admin.router import router as admin_router
 from politikdesk.api.ingest import router as ingest_router
 from politikdesk.config import get_settings
 from politikdesk.observability import configure_logging, configure_sentry, get_logger
-from politikdesk.web.accountability_view import router as accountability_router
 from politikdesk.web.api import router as web_api_router
-from politikdesk.web.archive_view import router as archive_router
 from politikdesk.web.briefing import router as briefing_router
 from politikdesk.web.draft import router as draft_router
 from politikdesk.web.event import router as event_router
 from politikdesk.web.feed import router as feed_router
-from politikdesk.web.memory_view import router as memory_router
 from politikdesk.web.metrics_dashboard import router as metrics_router
 from politikdesk.web.onboarding import router as onboarding_router
-from politikdesk.web.promises_view import router as promises_router
 
 log = get_logger(__name__)
 

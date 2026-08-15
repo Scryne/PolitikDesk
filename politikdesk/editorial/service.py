@@ -19,13 +19,18 @@ doğrular hâle gelirdi.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from politikdesk import audit
 from politikdesk.editorial import repository
 from politikdesk.editorial.checker import run_checks
 from politikdesk.editorial.generator import ANGLES, GeneratedDraft, generate_draft
-from politikdesk.editorial.guards import GenerationBlocked, generation_block_reason
+from politikdesk.editorial.guards import (
+    GenerationBlocked,
+    GroundingBlocked,
+    generation_block_reason,
+)
 from politikdesk.editorial.profile_compiler import compiled_prompt_for, load_profile
 from politikdesk.observability import get_logger
 
@@ -126,6 +131,7 @@ def generate_for_event(
     user_id: int,
     client: Any | None = None,
     persist: bool = True,
+    stance_path: Path | None = None,
 ) -> dict[str, Any]:
     """Bir olay için tek açılı taslak üretir, denetler ve kaydeder.
 
@@ -141,11 +147,17 @@ def generate_for_event(
 
         client = LLMClient()
 
+    from politikdesk.editorial.stance import get_stance_prompt_block
+
+    base_block = compiled_prompt_for(user_id)
+    stance_block = get_stance_prompt_block(stance_path)
+    profile_block = f"{base_block}\n\n{stance_block}" if stance_block else base_block
+
     draft: GeneratedDraft = generate_draft(
         angle=angle,
         claims=claims,
         client=client,
-        profile_block=compiled_prompt_for(user_id),
+        profile_block=profile_block,
         user_id=user_id,
     )
 
@@ -205,7 +217,11 @@ def generate_for_event(
 
 
 def generate_all_angles(
-    *, event_id: int, user_id: int, client: Any | None = None
+    *,
+    event_id: int,
+    user_id: int,
+    client: Any | None = None,
+    stance_path: Path | None = None,
 ) -> dict[str, Any]:
     """Üç açının hepsini üretir (Spec §14.3 "EDİTORYAL FIRSATLAR").
 
@@ -216,7 +232,11 @@ def generate_all_angles(
     for angle in ANGLES:
         try:
             results[angle] = generate_for_event(
-                event_id=event_id, angle=angle, user_id=user_id, client=client
+                event_id=event_id,
+                angle=angle,
+                user_id=user_id,
+                client=client,
+                stance_path=stance_path,
             )
         except GenerationBlocked:
             raise
@@ -247,12 +267,21 @@ def apply_action(
     if draft is None:
         raise LookupError(f"Taslak yok: {draft_id}")
 
+    if action == "accepted" and not draft.get("is_grounded", True):
+        raise GroundingBlocked(
+            f"Taslak #{draft_id} grounding denetiminden geçmediği için doğrudan kabul edilemez.",
+            details={"draft_id": draft_id, "is_grounded": False},
+        )
+
     distance: float | None = None
     stored_body: str | None = None
 
     if action == "accepted":
-        distance = 0.0
         stored_body = final_body or draft["body"]
+        if final_body and final_body != draft["body"]:
+            distance = normalized_edit_distance(draft["body"], final_body)
+        else:
+            distance = 0.0
     elif action == "edited":
         if not final_body:
             raise ValueError("'edited' aksiyonu düzenlenmiş metni gerektirir.")
@@ -260,6 +289,14 @@ def apply_action(
         distance = normalized_edit_distance(draft["body"], final_body)
 
     row = repository.record_action(draft_id, action, stored_body, distance)
+
+    # Arşiv kütüğü ve denetim manifestosu oluşturulup kalıcılaştırılır (Spec §14.4)
+    if action in ("accepted", "edited"):
+        try:
+            from politikdesk.editorial.archive import persist_draft_archive
+            persist_draft_archive(draft_id, stored_body)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("draft_archive_persist_failed", draft_id=draft_id, error=str(exc))
 
     # Ham iz metriğe de yazılır: `drafts` tablosu silinse bile ölçüm
     # geçmişi `metrics` tablosunda durur (Spec §13.3).
@@ -289,6 +326,12 @@ def publish_payload(draft_id: int) -> dict[str, Any]:
     draft = repository.get_draft(draft_id)
     if draft is None:
         raise LookupError(f"Taslak yok: {draft_id}")
+
+    if not draft.get("is_grounded", True):
+        raise GroundingBlocked(
+            f"Taslak #{draft_id} grounding denetiminden geçmediği için yayınlanamaz.",
+            details={"draft_id": draft_id, "is_grounded": False},
+        )
 
     text = draft.get("final_body") or draft["body"]
     return {

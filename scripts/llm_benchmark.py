@@ -152,13 +152,13 @@ def load_articles(path: Path, limit: int) -> list[dict[str, Any]]:
     return picked
 
 
-def _settings_for(
-    provider: str, model: str, timeout: float = 180.0, retries: int = 4
-) -> Settings:
+def _settings_for(provider: str, model: str, timeout: float = 180.0, retries: int = 4) -> Settings:
     if provider == "anthropic":
         return Settings(
-            env="test", llm_provider="anthropic",
-            llm_model_extraction=model, llm_model_generation=model,
+            env="test",
+            llm_provider="anthropic",
+            llm_model_extraction=model,
+            llm_model_generation=model,
         )
     return Settings(
         env="test",
@@ -261,8 +261,9 @@ def main(argv: list[str] | None = None) -> int:
     load_env_file()
 
     parser = argparse.ArgumentParser(description="LLM model kıyaslaması (iddia çıkarımı)")
-    parser.add_argument("--provider", choices=["openai_compat", "anthropic"],
-                        default="openai_compat")
+    parser.add_argument(
+        "--provider", choices=["openai_compat", "anthropic"], default="openai_compat"
+    )
     parser.add_argument("--models", help="Virgülle ayrık model listesi")
     parser.add_argument("--articles", type=int, default=8)
     parser.add_argument("--golden", type=Path, default=GOLDEN_ARTICLES)
@@ -274,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
 
     models = (
         [m.strip() for m in args.models.split(",") if m.strip()]
-        if args.models else list(DEFAULT_CANDIDATES)
+        if args.models
+        else list(DEFAULT_CANDIDATES)
     )
     articles = load_articles(args.golden, args.articles)
     print(f"{len(articles)} makale x {len(models)} model = {len(articles) * len(models)} çağrı\n")
@@ -283,8 +285,12 @@ def main(argv: list[str] | None = None) -> int:
     for model in models:
         print(f"-> {model}")
         score = score_model(
-            args.provider, model, articles,
-            verbose=args.verbose, timeout=args.timeout, retries=args.retries,
+            args.provider,
+            model,
+            articles,
+            verbose=args.verbose,
+            timeout=args.timeout,
+            retries=args.retries,
         )
         scores.append(score)
         print(

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from politikdesk.editorial import repository as editorial_repo
 from politikdesk.editorial import service
 from politikdesk.editorial.generator import ANGLES
-from politikdesk.editorial.guards import GenerationBlocked
+from politikdesk.editorial.guards import GenerationBlocked, GroundingBlocked
 from politikdesk.editorial.profile_compiler import compile_and_store, load_profile
 from politikdesk.llm.errors import BudgetExceeded, LLMError
 from politikdesk.metrics import record_activity
@@ -56,7 +56,7 @@ class ActivityRequest(BaseModel):
 
 
 class ProfileRequest(BaseModel):
-    """Editoryal Kimlik Kartı — 7 soru (Spec §10.1).
+    """Editoryal Kimlik Kartı — 10 soru (Editoryal Profil).
 
     ⛔ Bu modele ideolojik/siyasi bir alan EKLENEMEZ. Şemada karşılığı
     yoktur ve `tests/test_editorial.py` hem modeli hem tabloyu tarar.
@@ -64,12 +64,15 @@ class ProfileRequest(BaseModel):
 
     tone: list[str] = Field(default_factory=list)
     sentence_length: str | None = None
+    formality: int | None = Field(default=None, ge=1, le=5)
     emoji_usage: str | None = None
     hashtag_usage: str | None = None
     citation_habit: str | None = None
-    formality: int | None = Field(default=None, ge=1, le=5)
+    citation_policy: str | None = None
     topic_priorities: str | list[str] = ""
     avoid_list: str | list[str] = ""
+    quote_habit: str | None = None
+    uncertainty_handling: str | None = None
 
 
 # ------------------------------------------------------------------- taslak
@@ -117,6 +120,9 @@ def draft_action(draft_id: int, payload: ActionRequest) -> dict[str, Any]:
         return service.apply_action(
             draft_id=draft_id, action=payload.action, final_body=payload.final_body
         )
+    except GroundingBlocked as blocked:
+        log.info("draft_action_grounding_blocked", draft_id=draft_id, action=payload.action)
+        raise HTTPException(status_code=409, detail=blocked.as_dict()) from blocked
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
@@ -128,6 +134,9 @@ def publish(draft_id: int) -> dict[str, Any]:
     """Yayın köprüsü verisi (F3-15). **Gönderim yapmaz.**"""
     try:
         return service.publish_payload(draft_id)
+    except GroundingBlocked as blocked:
+        log.info("draft_publish_grounding_blocked", draft_id=draft_id)
+        raise HTTPException(status_code=409, detail=blocked.as_dict()) from blocked
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -191,3 +200,93 @@ def angles() -> list[dict[str, str]]:
         {"key": key, "label": label, "instruction": instruction}
         for key, (label, instruction) in ANGLES.items()
     ]
+
+
+# --------------------------------------------------------------- siyaset dikeyi
+@router.get("/memory/{actor}")
+def get_actor_memory(actor: str) -> dict[str, Any]:
+    """Aktör siyasi hafıza ve iddia kronolojisi (Spec §7.3, §8.3)."""
+    from politikdesk.political_memory import service as mem_service
+
+    memory = mem_service.get_actor_memory(actor)
+    return memory.to_dict()
+
+
+@router.get("/promises")
+def list_promises() -> list[dict[str, Any]]:
+    """Vaat takip listesi (Spec §7.3)."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.get_promise_tracker()
+
+
+@router.get("/accountability")
+def get_accountability() -> list[dict[str, Any]]:
+    """'Hesap Sor' hesap verebilirlik özeti."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.get_accountability_digest()
+
+
+@router.get("/accountability/cases")
+def list_accountability_cases(limit: int = 50) -> dict[str, Any]:
+    """S3 Hesap Verebilirlik Kanıt Kütüğü ve Olay İlişkileri (Spec v3.4 §14.1)."""
+    from politikdesk.political_memory import service as mem_service
+    from politikdesk.political_memory.accountability import LEGAL_DISCLAIMER
+    from politikdesk.users import touch_last_seen
+
+    user_id = current_user_id()
+    touch_last_seen(user_id)
+
+    cases = mem_service.get_accountability_digest(limit=limit)
+    return {
+        "total_cases": len(cases),
+        "cases": cases,
+        "disclaimer": LEGAL_DISCLAIMER,
+    }
+
+
+@router.get("/accountability/cases/{from_id}/{to_id}")
+def get_accountability_case_detail(from_id: int, to_id: int) -> dict[str, Any]:
+    """Tekil bir olay ilişkisinin detaylı kanıt dökümü (S3 Evidence Drawer)."""
+    from politikdesk.db import connection
+    from politikdesk.political_memory.accountability import LEGAL_DISCLAIMER
+    from politikdesk.users import touch_last_seen
+
+    user_id = current_user_id()
+    touch_last_seen(user_id)
+
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT from_event_id, to_event_id, relation, similarity, confidence,
+                   evidence_payload, status, engine_version, created_at, updated_at
+            FROM event_relations
+            WHERE from_event_id = %s AND to_event_id = %s;
+            """,
+            (from_id, to_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="İlişki kaydı bulunamadı.")
+
+        return {
+            "from_event_id": row["from_event_id"],
+            "to_event_id": row["to_event_id"],
+            "relation": row["relation"],
+            "confidence": row["confidence"],
+            "status": row["status"],
+            "engine_version": row["engine_version"],
+            "evidence_payload": row["evidence_payload"],
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None,
+            "disclaimer": LEGAL_DISCLAIMER,
+        }
+
+
+@router.get("/archive")
+def get_archive(limit: int = 50) -> list[dict[str, Any]]:
+    """Arşivlenmiş editoryal yayınlar ve kanıt kütüğü (Spec §14.4)."""
+    from politikdesk.editorial.archive import list_archived_publications
+
+    return list_archived_publications(limit=limit)

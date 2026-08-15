@@ -275,14 +275,24 @@ def test_r7_does_not_cap_when_a_non_social_source_exists() -> None:
     assert result.rule == "R4"
 
 
-def test_all_eight_rules_are_reachable() -> None:
-    """F2-12 DoD: 8 kuralın her biri için test var."""
+def test_r8_attribution_verified_for_official_record() -> None:
+    """R8 (B-92 · Spec v3.4): Birincil tutanak/resmî kayda dayanan attribution iddiaları."""
+    claim = _claim(claim_type="attribution")
+    evidence = _supports(_article(1, "tbmm-tutanak", 1))
+    result = compute_status(claim, evidence)
+    assert result.status == "attribution_verified"
+    assert result.rule == "R8"
+    assert result.reason["label"] == "Beyan Sabit"
+
+
+def test_all_nine_rules_are_reachable() -> None:
+    """F2-12 / Spec v3.4 DoD: 9 kuralın (R0-R8) her biri için test var."""
     covered = {
         name.split("_")[1].upper()
         for name in globals()
         if re.fullmatch(r"test_r\d+_.*", name)
     }
-    assert {"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7"} <= covered
+    assert {"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"} <= covered
 
 
 # ==========================================================================
@@ -497,3 +507,59 @@ def test_simhash_copy_inherits_the_wires_group_key() -> None:
     copy = _article(2, "kopyaci", 3, simhash=0b1011)
     assert merge_key(copy, others=[wire, copy]) == "grp:wire-aa"
     assert independent_count([wire, copy]) == 1
+
+
+# ==================================================================== L4 (B-92)
+def test_explain_r8_attribution_verified() -> None:
+    """L4: R8 kuralı ve attribution_verified durumu için explain() eksiksiz çıktı üretmeli."""
+    from politikdesk.evidence.explain import RULE_TITLES, STATUS_TITLES, explain
+
+    res = explain(
+        "attribution_verified",
+        {
+            "rule": "R8",
+            "has_primary_source": True,
+            "independent_count": 1,
+            "breakdown": {"official": 1},
+        },
+    )
+    assert res["status"] == "attribution_verified"
+    assert res["status_title"] == "Beyan sabit"
+    assert res["rule"] == "R8"
+    assert res["rule_title"] == "Birincil kayıt ve beyan doğrulaması"
+    assert res["rule_title"] != "Bilinmeyen kural"
+    assert "resmî kayda" in res["sentence"] or "Aktarım veya beyan" in res["sentence"]
+    assert "R8" in RULE_TITLES
+    assert "attribution_verified" in STATUS_TITLES
+
+
+def test_status_badge_renders_attribution_verified() -> None:
+    """L4: attribution_verified durumu UI rozetinde Türkçe ve accent stiliyle basılmalı."""
+    from politikdesk.web.ui.components import status_badge
+    from politikdesk.web.ui.tokens import STATUS_TOKEN
+
+    badge_html = status_badge("attribution_verified")
+    assert "beyan sabit" in badge_html
+    assert "badge accent" in badge_html
+    assert '<path d="M9 10h6"/>' in badge_html
+    assert "attribution_verified" not in badge_html  # raw slug görünmemeli
+    assert STATUS_TOKEN["attribution_verified"] == "accent"
+
+
+def test_all_evidence_statuses_have_complete_ui_and_explain_contracts() -> None:
+    """L4: Tüm kayıtlı EvidenceStatus değerleri UI ve açıklama sözleşmelerini karşılamalı."""
+    from typing import get_args
+
+    from politikdesk.evidence.explain import STATUS_TITLES
+    from politikdesk.evidence.rules import EvidenceStatus
+    from politikdesk.web.ui import icons
+    from politikdesk.web.ui.components import STATUS_LABELS
+    from politikdesk.web.ui.tokens import STATUS_TOKEN
+
+    all_statuses = get_args(EvidenceStatus)
+    for st in all_statuses:
+        assert st in STATUS_TOKEN, f"{st} STATUS_TOKEN içinde eksik"
+        assert st in STATUS_LABELS, f"{st} STATUS_LABELS içinde eksik"
+        assert st in STATUS_TITLES, f"{st} STATUS_TITLES içinde eksik"
+        token = STATUS_TOKEN[st]
+        assert f"status-{token}" in icons.names(), f"status-{token} ikonu eksik"

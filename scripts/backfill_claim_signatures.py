@@ -53,8 +53,7 @@ def run(*, apply: bool) -> dict[str, int]:
 
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
-            "SELECT id, event_id, claim_text, claim_type, normalized_value "
-            "FROM claims ORDER BY id"
+            "SELECT id, event_id, claim_text, claim_type, normalized_value FROM claims ORDER BY id"
         )
         rows = [dict(r) for r in cur.fetchall()]
         stats["claims"] = len(rows)

@@ -74,10 +74,21 @@ def _percentile(values: list[float], pct: float) -> float:
 
 def _sample_event_id() -> int | None:
     result = subprocess.run(  # noqa: S603
-        ["docker", "exec", DB_CONTAINER, "psql", "-U", "politikdesk",  # noqa: S607
-         "-d", "politikdesk", "-t", "-A", "-c",
-         "SELECT id FROM events WHERE merged_into_id IS NULL "
-         "ORDER BY article_count DESC, salience_score DESC NULLS LAST LIMIT 1"],
+        [
+            "docker",
+            "exec",
+            DB_CONTAINER,
+            "psql",
+            "-U",
+            "politikdesk",  # noqa: S607
+            "-d",
+            "politikdesk",
+            "-t",
+            "-A",
+            "-c",
+            "SELECT id FROM events WHERE merged_into_id IS NULL "
+            "ORDER BY article_count DESC, salience_score DESC NULLS LAST LIMIT 1",
+        ],
         capture_output=True,
         check=False,
     )
@@ -87,9 +98,20 @@ def _sample_event_id() -> int | None:
 
 def _sample_briefing_date() -> str | None:
     result = subprocess.run(  # noqa: S603
-        ["docker", "exec", DB_CONTAINER, "psql", "-U", "politikdesk",  # noqa: S607
-         "-d", "politikdesk", "-t", "-A", "-c",
-         "SELECT briefing_date FROM briefings ORDER BY briefing_date DESC LIMIT 1"],
+        [
+            "docker",
+            "exec",
+            DB_CONTAINER,
+            "psql",
+            "-U",
+            "politikdesk",  # noqa: S607
+            "-d",
+            "politikdesk",
+            "-t",
+            "-A",
+            "-c",
+            "SELECT briefing_date FROM briefings ORDER BY briefing_date DESC LIMIT 1",
+        ],
         capture_output=True,
         check=False,
     )
@@ -139,8 +161,22 @@ ORDER BY calls DESC LIMIT 1
 
 def _psql(sql: str) -> str:
     result = subprocess.run(  # noqa: S603
-        ["docker", "exec", DB_CONTAINER, "psql", "-U", "politikdesk",  # noqa: S607
-         "-d", "politikdesk", "-t", "-A", "-F", "|", "-c", sql],
+        [
+            "docker",
+            "exec",
+            DB_CONTAINER,
+            "psql",
+            "-U",
+            "politikdesk",  # noqa: S607
+            "-d",
+            "politikdesk",
+            "-t",
+            "-A",
+            "-F",
+            "|",
+            "-c",
+            sql,
+        ],
         capture_output=True,
         check=False,
     )
@@ -173,15 +209,15 @@ def check_n_plus_one(path: str) -> str:
     )
 
     if calls > _N_PLUS_ONE_REPEAT_LIMIT:
-        return (f"{total} sorgu, en sık tekrarlanan {calls}x — N+1 ŞÜPHESİ: "
-                f"{query.strip()[:60]}")
+        return f"{total} sorgu, en sık tekrarlanan {calls}x — N+1 ŞÜPHESİ: {query.strip()[:60]}"
     return f"{total} sorgu, hiçbiri {calls}x'ten fazla tekrarlamıyor — TEMİZ"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scripts.perf_check", description=__doc__)
-    parser.add_argument("--runs", type=int, default=30,
-                        help="Sayfa başına ölçüm sayısı (varsayılan 30)")
+    parser.add_argument(
+        "--runs", type=int, default=30, help="Sayfa başına ölçüm sayısı (varsayılan 30)"
+    )
     args = parser.parse_args(argv)
 
     event_id = _sample_event_id()
@@ -208,8 +244,10 @@ def main(argv: list[str] | None = None) -> int:
         target = TARGETS_MS.get(name, 1500)
         ok = float(row["p95_ms"]) < target and row["statuses"] == "200"
         if not ok:
-            failures.append(f"{name} ({path}): p95 {row['p95_ms']} ms / hedef {target} ms"
-                            f" · HTTP {row['statuses']}")
+            failures.append(
+                f"{name} ({path}): p95 {row['p95_ms']} ms / hedef {target} ms"
+                f" · HTTP {row['statuses']}"
+            )
         print(
             f"{name:<10} {row['p95_ms']:>7} ms {target:>6.0f}ms "
             f"{row['median_ms']:>7} ms {row['min_ms']:>6} ms {row['max_ms']:>7} ms "

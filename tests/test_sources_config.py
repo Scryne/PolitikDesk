@@ -188,3 +188,79 @@ def test_unverified_sources_declare_a_probe_plan() -> None:
             f"{s['slug']}: doğrulanmamış ve probe planı yok. "
             "config/sources.yml içine probe.candidates ekleyin."
         )
+
+
+# ===========================================================================
+# S1.1 — Multi-Vertical Configuration Tests
+# ===========================================================================
+def test_load_all_configs_loads_both_verticals() -> None:
+    """sources.yml ve sources_legislation.yml birlikte yüklenir."""
+    from politikdesk.ingestion.sources import load_all_configs
+
+    all_cfgs = load_all_configs()
+    slugs = {c.slug for c in all_cfgs}
+    assert "tcmb" in slugs
+    assert "tbmm" in slugs
+    assert "sayistay" in slugs
+    assert "cb-kararname" in slugs
+
+    verticals = {c.vertical for c in all_cfgs}
+    assert "macro_economy" in verticals
+    assert "legislation" in verticals
+
+
+def test_vertical_source_limit_enforced() -> None:
+    """Spec v3.4 §9.2: Dikey başına azami 12 kaynak sınırı aşılamaz."""
+    from politikdesk.ingestion.sources import load_config
+
+    leg_path = Path(__file__).resolve().parent.parent / "config" / "sources_legislation.yml"
+    if leg_path.is_file():
+        cfgs, _ = load_config(leg_path)
+        assert len(cfgs) <= 12
+
+
+def test_global_source_limit_enforced() -> None:
+    """Spec v3.4 §9.2: Toplam azami 30 kaynak sınırı aşılamaz."""
+    from politikdesk.ingestion.sources import MAX_GLOBAL_SOURCES, load_all_configs
+
+    all_cfgs = load_all_configs()
+    assert len(all_cfgs) <= MAX_GLOBAL_SOURCES == 30
+
+
+def test_duplicate_slug_across_verticals_rejected(tmp_path: Path) -> None:
+    """İki dikeyde aynı slug kullanılırsa load_all_configs ValueError fırlatır."""
+    from politikdesk.ingestion.sources import load_all_configs
+
+    f1 = tmp_path / "sources_1.yml"
+    f1.write_text("""
+vertical: macro_economy
+max_sources: 12
+sources:
+  - slug: dup-source
+    name: Test 1
+    tier: 1
+    kind: official
+    access_method: rss
+    tos_status: allowed
+    base_url: https://test1.com
+""", encoding="utf-8")
+
+    f2 = tmp_path / "sources_2.yml"
+    f2.write_text("""
+vertical: legislation
+max_sources: 12
+sources:
+  - slug: dup-source
+    name: Test 2
+    tier: 1
+    kind: official
+    access_method: rss
+    tos_status: allowed
+    base_url: https://test2.com
+""", encoding="utf-8")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="çakışan slug"):
+        load_all_configs(tmp_path)
+

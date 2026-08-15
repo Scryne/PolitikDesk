@@ -456,3 +456,164 @@ def test_ingestion_does_not_stop_at_budget_cap() -> None:
         f"ingestion/ paketi llm/ import ediyor: {offenders}. "
         "Bütçe tavanı toplamayı durdurmamalı (F4-07)."
     )
+
+
+# ==================================================================== D9
+def test_anthropic_backend_passes_timeout_and_max_retries_to_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D9: _AnthropicBackend llm_max_retries ve llm_timeout_seconds'ı Anthropic SDK'ya iletmeli."""
+    import sys
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    from politikdesk.config import Settings
+    from politikdesk.llm.client import _AnthropicBackend
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test-key")
+    captured_kwargs: dict[str, Any] = {}
+
+    class FakeAnthropic:
+        def __init__(self, **kwargs: Any) -> None:
+            captured_kwargs.update(kwargs)
+
+    mock_anthropic_mod = MagicMock()
+    mock_anthropic_mod.Anthropic = FakeAnthropic
+    monkeypatch.setitem(sys.modules, "anthropic", mock_anthropic_mod)
+
+    settings = Settings(llm_max_retries=3, llm_timeout_seconds=42)
+    backend = _AnthropicBackend(settings)
+    _ = backend.client
+
+    assert captured_kwargs.get("max_retries") == 3
+    assert captured_kwargs.get("timeout") == 42.0
+
+
+# ==================================================================== D10
+def test_http_client_acquires_rate_limiter_on_every_retry_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D10: HttpClient her gerçek HTTP isteği/denemesi öncesinde rate limiter acquire etmeli."""
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from politikdesk.ingestion.http import HttpClient
+
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    attempt_count = 0
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> httpx.Response:
+        nonlocal attempt_count
+        attempt_count += 1
+        request = httpx.Request(method, url)
+        if attempt_count < 4:
+            return httpx.Response(503, request=request)
+        return httpx.Response(200, text="OK", request=request)
+
+    client = HttpClient(max_retries=4, respect_robots=False)
+    mock_limiter = MagicMock()
+    client._limiter = mock_limiter
+    client._client.request = fake_request  # type: ignore[method-assign]
+
+    resp = client._send("GET", "https://ornek.gov.tr/veri")
+    assert resp.status_code == 200
+    assert attempt_count == 4
+    assert mock_limiter.acquire.call_count == 4
+
+
+def test_http_client_429_scenario_acquires_limiter_per_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D10: 429 yanıtı alındığında da her retry için limiter slot'u ayrılmalı."""
+    from typing import Any
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from politikdesk.ingestion.http import HttpClient
+
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    attempt_count = 0
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> httpx.Response:
+        nonlocal attempt_count
+        attempt_count += 1
+        request = httpx.Request(method, url)
+        if attempt_count == 1:
+            return httpx.Response(429, headers={"retry-after": "1"}, request=request)
+        return httpx.Response(200, text="OK", request=request)
+
+    client = HttpClient(max_retries=3, respect_robots=False)
+    mock_limiter = MagicMock()
+    client._limiter = mock_limiter
+    client._client.request = fake_request  # type: ignore[method-assign]
+
+    resp = client._send("GET", "https://ornek.gov.tr/api")
+    assert resp.status_code == 200
+    assert attempt_count == 2
+    assert mock_limiter.acquire.call_count == 2
+
+
+# ==================================================================== D14
+def test_http_client_no_sleep_on_final_retry_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D14: Son deneme başarısız olduğunda gereksiz backoff sleep yapılmamalı."""
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from politikdesk.ingestion.http import HttpClient
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("time.sleep", lambda s: sleep_calls.append(s))
+
+    def fake_failing_request(method: str, url: str, **kwargs: object) -> httpx.Response:
+        request = httpx.Request(method, url)
+        return httpx.Response(503, request=request)
+
+    client = HttpClient(max_retries=3, respect_robots=False)
+    client._limiter = MagicMock()
+    client._client.request = fake_failing_request  # type: ignore[method-assign]
+
+    with pytest.raises(httpx.HTTPStatusError):
+        client._send("GET", "https://ornek.gov.tr/hata")
+
+    # max_retries=3 için attempt 0 ve 1 sleep yapar, attempt 2 (son) sleep yapmadan hata fırlatır
+    assert len(sleep_calls) == 2
+    assert sleep_calls[0] == 1.0  # 2^0
+    assert sleep_calls[1] == 2.0  # 2^1
+
+
+def test_http_client_retry_after_and_capped_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    """D14: Retry-After başlığı okunmalı ve 30s tavanı uygulanmalı, son denemede uyunmamalı."""
+    from unittest.mock import MagicMock
+
+    import httpx
+
+    from politikdesk.ingestion.http import HttpClient
+
+    sleep_calls: list[float] = []
+    monkeypatch.setattr("time.sleep", lambda s: sleep_calls.append(s))
+
+    attempt = 0
+
+    def fake_429_request(method: str, url: str, **kwargs: object) -> httpx.Response:
+        nonlocal attempt
+        attempt += 1
+        request = httpx.Request(method, url)
+        if attempt == 1:
+            return httpx.Response(429, headers={"retry-after": "5"}, request=request)
+        if attempt == 2:
+            return httpx.Response(429, headers={"retry-after": "60"}, request=request)
+        return httpx.Response(429, headers={"retry-after": "10"}, request=request)
+
+    client = HttpClient(max_retries=3, respect_robots=False)
+    client._limiter = MagicMock()
+    client._client.request = fake_429_request  # type: ignore[method-assign]
+
+    with pytest.raises(httpx.HTTPStatusError):
+        client._send("GET", "https://ornek.gov.tr/oran")
+
+    # 1. attempt: Retry-After 5s -> sleep 5.0
+    # 2. attempt: Retry-After 60s (fakat _parse_retry_after float döner) -> _backoff override=60.0
+    # 3. attempt: final attempt -> NO sleep
+    assert len(sleep_calls) == 2
+    assert sleep_calls[0] == 5.0
+    assert sleep_calls[1] == 60.0

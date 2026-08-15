@@ -29,7 +29,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 class Rule:
     """Bir paketin import etmesi yasak olan modülleri tanımlar."""
 
-    package: str               # repo köküne göre paket dizini
+    package: str  # repo köküne göre paket dizini
     forbidden: tuple[str, ...]  # yasak modül önekleri (nokta ayrımlı)
     reason: str
 
@@ -41,6 +41,14 @@ RULES: tuple[Rule, ...] = (
         reason=(
             "Spec §11.2 / §8.1: kanıt motoru deterministiktir. evidence_status "
             "hiçbir koşulda bir LLM çağrısının çıktısı olamaz."
+        ),
+    ),
+    Rule(
+        package="politikdesk/evidence",
+        forbidden=("politikdesk.editorial",),
+        reason=(
+            "Spec §10.1 / B-95: kanıt motoru editoryal duruş veya profilden "
+            "tamamen izoledir; kullanıcı tercihi kanıt durumunu etkileyemez."
         ),
     ),
 )
@@ -123,7 +131,7 @@ def main(argv: list[str]) -> int:
     violations = check(root)
 
     if not violations:
-        checked = ", ".join(r.package for r in RULES)
+        checked = ", ".join(dict.fromkeys(r.package for r in RULES))
         print(f"[OK] Mimari kurallar temiz ({checked}).")
         return 0
 

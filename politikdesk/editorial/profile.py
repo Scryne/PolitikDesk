@@ -1,11 +1,11 @@
-"""Editoryal Kimlik Kartı — 7 soruluk form ve alan sözlüğü (F3-08).
+"""Editoryal Kimlik Kartı — 10 soruluk editoryal profil ve alan sözlüğü (F3-08).
 
 ⛔ TASARIM KISITI (Spec §10.1, P6, KVKK m.6)
 Bu formda **ideolojik soru yoktur ve eklenemez.** Siyasi düşünce özel
 nitelikli kişisel veridir; sistemde onu kodlayacak bir alan bulunmaz.
 Kısıt üç katmanda zorlanır:
 
-  1. Şema      — `editorial_profiles`'ta alan yok (`migrations/0001`)
+  1. Şema      — `editorial_profiles`'ta alan yok (`migrations/0001`, `0009`)
   2. Bu modül  — `QUESTIONS` beyaz listedir; derleyici başka alan okumaz
   3. Test      — `tests/test_editorial.py` hem soruları hem derlenmiş
                  promptu yasaklı terimlere karşı tarar
@@ -20,17 +20,61 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Final, Literal
 
-# Spec §10.1 sol kolon — öğrenilebilir/saklanabilir biçimsel öznitelikler.
-# Sağ kolondan (asla çıkarılmaz) hiçbir şey burada YOKTUR.
-Tone = Literal["direct", "analytical", "ironic", "formal"]
+# Spec §10.1 sol kolon — öğrenilebilir/saklanabilir editoryal ve biçimsel öznitelikler.
+# Sağ kolondan (asla çıkarılmaz / ideolojik) hiçbir şey burada YOKTUR.
+Tone = Literal["direct", "analytical", "critical", "ironic", "formal", "interpretive"]
 
-TONES: Final[tuple[str, ...]] = ("direct", "analytical", "ironic", "formal")
+TONES: Final[tuple[str, ...]] = (
+    "direct",
+    "analytical",
+    "critical",
+    "ironic",
+    "formal",
+    "interpretive",
+)
 SENTENCE_LENGTHS: Final[tuple[str, ...]] = ("short", "medium", "long")
-USAGE_LEVELS: Final[tuple[str, ...]] = ("none", "minimal", "frequent")
-CITATION_HABITS: Final[tuple[str, ...]] = ("always_link", "sometimes", "never")
+EMOJI_LEVELS: Final[tuple[str, ...]] = (
+    "none",
+    "rare",
+    "minimal",
+    "necessary",
+    "frequent",
+)
+HASHTAG_LEVELS: Final[tuple[str, ...]] = (
+    "none",
+    "rare",
+    "minimal",
+    "topic_bound",
+    "frequent",
+)
+USAGE_LEVELS: Final[tuple[str, ...]] = (
+    "none",
+    "rare",
+    "minimal",
+    "necessary",
+    "topic_bound",
+    "frequent",
+)
+CITATION_HABITS: Final[tuple[str, ...]] = (
+    "always",
+    "always_link",
+    "necessary",
+    "sometimes",
+    "inline_short",
+)
+QUOTE_HABITS: Final[tuple[str, ...]] = (
+    "direct_quote",
+    "summarized",
+    "minimal_quote",
+)
+UNCERTAINTY_HANDLINGS: Final[tuple[str, ...]] = (
+    "explicit",
+    "essential_only",
+    "natural_concise",
+)
 
-MAX_AVOID_ITEMS: Final[int] = 12
-MAX_TOPIC_ITEMS: Final[int] = 12
+MAX_AVOID_ITEMS: Final[int] = 16
+MAX_TOPIC_ITEMS: Final[int] = 16
 MAX_ITEM_LEN: Final[int] = 80
 
 
@@ -46,8 +90,9 @@ class Question:
     help_text: str = ""
 
 
-# Spec §10.2: "kullanıcı onboarding'de 7 soruluk bir formu doldurur".
-# Soru sayısı sabittir; sekizinci soru eklemek Spec değişikliği gerektirir.
+# Editoryal Profil Kartı — 10 soruluk tam editoryal mimari:
+# Yazım tonu, cümle yapısı, biçimsellik, emoji, hashtag, kaynak tercihi,
+# konu öncelikleri, kaçınılacak ifadeler, alıntı tercihi, belirsizlik yönetimi.
 QUESTIONS: Final[tuple[Question, ...]] = (
     Question(
         number=1,
@@ -55,75 +100,129 @@ QUESTIONS: Final[tuple[Question, ...]] = (
         prompt="Yazarken hangi tonu kullanırsın?",
         kind="multi",
         choices=(
-            ("direct", "Doğrudan — kısa, iddialı, süssüz"),
-            ("analytical", "Analitik — veriyi açar, bağlam kurar"),
-            ("ironic", "İronik — mesafeli, esprili"),
-            ("formal", "Resmî — ölçülü, kurumsal"),
+            ("direct", "Doğrudan — kısa, net, dolaysız"),
+            ("analytical", "Analitik — neden-sonuç ve bağlam odaklı"),
+            ("critical", "Eleştirel — iddiaları ve kararları sorgulayan"),
+            ("ironic", "İronik — kontrollü, mesafeli mizah"),
+            ("formal", "Resmî — ölçülü ve kurumsal"),
+            ("interpretive", "Yorumlayıcı — olgudan sonra açık değerlendirme yapan"),
         ),
         help_text="Birden fazla seçebilirsin.",
     ),
     Question(
         number=2,
         field="sentence_length",
-        prompt="Cümlelerin genelde ne uzunlukta?",
+        prompt="Cümle yapısı tercihin nedir?",
         kind="single",
         choices=(
-            ("short", "Kısa — tek soluk, 10-15 kelime"),
-            ("medium", "Orta — bağlaçlı, 15-25 kelime"),
-            ("long", "Uzun — çok yan cümleli"),
+            ("short", "Kısa — çoğunlukla kısa cümleler"),
+            ("medium", "Orta — kısa ve orta cümleleri dengeler"),
+            ("long", "Uzun — gerektiğinde uzun, bağlantılı cümleler"),
         ),
+        help_text="Katı kelime sayısı yerine genel yazım eğilimi olarak uygulanır.",
     ),
     Question(
         number=3,
-        field="emoji_usage",
-        prompt="Emoji ve hashtag alışkanlığın nedir?",
-        kind="single",
-        choices=(
-            ("none", "Hiç kullanmam"),
-            ("minimal", "Nadiren, vurgu için"),
-            ("frequent", "Sık kullanırım"),
-        ),
-        help_text="Hashtag için ayrıca sorulur; ikisi aynı alışkanlığın parçasıdır.",
+        field="formality",
+        prompt="Biçimsellik düzeyin (1 = çok samimi, 5 = çok resmî)",
+        kind="scale",
+        help_text="1 = konuşma dili, 3 = dengeli ve doğal, 5 = resmî ve kurumsal.",
     ),
     Question(
         number=4,
-        field="citation_habit",
-        prompt="Kaynak gösterme alışkanlığın nedir?",
+        field="emoji_usage",
+        prompt="Emoji kullanım alışkanlığın nedir?",
         kind="single",
         choices=(
-            ("always_link", "Her zaman link veririm"),
-            ("sometimes", "Önemli olduğunda veririm"),
-            ("never", "Metinde belirtirim, link vermem"),
+            ("none", "Hiç — emoji kullanma"),
+            ("rare", "Nadiren — yalnızca çok gerektiğinde"),
+            ("necessary", "Gerektiğinde — yalnızca vurgu ve bağlam için"),
+            ("frequent", "Sık — doğal akışta serbestçe"),
         ),
     ),
     Question(
         number=5,
-        field="formality",
-        prompt="Biçimsellik düzeyin (1 = çok samimi, 5 = çok resmî)",
-        kind="scale",
+        field="hashtag_usage",
+        prompt="Hashtag kullanım alışkanlığın nedir?",
+        kind="single",
+        choices=(
+            ("none", "Hiç — hashtag kullanma"),
+            ("rare", "Nadiren — en fazla 1 adet"),
+            ("topic_bound", "Konuya özgü olduğunda — yalnızca doğrudan ilgili etiketler"),
+            ("frequent", "Sık — ilgili konularda serbestçe"),
+        ),
+        help_text="Etkileşim artırmak amacıyla gereksiz çoğaltılmaz.",
     ),
     Question(
         number=6,
-        field="topic_priorities",
-        prompt="Hangi konular önceliğin? (virgülle ayır)",
-        kind="list",
-        help_text="Örn: enflasyon, faiz, bütçe, kur. Feed sıralamasında "
-        "kişisel bileşeni (0-10) besler; saklanan global skoru değiştirmez.",
+        field="citation_policy",
+        prompt="Kaynak gösterme tercihin nedir?",
+        kind="single",
+        choices=(
+            ("always_link", "Her zaman — İddia/haber içeren içeriklerde kaynak bağlantısı göster"),
+            ("sometimes", "Gerektiğinde — Önemli/doğrulanması gereken iddialarda kaynak göster"),
+            (
+                "inline_short",
+                "Kısa format — Kaynağı metinde belirt; bağlantıyı yalnızca gerektiğinde ekle",
+            ),
+        ),
+        help_text="Tercihin ne olursa olsun doğrulanabilir iddialarda kaynak şeffaflığı korunur.",
     ),
     Question(
         number=7,
-        field="avoid_list",
-        prompt="Kaçınmamı istediğin kalıplar/kelimeler? (virgülle ayır)",
+        field="topic_priorities",
+        prompt="Hangi konular önceliğin? (virgülle ayır)",
         kind="list",
-        help_text="Örn: 'tarihi karar', 'çarpıcı', ünlem işareti. "
-        "Bu senin kendi kuralın; sistem buna bir yargı yüklemez.",
+        help_text="Örn: Ekonomi, enflasyon, faiz, bütçe, kamu harcamaları. Feed sıralamasında "
+        "kişisel bileşeni (0-10) besler; saklanan global skoru ve kanıt ağırlığını değiştirmez.",
+    ),
+    Question(
+        number=8,
+        field="avoid_list",
+        prompt="Kaçınmamı istediğin kalıplar ve kelimeler? (virgülle ayır)",
+        kind="list",
+        help_text="Örn: 'tarihi karar', 'çarpıcı', 'şok', 'skandal', gereksiz ünlem. "
+        "Bu senin tercihindir; doğrudan alıntıların özgün anlamı hariç bu ifadelerden kaçınılır.",
+    ),
+    Question(
+        number=9,
+        field="quote_habit",
+        prompt="Alıntı ve haber aktarım tercihin nedir?",
+        kind="single",
+        choices=(
+            ("direct_quote", "Doğrudan alıntı — kaynağın ifadesini tırnak içinde koru"),
+            ("summarized", "Özetleyerek aktar — anlamı koruyarak kendi cümlelerinle aktar"),
+            (
+                "minimal_quote",
+                "Gerektiğinde alıntı — yalnızca kritik ifadelerde doğrudan alıntı yap",
+            ),
+        ),
+        help_text="Doğrudan alıntılarda kaynağın özgün ifadesine ve bağlamına sadık kalınır.",
+    ),
+    Question(
+        number=10,
+        field="uncertainty_handling",
+        prompt="Doğrulanmamış veya tek kaynaklı bilgide belirsizlik dili tercihin nedir?",
+        kind="single",
+        choices=(
+            (
+                "explicit",
+                "Açıkça belirt — 'iddia edildi', 'ilk bilgilere göre', 'doğrulanmadı' gibi",
+            ),
+            (
+                "essential_only",
+                "Yalnızca önemli durumlarda — kritik ve riskli iddialarda açıkça belirt",
+            ),
+            (
+                "natural_concise",
+                "Kısa ve doğal — metin akışını bozmadan ölçülü ve doğal ifadelerle",
+            ),
+        ),
+        help_text=(
+            "Yeterince doğrulanmamış bilgilerde kesinlik üretilmez; olgu ve iddia ayrımı korunur."
+        ),
     ),
 )
-
-# 3. soru iki sütun doldurur (emoji + hashtag aynı alışkanlığın parçası).
-# Ayrı sütunlar tutulur çünkü Faz 5'in stil çıkarımı (B-01) ikisini
-# bağımsız ölçebilir; form onları tek soruda topladığı için 7 kalır.
-_LINKED_USAGE_FIELD: Final[str] = "hashtag_usage"
 
 # Derleyicinin okumasına izin verilen alanlar. Bu bir beyaz listedir:
 # `editorial_profiles`'a bir gün yanlışlıkla başka bir sütun eklenirse
@@ -132,12 +231,15 @@ COMPILABLE_FIELDS: Final[frozenset[str]] = frozenset(
     {
         "tone",
         "sentence_length",
+        "formality",
         "emoji_usage",
         "hashtag_usage",
         "citation_habit",
-        "formality",
+        "citation_policy",
         "topic_priorities",
         "avoid_list",
+        "quote_habit",
+        "uncertainty_handling",
     }
 )
 
@@ -179,17 +281,25 @@ def normalize_answers(raw: dict[str, Any]) -> dict[str, Any]:
         if not 1 <= formality <= 5:
             raise ValueError(f"formality 1-5 aralığında olmalı, {formality} verildi.")
 
-    emoji = _one_of("emoji_usage", USAGE_LEVELS)
-    # 3. soru tek soru, iki sütun: açıkça verilmediyse emoji cevabı miras alınır.
-    hashtag = _one_of(_LINKED_USAGE_FIELD, USAGE_LEVELS) or emoji
+    emoji = _one_of("emoji_usage", EMOJI_LEVELS)
+    hashtag = _one_of("hashtag_usage", HASHTAG_LEVELS)
+
+    # citation_policy ana alandır; citation_habit geriye dönük uyumluluk içindir.
+    if raw.get("citation_policy") not in (None, ""):
+        citation_val = _one_of("citation_policy", CITATION_HABITS)
+    else:
+        citation_val = _one_of("citation_habit", CITATION_HABITS)
 
     return {
         "tone": tones,
         "sentence_length": _one_of("sentence_length", SENTENCE_LENGTHS),
+        "formality": formality,
         "emoji_usage": emoji,
         "hashtag_usage": hashtag,
-        "citation_habit": _one_of("citation_habit", CITATION_HABITS),
-        "formality": formality,
+        "citation_habit": citation_val,
+        "citation_policy": citation_val,
         "topic_priorities": _clean_list(raw.get("topic_priorities"))[:MAX_TOPIC_ITEMS],
         "avoid_list": _clean_list(raw.get("avoid_list"))[:MAX_AVOID_ITEMS],
+        "quote_habit": _one_of("quote_habit", QUOTE_HABITS),
+        "uncertainty_handling": _one_of("uncertainty_handling", UNCERTAINTY_HANDLINGS),
     }

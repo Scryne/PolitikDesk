@@ -19,7 +19,7 @@ import pytest
 
 from politikdesk.briefing.generator import (
     SLOT_LABELS,
-    STATUS_BADGE,
+    STATUS_TEXT,
     BriefingContent,
     BriefingEvent,
 )
@@ -72,7 +72,6 @@ def content() -> BriefingContent:
                 "claim_id": 9, "event_id": 42, "event_title": "TCMB",
                 "claim_text": "Piyasa beklentisi yüzde 36 idi.",
                 "claim_type": "number", "evidence_status": "single_source",
-                "badge": STATUS_BADGE["single_source"],
                 "status_text": "tek kaynaklı", "rule": "R5",
             }
         ],
@@ -129,16 +128,28 @@ def test_single_group_event_carries_the_diversity_warning(
     content: BriefingContent,
 ) -> None:
     """Spec §10.3: koşul sağlanamıyorsa UI açıkça yazar."""
-    assert content.events[1].diversity_note.startswith("⚠")
+    # İşaret emoji değil, sözcük: "Dikkat:" (DESIGN.md Bölüm 13.4).
+    # Korunan kısıt aynı — uyarı AÇIKÇA yazılıyor, sezdirilmiyor.
+    assert content.events[1].diversity_note.startswith("Dikkat:")
     assert "tek bir yayın grubundan" in render_text(content)
     # Çok gruplu olayda uyarı YOK, sayı var:
     assert content.events[0].diversity_note == "3 farklı yayın grubu"
 
 
 def test_status_badges_are_not_hidden(content: BriefingContent) -> None:
+    """Spec §15 madde 3: kanıt durumu brifingde de gizlenmez.
+
+    Rozet artık emoji değil, token renginde bir nokta + METİN ETİKETİ
+    (DESIGN.md Bölüm 13.4 — emoji ikon olarak kullanılmaz). Kısıt aynı:
+    durumun okunabilir olması. Değişen yalnızca gösterim.
+    """
     html = render_html(content)
-    assert STATUS_BADGE["strongly_corroborated"] in html
-    assert STATUS_BADGE["single_source"] in html
+    assert STATUS_TEXT["strongly_corroborated"] in html
+    assert STATUS_TEXT["single_source"] in html
+    # Renk TEK BAŞINA taşıyıcı olmamalı: nokta varsa metin de var.
+    assert html.count("border-radius:50%") <= html.count("teyitli") + html.count(
+        "kaynaklı"
+    ) + html.count("çelişkili") + html.count("doğrulanmamış")
 
 
 # ================================================================== F3-17

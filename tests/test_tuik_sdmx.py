@@ -258,3 +258,66 @@ def test_pipeline_resolves_the_adapter_for_a_tuik_sdmx_source() -> None:
         assert adapter.slug == "tuik"
     finally:
         adapter.close()
+
+
+def test_html_response_is_rejected_as_failure() -> None:
+    """TÜİK SDMX ucu geçersiz token durumunda HTML döndürürse fail-closed yakalanır."""
+    html_body = "<!DOCTYPE html><html><body><h1>401 Unauthorized</h1></body></html>"
+    adapter = _adapter(html_body)
+    items = adapter.fetch()
+    assert len(items) == 0
+    failures = adapter.drain_failures()
+    assert len(failures) == 1
+    assert "HTML döndürdü" in failures[0]
+
+
+def test_malformed_xml_is_rejected_as_failure() -> None:
+    """Bozuk XML yanıtı sessizce veri kaybı yaratmaz, açıkça hata kaydeder."""
+    bad_xml = "<message:GenericData><unclosed_tag>"
+    adapter = _adapter(bad_xml)
+    items = adapter.fetch()
+    assert len(items) == 0
+    failures = adapter.drain_failures()
+    assert len(failures) == 1
+    assert "ayrıştırma hatası" in failures[0]
+
+
+def test_token_expiry_triggers_invalidation_and_retry() -> None:
+    """401/403 durumunda token invalidate edilir ve tek seferlik retry yapılır."""
+    invalidated = False
+
+    class _MockTokenProvider:
+        def auth_header(self) -> dict[str, str]:
+            return {"Authorization": "Bearer token1"}
+
+        def invalidate(self) -> None:
+            nonlocal invalidated
+            invalidated = True
+
+    class _MockHttpRetry:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def get(self, url: str, **kwargs) -> _FakeResponse:
+            self.calls += 1
+            if self.calls == 1:
+                resp = _FakeResponse("Unauthorized")
+                resp.status_code = 401  # type: ignore[attr-defined]
+                return resp
+            resp = _FakeResponse(_document(
+                _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
+                        "2026-06", "7.6")
+            ))
+            resp.status_code = 200  # type: ignore[attr-defined]
+            return resp
+
+    adapter = TuikSdmxAdapter(
+        slug="tuik",
+        http=_MockHttpRetry(),  # type: ignore[arg-type]
+        tokens=_MockTokenProvider(),  # type: ignore[arg-type]
+        indicators=(UNEMPLOYMENT,),
+    )
+    items = adapter.fetch()
+    assert len(items) == 1
+    assert invalidated is True
+

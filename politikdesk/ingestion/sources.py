@@ -13,7 +13,6 @@ from typing import Any
 
 import yaml
 
-from politikdesk.ingestion.pipeline import ADAPTERS
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -46,9 +45,20 @@ class SourceConfig:
     @property
     def is_ingestable(self) -> bool:
         """Bu kaynaktan şu an veri çekilebilir mi?"""
-        return self.tos_status in {"allowed", "restricted"} and bool(
-            self.feed_url or self.probe or self.adapter in {"tuik", "generic_html", "tbmm", "sayistay", "tuik_sdmx", "resmi_gazete"}
-        )
+        feed_or_probe = bool(self.feed_url or self.probe)
+        has_custom_adapter = self.adapter in {
+            "tuik",
+            "generic_html",
+            "tbmm",
+            "sayistay",
+            "tuik_sdmx",
+            "resmi_gazete",
+        }
+        allowed_tos = self.tos_status in {"allowed", "restricted"}
+        return allowed_tos and (feed_or_probe or has_custom_adapter)
+
+
+
 
 
 VALID_VERTICALS = {"macro_economy", "legislation"}
@@ -138,14 +148,18 @@ def load_all_configs(config_dir: Path | None = None) -> list[SourceConfig]:
         cfgs, _ = load_config(yml_file)
         for cfg in cfgs:
             if cfg.slug in global_seen:
-                raise ValueError(f"Dikey dosyaları arasında çakışan slug: {cfg.slug} ({yml_file.name})")
+                raise ValueError(
+                    f"Dikey dosyaları arasında çakışan slug: {cfg.slug} ({yml_file.name})"
+                )
             global_seen.add(cfg.slug)
             all_configs.append(cfg)
 
     if len(all_configs) > MAX_GLOBAL_SOURCES:
         raise ValueError(
-            f"Toplam {len(all_configs)} kaynak tanımlı; global azami sınır {MAX_GLOBAL_SOURCES}'dur."
+            f"Toplam {len(all_configs)} kaynak tanımlı; "
+            f"global azami sınır {MAX_GLOBAL_SOURCES}'dur."
         )
+
 
     return all_configs
 

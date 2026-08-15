@@ -90,20 +90,27 @@ ELECTION = ElectionModeConfig(
 )
 
 
-def is_enabled() -> bool:
-    """`PD_ELECTION_MODE` ortam değişkenine bakar.
+def is_enabled(vertical: str | None = None) -> bool:
+    """`PD_ELECTION_MODE` ortam değişkenine veya dikey varsayılanına bakar (B-16).
 
-    Ayar bilerek `Settings`'te DEĞİL: Election Mode bir uygulama ayarı
-    değil, bir **operasyon kararıdır**. `.env`'e yazılıp unutulmaması,
-    açıkça verilmesi gerekir. Ayrıca `Settings` `lru_cache`'lidir;
-    modu açmak için uygulamayı yeniden başlatmak gerekirdi.
+    Ortam değişkeni açıkça verilmişse her zaman önceliklidir (1=açık, 0=kapalı).
+    Verilmemişse dikeyin kendi varsayılanını (macro_economy=kapalı) kullanır (Spec v3.4 §12.6).
     """
-    return os.environ.get(ENV_VAR, "").strip().lower() in {"1", "true", "yes", "on"}
+    env_val = os.environ.get(ENV_VAR, "").strip().lower()
+    if env_val in {"1", "true", "yes", "on"}:
+        return True
+    if env_val in {"0", "false", "no", "off"}:
+        return False
+
+    from politikdesk.verticals import get_vertical
+
+    v_spec = get_vertical(vertical) if vertical else None
+    return v_spec.default_election_mode if v_spec else False
 
 
-def current() -> ElectionModeConfig:
+def current(vertical: str | None = None) -> ElectionModeConfig:
     """Yürürlükteki yapılandırma."""
-    return ELECTION if is_enabled() else NORMAL
+    return ELECTION if is_enabled(vertical) else NORMAL
 
 
 def banner() -> str:
@@ -114,14 +121,21 @@ def banner() -> str:
     """
     if not is_enabled():
         return ""
+    # Stil `web/ui/css.py` token'larından gelir; ham hex ve emoji yok
+    # (DESIGN.md Bölüm 5.1, 13.4). Bu blok arayüzün en üstünde durur ve
+    # kabuğun kendi diliyle konuşmalıdır — ayrı görünen bir uyarı,
+    # "sistemin bir parçası değil" gibi okunur ve ciddiye alınmaz.
     return (
-        '<div style="background:#8250df;color:#fff;padding:.5rem .9rem;'
-        'border-radius:6px;margin-bottom:1rem;font-weight:600">'
-        "⚠ ELECTION MODE — sıkı kanıt eşiği yürürlükte. "
-        "Tek kaynaklı ve doğrulanmamış iddialardan taslak üretilmez; "
-        "🟢 için 4 bağımsız kaynak ve en az bir Tier 1 gerekir "
-        "(Spec §12.6)."
-        "</div>"
+        '<div class="notice warn" role="status">'
+        '<svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" '
+        'stroke="currentColor" stroke-width="1.75" stroke-linecap="round" '
+        'stroke-linejoin="round" aria-hidden="true">'
+        '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 '
+        '0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>'
+        "<div><p><b>ELECTION MODE — sıkı kanıt eşiği yürürlükte.</b></p>"
+        "<p>Tek kaynaklı ve doğrulanmamış iddialardan taslak üretilmez; "
+        "güçlü teyit için 4 bağımsız kaynak ve en az bir Tier 1 gerekir "
+        "(Spec §12.6).</p></div></div>"
     )
 
 

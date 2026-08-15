@@ -220,6 +220,7 @@ def test_daily_rollup_uses_application_timezone_date(monkeypatch) -> None:
 def test_beat_schedule_persists_on_fresh_app_instance() -> None:
     """F3: Beat yeniden başlatıldığında / tasks modülü yeniden yüklendiğinde schedule 16/16 korunur."""
     import importlib
+
     import politikdesk.tasks
 
     importlib.reload(politikdesk.tasks)

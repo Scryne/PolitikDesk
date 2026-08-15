@@ -29,14 +29,23 @@ RULE_TITLES: Final[dict[str, str]] = {
     "R5": "Tek kaynak",
     "R6": "Kanıt yok",
     "R7": "Yalnızca sosyal medya — tavan uygulandı",
+    "R8": "Birincil kayıt ve beyan doğrulaması",
 }
 
+# Durum adları DÜZ METİNDİR. Eskiden emoji rozet taşıyorlardı; kaldırıldı
+# çünkü bu dizeler ekrana çıkıyor ve emoji görünümü işletim sistemine göre
+# değişir, renk token'ı almaz, ekran okuyucuda "yeşil daire" diye okunur
+# (DESIGN.md Bölüm 13.4, gerekçe: web/ui/icons.py başlığı).
+#
+# Görsel rozet artık `web/ui/components.status_badge()` tarafından SVG ile
+# çizilir; bu tablo yalnızca ADI verir.
 STATUS_TITLES: Final[dict[str, str]] = {
-    "strongly_corroborated": "🟢 Güçlü teyitli",
-    "partially_corroborated": "🟡 Kısmen teyitli",
-    "single_source": "🟠 Tek kaynaklı",
-    "contradicted": "🔴 Çelişkili",
-    "unverified": "⚪ Doğrulanmamış",
+    "strongly_corroborated": "Güçlü teyitli",
+    "partially_corroborated": "Kısmen teyitli",
+    "single_source": "Tek kaynaklı",
+    "contradicted": "Çelişkili",
+    "unverified": "Doğrulanmamış",
+    "attribution_verified": "Beyan sabit",
 }
 
 KIND_LABELS: Final[dict[str, str]] = {
@@ -157,6 +166,11 @@ def _sentence(
         return "Bu iddiaya bağlanmış hiçbir kanıt bulunamadı."
     if rule == "R7":
         return "Kanıtın tamamı sosyal medyadan geliyor."
+    if rule == "R8":
+        return (
+            "Aktarım veya beyan birincil resmî kayda (TBMM tutanağı, Resmî Gazete, "
+            "Sayıştay raporu vb.) dayanıyor; sözün söylendiği ve kayda geçtiği sabittir."
+        )
     primary_text = "birincil kaynak var" if primary else "birincil kaynak yok"
     return f"{count} bağımsız teyit, {primary_text}."
 
@@ -165,11 +179,13 @@ def explain_event_status(
     independent_count: int, has_primary_source: bool, groups: int
 ) -> str:
     """Olay başlığındaki kanıt bloğunun tek cümlelik özeti (Spec §14.3)."""
-    primary = "Birincil kaynak mevcut ✓" if has_primary_source else "Birincil kaynak yok"
+    primary = (
+        "Birincil kaynak mevcut" if has_primary_source else "Birincil kaynak yok"
+    )
     diversity = (
         f"{groups} farklı yayın grubu"
         if groups >= 2
-        else "⚠ Bu olay tek bir yayın grubundan raporlanıyor."
+        else "bu olay tek bir yayın grubundan raporlanıyor"
     )
     return f"{primary} · {independent_count} bağımsız teyit · {diversity}"
 

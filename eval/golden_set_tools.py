@@ -51,9 +51,9 @@ CLAIMS_PATH = REPO_ROOT / "eval" / "golden_claims_v1.jsonl"
 
 # Spec §13.1 hedefleri ve faz kilometre taşları
 TARGETS = {
-    "F0-14": 100,   # Faz 0 çıkışı (G0 koşul 6: setin %33'ü)
-    "F1-20": 200,   # Faz 1 çıkışı
-    "F2-20": 300,   # Faz 2 çıkışı — tam set
+    "F0-14": 100,  # Faz 0 çıkışı (G0 koşul 6: setin %33'ü)
+    "F1-20": 200,  # Faz 1 çıkışı
+    "F2-20": 300,  # Faz 2 çıkışı — tam set
 }
 CLAIMS_TARGET = 150
 
@@ -84,8 +84,7 @@ VALID_TOPICS = {
 }
 
 REQUIRED_ARTICLE_FIELDS = ("article_id", "source_slug", "title", "event_id", "topic")
-REQUIRED_CLAIM_FIELDS = ("claim_id", "event_id", "claim_text", "claim_type",
-                         "expected_status")
+REQUIRED_CLAIM_FIELDS = ("claim_id", "event_id", "claim_text", "claim_type", "expected_status")
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -132,9 +131,7 @@ def validate_articles(rows: list[dict[str, Any]]) -> list[str]:
     # Spec §13.1: set "zor kume" icermeli (yakin ama farkli olay)
     hard_events = {r["event_id"] for r in well_formed if r.get("difficulty") == "hard"}
     if well_formed and len(hard_events) < 5:
-        problems.append(
-            f"En az 5 'zor' kume gerekli (F0-14 DoD), {len(hard_events)} var."
-        )
+        problems.append(f"En az 5 'zor' kume gerekli (F0-14 DoD), {len(hard_events)} var.")
 
     # Tek makalelik olaylar kumeleme olcumune katki vermez
     counts = Counter(r["event_id"] for r in well_formed)
@@ -164,17 +161,12 @@ def validate_claims(rows: list[dict[str, Any]], event_ids: set[str]) -> list[str
         if row["claim_type"] not in VALID_CLAIM_TYPES:
             problems.append(f"iddia satir {i}: gecersiz claim_type {row['claim_type']!r}")
         if row["expected_status"] not in VALID_STATUSES:
-            problems.append(
-                f"iddia satir {i}: gecersiz expected_status {row['expected_status']!r}"
-            )
+            problems.append(f"iddia satir {i}: gecersiz expected_status {row['expected_status']!r}")
         if row.get("expected_rule") and row["expected_rule"] not in VALID_RULES:
             problems.append(f"iddia satir {i}: gecersiz expected_rule")
 
         # Spec §8.3 R0: tahmin her zaman unverified (tip kisiti, kanittan once)
-        if (
-            row["claim_type"] == "prediction"
-            and row["expected_status"] != "unverified"
-        ):
+        if row["claim_type"] == "prediction" and row["expected_status"] != "unverified":
             problems.append(
                 f"iddia satir {i}: R0 ihlali - 'prediction' tipi iddia "
                 "her zaman 'unverified' olmali."
@@ -195,9 +187,7 @@ def validate_claims(rows: list[dict[str, Any]], event_ids: set[str]) -> list[str
             problems.append(f"iddia satir {i}: 'number' tipi iddiada normalized_value yok")
 
         if event_ids and row["event_id"] not in event_ids:
-            problems.append(
-                f"iddia satir {i}: event_id {row['event_id']!r} makale setinde yok"
-            )
+            problems.append(f"iddia satir {i}: event_id {row['event_id']!r} makale setinde yok")
     return problems
 
 
@@ -249,9 +239,7 @@ def cmd_stats() -> int:
             print(f"\n  Hic ornegi olmayan konular: {sorted(missing_topics)}")
 
         print("\n  Zorluk dagilimi:")
-        for diff, count in Counter(
-            r.get("difficulty", "easy") for r in articles
-        ).most_common():
+        for diff, count in Counter(r.get("difficulty", "easy") for r in articles).most_common():
             print(f"    {diff:<26} {count:>4}")
     return 0
 

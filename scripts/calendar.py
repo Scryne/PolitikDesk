@@ -1,8 +1,8 @@
 """Beklenen gelişmeler takvimi aracı (F2-18, F2-19).
 
-    python -m scripts.calendar load config/calendar_2026.yml
-    python -m scripts.calendar list
-    python -m scripts.calendar match
+python -m scripts.calendar load config/calendar_2026.yml
+python -m scripts.calendar list
+python -m scripts.calendar match
 """
 
 from __future__ import annotations
@@ -25,9 +25,7 @@ def cmd_load(path: Path) -> int:
     data = yaml.safe_load(path.read_text(encoding="utf-8"))
     vertical = data.get("vertical", "macro_economy")
 
-    existing = {
-        (r["title"], str(r["expected_at"])) for r in list_scheduled(limit=1000)
-    }
+    existing = {(r["title"], str(r["expected_at"])) for r in list_scheduled(limit=1000)}
 
     added = skipped = 0
     for item in data.get("events", []):

@@ -248,3 +248,78 @@ def test_generation_is_blocked_for_event_without_claims(client) -> None:  # noqa
 @pytest.mark.db
 def test_unknown_event_returns_404(client) -> None:  # noqa: ANN001
     assert client.get("/event/999999999").status_code == 404
+
+
+def test_api_draft_action_and_publish_enforces_grounding(client, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
+    """D12: API seviyesinde grounding koruması (409 Conflict)."""
+    from typing import Any
+
+    from politikdesk.editorial import service
+
+    mock_ungrounded = {
+        "id": 201,
+        "event_id": 1,
+        "angle": "inform",
+        "body": "Ungrounded body %999",
+        "final_body": None,
+        "is_grounded": False,
+        "user_id": 1,
+    }
+    mock_grounded = {
+        "id": 202,
+        "event_id": 1,
+        "angle": "inform",
+        "body": "Grounded body",
+        "final_body": None,
+        "is_grounded": True,
+        "user_id": 1,
+    }
+
+    def fake_get_draft(draft_id: int) -> dict[str, Any] | None:
+        if draft_id == 201:
+            return mock_ungrounded
+        if draft_id == 202:
+            return mock_grounded
+        return None
+
+    def fake_record_action(draft_id: int, action: str, stored_body: str | None, distance: float | None) -> dict[str, Any]:
+        return {"draft_id": draft_id, "action": action, "final_body": stored_body}
+
+    monkeypatch.setattr(service.repository, "get_draft", fake_get_draft)
+    monkeypatch.setattr(service.repository, "record_action", fake_record_action)
+
+    # 1. Ungrounded accept -> 409
+    res_accept_ungrounded = client.post("/api/drafts/201/action", json={"action": "accepted"})
+    assert res_accept_ungrounded.status_code == 409
+    assert res_accept_ungrounded.json()["detail"]["reason"] == "grounding_failed"
+
+    # 2. Ungrounded publish -> 409
+    res_publish_ungrounded = client.get("/api/drafts/201/publish")
+    assert res_publish_ungrounded.status_code == 409
+    assert res_publish_ungrounded.json()["detail"]["reason"] == "grounding_failed"
+
+    # 3. Grounded accept -> 200
+    res_accept_grounded = client.post("/api/drafts/202/action", json={"action": "accepted"})
+    assert res_accept_grounded.status_code == 200
+    assert res_accept_grounded.json()["action"] == "accepted"
+
+    # 4. Grounded publish -> 200
+    res_publish_grounded = client.get("/api/drafts/202/publish")
+    assert res_publish_grounded.status_code == 200
+    assert res_publish_grounded.json()["draft_id"] == 202
+
+
+# ==================================================================== D11
+def test_skip_link_has_visible_focus_styling() -> None:
+    """D11: Ekran okuyucu / klavye kullanıcısı için skip-link focus olduğunda görünür olmalı."""
+    from politikdesk.web.ui.css import stylesheet
+    from politikdesk.web.ui.shell import page
+
+    html = page("Test Sayfası", "<p>İçerik</p>")
+    assert '<a class="sr" href="#main">İçeriğe atla</a>' in html
+
+    css = stylesheet("/static")
+    assert ".sr:focus" in css
+    assert ".sr:focus-visible" in css
+    assert "position:fixed" in css
+    assert "clip:auto" in css

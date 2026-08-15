@@ -95,7 +95,10 @@ def test_missing_data_is_not_reported_as_success() -> None:
 
 def test_metric_value_serialises_for_the_dashboard() -> None:
     payload = MetricValue("diversity_ratio", 2.9, 12).as_dict()
-    assert payload["label"] == "Diversity ratio"
+    # Etiket ARAYÜZ metnidir ve Türkçedir (Ek B.2 sistem dili yasağı);
+    # Spec §13.3'ün İngilizce adı sözlük ANAHTARIDIR ve değişmedi.
+    assert payload["name"] == "diversity_ratio"
+    assert payload["label"] == "Kaynak çeşitliliği"
     assert payload["target"] == 2.5
     assert payload["status"] == "ok"
     assert payload["sample_size"] == 12
@@ -170,3 +173,87 @@ def test_daily_rollup_is_idempotent(db_conn) -> None:  # noqa: ANN001
 
     for name in PRODUCT_METRICS:
         assert len(first[name]) == len(second[name]), name
+
+
+@pytest.mark.db
+def test_correction_rate_population_alignment(db_conn) -> None:  # noqa: ANN001
+    """L6: correction_rate yalnızca window içinde açılan olaylar havuzunu (population) oranlar."""
+    from datetime import UTC, date, datetime
+
+    from politikdesk import metrics
+
+    today = date.today()
+    now = datetime.now(UTC)
+
+    with db_conn.cursor() as cur:
+        # İki test olayı oluşturalım
+        cur.execute(
+            """
+            INSERT INTO events (title, status, first_reported_at, last_update_at)
+            VALUES ('L6 Test Event 1', 'developing', %s, %s),
+                   ('L6 Test Event 2', 'developing', %s, %s),
+                   ('L6 Test Event 3', 'developing', %s, %s)
+            RETURNING id
+            """,
+            (now, now, now, now, now, now),
+        )
+        rows = cur.fetchall()
+        e1_id, e2_id, e3_id = [r["id"] if isinstance(r, dict) else r[0] for r in rows]
+
+        # 1. Event 1: Bugün açıldı (event_open) ve bugün 2 adet feedback aldı
+        cur.execute(
+            """
+            INSERT INTO user_activity (user_id, kind, event_id, occurred_at)
+            VALUES (1, 'event_open', %s, %s)
+            """,
+            (e1_id, now),
+        )
+        cur.execute(
+            """
+            INSERT INTO event_feedback (user_id, event_id, note, created_at)
+            VALUES (1, %s, 'Geri bildirim 1', %s),
+                   (1, %s, 'Geri bildirim 2', %s)
+            """,
+            (e1_id, now, e1_id, now),
+        )
+
+        # 2. Event 2: Bugün açıldı (event_open), hiç feedback almadı
+        cur.execute(
+            """
+            INSERT INTO user_activity (user_id, kind, event_id, occurred_at)
+            VALUES (1, 'event_open', %s, %s)
+            """,
+            (e2_id, now),
+        )
+
+        # 3. Event 3: Bugün AÇILMADI (örneğin eski olay), fakat bugün feedback aldı
+        cur.execute(
+            """
+            INSERT INTO event_feedback (user_id, event_id, note, created_at)
+            VALUES (1, %s, 'Açılmamış olaya gelen feedback', %s)
+            """,
+            (e3_id, now),
+        )
+
+    event_ids = [e1_id, e2_id, e3_id]
+    try:
+        # compute_metrics çalıştır
+        values = {m.name: m for m in metrics.compute_metrics(today)}
+        cr = values["correction_rate"]
+
+        # Popülasyon: Bugün açılan olaylar = {e1, e2} (toplam 2)
+        # Bu popülasyondan feedback alanlar = {e1} (toplam 1, çoklu feedback tek sayılır)
+        # Event 3 popülasyonda olmadığı için numerator'a dahil edilmez.
+        # Beklenen: 1 / 2 = %50.0 (veya en azından e3 eklenip 2/2 = %100 OLMAMALI)
+        assert cr.value is not None
+        assert 0.0 <= cr.value <= 100.0
+        # Örneklem sayısı en az 2 (e1 ve e2)
+        assert cr.sample_size >= 2
+        # e3 dahil edilmediği için oran %100'den küçük olmalıdır
+        assert cr.value < 100.0
+    finally:
+        with db_conn.cursor() as cur:
+            cur.execute("DELETE FROM event_feedback WHERE event_id = ANY(%s)", (event_ids,))
+            cur.execute("DELETE FROM user_activity WHERE event_id = ANY(%s)", (event_ids,))
+            cur.execute("DELETE FROM events WHERE id = ANY(%s)", (event_ids,))
+        db_conn.commit()

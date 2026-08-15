@@ -48,20 +48,23 @@ SLOT_LABELS: Final[dict[str, str]] = {
 SLOT_WINDOW_HOURS: Final[dict[str, int]] = {"morning": 12, "evening": 12}
 
 # Spec §8.1 durum etiketleri — brifingde de gizlenmez (§15 madde 3).
-STATUS_BADGE: Final[dict[str, str]] = {
-    "strongly_corroborated": "🟢",
-    "partially_corroborated": "🟡",
-    "single_source": "🟠",
-    "contradicted": "🔴",
-    "unverified": "⚪",
-}
-
+#
+# Eskiden İKİ tablo vardı: `STATUS_BADGE` (emoji daireler 🟢🟡🟠🔴⚪) ve
+# `STATUS_TEXT` (metin). Emoji kaldırılınca ikisi aynı bilgiyi yalnızca
+# farklı harf düzeniyle taşır hâle geldi — iki tablo, tek anlam, sessizce
+# ayrışma riski. Tek tablo bırakıldı.
+#
+# Emoji neden kalktı: görünümü e-posta istemcisinden istemciye değişir,
+# renk token'ı almaz ve ekran okuyucuda "yeşil daire" diye okunur — durumu
+# değil, şekli (DESIGN.md Bölüm 13.4). HTML gövdede rozet artık
+# `renderer._status_dot()` ile token renginde bir nokta + BU METİN.
 STATUS_TEXT: Final[dict[str, str]] = {
     "strongly_corroborated": "güçlü teyitli",
     "partially_corroborated": "kısmen teyitli",
     "single_source": "tek kaynaklı",
     "contradicted": "çelişkili",
     "unverified": "doğrulanmamış",
+    "attribution_verified": "beyan sabit",
 }
 
 EVENT_STATUS_TEXT: Final[dict[str, str]] = {
@@ -91,7 +94,7 @@ class BriefingEvent:
         """Spec §10.3 zorunlu çeşitlilik notu — koşul sağlanmıyorsa yazılır."""
         if self.independence_groups >= 2:
             return f"{self.independence_groups} farklı yayın grubu"
-        return "⚠ Bu olay tek bir yayın grubundan raporlanıyor."
+        return "Dikkat: bu olay tek bir yayın grubundan raporlanıyor."
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -180,10 +183,11 @@ def _select_events(cur: Any, since: datetime, limit: int) -> list[BriefingEvent]
         ORDER BY event_id,
           CASE evidence_status
             WHEN 'strongly_corroborated' THEN 0
-            WHEN 'partially_corroborated' THEN 1
-            WHEN 'contradicted' THEN 2
-            WHEN 'single_source' THEN 3
-            ELSE 4
+            WHEN 'attribution_verified' THEN 1
+            WHEN 'partially_corroborated' THEN 2
+            WHEN 'contradicted' THEN 3
+            WHEN 'single_source' THEN 4
+            ELSE 5
           END, id
         """,
         ([e.event_id for e in events],),
@@ -251,7 +255,7 @@ def _select_unverified(cur: Any, event_ids: list[int]) -> list[dict[str, Any]]:
             "claim_id": r["id"], "event_id": r["event_id"],
             "event_title": r["event_title"], "claim_text": r["claim_text"],
             "claim_type": r["claim_type"], "evidence_status": r["evidence_status"],
-            "badge": STATUS_BADGE.get(r["evidence_status"], "⚪"),
+            "status": r["evidence_status"],
             "status_text": STATUS_TEXT.get(r["evidence_status"], r["evidence_status"]),
             "rule": r["rule"],
         }

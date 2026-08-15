@@ -395,7 +395,14 @@ _EMOJI = re.compile(
 _HASHTAG = re.compile(r"(?:^|\s)#\w+", re.UNICODE)
 
 # Profil değeri -> izin verilen azami adet. `frequent` sınırsızdır.
-_ALLOWANCE: dict[str, int | None] = {"none": 0, "minimal": 1, "frequent": None}
+_ALLOWANCE: dict[str, int | None] = {
+    "none": 0,
+    "rare": 1,
+    "minimal": 1,
+    "necessary": 2,
+    "topic_bound": 2,
+    "frequent": None,
+}
 
 
 def _check_profile_form(draft: GeneratedDraft, profile: dict[str, Any] | None) -> CheckItem:
@@ -445,6 +452,44 @@ def _check_profile_form(draft: GeneratedDraft, profile: dict[str, Any] | None) -
     return CheckItem("profile_form", "Editoryal biçim tercihlerine uygun", "ok")
 
 
+_IMPUTATION_WORDS: Final[tuple[str, ...]] = (
+    "yolsuzluk yaptı", "rüşvet aldı", "rüşvet verdi", "zimmetine geçirdi",
+    "hırsızlık yaptı", "dolandırdı", "vurgun yaptı", "sahtecilik yaptı",
+    "suç işledi", "kamuyu zarara uğrattı",
+)
+
+_ATTRIBUTION_HEDGES: Final[tuple[str, ...]] = (
+    "iddia edildi", "iddia ediliyor", "öne sürüldü", "öne sürülüyor",
+    "raporunda yer aldı", "tutanakta yer aldı", "belirtildi",
+    "soruşturma açıldı", "dava açıldı", "fezleke hazırlandı",
+    "sayıştay raporuna göre", "tutanaklara göre", "ifade edildi",
+)
+
+
+def _check_imputation_language(sentences: Sequence[str]) -> CheckItem:
+    """7 — İsnat Dili Kontrolü (B-96 · Spec v3.4 §14.4).
+
+    Yargı kararı veya resmî tutanak kesinleşmeden doğrudan suç/fiil isnadı
+    içeren ifadeler yerine aktarım/tutanak dili uyarısı üretir.
+    """
+    alerts: list[str] = []
+    for s in sentences:
+        s_folded = fold_text(s)
+        for imp in _IMPUTATION_WORDS:
+            if imp in s_folded and not any(hedge in s_folded for hedge in _ATTRIBUTION_HEDGES):
+                alerts.append(f"Doğrudan isnat: '{imp}' (aktarım dili önerilir)")
+
+    if alerts:
+        return CheckItem(
+            "imputation_language",
+            f"{len(alerts)} cümlede doğrudan isnat dili tespit edildi",
+            "warn",
+            detail="Aktarım dili (iddia edildi/belirtildi) tercih edilmelidir.",
+            items=tuple(alerts[:4]),
+        )
+    return CheckItem("imputation_language", "İsnat ve aktarım dili dengeli", "ok")
+
+
 def run_checks(
     draft: GeneratedDraft,
     claims: Sequence[ClaimForGeneration],
@@ -453,7 +498,7 @@ def run_checks(
     grounding: GroundingReport | None = None,
     profile: dict[str, Any] | None = None,
 ) -> CheckReport:
-    """Spec §14.4'ün altı kontrolü + profil biçim denetimi (F5-21).
+    """Spec §14.4 kontrolleri + profil biçim ve isnat dili denetimi (F5-21, B-96).
 
     `claims`: üretime verilen TÜM iddialar (atıf yapılanları buradan
     süzülür). `prior_context`: olayın `same_thread` bağlarının başlıkları
@@ -484,6 +529,7 @@ def run_checks(
             _check_unlinked(draft, sentences, context.haystack),
             _check_missing_context(draft, sentences, prior_context),
             _check_profile_form(draft, profile),
+            _check_imputation_language(sentences),
         )
     )
 

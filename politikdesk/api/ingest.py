@@ -93,7 +93,7 @@ def import_link(payload: ImportRequest) -> dict[str, Any]:
         "topics": list(matched_topics),
         "note": (
             "Tier 4 (sosyal) kaynak: bu içerikten türeyen iddialar "
-            "R7 gereği en fazla 'tek kaynak' (🟠) olabilir."
+            "R7 gereği en fazla 'tek kaynak' olabilir."
             if is_social(url) else None
         ),
     }

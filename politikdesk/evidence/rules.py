@@ -43,18 +43,25 @@ EvidenceStatus = Literal[
     "single_source",           # 🟠
     "contradicted",            # 🔴
     "unverified",              # ⚪
+    "attribution_verified",    # 🔵 (Beyan Sabit - Spec v3.4 §8.1 / B-92)
 ]
 
-ClaimType = Literal["fact", "number", "attribution", "prediction"]
+ClaimType = Literal["fact", "number", "attribution", "prediction", "promise"]
 Stance = Literal["supports", "contradicts", "partial"]
 
 # Spec §9.2 — R3'ün "kurumun kendi yayını" istisnası bu kaynaklarla sınırlı.
 OFFICIAL_STATISTICAL_SOURCES = frozenset({"tuik", "tcmb", "hazine", "resmi-gazete"})
 
+# R8: Beyan ve tutanak birincil kayıt kaynakları (Spec v3.4 §8.3 / B-92)
+OFFICIAL_RECORD_SOURCES = frozenset(
+    {"tbmm-tutanak", "tbmm-kanun", "resmi-gazete", "sayistay", "cb-kararname", "tuik", "tcmb"}
+)
+
 # Durumların güç sırası — R7 tavan kısıtı bunu kullanır.
 _STATUS_RANK: dict[str, int] = {
     "unverified": 0,
     "single_source": 1,
+    "attribution_verified": 1,
     "partially_corroborated": 2,
     "strongly_corroborated": 3,
     "contradicted": 4,  # sıralamaya girmez; R7 zaten tetiklenemez
@@ -187,6 +194,23 @@ def _r3_official_number(claim: Claim, evidence: list[Evidence]) -> bool:
     )
 
 
+def _r8_attribution_verified(claim: Claim, evidence: list[Evidence]) -> bool:
+    """R8: Resmî bir beyan birinci el tutanak veya resmî yayına bağlanmışsa (B-92).
+
+    'attribution' tipindeki iddia, konuşmanın birincil kaydında (TBMM tutanağı,
+    resmî gazete, kurum duyurusu vb.) yer alıyorsa beyanın yapıldığı sabittir.
+    İçeriğin doğruluğu ayrıdır; statü 'attribution_verified' (Beyan Sabit) olur.
+    """
+    if claim.claim_type != "attribution":
+        return False
+    return any(
+        e.supports
+        and e.article.tier == 1
+        and (e.article.source_slug in OFFICIAL_RECORD_SOURCES or e.article.kind == "official")
+        for e in evidence
+    )
+
+
 def compute_status(
     claim: Claim,
     evidence: list[Evidence],
@@ -231,6 +255,13 @@ def compute_status(
             {**_base_reason("R3"), **facts,
              "exception": "official_numeric_publication",
              "normalized_value": claim.normalized_value},
+        )
+    elif _r8_attribution_verified(claim, evidence):
+        result = StatusResult(
+            "attribution_verified", "R8",
+            {**_base_reason("R8"), **facts,
+             "label": "Beyan Sabit",
+             "exception": "primary_official_attribution_record"},
         )
     elif count >= 2 and (not primary or partial_elements):
         result = StatusResult(

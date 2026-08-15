@@ -4,13 +4,24 @@ Tek kullanıcılı kişisel araç olduğu için ayrı bir kimlik doğrulama
 katmanı yoktur; API yalnızca yerel ağa açılır (docker-compose port
 eşlemesi). Faz 4'te çok kullanıcıya geçilirse bu değişir (F4-01).
 
-Arayüz: sunucu tarafında üretilen sade HTML + JSON uçları. Faz 3'te
-Next.js arayüzü gelene kadar denetim bu ekranlardan yapılır.
+Arayüz: sunucu tarafında üretilen HTML + JSON uçları. Ekran **kullanıcı
+tarafındaki sayfalarla aynı kabuğu** kullanır (`web/ui/shell.py`); admin
+ekranları da kullanıcının gördüğü ekranlardır ve ayrı bir stil adası
+olmaları "her sayfa farklı görünüyor" sonucunu üretiyordu.
+
+### Bu sayfanın tek işi (BRIEF `birincil_is`)
+
+> "Boru hattı akıyor mu, nerede tıkandı?"
+
+Bu yüzden **aşama tablosu kaynak tablosundan önce** gelir. Kaynak tablosu
+boru hattının GİRİŞİNE bakar (kaynaklar veri veriyor mu?); aşama tablosu
+içerisine (gelen veri sonuna kadar gidiyor mu?). 13 Ağustos 2026'da
+kaynaklar yemyeşilken kümeleme 13 saat durmuştu ve hiçbir gösterge bunu
+söylemedi (B-77/B-78) — sıralama o arızanın dersidir.
 """
 
 from __future__ import annotations
 
-import html
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -226,105 +237,183 @@ def stats() -> dict[str, Any]:
 
 
 # -------------------------------------------------------------- HTML panel
+# Sağlık durumu -> kanıt skalası token'ı. Ayrı bir renk skalası kurmak
+# yerine mevcut olan kullanılır: bir arayüzde iki "iyi/kötü" renk dili
+# olması, ikisini de zayıflatır.
+_HEALTH_TONE = {
+    "green": ("strong", "akıyor"),
+    "amber": ("partial", "yavaş"),
+    "red": ("contra", "durdu"),
+    "blocked": ("single", "engelli"),
+    "inactive": ("neutral", "kapalı"),
+}
+
+
+def _tone(status: str) -> tuple[str, str]:
+    return _HEALTH_TONE.get(status, ("neutral", status))
+
+
 @router.get("/", response_class=HTMLResponse)
 def dashboard() -> str:
     """Tek sayfalık denetim panosu (F1-17/18/19 görsel karşılığı)."""
     from politikdesk import pipeline_health as ph
+    from politikdesk.web.ui import (
+        button,
+        card,
+        cell,
+        esc,
+        kpi,
+        notice,
+        page,
+        page_head,
+        table,
+    )
+    from politikdesk.web.ui import (
+        format as fmt,
+    )
 
     health = repository.health_report()
     counts = stats()
     stages = ph.stage_report()
 
-    badge = {"green": "#1a7f37", "amber": "#9a6700", "red": "#cf222e",
-             "blocked": "#8250df", "inactive": "#6e7781"}
-
-    rows = "".join(
-        f"<tr>"
-        f"<td><strong>{html.escape(h['slug'])}</strong><br>"
-        f"<small>{html.escape(h['name'])}</small></td>"
-        f"<td>T{h['tier']}</td>"
-        f"<td><span style='color:{badge.get(h['status'], '#000')}'>"
-        f"● {h['status']}</span></td>"
-        f"<td>{h['articles_24h']}</td>"
-        f"<td>{h['articles_total']}</td>"
-        f"<td>{h['hours_since_success'] if h['hours_since_success'] is not None else '—'}</td>"
-        f"<td>{html.escape(h['tos_status'])}</td>"
-        f"<td><small>{html.escape((h['last_error'] or '')[:80])}</small></td>"
-        f"</tr>"
-        for h in health
-    )
-
     coverage = counts["coverage"]
     embedded_pct = (
-        round(coverage["embedded"] / coverage["total"] * 100)
-        if coverage["total"] else 0
+        coverage["embedded"] / coverage["total"] * 100 if coverage["total"] else 0
     )
 
-    # Aşama sağlığı (B-78). Boru hattı sırasıyla gösterilir ki nerede
-    # koptuğu okunsun; ilk kırmızıdan sonrası zaten onun sonucudur.
-    stage_rows = "".join(
-        f"<tr>"
-        f"<td><strong>{html.escape(s.label)}</strong></td>"
-        f"<td><span style='color:{badge.get(s.status, '#000')}'>● {s.status}</span></td>"
-        f"<td>{s.backlog if s.kind == 'backlog' else '—'}</td>"
-        f"<td>{s.oldest_hours if s.oldest_hours is not None else '—'}</td>"
-        f"<td>{s.threshold_hours}</td>"
-        f"<td><small>{html.escape(s.hint) if s.status != 'green' else ''}</small></td>"
-        f"</tr>"
-        for s in stages
-    )
     broken = [s for s in stages if s.status == "red"]
-    stage_banner = (
-        f"<p style='background:#ffebe9;border:1px solid #cf222e;border-radius:6px;"
-        f"padding:.6rem .9rem'><b>Boru hattı kopuk:</b> "
-        f"{html.escape(', '.join(s.label for s in broken))}. "
-        f"Aşağıdaki tabloda ipucu var.</p>"
-        if broken else ""
-    )
+    slow = [s for s in stages if s.status == "amber"]
 
-    return f"""<!doctype html>
-<html lang="tr"><head><meta charset="utf-8">
-<title>PolitikDesk — Admin</title>
-<style>
- body {{ font-family: system-ui, sans-serif; margin: 2rem; max-width: 1100px;
-        color: #1f2328; }}
- h1 {{ font-size: 1.4rem; }}
- table {{ border-collapse: collapse; width: 100%; margin-top: 1rem; }}
- th, td {{ border-bottom: 1px solid #d0d7de; padding: .5rem; text-align: left;
-          font-size: .9rem; vertical-align: top; }}
- th {{ background: #f6f8fa; }}
- .cards {{ display: flex; gap: 1rem; flex-wrap: wrap; margin: 1rem 0; }}
- .card {{ border: 1px solid #d0d7de; border-radius: 6px; padding: .8rem 1.2rem;
-         min-width: 130px; }}
- .card b {{ display: block; font-size: 1.6rem; }}
- small {{ color: #656d76; }}
-</style></head><body>
-<h1>PolitikDesk — Veri Omurgası</h1>
-<div class="cards">
-  <div class="card"><b>{counts['articles']}</b><small>makale</small></div>
-  <div class="card"><b>{counts['articles_24h']}</b><small>son 24 saat</small></div>
-  <div class="card"><b>{counts['near_duplicates']}</b><small>yakın tekrar</small></div>
-  <div class="card"><b>{counts['entities']}</b><small>varlık</small></div>
-  <div class="card"><b>{embedded_pct}%</b><small>embed edilmiş</small></div>
+    # Sayfanın tek sorusunun cevabı en üstte, tek cümlede.
+    if broken:
+        verdict = notice(
+            f"<p><b>Boru hattı kopuk:</b> "
+            f"{esc(', '.join(s.label for s in broken))}.</p>"
+            f"<p>Aşağıdaki tabloda her aşamanın ipucu var. İlk kırmızıdan "
+            f"sonrası zaten onun sonucudur — en üstteki kırmızıdan başla.</p>",
+            tone="bad",
+        )
+    elif slow:
+        verdict = notice(
+            f"<p><b>Boru hattı akıyor ama birikme var:</b> "
+            f"{esc(', '.join(s.label for s in slow))}.</p>",
+            tone="warn",
+        )
+    else:
+        verdict = notice("<p><b>Boru hattı akıyor.</b> Birikmiş aşama yok.</p>",
+                         tone="ok")
+
+    # Aşama sağlığı (B-78). Boru hattı SIRASIYLA gösterilir ki nerede
+    # koptuğu okunsun.
+    stage_rows = []
+    for s in stages:
+        token, label = _tone(s.status)
+        stage_rows.append(
+            "<tr>"
+            + cell(f"<b>{esc(s.label)}</b>", label="Aşama")
+            + cell(f'<span class="badge {token}">{esc(label)}</span>', label="Durum")
+            + cell(
+                esc(fmt.number(s.backlog)) if s.kind == "backlog" else fmt.EMPTY,
+                label="Bekleyen", cls="num",
+            )
+            + cell(
+                esc(fmt.number(s.oldest_hours, 1))
+                if s.oldest_hours is not None
+                else fmt.EMPTY,
+                label="En eski (sa)", cls="num",
+            )
+            + cell(esc(fmt.number(s.threshold_hours)), label="Eşik (sa)", cls="num")
+            + cell(
+                f'<span class="subtle">{esc(s.hint)}</span>'
+                if s.status != "green"
+                else "",
+                label="İpucu",
+            )
+            + "</tr>"
+        )
+
+    source_rows = []
+    for h in health:
+        token, label = _tone(h["status"])
+        error = (h["last_error"] or "")[:90]
+        source_rows.append(
+            "<tr>"
+            + cell(
+                f'<b>{esc(h["name"])}</b>'
+                f'<div class="cell-sub mono">{esc(h["slug"])}</div>',
+                label="Kaynak",
+            )
+            + cell(f'<span class="tier">T{h["tier"]}</span>', label="Katman")
+            + cell(f'<span class="badge {token}">{esc(label)}</span>', label="Durum")
+            + cell(esc(fmt.number(h["articles_24h"])), label="24 saat", cls="num")
+            + cell(esc(fmt.number(h["articles_total"])), label="Toplam", cls="num")
+            + cell(
+                esc(fmt.number(h["hours_since_success"], 1))
+                if h["hours_since_success"] is not None
+                else fmt.EMPTY,
+                label="Son başarı (sa)", cls="num",
+            )
+            + cell(f'<span class="mono">{esc(h["tos_status"])}</span>', label="ToS")
+            + cell(
+                f'<span class="subtle">{esc(error)}</span>' if error else "",
+                label="Son hata",
+            )
+            + "</tr>"
+        )
+
+    body = f"""
+{page_head(
+    "Boru hattı",
+    lede="Kaynak tablosu boru hattının GİRİŞİNE bakar, aşama tablosu "
+         "İÇERİSİNE. İkisi ayrı sorular sorar ve ayrı arızaları yakalar.",
+    actions=button("Metrikler", href="/admin/metrics", icon_name="metrics"),
+)}
+<div class="stack">
+  {verdict}
+
+  <div class="kpis">
+    {kpi("Toplam makale", fmt.number(counts["articles"]), icon_name="briefing")}
+    {kpi("Son 24 saat", fmt.number(counts["articles_24h"]), unit="makale",
+         icon_name="clock")}
+    {kpi("Yakın tekrar", fmt.number(counts["near_duplicates"]), unit="makale",
+         icon_name="copy")}
+    {kpi("Embed edilmiş", fmt.percent(embedded_pct), icon_name="pipeline")}
+  </div>
+
+  {card(
+    table(
+      (("Aşama", ""), ("Durum", ""), ("Bekleyen", "num"), ("En eski (sa)", "num"),
+       ("Eşik (sa)", "num"), ("İpucu", "")),
+      stage_rows,
+    ),
+    title="Boru hattı aşamaları",
+    actions='<span class="subtle" style="font-size:var(--text-xs)">'
+            'sırayla — ilk kırmızıdan başla</span>',
+  )}
+
+  {card(
+    table(
+      (("Kaynak", ""), ("Katman", ""), ("Durum", ""), ("24 saat", "num"),
+       ("Toplam", "num"), ("Son başarı (sa)", "num"), ("ToS", ""),
+       ("Son hata", "")),
+      source_rows,
+    ),
+    title=f"Kaynaklar · {len(health)}",
+    actions='<span class="subtle" style="font-size:var(--text-xs)">'
+            'katman siyasi konum değildir</span>',
+  )}
+
+  {card(
+    '<p class="subtle mono" style="margin:0;font-size:var(--text-xs)">'
+    '/admin/sources · /admin/articles · /admin/health · '
+    '/admin/pipeline-health · /admin/stats</p>',
+    title="JSON uçları",
+  )}
 </div>
-{stage_banner}
-<h2 style="font-size:1.1rem;margin-top:1.6rem">Boru hattı aşamaları</h2>
-<p><small>Kaynak tablosu boru hattının <em>girişine</em> bakar; bu tablo
-<em>içerisine</em>. 13 Ağustos 2026'da kaynaklar yemyeşilken kümeleme 13 saat
-durmuştu ve hiçbir gösterge bunu söylemedi (B-77/B-78).</small></p>
-<table>
-<tr><th>Aşama</th><th>Durum</th><th>Bekleyen</th><th>En eski (sa)</th>
-    <th>Eşik (sa)</th><th>İpucu</th></tr>
-{stage_rows}
-</table>
-
-<h2 style="font-size:1.1rem;margin-top:1.6rem">Kaynaklar</h2>
-<table>
-<tr><th>Kaynak</th><th>Tier</th><th>Durum</th><th>24s</th><th>Toplam</th>
-    <th>Son başarı (sa)</th><th>ToS</th><th>Son hata</th></tr>
-{rows}
-</table>
-<p><small>Uçlar: <code>/admin/sources</code> · <code>/admin/articles</code> ·
-<code>/admin/health</code> · <code>/admin/pipeline-health</code> ·
-<code>/admin/stats</code></small></p>
-</body></html>"""
+"""
+    return page(
+        "Boru hattı",
+        body,
+        active="/admin/",
+        crumbs=(("Denetim", None), ("Boru hattı", None)),
+    )

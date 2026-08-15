@@ -25,16 +25,20 @@ from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.sources import SourceConfig, load_config
 
 # RSS otomatik keşif etiketi
-_ALTERNATE_RE = re.compile(
-    r'<link[^>]+rel=["\']alternate["\'][^>]*>', re.IGNORECASE
-)
+_ALTERNATE_RE = re.compile(r'<link[^>]+rel=["\']alternate["\'][^>]*>', re.IGNORECASE)
 _HREF_RE = re.compile(r'href=["\']([^"\']+)["\']', re.IGNORECASE)
 _TYPE_RE = re.compile(r'type=["\']([^"\']+)["\']', re.IGNORECASE)
 _FEED_TYPES = ("application/rss+xml", "application/atom+xml", "application/xml")
 
 # Yaygın akış yolları
 _COMMON_PATHS = (
-    "/rss", "/rss.xml", "/feed", "/feed.xml", "/atom.xml", "/rss/", "/feeds/all.xml",
+    "/rss",
+    "/rss.xml",
+    "/feed",
+    "/feed.xml",
+    "/atom.xml",
+    "/rss/",
+    "/feeds/all.xml",
 )
 
 
@@ -42,7 +46,7 @@ _COMMON_PATHS = (
 class Probe:
     url: str
     ok: bool
-    kind: str          # "rss" | "atom" | "html" | "error"
+    kind: str  # "rss" | "atom" | "html" | "error"
     item_count: int = 0
     detail: str = ""
 
@@ -74,8 +78,7 @@ def probe(client: HttpClient, url: str) -> Probe:
     try:
         response = client.get(url)
     except Exception as exc:  # noqa: BLE001
-        return Probe(url, ok=False, kind="error",
-                     detail=f"{type(exc).__name__}: {str(exc)[:120]}")
+        return Probe(url, ok=False, kind="error", detail=f"{type(exc).__name__}: {str(exc)[:120]}")
 
     is_feed, kind, count = looks_like_feed(response.text)
     return Probe(
@@ -103,7 +106,12 @@ def candidate_urls(cfg: SourceConfig) -> list[str]:
         urls.extend(urljoin(cfg.base_url, path) for path in _COMMON_PATHS)
 
     seen: set[str] = set()
-    return [u for u in urls if not (u in seen or seen.add(u))]
+    unique_urls: list[str] = []
+    for u in urls:
+        if u not in seen:
+            seen.add(u)
+            unique_urls.append(u)
+    return unique_urls
 
 
 def investigate(client: HttpClient, cfg: SourceConfig) -> list[Probe]:
@@ -116,16 +124,21 @@ def investigate(client: HttpClient, cfg: SourceConfig) -> list[Probe]:
             for discovered in autodiscover(home.text, cfg.base_url):
                 results.append(probe(client, discovered))
         except Exception as exc:  # noqa: BLE001
-            results.append(Probe(cfg.base_url, ok=False, kind="error",
-                                 detail=f"anasayfa: {type(exc).__name__}: {exc}"))
+            results.append(
+                Probe(
+                    cfg.base_url,
+                    ok=False,
+                    kind="error",
+                    detail=f"anasayfa: {type(exc).__name__}: {exc}",
+                )
+            )
     return results
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kaynak akışı keşif aracı")
     parser.add_argument("slugs", nargs="*", help="Yalnızca bu kaynakları test et")
-    parser.add_argument("--all", action="store_true",
-                        help="Doğrulanmış kaynakları da test et")
+    parser.add_argument("--all", action="store_true", help="Doğrulanmış kaynakları da test et")
     args = parser.parse_args()
 
     configs, _ = load_config()
@@ -154,8 +167,7 @@ def main() -> int:
 
             if working:
                 best = max(working, key=lambda p: p.item_count)
-                print(f"\n  -> ONERI: feed_url: \"{best.url}\"  "
-                      f"({best.item_count} oge, {best.kind})")
+                print(f'\n  -> ONERI: feed_url: "{best.url}"  ({best.item_count} oge, {best.kind})')
             else:
                 exit_code = 1
                 print("\n  -> Calisan akis bulunamadi. Secenekler:")
@@ -166,8 +178,10 @@ def main() -> int:
     finally:
         client.close()
 
-    print("\nBulunan akislari config/sources.yml icine yazip "
-          "verified: true yapin, sonra `pytest tests/test_sources_config.py`.")
+    print(
+        "\nBulunan akislari config/sources.yml icine yazip "
+        "verified: true yapin, sonra `pytest tests/test_sources_config.py`."
+    )
     return exit_code
 
 

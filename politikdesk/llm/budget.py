@@ -106,7 +106,14 @@ class PostgresLedger:
             )
             conn.commit()
 
+    _VALID_INTERVALS = frozenset({"day", "month"})
+
     def _sum_since(self, sql_interval: str) -> float:
+        if sql_interval not in self._VALID_INTERVALS:
+            raise ValueError(
+                f"Geçersiz SQL interval: {sql_interval!r}. "
+                f"İzin verilenler: {sorted(self._VALID_INTERVALS)}"
+            )
         from politikdesk.db import connection
 
         with connection() as conn, conn.cursor() as cur:

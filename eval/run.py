@@ -150,9 +150,12 @@ def replay_clustering(
         forced_new = result.needs_review and review_as == "split"
         if result.creates_event or result.event_id is None or forced_new:
             clusters[next_id] = _Cluster(
-                centroid=list(vector), count=1, entities=entities,
+                centroid=list(vector),
+                count=1,
+                entities=entities,
                 key_entities=key_entities,
-                last_update_at=features.published_at, text=features.text,
+                last_update_at=features.published_at,
+                text=features.text,
             )
             assignment[article["article_id"]] = next_id
             next_id += 1
@@ -312,19 +315,22 @@ def claim_metrics(claims: list[dict[str, Any]]) -> ClaimMetrics:
         if result.status == row["expected_status"]:
             status_hits += 1
         else:
-            mismatches.append({
-                "claim_id": row.get("claim_id"),
-                "expected": row["expected_status"],
-                "got": result.status,
-                "rule": result.rule,
-            })
+            mismatches.append(
+                {
+                    "claim_id": row.get("claim_id"),
+                    "expected": row["expected_status"],
+                    "got": result.status,
+                    "rule": result.rule,
+                }
+            )
         if row.get("expected_rule") and result.rule == row["expected_rule"]:
             rule_hits += 1
 
         if row["claim_type"] == "number":
             numeric_total += 1
-            if row.get("normalized_value") == row.get("gold_normalized_value",
-                                                      row.get("normalized_value")):
+            if row.get("normalized_value") == row.get(
+                "gold_normalized_value", row.get("normalized_value")
+            ):
                 numeric_hits += 1
 
     n = len(claims) or 1
@@ -355,9 +361,11 @@ def render_report(
     thresholds: Thresholds,
 ) -> str:
     lines = ["# Eval Raporu (F2-16)", ""]
-    lines.append(f"Eşikler: T_HIGH={thresholds.t_high} · T_LOW={thresholds.t_low} · "
-                 f"zaman penceresi={thresholds.time_window_hours}sa · "
-                 f"jaccard≥{thresholds.jaccard_min}")
+    lines.append(
+        f"Eşikler: T_HIGH={thresholds.t_high} · T_LOW={thresholds.t_low} · "
+        f"zaman penceresi={thresholds.time_window_hours}sa · "
+        f"jaccard≥{thresholds.jaccard_min}"
+    )
     lines.append("")
 
     if clustering is None:
@@ -365,9 +373,11 @@ def render_report(
     else:
         ok = lambda v, t, lower=True: "✅" if (v >= t if lower else v <= t) else "❌"  # noqa: E731
         lines += [
-            "## Kümeleme", "",
+            "## Kümeleme",
+            "",
             f"{clustering.articles} makale · {clustering.gold_events} gerçek olay · "
-            f"{clustering.predicted_clusters} üretilen küme", "",
+            f"{clustering.predicted_clusters} üretilen küme",
+            "",
             "| Metrik | Değer | G2 hedefi | Durum |",
             "|---|---|---|---|",
             f"| Pairwise precision | {clustering.precision:.3f} | ≥ 0,90 | "
@@ -392,13 +402,19 @@ def render_report(
             lines.append("")
 
     if claims is None:
-        lines += ["## İddia ve kanıt", "",
-                  "⏳ `eval/golden_claims_v1.jsonl` yok — ölçüm yapılamadı.", ""]
+        lines += [
+            "## İddia ve kanıt",
+            "",
+            "⏳ `eval/golden_claims_v1.jsonl` yok — ölçüm yapılamadı.",
+            "",
+        ]
     else:
         ok = lambda v, t: "✅" if v >= t else "❌"  # noqa: E731
         lines += [
-            "## İddia ve kanıt", "",
-            f"{claims.claims} iddia", "",
+            "## İddia ve kanıt",
+            "",
+            f"{claims.claims} iddia",
+            "",
             "| Metrik | Değer | G2 hedefi | Durum |",
             "|---|---|---|---|",
             f"| `evidence_status` doğruluğu | {claims.status_accuracy:.3f} | ≥ 0,95 | "
@@ -407,11 +423,17 @@ def render_report(
             f"| Sayısal normalizasyon | {claims.numeric_accuracy:.3f} | ≥ 0,95 | "
             f"{ok(claims.numeric_accuracy, G2_TARGETS['numeric_accuracy'])} |",
             "",
-            "### `evidence_status` dağılımı (B-37 / İtiraz-2)", "",
+            "### `evidence_status` dağılımı (B-37 / İtiraz-2)",
+            "",
         ]
         total = sum(claims.status_distribution.values()) or 1
-        for status in ("strongly_corroborated", "partially_corroborated",
-                       "single_source", "contradicted", "unverified"):
+        for status in (
+            "strongly_corroborated",
+            "partially_corroborated",
+            "single_source",
+            "contradicted",
+            "unverified",
+        ):
             n = claims.status_distribution.get(status, 0)
             lines.append(f"- `{status}`: {n} (%{100 * n / total:.1f})")
         green = claims.status_distribution.get("strongly_corroborated", 0) / total
@@ -424,8 +446,12 @@ def render_report(
             )
         lines.append("")
         if claims.mismatches:
-            lines += ["### Uyuşmayanlar", "",
-                      "| iddia | beklenen | çıkan | kural |", "|---|---|---|---|"]
+            lines += [
+                "### Uyuşmayanlar",
+                "",
+                "| iddia | beklenen | çıkan | kural |",
+                "|---|---|---|---|",
+            ]
             lines += [
                 f"| {m['claim_id']} | {m['expected']} | {m['got']} | {m['rule']} |"
                 for m in claims.mismatches
@@ -445,10 +471,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--claims", type=Path, default=GOLDEN_CLAIMS)
     parser.add_argument("--t-high", type=float, default=None)
     parser.add_argument("--t-low", type=float, default=None)
-    parser.add_argument("--review-as", choices=["merge", "split"], default="merge",
-                        help="Denetim kuyrugundaki atamalar nasil sayilsin")
-    parser.add_argument("--sweep", action="store_true",
-                        help="Esik taramasi (F2-14): T_HIGH icin egri cikarir")
+    parser.add_argument(
+        "--review-as",
+        choices=["merge", "split"],
+        default="merge",
+        help="Denetim kuyrugundaki atamalar nasil sayilsin",
+    )
+    parser.add_argument(
+        "--sweep", action="store_true", help="Esik taramasi (F2-14): T_HIGH icin egri cikarir"
+    )
     parser.add_argument("--out", type=Path, help="Rapor markdown ciktisi")
     args = parser.parse_args(argv)
 
@@ -506,8 +537,10 @@ def main(argv: list[str] | None = None) -> int:
 
 def _sweep(articles: list[dict[str, Any]], embedder: Any, base: Thresholds) -> int:
     """F2-14: T_HIGH taraması — precision/recall eğrisi."""
-    print("| T_HIGH | T_LOW | precision | oto. precision | recall | F1 | "
-          "false merge | denetime düşen |")
+    print(
+        "| T_HIGH | T_LOW | precision | oto. precision | recall | F1 | "
+        "false merge | denetime düşen |"
+    )
     print("|---|---|---|---|---|---|---|---|")
     for t_high in [round(0.70 + 0.02 * i, 2) for i in range(15)]:
         t_low = round(min(base.t_low, t_high - 0.02), 2)

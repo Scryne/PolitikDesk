@@ -32,8 +32,7 @@ def cmd_sync() -> int:
     print(f"  eklenen: {result['inserted']}  guncellenen: {result['updated']}")
     for cfg in configs:
         mark = "OK" if cfg.verified else "??"
-        print(f"  [{mark}] {cfg.slug:<14} T{cfg.tier} {cfg.tos_status:<10} "
-              f"{cfg.adapter}")
+        print(f"  [{mark}] {cfg.slug:<14} T{cfg.tier} {cfg.tos_status:<10} {cfg.adapter}")
     return 0
 
 
@@ -73,9 +72,7 @@ def cmd_embed(limit: int) -> int:
 
     backend = build_backend()
     vectors = backend.embed([embedding_text(r["title"], r["excerpt"]) for r in rows])
-    saved = nlp_repo.save_embeddings(
-        {row["id"]: v for row, v in zip(rows, vectors, strict=True)}
-    )
+    saved = nlp_repo.save_embeddings({row["id"]: v for row, v in zip(rows, vectors, strict=True)})
     print(f"{saved} makale embed edildi (backend={backend.name}).")
     if not backend.is_production_ready:
         print("  UYARI: uretim icin uygun olmayan yerel embedder kullanildi.")
@@ -128,7 +125,8 @@ def cmd_entities(limit: int) -> int:
             nlp_repo.upsert_entity(
                 e,
                 aliases=ner.INSTITUTIONS.get(e.canonical_name, ())
-                if e.entity_type == "institution" else (),
+                if e.entity_type == "institution"
+                else (),
             )
             for e in found
         ]
@@ -312,8 +310,9 @@ def main() -> int:
 
     run = sub.add_parser("run", help="Toplama turu")
     run.add_argument("--source", help="Yalnizca bu kaynak")
-    run.add_argument("--no-scope-filter", action="store_true",
-                     help="Konu kapsam filtresini kapat (teshis icin)")
+    run.add_argument(
+        "--no-scope-filter", action="store_true", help="Konu kapsam filtresini kapat (teshis icin)"
+    )
 
     embed = sub.add_parser("embed", help="Bekleyen makaleleri embed et")
     embed.add_argument("--limit", type=int, default=200)

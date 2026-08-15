@@ -44,9 +44,7 @@ class Migration:
 def discover(directory: Path = MIGRATIONS_DIR) -> list[Migration]:
     """migrations/*.sql dosyalarını dosya adına göre sıralı döndürür."""
     files = sorted(directory.glob("*.sql"))
-    return [
-        Migration(version=f.stem, path=f, sql=f.read_text(encoding="utf-8")) for f in files
-    ]
+    return [Migration(version=f.stem, path=f, sql=f.read_text(encoding="utf-8")) for f in files]
 
 
 def _applied(conn: psycopg.Connection) -> dict[str, str]:

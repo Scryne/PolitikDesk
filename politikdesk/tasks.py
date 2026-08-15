@@ -169,6 +169,24 @@ def link_historical_context(limit: int = 50) -> dict[str, int]:
     return run(limit)
 
 
+@app.task(
+    name="politikdesk.link_political_relations",
+    bind=True,
+    max_retries=2,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def link_political_relations(self, limit: int = 50) -> dict[str, int]:  # noqa: ANN001
+    """Siyasi olaylar için deterministik ilişki çıkarma ve hesap verebilirlik eşleme görevi (S3)."""
+    from politikdesk.political_memory.orchestrator import process_pending_political_relations
+
+    try:
+        return process_pending_political_relations(limit)
+    except Exception as exc:  # noqa: BLE001
+        log.error("political_relations_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=180) from exc
+
+
 @app.task(name="politikdesk.match_scheduled_events")
 def match_scheduled_events() -> dict[str, int]:
     """Beklenen gelişme -> gerçekleşen olay eşleştirmesi (F2-19)."""
@@ -300,6 +318,10 @@ app.conf.beat_schedule = {
     "context-every-30-minutes": {
         "task": "politikdesk.link_historical_context",
         "schedule": 1800.0,
+    },
+    "political-relations-every-15-minutes": {
+        "task": "politikdesk.link_political_relations",
+        "schedule": 900.0,
     },
     # Takvim eşleştirmesi: veri yayım saatleri bellidir, saatlik yeter.
     "scheduler-match-hourly": {

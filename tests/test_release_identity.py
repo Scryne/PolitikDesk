@@ -6,7 +6,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from politikdesk import __version__
-from politikdesk.config import Settings
 from politikdesk.release import (
     ReleaseInfo,
     _detect_git_branch,

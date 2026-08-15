@@ -41,6 +41,12 @@ dev = [
     # B-83: bağımlılık güvenlik taraması. F4-09 güvenlik gözden
     # geçirmesinde koşulmamıştı; artık CI adımı (`make audit`).
     "pip-audit>=2.7",
+    # Turkce glif denetimi (tests/test_design_tokens.py) — woff2 cmap okur.
+    "fonttools>=4.55",
+    "brotli>=1.1",
+    # Arayuz denetimi (scripts/ui_check.py). Yatay tasma ve konsol hatasi
+    # ekran goruntusunde GORUNMEZ; olculmesi gerekir (DESIGN.md Bolum 14).
+    "playwright>=1.49",
 ]
 # F0-13 embedding benchmark'ı için (opsiyonel, ağır bağımlılıklar)
 bench = [
@@ -67,6 +73,8 @@ ignore = ["B008"]  # FastAPI Depends() varsayılan argümanda kullanılır
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
+"eval/*" = ["E501"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -77,6 +85,6 @@ filterwarnings = ["error::DeprecationWarning"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["politikdesk"]
+packages = ["politikdesk", "scripts", "config"]
 ignore_missing_imports = true
 warn_unused_ignores = true

@@ -14,7 +14,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from functools import lru_cache
 from typing import Final
+
+from politikdesk.verticals import get_vertical
 
 # eval/golden_set_tools.py::VALID_TOPICS ile aynı 10 slug
 TOPIC_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
@@ -127,6 +130,7 @@ def _fold(text: str) -> str:
     return normalized.replace("İ", "i").replace("I", "ı").casefold()
 
 
+@lru_cache(maxsize=64)
 def _compile_keywords(keywords: tuple[str, ...]) -> re.Pattern[str]:
     """Kelime başına sabitlenmiş, ekleri kabul eden kalıp.
 
@@ -148,48 +152,103 @@ _TURKEY_RE: Final = _compile_keywords(TURKEY_SIGNALS)
 _FOREIGN_RE: Final = _compile_keywords(FOREIGN_SIGNALS)
 
 
-def has_turkey_context(title: str, summary: str | None = None) -> bool:
-    """Metin Türkiye makro ekonomisine mi ait?"""
+@lru_cache(maxsize=64)
+def _compile_non_event(patterns: tuple[str, ...]) -> re.Pattern[str]:
+    """Non-event kalıplarını derler (I3: lru_cache ile önceden derlenir)."""
+    if not patterns:
+        return re.compile(r"$^")
+    folded = [_fold(p) for p in patterns]
+    return re.compile("|".join(folded))
+
+
+def has_turkey_context(
+    title: str,
+    summary: str | None = None,
+    *,
+    vertical: str | None = None,
+) -> bool:
+    """Metin Türkiye / dikey bağlamına mı ait?"""
     haystack = _fold(f"{title} {summary or ''}")
+    v_spec = get_vertical(vertical) if vertical else None
+    if v_spec and v_spec.slug != "macro_economy" and v_spec.required_context_keywords:
+        context_re = _compile_keywords(v_spec.required_context_keywords)
+        return bool(context_re.search(haystack))
+
     if _TURKEY_RE.search(haystack):
         return True
     return not _FOREIGN_RE.search(haystack)
 
 
-def is_non_event(title: str, summary: str | None = None) -> bool:
-    """Fiyat listesi / servis sayfası mı? (olay değil)"""
-    return bool(_NON_EVENT_RE.search(_fold(f"{title} {summary or ''}")))
+def is_non_event(
+    title: str,
+    summary: str | None = None,
+    *,
+    vertical: str | None = None,
+) -> bool:
+    """Fiyat listesi / servis sayfası / dikey non-event kalıbı mı? (olay değil)"""
+    haystack = _fold(f"{title} {summary or ''}")
+    v_spec = get_vertical(vertical) if vertical else None
+    if v_spec and v_spec.non_event_patterns:
+        non_event_re = _compile_non_event(v_spec.non_event_patterns)
+        if non_event_re.search(haystack):
+            return True
+    else:
+        if _NON_EVENT_RE.search(haystack):
+            return True
+    return False
 
 
-def match_topics(title: str, summary: str | None = None) -> tuple[str, ...]:
+def match_topics(
+    title: str,
+    summary: str | None = None,
+    *,
+    vertical: str | None = None,
+) -> tuple[str, ...]:
     """Ülke bağlamına bakmadan yalnızca konu eşleşmesi (teşhis için)."""
     haystack = _fold(f"{title} {summary or ''}")
+    v_spec = get_vertical(vertical) if vertical else None
+    patterns = _TOPIC_PATTERNS
+    if v_spec and v_spec.slug != "macro_economy":
+        patterns = {
+            topic: _compile_keywords(keywords)
+            for topic, keywords in v_spec.topic_keywords.items()
+        }
     return tuple(
-        topic for topic, pattern in _TOPIC_PATTERNS.items() if pattern.search(haystack)
+        topic for topic, pattern in patterns.items() if pattern.search(haystack)
     )
 
 
-def classify(title: str, summary: str | None = None) -> tuple[str, ...]:
-    """Metne uyan MVP konularını döndürür. Boş tuple = kapsam dışı.
+def classify(
+    title: str,
+    summary: str | None = None,
+    *,
+    vertical: str | None = None,
+) -> tuple[str, ...]:
+    """Metne uyan dikey konularını döndürür. Boş tuple = kapsam dışı.
 
     Üç koşul birlikte sağlanmalıdır (Spec §5):
-      1. En az bir MVP konusu eşleşiyor
-      2. Türkiye bağlamı var
-      3. Bir fiyat listesi / servis sayfası değil
+      1. En az bir dikey konusu eşleşiyor
+      2. Türkiye / dikey bağlamı var
+      3. Bir fiyat listesi / servis sayfası / non-event değil
     """
-    matched = match_topics(title, summary)
+    matched = match_topics(title, summary, vertical=vertical)
     if not matched:
         return ()
-    if not has_turkey_context(title, summary):
+    if not has_turkey_context(title, summary, vertical=vertical):
         return ()
-    if is_non_event(title, summary):
+    if is_non_event(title, summary, vertical=vertical):
         return ()
     return matched
 
 
-def in_scope(title: str, summary: str | None = None) -> bool:
-    """Makale MVP dikeyi kapsamında mı? (Spec §5 konu sınırı)"""
-    return bool(classify(title, summary))
+def in_scope(
+    title: str,
+    summary: str | None = None,
+    *,
+    vertical: str | None = None,
+) -> bool:
+    """Makale dikey kapsamında mı? (Spec §5 konu sınırı)"""
+    return bool(classify(title, summary, vertical=vertical))
 
 
 def looks_out_of_scope(title: str, summary: str | None = None) -> bool:

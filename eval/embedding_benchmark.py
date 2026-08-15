@@ -100,7 +100,7 @@ CANDIDATES: dict[str, Candidate] = {
         usd_per_million_tokens=0.0,
         self_hosted=True,
         notes="Self-host. Maliyet = VPS/GPU amortismanı; API ücreti yok. "
-              "Model kartı 'query: ' öneki zorunlu kılar.",
+        "Model kartı 'query: ' öneki zorunlu kılar.",
         text_prefix="query: ",
     ),
     "bge-m3": Candidate(
@@ -173,9 +173,7 @@ class _OpenAIEmbedder:
         self.dim = c.dim
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        resp = self.client.embeddings.create(
-            input=texts, model=self.model, dimensions=self.dim
-        )
+        resp = self.client.embeddings.create(input=texts, model=self.model, dimensions=self.dim)
         return [d.embedding for d in resp.data]
 
 
@@ -262,12 +260,10 @@ def recommend_thresholds(points: list[ThresholdPoint]) -> tuple[float, float]:
       T_LOW : recall >= 0.95 sağlayan en yüksek eşik (denetim kuyruğu alt sınırı)
     """
     high_candidates = [p for p in points if p.precision >= 0.98]
-    t_high = min((p.threshold for p in high_candidates), default=max(
-        p.threshold for p in points))
+    t_high = min((p.threshold for p in high_candidates), default=max(p.threshold for p in points))
 
     low_candidates = [p for p in points if p.recall >= 0.95]
-    t_low = max((p.threshold for p in low_candidates), default=min(
-        p.threshold for p in points))
+    t_low = max((p.threshold for p in low_candidates), default=min(p.threshold for p in points))
 
     if t_low >= t_high:
         t_low = round(t_high - 0.08, 4)
@@ -353,7 +349,7 @@ def embed_in_batches(
 
     out: list[list[float]] = []
     for start in range(0, len(texts), batch_size):
-        chunk = texts[start:start + batch_size]
+        chunk = texts[start : start + batch_size]
         out.extend(embedder.embed(chunk))
         if pause_seconds and start + batch_size < len(texts):
             print(f"   ... oran siniri icin {pause_seconds:g} sn bekleniyor", flush=True)
@@ -373,9 +369,7 @@ def run_candidate(
     texts = [p.a for p in pairs] + [p.b for p in pairs]
     if c.self_hosted:
         batch_size, pause_seconds = 0, 0.0  # yerel modelde oran sınırı yok
-    vectors = embed_in_batches(
-        embedder, texts, batch_size=batch_size, pause_seconds=pause_seconds
-    )
+    vectors = embed_in_batches(embedder, texts, batch_size=batch_size, pause_seconds=pause_seconds)
 
     dims = {len(v) for v in vectors}
     if dims != {REQUIRED_DIM}:
@@ -428,9 +422,7 @@ def render_report(results: list[Result], n_pairs: int) -> str:
     for r in sorted(results, key=lambda x: x.auc, reverse=True):
         hard = f"{r.hard_auc:.3f}" if r.hard_auc is not None else "-"
         price = (
-            "self-host"
-            if r.candidate.self_hosted
-            else f"{r.candidate.usd_per_million_tokens:.3f}"
+            "self-host" if r.candidate.self_hosted else f"{r.candidate.usd_per_million_tokens:.3f}"
         )
         lines.append(
             f"| {r.candidate.key} | {r.auc:.4f} | {hard} | {r.t_high:.3f} | "
@@ -457,16 +449,18 @@ def main() -> int:
     )
     parser.add_argument("--out", type=Path, help="Rapor markdown çıktısı")
     parser.add_argument("--list-candidates", action="store_true")
+    parser.add_argument("--validate-only", action="store_true", help="Yalnızca çift setini denetle")
     parser.add_argument(
-        "--validate-only", action="store_true", help="Yalnızca çift setini denetle"
-    )
-    parser.add_argument(
-        "--batch-size", type=int, default=0,
+        "--batch-size",
+        type=int,
+        default=0,
         help="Barındırılan sağlayıcıya kaç metin birden gönderilsin "
-             "(0 = hepsi). Ücretsiz katman oran sınırları için kullanılır.",
+        "(0 = hepsi). Ücretsiz katman oran sınırları için kullanılır.",
     )
     parser.add_argument(
-        "--pause-seconds", type=float, default=0.0,
+        "--pause-seconds",
+        type=float,
+        default=0.0,
         help="Partiler arası bekleme (oran sınırı için)",
     )
     args = parser.parse_args()
@@ -510,10 +504,14 @@ def main() -> int:
     for key in keys:
         print(f"-> kosuluyor: {key}")
         try:
-            results.append(run_candidate(
-                CANDIDATES[key], pairs,
-                batch_size=args.batch_size, pause_seconds=args.pause_seconds,
-            ))
+            results.append(
+                run_candidate(
+                    CANDIDATES[key],
+                    pairs,
+                    batch_size=args.batch_size,
+                    pause_seconds=args.pause_seconds,
+                )
+            )
         except Exception as exc:  # noqa: BLE001
             print(f"   ATLANDI ({type(exc).__name__}): {exc}", file=sys.stderr)
 

@@ -1,0 +1,87 @@
+"""Yasama ve TBMM Siyaset Dikey Tanımı (B-91 · Spec v3.4 §5).
+
+Türkiye Büyük Millet Meclisi, kanun teklifleri, genel kurul tutanakları,
+komisyon süreçleri, Sayıştay denetim raporları ve kamu politikaları.
+"""
+
+from __future__ import annotations
+
+from typing import Final
+
+from politikdesk.verticals.base import VerticalSpec
+
+LEGISLATION_TOPIC_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
+    "yasama_sureci": (
+        "kanun teklifi", "yasa teklifi", "torba kanun", "genel kurul",
+        "komisyon", "tbmm", "milletvekili", "tutanak", "yasa taslağı",
+        "kanunlaş", "meclis gündemi", "yasama",
+    ),
+    "atama_ve_kadro": (
+        "atama kararı", "görevden alma", "cumhurbaşkanlığı kararnamesi",
+        "resmî gazete atama", "bakan yardımcısı", "genel müdür atama",
+        "rektör atama", "vali atama", "kaymakam", "bürokrasi",
+    ),
+    "denetim_ve_yolsuzluk": (
+        "sayıştay", "denetim raporu", "kamu zararı", "meclis araştırması",
+        "soruşturma önergesi", "gensoru", "yolsuzluk", "ihale usulsüzlüğü",
+        "kik bülteni", "kamu ihale",
+    ),
+    "butce_hakki": (
+        "bütçe görüşmeleri", "plan ve bütçe komisyonu", "kesin hesap",
+        "ödenek", "ek bütçe", "kamu harcaması", "sayıştay bulgusu",
+    ),
+    "yargi_ve_hukuk": (
+        "anayasa mahkemesi", "aym", "yargıtay", "danıştay", "hsk",
+        "iddianame", "fezleke", "dokunulmazlık", "iptal davası",
+        "hak ihlali", "yargı paketi",
+    ),
+    "secim_ve_ysk": (
+        "ysk", "yüksek seçim kurulu", "seçim takvimi", "seçim kanunu",
+        "ittifak", "aday listesi", "seçim güvenliği", "seçmen kütüğü",
+    ),
+    "yerel_yonetim": (
+        "belediye meclisi", "büyükşehir belediyesi", "kayyım", "kayyum",
+        "belediye başkanı", "yerel bütçe", "sayıştay belediye",
+    ),
+    "ifade_ozgurlugu_ve_basin": (
+        "rtük", "erişim engeli", "btk", "basın kartı", "sansür",
+        "dezenformasyon", "yayın yasağı", "tazminat davası",
+    ),
+    "sosyal_politika": (
+        "sendika", "toplu sözleşme", "eyt", "sosyal yardım",
+        "grev kararı", "iş cinayeti", "asgari ücret komisyonu",
+    ),
+    "dis_politika": (
+        "uluslararası anlaşma", "tbmm tezkere", "dışişleri", "sınır ötesi",
+        "diplomasi", "yaptırım", "ikili mutabakat",
+    ),
+}
+
+LEGISLATION_NON_EVENT_PATTERNS: Final[tuple[str, ...]] = (
+    r"kim kazanır",
+    r"son anket",
+    r"anket sonuçları",
+    r"köşe yazısı",
+    r"günün köşe yazıları",
+    r"burç",
+    r"magazin",
+    r"canlı maç",
+)
+
+LEGISLATION_TURKEY_SIGNALS: Final[tuple[str, ...]] = (
+    "tbmm", "meclis", "türkiye", "turkiye", "ankara", "resmî gazete", "resmi gazete",
+    "sayıştay", "sayistay", "anayasa mahkemesi", "aym", "yargıtay", "danıştay",
+    "ysk", "ak parti", "akp", "chp", "mhp", "dem parti", "iyi parti", "saadet",
+)
+
+LEGISLATION_VERTICAL: Final[VerticalSpec] = VerticalSpec(
+    slug="legislation",
+    name="Yasama ve TBMM",
+    description="TBMM yasama faaliyetleri, denetim raporları, atamalar ve kamu politikaları.",
+    topic_keywords=LEGISLATION_TOPIC_KEYWORDS,
+    non_event_patterns=LEGISLATION_NON_EVENT_PATTERNS,
+    required_context_keywords=LEGISLATION_TURKEY_SIGNALS,
+    default_election_mode=False,
+    max_sources=12,
+    key_entities=("tbmm", "sayistay", "resmi-gazete", "aym", "ysk"),
+)

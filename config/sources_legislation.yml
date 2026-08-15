@@ -1,0 +1,103 @@
+# PolitikDesk — Siyaset & Yasama Dikey Kaynakları (Spec v3.4 §5, §9.2)
+#
+# ⛔ SERT KURAL: Dikey başına azami 12 kaynak, toplam sistem azami 30 kaynak.
+
+version: 3
+vertical: legislation
+max_sources: 12
+
+sources:
+  # ---------------------------------------------------------------- Tier 1
+  - slug: tbmm
+    name: "TBMM — Yasama ve Tutanaklar"
+    tier: 1
+    kind: official
+    vertical: legislation
+    independence_group: "official-tbmm"
+    access_method: official_feed
+    tos_status: allowed
+    base_url: "https://www.tbmm.gov.tr"
+    adapter: tbmm
+    verified: true
+    topics: [kanun_teklifleri, komisyon_gundemi, genel_kurul_tutanaklari, soru_onergeleri]
+    produces_scheduled_events: true
+    notes: "TBMM kanun teklifleri, tutanaklar ve komisyon gündemleri."
+
+  - slug: sayistay
+    name: "Sayıştay Başkanlığı"
+    tier: 1
+    kind: official
+    vertical: legislation
+    independence_group: "official-sayistay"
+    access_method: official_feed
+    tos_status: allowed
+    base_url: "https://www.sayistay.gov.tr"
+    adapter: sayistay
+    verified: true
+    topics: [denetim_ve_yolsuzluk, kamu_zarari, belediye_denetimleri]
+    produces_scheduled_events: false
+    notes: "Sayıştay denetim raporları ve kamu zararı bulguları (Hesap Sor omurgası)."
+
+  - slug: cb-kararname
+    name: "T.C. Cumhurbaşkanlığı"
+    tier: 1
+    kind: official
+    vertical: legislation
+    independence_group: "official-cb"
+    access_method: official_feed
+    tos_status: allowed
+    base_url: "https://www.tccb.gov.tr"
+    adapter: cumhurbaskanligi
+    verified: true
+    topics: [cumhurbaskanligi_kararnameleri, atama_ve_kadro, genelgeler]
+    produces_scheduled_events: false
+    notes: "Cumhurbaşkanlığı kararnameleri ve genelgeleri."
+
+  # ---------------------------------------------------------------- Tier 2
+  - slug: aa-politika
+    name: "Anadolu Ajansı — Politika"
+    tier: 2
+    kind: wire
+    vertical: legislation
+    independence_group: "wire-aa"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.aa.com.tr"
+    feed_url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+    adapter: rss
+    verified: true
+    topics: [parti_sozculeri, meclis_gundemi, secim_ve_anketler]
+    produces_scheduled_events: false
+    is_wire_reference: true
+    notes: "Ajans haberleri ve siyasi beyanlar."
+
+  # ---------------------------------------------------------------- Tier 3
+  - slug: trthaber-politika
+    name: "TRT Haber — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-trt"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.trthaber.com"
+    feed_url: "https://www.trthaber.com/gundem_articles.rss"
+    adapter: rss
+    verified: true
+    topics: [parti_sozculeri, meclis_gundemi, dis_politika]
+    produces_scheduled_events: false
+
+  - slug: haberturk-gundem
+    name: "Habertürk — Gündem"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-haberturk"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.haberturk.com"
+    feed_url: "https://www.haberturk.com/rss/manset.xml"
+    adapter: rss
+    verified: true
+    topics: [parti_sozculeri, secim_ve_anketler, yargi_ve_anayasa]
+    produces_scheduled_events: false

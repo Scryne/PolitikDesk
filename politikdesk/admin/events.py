@@ -11,7 +11,6 @@ Faz 1'e, bu ekran Faz 2'ye aittir ve ikisi bağımsız değişir.
 
 from __future__ import annotations
 
-import html
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -166,88 +165,195 @@ def undo_split_endpoint(event_id: int) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------- HTML
-_STYLE = """
- body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 1100px;
-        color: #1f2328; }
- h1 { font-size: 1.4rem; }
- table { border-collapse: collapse; width: 100%; margin-top: 1rem; }
- th, td { border-bottom: 1px solid #d0d7de; padding: .5rem; text-align: left;
-          font-size: .9rem; vertical-align: top; }
- th { background: #f6f8fa; }
- small { color: #656d76; }
- button { cursor: pointer; padding: .2rem .6rem; }
- .warn { color: #cf222e; }
+_SCRIPT = """
+async function pdDecide(id, decision, btn) {
+  // Buton genişliği değişmez (Bölüm 8.5): metin yerinde kalır, yalnızca
+  // devre dışı olur. Aynı karara iki kez basılmasını da bu engelliyor.
+  var row = btn.closest('tr');
+  row.querySelectorAll('button').forEach(function(b){ b.disabled = true; });
+  try {
+    var r = await fetch('/admin/review/' + id, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({decision: decision})
+    });
+    if (!r.ok) throw new Error(await r.text());
+    location.reload();
+  } catch (e) {
+    row.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
+    alert('Karar kaydedilemedi: ' + e.message);
+  }
+}
+
+async function pdMerge() {
+  var src = document.getElementById('src').value;
+  var tgt = document.getElementById('tgt').value;
+  var note = document.getElementById('merge-status');
+  if (!src || !tgt) {
+    note.textContent = 'İki olay kimliği de gerekli.';
+    return;
+  }
+  note.textContent = 'Birleştiriliyor…';
+  try {
+    var r = await fetch('/admin/events/merge', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({source_event_id: +src, target_event_id: +tgt})
+    });
+    if (!r.ok) {
+      var body = await r.json().catch(function(){ return null; });
+      throw new Error(body && body.detail ? body.detail : 'Birleştirilemedi.');
+    }
+    location.reload();
+  } catch (e) {
+    note.textContent = e.message;
+  }
+}
 """
 
-_SCRIPT = """
-async function decide(id, decision) {
-  const r = await fetch('/admin/review/' + id, {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({decision: decision})
-  });
-  if (r.ok) { location.reload(); } else { alert(await r.text()); }
+# Kuyruğa düşme sebepleri — ham anahtar yerine ne olduğunu söyleyen cümle.
+# "numeric_conflict" bir sistem dilidir (Ek B.2); kullanıcı "faiz %40 mı
+# %42 mi" sorusuna bakıyor.
+_REASON_LABELS = {
+    "low_confidence": "Kümeleme skoru eşiğe yakın",
+    "numeric_conflict": "Aynı göstergede farklı sayı",
+    "entity_mismatch": "Anahtar varlık doğrulanamadı",
+    "user_flag": "Kullanıcı işaretledi",
 }
-async function doMerge() {
-  const src = document.getElementById('src').value;
-  const tgt = document.getElementById('tgt').value;
-  const r = await fetch('/admin/events/merge', {
-    method: 'POST', headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({source_event_id: +src, target_event_id: +tgt})
-  });
-  if (r.ok) { location.reload(); } else { alert(await r.text()); }
-}
-"""
 
 
 def _reason_of(row: dict[str, Any]) -> str:
     payload = row.get("flag_payload") or {}
-    return str(payload.get("reason", "—"))
+    raw = str(payload.get("reason", ""))
+    return _REASON_LABELS.get(raw, raw or "—")
 
 
 def _conflicts_of(row: dict[str, Any]) -> str:
     payload = row.get("flag_payload") or {}
-    return ", ".join(payload.get("numeric_conflicts", [])) or "—"
+    return ", ".join(payload.get("numeric_conflicts", []))
 
 
 @router.get("/review/", response_class=HTMLResponse)
 def review_dashboard() -> str:
-    """Denetim kuyruğu ekranı (F2-04 görsel karşılığı)."""
+    """Denetim kuyruğu ekranı (F2-04 görsel karşılığı).
+
+    Bu sayfanın tek işi (BRIEF): *"Hangi kümeleme kararı benim onayımı
+    bekliyor?"* — bu yüzden kuyruk ekranın tamamıdır ve merge aracı
+    altta, ayrı bir kartta durur. Merge günde bir kez kullanılan bir
+    araçtır; kuyruk her ziyaretin sebebidir.
+    """
+    from politikdesk.web.ui import (
+        button,
+        card,
+        cell,
+        empty_state,
+        esc,
+        notice,
+        page,
+        page_head,
+        table,
+    )
+    from politikdesk.web.ui import (
+        format as fmt,
+    )
+
     queue = review_queue(100)
 
-    if not queue:
-        body = "<p>Denetim bekleyen olay yok.</p>"
-    else:
-        rows = "".join(
+    rows = []
+    for r in queue:
+        conflict = _conflicts_of(r)
+        rows.append(
             "<tr>"
-            f"<td><a href='/admin/events/{r['id']}'>{r['id']}</a></td>"
-            f"<td>{html.escape((r['title'] or '')[:90])}</td>"
-            f"<td>{r['article_count']}</td>"
-            f"<td><small>{html.escape(_reason_of(r))}</small></td>"
-            f"<td><small class='warn'>{html.escape(_conflicts_of(r))}</small></td>"
-            f"<td><button onclick=\"decide({r['id']},'verified')\">onayla</button>"
-            f" <button onclick=\"decide({r['id']},'rejected')\">reddet</button></td>"
-            "</tr>"
-            for r in queue
-        )
-        body = (
-            "<table><tr><th>#</th><th>Başlık</th><th>Makale</th><th>Sebep</th>"
-            "<th>Sayısal çelişki</th><th>Karar</th></tr>"
-            f"{rows}</table>"
+            + cell(
+                f'<a class="mono" href="/event/{r["id"]}">#{r["id"]}</a>',
+                label="Olay",
+            )
+            + cell(
+                f'<a class="plain" href="/event/{r["id"]}">'
+                f'{esc((r["title"] or "")[:110])}</a>',
+                label="Başlık",
+            )
+            + cell(esc(fmt.number(r["article_count"])), label="Makale", cls="num")
+            + cell(f'<span class="subtle">{esc(_reason_of(r))}</span>',
+                   label="Sebep")
+            + cell(
+                f'<span class="badge contra">{esc(conflict)}</span>'
+                if conflict
+                else '<span class="subtle">—</span>',
+                label="Sayısal çelişki",
+            )
+            + cell(
+                '<div class="btn-row">'
+                + button("Onayla", small=True, icon_name="check",
+                         onclick=f"pdDecide({r['id']},'verified',this)")
+                + button("Reddet", small=True, icon_name="close",
+                         onclick=f"pdDecide({r['id']},'rejected',this)")
+                + "</div>",
+                label="Karar",
+            )
+            + "</tr>"
         )
 
-    return (
-        "<!doctype html><html lang='tr'><head><meta charset='utf-8'>"
-        "<title>PolitikDesk — Denetim Kuyruğu</title>"
-        f"<style>{_STYLE}</style></head><body>"
-        f"<h1>Denetim Kuyruğu <small>({len(queue)} olay)</small></h1>"
-        "<p><small>Kümeleme kararı belirsiz kalan, varlık kısıtı doğrulanamayan "
-        "veya sayısal çelişki içeren olaylar. Onaylamak atamayı kalıcı kılar.</small></p>"
-        f"{body}"
-        "<h2>Olay birleştir</h2>"
-        "<p><small>Kaynak olay hedefe taşınır; kaynak silinmez, "
-        "<code>merged_into_id</code> ile işaretlenir ve geri alınabilir.</small></p>"
-        "<p>kaynak <input id='src' size='6'> → hedef <input id='tgt' size='6'> "
-        "<button onclick='doMerge()'>birleştir</button></p>"
-        "<p><a href='/admin/'>← panoya dön</a></p>"
-        f"<script>{_SCRIPT}</script></body></html>"
+    if queue:
+        queue_card = card(
+            table(
+                (("Olay", ""), ("Başlık", ""), ("Makale", "num"), ("Sebep", ""),
+                 ("Sayısal çelişki", ""), ("Karar", "")),
+                rows,
+            ),
+            title=f"Bekleyen karar · {len(queue)}",
+            actions='<span class="subtle" style="font-size:var(--text-xs)">'
+                    'onaylamak atamayı kalıcı kılar</span>',
+        )
+    else:
+        # Boş durum (10.1) — burada boş olmak İYİ bir haberdir; metin de
+        # öyle söylemeli, bir eksiklik gibi değil.
+        queue_card = card(
+            empty_state(
+                "Bekleyen karar yok",
+                "Kümeleme kararlarının hepsi net. Bir olay belirsiz kalırsa, "
+                "sayısal çelişki içerirse veya sen “bu yanlış” dersen burada "
+                "görünür.",
+                action=button("Gündeme dön", href="/feed", variant="primary"),
+                icon_name="check",
+            )
+        )
+
+    merge_card = card(
+        notice(
+            "<p>Kaynak olay hedefe taşınır. <b>Kaynak silinmez</b> — "
+            "<span class='mono'>merged_into_id</span> ile işaretlenir ve işlem "
+            "%100 geri alınabilir (<span class='mono'>/admin/events/"
+            "{id}/undo-merge</span>).</p>"
+        )
+        + '<div class="row" style="margin-top:var(--space-4);'
+          'align-items:flex-end">'
+        + '<div class="field" style="max-width:120px">'
+          '<label for="src">Kaynak olay</label>'
+          '<input type="number" id="src" placeholder="örn. 412"></div>'
+        + '<span class="subtle" style="padding-bottom:10px">→</span>'
+        + '<div class="field" style="max-width:120px">'
+          '<label for="tgt">Hedef olay</label>'
+          '<input type="number" id="tgt" placeholder="örn. 398"></div>'
+        + button("Birleştir", variant="primary", icon_name="review",
+                 onclick="pdMerge()")
+        + '<span id="merge-status" class="subtle" aria-live="polite" '
+          'style="font-size:var(--text-xs);padding-bottom:10px"></span>'
+        + "</div>",
+        title="Olay birleştir",
+    )
+
+    body = f"""
+{page_head(
+    "Denetim kuyruğu",
+    lede="Kümeleme kararı belirsiz kalan, varlık kısıtı doğrulanamayan veya "
+         "sayısal çelişki içeren olaylar.",
+    actions=button("Boru hattı", href="/admin/", icon_name="pipeline"),
+)}
+<div class="stack">{queue_card}{merge_card}</div>
+"""
+    return page(
+        "Denetim kuyruğu",
+        body,
+        active="/admin/review/",
+        crumbs=(("Denetim", None), ("Denetim kuyruğu", None)),
+        extra_js=_SCRIPT,
     )

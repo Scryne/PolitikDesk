@@ -26,17 +26,11 @@ app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
-    timezone="UTC",
+    timezone=settings.timezone,
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
 )
-
-# Faz 1'de eklenecek zamanlanmış görevler (F1-05 / F1-12):
-#   app.conf.beat_schedule = {
-#       "ingest-every-5-minutes": {...},
-#       "purge-expired-bodies-daily": {...},
-#   }
 
 
 @app.task(name="politikdesk.ping")

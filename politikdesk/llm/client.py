@@ -122,7 +122,10 @@ class _AnthropicBackend:
 
             import anthropic  # yerel import: anahtar yoksa modül yüklemesi patlamasın
 
-            self._client = anthropic.Anthropic()
+            self._client = anthropic.Anthropic(
+                max_retries=self._settings.llm_max_retries,
+                timeout=float(self._settings.llm_timeout_seconds),
+            )
         return self._client
 
     def complete_json(

@@ -45,38 +45,42 @@ PRODUCT_METRICS: Final[frozenset[str]] = frozenset(
 
 # Spec §13.3 hedefleri. `direction` "aşağısı iyi" mi "yukarısı iyi" mi
 # olduğunu söyler — `daily_active_minutes`'ta bu ayrım ürünün vaadidir.
+#
+# `label` ARAYÜZDE görünür, bu yüzden Türkçedir (DESIGN.md Ek B.2: sistem
+# dili yasak). Spec §13.3'teki İngilizce adlar sözlük ANAHTARLARIDIR ve
+# değişmedi; Spec'e bakan biri eşlemeyi anahtardan bulur.
 METRIC_TARGETS: Final[dict[str, dict[str, Any]]] = {
     "time_to_understanding": {
-        "label": "Time-to-understanding", "unit": "dk", "target": 10.0,
+        "label": "Anlama süresi", "unit": "dk", "target": 10.0,
         "direction": "lower", "note": "30-45 dk tarama → ≤ 10 dk",
     },
     "draft_acceptance_rate": {
-        "label": "Draft acceptance rate", "unit": "%", "target": 40.0,
+        "label": "Taslak kabul oranı", "unit": "%", "target": 40.0,
         "direction": "higher", "note": "Küçük düzenlemeyle kullanılan taslaklar",
     },
     "edit_distance": {
-        "label": "Edit distance", "unit": "oran", "target": 0.35,
+        "label": "Düzenleme mesafesi", "unit": "oran", "target": 0.35,
         "direction": "lower", "note": "Normalize Levenshtein",
     },
     "diversity_ratio": {
-        "label": "Diversity ratio", "unit": "grup", "target": 2.5,
+        "label": "Kaynak çeşitliliği", "unit": "grup", "target": 2.5,
         "direction": "higher", "note": "Görülen olaylarda ortalama farklı yayın grubu",
     },
     "briefing_open_rate": {
-        "label": "Briefing open rate", "unit": "%", "target": 60.0,
+        "label": "Brifing açılma oranı", "unit": "%", "target": 60.0,
         "direction": "higher", "note": "Gönderilen brifinglerin açılma oranı",
     },
     "daily_active_minutes": {
-        "label": "Daily active minutes", "unit": "dk", "target": 20.0,
+        "label": "Günlük aktif dakika", "unit": "dk", "target": 20.0,
         "direction": "lower",
         "note": "AZ OLMASI İYİ — ürünün vaadi zaman tasarrufu (Spec §13.3)",
     },
     "correction_rate": {
-        "label": "Correction rate", "unit": "%", "target": 3.0,
+        "label": "Düzeltme oranı", "unit": "%", "target": 3.0,
         "direction": "lower", "note": "'Bu yanlış' işaretlenen olay oranı",
     },
     "cost_per_active_user": {
-        "label": "Cost per active user", "unit": "$/ay", "target": 8.0,
+        "label": "Aktif kullanıcı başına maliyet", "unit": "USD/ay", "target": 8.0,
         "direction": "lower", "note": "Gerçekleşen LLM + altyapı (ölçek: mevcut kullanıcı)",
     },
 }
@@ -325,21 +329,29 @@ def compute_metrics(day: date, *, window_days: int = 7) -> list[MetricValue]:
             )
         )
 
-        # 7 — correction_rate: işaretlenen olay / görülen olay
+        # 7 — correction_rate: işaretlenen olay / görülen olay (L6)
+        # Spec §13.3: Numerator ve denominator aynı event population'ını
+        # (window içinde açılan olaylar) kullanır.
         values.append(
             MetricValue(
                 "correction_rate",
                 *_scalar(
                     cur,
                     """
+                    WITH opened AS (
+                      SELECT DISTINCT event_id
+                      FROM user_activity
+                      WHERE kind = 'event_open' AND event_id IS NOT NULL
+                        AND occurred_at::date BETWEEN %s AND %s
+                    )
                     SELECT 100.0 * (
-                             SELECT count(DISTINCT event_id) FROM event_feedback
-                             WHERE created_at::date BETWEEN %s AND %s
-                           ) / NULLIF(count(DISTINCT event_id), 0) AS value,
-                           count(DISTINCT event_id) AS n
-                    FROM user_activity
-                    WHERE kind = 'event_open' AND event_id IS NOT NULL
-                      AND occurred_at::date BETWEEN %s AND %s
+                             SELECT count(DISTINCT ef.event_id)
+                             FROM event_feedback ef
+                             JOIN opened o ON o.event_id = ef.event_id
+                             WHERE ef.created_at::date BETWEEN %s AND %s
+                           ) / NULLIF(count(*), 0) AS value,
+                           count(*) AS n
+                    FROM opened
                     """,
                     (start, day, start, day),
                 ),
@@ -397,7 +409,18 @@ def daily_rollup(day: date | None = None, *, window_days: int = 7) -> dict[str, 
     Aynı gün için yeniden koşulabilir: eski satırlar silinir, yenisi
     yazılır. Aksi halde iki koşum panoyu ikiye katlardı.
     """
-    day = day or date.today()
+    if day is None:
+        import zoneinfo
+        from datetime import datetime
+
+        from politikdesk.config import get_settings
+
+        try:
+            tz = zoneinfo.ZoneInfo(get_settings().timezone)
+            day = datetime.now(tz).date()
+        except Exception:  # noqa: BLE001
+            day = date.today()
+
     values = compute_metrics(day, window_days=window_days)
 
     with connection() as conn, conn.cursor() as cur:

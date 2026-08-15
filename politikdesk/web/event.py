@@ -4,7 +4,7 @@ Spec §14.3'ün ekran taslağındaki her bölüm burada karşılığını bulur:
 
 | Taslaktaki bölüm | Görev | Uygulama |
 |---|---|---|
-| Salience 84 ⓘ | F3-07 | `_salience_panel` |
+| Salience 84 ⓘ | F3-07 | `_meta_line` |
 | TL;DR | F3-03 | `_tldr` — **deterministik**, LLM yok |
 | NE BİLİYORUZ / NE BİLMİYORUZ | F3-03 | `_knowledge_columns` |
 | KANIT + [Neden 🟢?] | F3-04 | `_evidence_block` + `evidence/explain.py` |
@@ -14,18 +14,28 @@ Spec §14.3'ün ekran taslağındaki her bölüm burada karşılığını bulur:
 | SIRADAKİ BEKLENEN | F3-03 | `_upcoming` |
 | EDİTORYAL FIRSATLAR | F3-11 | `_editorial_panel` |
 
+### Bu sayfanın tek işi (BRIEF `birincil_is`)
+
+> "Bu olayda ne biliyoruz, ne bilmiyoruz — ve nereden biliyoruz?"
+
+Yerleşim bunu izler: **ne biliyoruz / ne bilmiyoruz** iki eşit sütun olarak
+sayfanın en üstünde durur, çünkü ürünün ayırt edici vaadi bilinmeyeni
+bilinen kadar görünür kılmaktır (Spec §15 madde 3). Editoryal eylemler sağ
+rayda ve **yapışkandır** — kullanıcı kanıtı okurken buton hep görünür kalır.
+
 ### TL;DR neden LLM'siz
 
 Spec §14.3: *"2-3 cümle özet. **Yalnızca doğrulanmış unsurlardan
 kurulur.**"* Bu cümle bir üslup tercihi değil, bir kısıttır. Doğrulanmış
-iddiaların metni zaten veritabanında duruyor ve `verify_quote` ile
-kaynağa bağlanmış durumda. Onları bir modele yeniden yazdırmak, kısıtı
-koruyan tek şeyi (metnin kanıttan gelmesi) bir prompt talimatına
-indirgerdi. Özet, en güçlü iddialardan **birleştirilir**.
+iddiaların metni zaten veritabanında duruyor ve `verify_quote` ile kaynağa
+bağlanmış durumda. Onları bir modele yeniden yazdırmak, kısıtı koruyan tek
+şeyi (metnin kanıttan gelmesi) bir prompt talimatına indirgerdi. Özet, en
+güçlü iddialardan **birleştirilir**.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -36,22 +46,38 @@ from politikdesk.editorial.service import can_generate
 from politikdesk.evidence.explain import KIND_LABELS, explain, explain_event_status
 from politikdesk.users import current_user_id
 from politikdesk.web import repository
-from politikdesk.web.layout import (
+from politikdesk.web.ui import (
     ACTIVITY_JS,
-    badge,
+    button,
+    card,
+    cell,
+    distribution,
     esc,
     event_badge,
+    icon,
+    notice,
     page,
+    page_head,
+    panel,
+    relative_time,
+    ruled,
+    skeleton_rows,
+    status_badge,
+    table,
     tier_badge,
-    when,
+    timeline,
 )
+from politikdesk.web.ui import format as fmt
 
 router = APIRouter(tags=["web"])
 
 # "Ne biliyoruz" sütununa girecek durumlar. Diğerleri "ne bilmiyoruz"
 # sütunundadır — bilinmeyeni bilinen gibi göstermek Spec §15 madde 3'ün
-# ihlalidir ve bu ayrım onun ekran karşılığıdır.
-KNOWN_STATUSES = ("strongly_corroborated", "partially_corroborated")
+KNOWN_STATUSES = (
+    "strongly_corroborated",
+    "partially_corroborated",
+    "attribution_verified",
+)
 
 MAX_TLDR_CLAIMS = 3
 
@@ -60,65 +86,71 @@ def _tldr(claims: list[dict[str, Any]]) -> str:
     """2-3 cümle özet — yalnızca doğrulanmış iddialardan (Spec §14.3)."""
     verified = [c for c in claims if c["evidence_status"] in KNOWN_STATUSES]
     if not verified:
-        return (
-            '<p class="meta">Bu olayda henüz teyit edilmiş iddia yok. '
-            "Özet yalnızca doğrulanmış unsurlardan kurulur; teyit "
-            "gelmeden özet de üretilmez.</p>"
+        return notice(
+            "<p>Bu olayda henüz teyit edilmiş iddia yok. Özet yalnızca "
+            "doğrulanmış unsurlardan kurulur; teyit gelmeden özet de "
+            "üretilmez.</p>",
+            tone="warn",
         )
     sentences = [
         c["claim_text"].strip().rstrip(".") + "." for c in verified[:MAX_TLDR_CLAIMS]
     ]
-    return "<p style='margin:0'>" + " ".join(esc(s) for s in sentences) + "</p>"
+    return card(
+        f'<p class="prose" style="margin:0;font-size:var(--text-lg);'
+        f'line-height:var(--text-lg-lh)">{" ".join(esc(s) for s in sentences)}</p>'
+        f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
+        f"Özet yalnızca teyit edilmiş iddialardan kurulur; bir model tarafından "
+        f"yeniden yazılmaz.</p>"
+    )
+
+
+def _claim_row(claim: dict[str, Any]) -> str:
+    """Tek iddia — SIGNATURE: sol kenarda kanıt cetveli.
+
+    İddia metninin kontrastı da kanıt gücüyle düşer (`ui/css.py`); teyitli
+    iddia tam mürekkeple, doğrulanmamış iddia soluk yazılır.
+    """
+    body = (
+        f'<div class="claim-text" style="font-size:var(--text-sm)">'
+        f'{esc(claim["claim_text"])}</div>'
+        f'<div class="row tight subtle" style="margin-top:6px;'
+        f'font-size:var(--text-xs)">{status_badge(claim["evidence_status"])}'
+        f'<span>· {esc(claim["claim_type"])}</span>'
+        f'<span>· {esc(fmt.plural_count(int(claim["evidence_count"] or 0), "kanıt bağı"))}'
+        f"</span></div>"
+    )
+    return ruled(claim["evidence_status"], body, cls="stack-sm")
 
 
 def _knowledge_columns(claims: list[dict[str, Any]]) -> str:
-    """NE BİLİYORUZ / NE BİLMİYORUZ (Spec §14.3)."""
+    """NE BİLİYORUZ / NE BİLMİYORUZ (Spec §14.3).
+
+    İki sütun **eşit genişliktedir**. Bilinmeyeni daha dar bir sütuna
+    koymak onu ikincil gösterirdi; bu ürünün tezi tam tersi.
+    """
     known = [c for c in claims if c["evidence_status"] in KNOWN_STATUSES]
     unknown = [c for c in claims if c["evidence_status"] not in KNOWN_STATUSES]
 
-    def _list(items: list[dict[str, Any]], empty: str) -> str:
-        if not items:
-            return f'<p class="meta">{esc(empty)}</p>'
-        return "".join(
-            f'<div class="claim">{badge(c["evidence_status"])} '
-            f'<span>{esc(c["claim_text"])}</span>'
-            f'<div class="meta" style="margin-top:.15rem">'
-            f'{esc(c["claim_type"])} · {c["evidence_count"]} kanıt bağı</div></div>'
-            for c in items
+    def column(title: str, items: list[dict[str, Any]], empty: str, hint: str) -> str:
+        rows = (
+            "".join(_claim_row(c) for c in items)
+            if items
+            else f'<p class="subtle" style="margin:0">{esc(empty)}</p>'
+        )
+        return card(
+            f'<div class="stack-sm" style="gap:var(--space-3)">{rows}</div>',
+            title=f"{title} · {len(items)}",
+            actions=f'<span class="subtle" style="font-size:var(--text-xs)">{esc(hint)}</span>',
         )
 
-    return f"""<div class="cols">
-  <div><h2>Ne biliyoruz</h2>{_list(known, "Teyit edilmiş iddia yok.")}</div>
-  <div><h2>Ne bilmiyoruz</h2>{_list(unknown, "Açık kalan iddia yok.")}</div>
-</div>"""
-
-
-def _evidence_block(data: dict[str, Any]) -> str:
-    """KANIT bloğu + "Neden bu durum?" açılır paneli (F3-04)."""
-    event = data["event"]
-    articles = data["articles"]
-
-    kinds: dict[str, int] = {}
-    for article in articles:
-        kinds[article["kind"]] = kinds.get(article["kind"], 0) + 1
-    breakdown = " · ".join(
-        f"{KIND_LABELS.get(kind, kind)} {count}" for kind, count in sorted(kinds.items())
+    return (
+        '<div class="halves">'
+        + column("Ne biliyoruz", known, "Teyit edilmiş iddia yok.",
+                 "en az iki bağımsız kaynak")
+        + column("Ne bilmiyoruz", unknown, "Açık kalan iddia yok.",
+                 "teyit bekliyor veya çelişkili")
+        + "</div>"
     )
-
-    panels = "".join(
-        _why_panel(claim) for claim in data["claims"]
-    ) or '<p class="meta">Henüz iddia çıkarılmamış.</p>'
-
-    return f"""<h2>Kanıt</h2>
-<div class="card">
-  <div>{esc(explain_event_status(
-      int(event["independent_count"] or 0),
-      bool(event["has_primary_source"]),
-      int(event["independence_groups"] or 0),
-  ))}</div>
-  <div class="meta" style="margin-top:.3rem">{esc(breakdown or "kaynak yok")}</div>
-  <div style="margin-top:.7rem">{panels}</div>
-</div>"""
 
 
 def _why_panel(claim: dict[str, Any]) -> str:
@@ -129,81 +161,167 @@ def _why_panel(claim: dict[str, Any]) -> str:
     """
     detail = explain(claim["evidence_status"], claim.get("status_reason"))
     facts = "".join(
-        f"<tr><td>{esc(f['label'])}</td><td class='mono'>{esc(f['value'])}</td></tr>"
+        f"<tr><td>{esc(f['label'])}</td>"
+        f"<td class='num mono'>{esc(f['value'])}</td></tr>"
         for f in detail["facts"]
     )
-    return f"""<details>
-<summary>{badge(claim["evidence_status"])}
-  Neden? — <b>{esc(detail["rule"])}: {esc(detail["rule_title"])}</b>
-  <span class="meta">· {esc(claim["claim_text"][:80])}</span></summary>
-<p style="margin:.5rem 0">{esc(detail["sentence"])}</p>
-<table>{facts or "<tr><td class='meta'>Girdi kaydı yok.</td></tr>"}</table>
-<p class="meta">Kural motoru: {esc(detail["engine_version"] or "—")} ·
-   hesaplandı {esc(detail["computed_at"] or "—")} ·
-   bu durum bir LLM çıktısı DEĞİLDİR (Spec §8.1).</p>
-</details>"""
+    summary = (
+        f'{status_badge(claim["evidence_status"])}'
+        f'<b style="font-size:var(--text-sm)">{esc(detail["rule"])}'
+        f' · {esc(detail["rule_title"])}</b>'
+        f'<span class="subtle" style="overflow:hidden;text-overflow:ellipsis;'
+        f'white-space:nowrap">{esc(claim["claim_text"][:70])}</span>'
+    )
+    body = f"""
+<p style="margin:0 0 12px">{esc(detail["sentence"])}</p>
+<table><tbody>
+{facts or "<tr><td class='subtle'>Girdi kaydı yok.</td></tr>"}
+</tbody></table>
+<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">
+  Kural motoru <span class="mono">{esc(detail["engine_version"] or "—")}</span> ·
+  hesaplandı {esc(detail["computed_at"] or "—")} ·
+  <b>bu durum bir LLM çıktısı DEĞİLDİR</b> (Spec §8.1).</p>"""
+    return panel(summary, body)
+
+
+def _evidence_block(data: dict[str, Any]) -> str:
+    """KANIT bloğu + "Neden bu durum?" açılır panelleri (F3-04)."""
+    event = data["event"]
+    articles = data["articles"]
+
+    # Kaynak kırılımı bir DAĞILIMDIR ve öyle gösterilir (Bölüm 8.12).
+    # "Resmî 3 · Medya 1" tek satır metni sayıları okutur ama ORANI
+    # okutmaz; oysa buradaki soru "kaç tane" değil, "ağırlık nerede".
+    # Sıralama büyükten küçüğe — alfabetik sıralama bu bileşenin amacını
+    # yok eder.
+    kinds: dict[str, int] = {}
+    for article in articles:
+        kinds[article["kind"]] = kinds.get(article["kind"], 0) + 1
+    breakdown = distribution(
+        [
+            (KIND_LABELS.get(kind, kind), float(count), fmt.number(count))
+            for kind, count in kinds.items()
+        ]
+    )
+
+    panels = "".join(_why_panel(claim) for claim in data["claims"]) or (
+        '<p class="subtle" style="margin:0">Henüz iddia çıkarılmamış.</p>'
+    )
+
+    verdict = explain_event_status(
+        int(event["independent_count"] or 0),
+        bool(event["has_primary_source"]),
+        int(event["independence_groups"] or 0),
+    )
+    return card(
+        f'<p style="margin:0 0 var(--space-4)">{esc(verdict)}</p>'
+        f'<p class="eyebrow" style="margin-bottom:var(--space-2)">'
+        f"Kaynak dağılımı</p>{breakdown}"
+        f'<div style="margin-top:var(--space-6)">{panels}</div>',
+        title="Kanıt",
+        actions='<span class="subtle" style="font-size:var(--text-xs)">'
+                "her satır bir kural kararı</span>",
+    )
 
 
 def _sources_table(data: dict[str, Any]) -> str:
     """KAYNAKLAR + çerçeve farkı paneli (F3-05).
 
-    ⛔ Bu tabloda **siyasi etiket yoktur ve olamaz** (Spec §8.5, §15
-    madde 5). Kaynaklar yalnızca adı, katmanı (tier) ve yayın grubuyla
-    anılır; "yandaş/muhalif" gibi bir sütun eklemek ürün sözleşmesinin
-    ihlalidir ve `tests/test_web.py` bunu tarar.
+    ⛔ Bu tabloda **siyasi etiket yoktur ve olamaz** (Spec §8.5, §15 madde
+    5). Kaynaklar yalnızca adı, katmanı (tier) ve yayın grubuyla anılır;
+    "yandaş/muhalif" gibi bir sütun eklemek ürün sözleşmesinin ihlalidir ve
+    `tests/test_web.py` bunu tarar. Tabloya renkli bir şerit veya "eğilim"
+    göstergesi eklemek de aynı ihlaldir — görsel etiket de etikettir.
     """
     articles = data["articles"]
     if not articles:
-        return "<h2>Kaynaklar</h2><p class='meta'>Bu olaya bağlı makale yok.</p>"
+        return card(
+            '<p class="subtle" style="margin:0">Bu olaya bağlı makale yok.</p>',
+            title="Kaynaklar",
+        )
 
-    rows = "".join(
-        f"""<tr>
-  <td><b>{esc(a["source_name"])}</b> {tier_badge(a["tier"])}
-      <div class="meta">{esc(a["independence_group"] or a["source_slug"])}</div></td>
-  <td>{esc(a["title"])}
-      {'<div class="meta">↳ yakın tekrar — bağımsız sayılmaz</div>'
-       if a["near_duplicate_of_id"] else ""}</td>
-  <td class="meta">{when(a["published_at"] or a["first_seen_at"])}</td>
-  <td>{f'<a href="{esc(a["canonical_url"])}" rel="noopener noreferrer" target="_blank">→ link</a>'
-       if a["canonical_url"] else "—"}</td>
-</tr>"""
-        for a in articles
-    )
+    rows = []
+    for a in articles:
+        duplicate = (
+            '<div class="cell-sub">↳ yakın tekrar — bağımsız sayılmaz</div>'
+            if a["near_duplicate_of_id"]
+            else ""
+        )
+        link = (
+            button("", href=a["canonical_url"], icon_name="external", small=True,
+                   title=f"{a['source_name']} — kaynakta aç")
+            if a["canonical_url"]
+            else '<span class="subtle">—</span>'
+        )
+        rows.append(
+            "<tr>"
+            + cell(
+                f'<div class="row tight"><b>{esc(a["source_name"])}</b>'
+                f'{tier_badge(a["tier"])}</div>'
+                f'<div class="cell-sub">{esc(a["independence_group"] or a["source_slug"])}'
+                f"</div>",
+                label="Kaynak",
+            )
+            + cell(f'{esc(a["title"])}{duplicate}', label="Başlık")
+            + cell(relative_time(a["published_at"] or a["first_seen_at"]), label="Saat")
+            + cell(link, label="Bağlantı")
+            + "</tr>"
+        )
 
     groups = int(data["event"]["independence_groups"] or 0)
     note = (
-        f"ⓘ Bu olay <b>{groups} farklı yayın grubundan</b> raporlanıyor."
+        notice(
+            f"<p>Bu olay <b>{fmt.number(groups)} farklı yayın grubundan</b> "
+            f"raporlanıyor.</p>"
+        )
         if groups >= 2
-        else "⚠ <b>Bu olay tek bir yayın grubundan raporlanıyor.</b> "
-        "Farklı bir kaynaktan teyit aramadan kesin konuşma."
+        else notice(
+            "<p><b>Bu olay tek bir yayın grubundan raporlanıyor.</b> Farklı bir "
+            "kaynaktan teyit aramadan kesin konuşma.</p>",
+            tone="warn",
+        )
     )
 
-    return f"""<h2>Kaynaklar <span class="meta">(çerçeve farkı)</span></h2>
-<p class="meta">Başlıklar yan yana durur; farkı sen değerlendirirsin.
-  Sistem hiçbir yayına siyasi konum etiketi vermez (Spec §8.5).</p>
-<table>
-  <tr><th>Kaynak</th><th>Başlık</th><th>Saat</th><th></th></tr>
-  {rows}
-</table>
-<p class="{"meta" if groups >= 2 else "notice"}" style="margin-top:.6rem">{note}</p>"""
+    return card(
+        '<p class="subtle" style="margin:0 0 var(--space-4);font-size:var(--text-xs)">'
+        "Başlıklar yan yana durur; farkı sen değerlendirirsin. Sistem hiçbir "
+        "yayına siyasi konum etiketi vermez (Spec §8.5).</p>"
+        + table(
+            (("Kaynak", ""), ("Başlık", ""), ("Saat", ""), ("", "")),
+            rows,
+        )
+        + f'<div style="margin-top:var(--space-4)">{note}</div>',
+        title="Kaynaklar",
+        actions='<span class="subtle" style="font-size:var(--text-xs)">'
+                "çerçeve farkı</span>",
+        cls="",
+    )
 
 
-def _timeline(data: dict[str, Any]) -> str:
+def _timeline_block(data: dict[str, Any]) -> str:
     """ZAMAN ÇİZELGESİ (F3-06) — 20+ makalede de tek sorgu, tek liste."""
     articles = data["articles"]
     if not articles:
         return ""
-    items = "".join(
-        f"""<li><span class="meta">{when(a["published_at"] or a["first_seen_at"])}</span>
-  · <b>{esc(a["source_name"])}</b> {tier_badge(a["tier"])}
-  <div>{esc((a["excerpt"] or a["title"])[:160])}</div></li>"""
+    items = tuple(
+        (
+            fmt.date_time(a["published_at"] or a["first_seen_at"]),
+            f'<div class="row tight"><b style="font-size:var(--text-sm)">'
+            f'{esc(a["source_name"])}</b>{tier_badge(a["tier"])}</div>'
+            f'<div class="muted" style="font-size:var(--text-sm);margin-top:2px">'
+            f'{esc((a["excerpt"] or a["title"])[:180])}</div>',
+        )
         for a in articles
     )
-    return f"""<h2>Zaman çizelgesi</h2>
-<details {"open" if len(articles) <= 6 else ""}>
-  <summary>{len(articles)} adım — genişlet</summary>
-  <ul class="timeline">{items}</ul>
-</details>"""
+    return card(
+        panel(
+            f'{icon("clock", 14)}<span>{fmt.plural_count(len(articles), "adım")}'
+            f" — genişlet</span>",
+            timeline(items),
+            open_=len(articles) <= 6,
+        ),
+        title="Zaman çizelgesi",
+    )
 
 
 def _related(data: dict[str, Any]) -> str:
@@ -212,12 +330,18 @@ def _related(data: dict[str, Any]) -> str:
     if not related:
         return ""
     items = "".join(
-        f'<li><a href="/event/{r["id"]}">{esc(r["title"])}</a> '
-        f'<span class="meta">· {when(r["first_reported_at"], "%d %b %Y")} '
-        f'· benzerlik {float(r["similarity"] or 0):.3f} · {esc(r["relation"])}</span></li>'
+        f'<li style="margin-bottom:10px">'
+        f'<a href="/event/{r["id"]}">{esc(r["title"])}</a>'
+        f'<div class="subtle" style="font-size:var(--text-xs)">'
+        f'{esc(fmt.full_date(r["first_reported_at"]))} · {esc(r["relation"])} · '
+        f'benzerlik <span class="mono">{esc(fmt.number(float(r["similarity"] or 0) * 100, 1))}'
+        f"</span></div></li>"
         for r in related
     )
-    return f"<h2>Önceki bağlam</h2><ul style='margin:0;padding-left:1.1rem'>{items}</ul>"
+    return card(
+        f'<ul style="margin:0;padding-left:18px">{items}</ul>',
+        title="Önceki bağlam",
+    )
 
 
 def _upcoming(data: dict[str, Any]) -> str:
@@ -226,71 +350,124 @@ def _upcoming(data: dict[str, Any]) -> str:
     if not upcoming:
         return ""
     items = "".join(
-        f'<li>{esc(u["title"])} <span class="meta">— '
-        f'{when(u["expected_at"], "%d %b %Y %H:%M")}'
-        f'{" · " + esc(u["source_name"]) if u["source_name"] else ""}</span></li>'
+        f'<li style="margin-bottom:10px">{esc(u["title"])}'
+        f'<div class="subtle" style="font-size:var(--text-xs)">'
+        f'{esc(fmt.date_time(u["expected_at"]))}'
+        f'{" · " + esc(u["source_name"]) if u["source_name"] else ""}</div></li>'
         for u in upcoming
     )
-    return f"<h2>Sıradaki beklenen</h2><ul style='margin:0;padding-left:1.1rem'>{items}</ul>"
+    return card(
+        f'<ul style="margin:0;padding-left:18px">{items}</ul>',
+        title="Sıradaki beklenen",
+    )
 
 
 def _editorial_panel(event_id: int) -> str:
     """EDİTORYAL FIRSATLAR + P1 zorlaması (F3-11).
 
     Buton durumu ile API kararı **aynı fonksiyondan** gelir
-    (`service.can_generate`). Ayrışsalardı kullanıcı tıklanabilen ama
-    her seferinde 409 dönen bir buton görürdü.
+    (`service.can_generate`). Ayrışsalardı kullanıcı tıklanabilen ama her
+    seferinde 409 dönen bir buton görürdü.
     """
     gate = can_generate(event_id)
 
     if not gate["allowed"]:
         buttons = "".join(
-            f'<button disabled title="Kanıtsız olayda üretim yapılmaz">'
-            f"{esc(label)}</button> "
+            button(label, disabled=True,
+                   title="Kanıtsız olayda üretim yapılmaz")
             for label, _ in ANGLES.values()
         )
-        return f"""<h2>Editoryal fırsatlar</h2>
-<div class="card">
-  <div class="row">{buttons}</div>
-  <p class="notice bad" style="margin-top:.7rem">{esc(gate["message"])}</p>
-  <p class="meta">Bu bir arayüz kısıtı değil: API doğrudan çağrılsa da
-     <span class="mono">409</span> döner (Spec §14.1 kalem 15, P1).</p>
-</div>"""
+        reason = notice(f"<p>{esc(gate['message'])}</p>", tone="bad")
+        return card(
+            f'<div class="btn-row">{buttons}</div>'
+            f'<div style="margin-top:var(--space-4)">{reason}</div>'
+            f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
+            f"Bu bir arayüz kısıtı değil: API doğrudan çağrılsa da "
+            f'<span class="mono">409</span> döner (Spec §14.1 kalem 15, P1).</p>',
+            title="Editoryal fırsatlar",
+        )
 
+    # Sayfada TEK primary buton (Bölüm 8.5) — ilk açı birincil, diğerleri
+    # ikincil. Üç eşit primary buton, "hangisi varsayılan" sorusunu
+    # cevapsız bırakırdı.
+    keys = list(ANGLES)
     buttons = "".join(
-        f'<button class="primary" onclick="pdGenerate(\'{key}\')">{esc(label)}</button> '
-        for key, (label, _) in ANGLES.items()
+        button(
+            ANGLES[key][0],
+            variant="primary" if index == 0 else "",
+            onclick=f"pdGenerate('{key}')",
+            icon_name="edit" if index == 0 else None,
+        )
+        for index, key in enumerate(keys)
     )
-    return f"""<h2>Editoryal fırsatlar</h2>
-<div class="card">
-  <div class="row">{buttons}
-    <span class="meta" style="margin-left:auto">Kanıta bağlı üretim ✓
-      ({gate["claim_count"]} iddia, {gate["evidence_count"]} kanıt bağı)</span>
-  </div>
-  <div id="draft-out" style="margin-top:1rem"></div>
-</div>"""
+    return card(
+        f'<div class="btn-row">{buttons}</div>'
+        f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
+        f'{icon("check", 12)} Kanıta bağlı üretim · '
+        f'{esc(fmt.plural_count(gate["claim_count"], "iddia"))}, '
+        f'{esc(fmt.plural_count(gate["evidence_count"], "kanıt bağı"))}</p>'
+        f'<div id="draft-out" style="margin-top:var(--space-4)"></div>',
+        title="Editoryal fırsatlar",
+    )
 
 
-def _feedback_panel(event_id: int, open_count: int) -> str:
+def _feedback_panel(open_count: int) -> str:
     """"Bu yanlış" geri bildirim butonu (F3-21)."""
     note = (
-        f'<span class="meta">{open_count} açık işaret var — denetim kuyruğunda.</span>'
+        f'<p class="subtle" style="margin:10px 0 0;font-size:var(--text-xs)">'
+        f'{esc(fmt.plural_count(open_count, "açık işaret"))} var — denetim '
+        f"kuyruğunda.</p>"
         if open_count
-        else ""
+        else '<p class="subtle" style="margin:10px 0 0;font-size:var(--text-xs)">'
+             "İşaretlediğinde olay insan denetimi kuyruğuna düşer.</p>"
     )
-    return f"""<div class="row" style="margin-top:2rem">
-  <button onclick="pdFlag()">⚑ Bu yanlış</button> {note}
-  <span class="meta" style="margin-left:auto">
-    İşaretlediğinde olay insan denetimi kuyruğuna düşer.</span>
-</div>"""
+    return card(
+        button("Bu yanlış", icon_name="flag", onclick="pdFlag()") + note,
+        title="Geri bildirim",
+    )
 
 
-_EVENT_JS = """
+def _meta_line(event: dict[str, Any]) -> str:
+    return (
+        f'<span title="Global {event["global_salience"]} + kişisel '
+        f'{event["personal_salience"]}">Önem '
+        f'<b class="num">{esc(fmt.number(event["displayed_salience"]))}</b></span>'
+        f'<span class="subtle">·</span>'
+        f'<span>İlk rapor {esc(fmt.date_time(event["first_reported_at"]))}</span>'
+        f'<span class="subtle">·</span>'
+        f'<span>Son güncelleme {esc(fmt.relative(event["last_update_at"]))}</span>'
+        f'<span class="subtle">·</span>'
+        f'<span>{esc(fmt.plural_count(int(event["article_count"] or 0), "makale"))}</span>'
+        f'<span class="subtle">·</span>'
+        f'<span>{esc(fmt.plural_count(int(event["independent_count"] or 0), "bağımsız teyit"))}'
+        f"</span>"
+    )
+
+
+# Yükleniyor durumu (Bölüm 10.3) — skeleton, spinner DEĞİL.
+#
+# Taslak üretimi bu üründeki TEK gerçekten yavaş etkileşimdir (LLM çağrısı,
+# saniyeler); sunucu tarafında üretilen diğer ekranlarda istemci yükleme
+# durumu yoktur ve olmamalıdır (300ms'den kısa yüklemede hiçbir şey
+# gösterilmez).
+#
+# Şekil `components.skeleton_rows()`'tan gelir, JS içinde elle yazılmaz:
+# skeleton'ın nabız süresi ve rengi token'a bağlı ve iki yerde tanımlanan
+# bir şey bir gün ayrışır.
+_SKELETON_JS = "var PD_SKELETON = " + json.dumps(
+    skeleton_rows(3, height=14)
+    + '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)" '
+      'aria-live="polite">Kanıt setinden üretiliyor…</p>'
+) + ";"
+
+_EVENT_JS = _SKELETON_JS + """
 function pdEventId(){ return document.body.dataset.eventId; }
 
 async function pdGenerate(angle){
   var out = document.getElementById('draft-out');
-  out.innerHTML = '<p class="meta">Üretiliyor… (kanıt setinden, birkaç saniye)</p>';
+  // Yükleniyor (Bölüm 10.3): skeleton, spinner değil. LLM çağrısı saniyeler
+  // sürer — burada gerçekten gösterilmesi gereken bir durum var.
+  out.innerHTML = PD_SKELETON;
   try {
     var r = await fetch('/api/events/' + pdEventId() + '/drafts', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -298,14 +475,22 @@ async function pdGenerate(angle){
     });
     var data = await r.json();
     if (r.status === 409) {
-      out.innerHTML = '<p class="notice bad">' + (data.detail?.message || data.detail) + '</p>';
+      out.innerHTML = '<div class="notice bad"><div><p>' +
+        (data.detail && data.detail.message ? data.detail.message : data.detail) +
+        '</p></div></div>';
       return;
     }
-    if (!r.ok) { out.innerHTML = '<p class="notice bad">Üretim hatası.</p>'; return; }
-    out.innerHTML = '<p class="meta">Taslak hazır — <a href="/draft/' +
-      data.draft_id + '">aç ve kontrol et →</a></p>';
+    if (!r.ok) {
+      out.innerHTML = '<div class="notice bad"><div><p>Taslak üretilemedi. ' +
+        'Model yanıt vermedi veya günlük bütçe doldu — birkaç dakika sonra ' +
+        'tekrar dene.</p></div></div>';
+      return;
+    }
     location.href = '/draft/' + data.draft_id;
-  } catch (e) { out.innerHTML = '<p class="notice bad">Ağ hatası.</p>'; }
+  } catch (e) {
+    out.innerHTML = '<div class="notice bad"><div><p>Sunucuya ulaşılamadı. ' +
+      'Bağlantını kontrol edip tekrar dene.</p></div></div>';
+  }
 }
 
 async function pdFlag(){
@@ -315,7 +500,8 @@ async function pdFlag(){
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({note: note})
   });
-  alert(r.ok ? 'İşaretlendi. Olay denetim kuyruğuna alındı.' : 'Kaydedilemedi.');
+  alert(r.ok ? 'İşaretlendi. Olay denetim kuyruğuna alındı.'
+             : 'Kaydedilemedi. Bağlantını kontrol edip tekrar dene.');
   if (r.ok) location.reload();
 }
 
@@ -323,7 +509,7 @@ async function pdFlag(){
 function pdUnderstood(btn){
   window.pdPing('understood', {duration_ms: Date.now() - window.pdOpenedAt});
   btn.disabled = true;
-  btn.textContent = '✓ Anlaşıldı olarak işaretlendi';
+  btn.querySelector('span').textContent = 'Anlaşıldı olarak işaretlendi';
 }
 """
 
@@ -337,43 +523,50 @@ def event_page(event_id: int) -> str:
 
     event = data["event"]
     review = (
-        '<p class="notice">⚠ Bu olayın kümeleme kararı belirsiz ve insan '
-        "denetimi bekliyor. İçerik üretmeden önce doğrula.</p>"
+        notice(
+            "<p><b>Bu olayın kümeleme kararı belirsiz ve insan denetimi "
+            "bekliyor.</b> İçerik üretmeden önce doğrula.</p>",
+            tone="warn",
+        )
         if event.get("review_flag") == "needs_review"
         else ""
     )
 
     body = f"""
-<p class="meta"><a href="/feed">← Feed'e dön</a></p>
-{review}
-<div class="row">
-  {event_badge(event["status"])}
-  <span class="meta">Salience {event["displayed_salience"]}
-    (global {event["global_salience"]} + kişisel {event["personal_salience"]})</span>
-  <button style="margin-left:auto" onclick="pdUnderstood(this)">✓ Anladım</button>
+{page_head(
+    event["title"],
+    lede="",
+    badges=event_badge(event["status"]),
+    actions=button("Anladım", icon_name="check", onclick="pdUnderstood(this)"),
+)}
+<div class="row subtle" style="font-size:var(--text-xs);
+     margin:-16px 0 var(--space-6)">{_meta_line(event)}</div>
+{f'<div style="margin-bottom:var(--space-6)">{review}</div>' if review else ""}
+
+<div class="split">
+  <div class="stack">
+    {_tldr(data["claims"])}
+    {_knowledge_columns(data["claims"])}
+    {_evidence_block(data)}
+    {_sources_table(data)}
+    {_timeline_block(data)}
+  </div>
+  <div class="stack" style="position:sticky;top:calc(var(--topbar-h) + 24px)">
+    {_editorial_panel(event_id)}
+    {_related(data)}
+    {_upcoming(data)}
+    {_feedback_panel(data["open_feedback"])}
+  </div>
 </div>
-<h1>{esc(event["title"])}</h1>
-<p class="meta">İlk rapor {when(event["first_reported_at"])} ·
-  Son güncelleme {when(event["last_update_at"])} ·
-  {event["article_count"]} makale ·
-  {event["independent_count"]} bağımsız teyit</p>
-
-<h2>TL;DR</h2>
-<div class="card">{_tldr(data["claims"])}
-  <p class="meta" style="margin:.6rem 0 0">Özet yalnızca teyit edilmiş
-    iddialardan kurulur; bir model tarafından yeniden yazılmaz.</p></div>
-
-{_knowledge_columns(data["claims"])}
-{_evidence_block(data)}
-{_sources_table(data)}
-{_timeline(data)}
-{_related(data)}
-{_upcoming(data)}
-{_editorial_panel(event_id)}
-{_feedback_panel(event_id, data["open_feedback"])}
 """
 
-    html = page(esc(event["title"])[:70], body, active="/feed",
-                extra_js=ACTIVITY_JS + _EVENT_JS)
-    # `data-event-id` gövdeye yazılır: izleme ve JS uçları onu okur.
-    return html.replace("<body>", f'<body data-event-id="{event_id}">', 1)
+    html = page(
+        event["title"][:70],
+        body,
+        active="/feed",
+        crumbs=(("Gündem", "/feed"), (event["title"][:60], None)),
+        extra_js=ACTIVITY_JS + _EVENT_JS,
+        # `data-event-id` gövdeye yazılır: izleme ve JS uçları onu okur.
+        body_attrs=f' data-event-id="{event_id}"',
+    )
+    return html

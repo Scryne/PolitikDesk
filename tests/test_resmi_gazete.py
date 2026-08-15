@@ -178,6 +178,7 @@ def test_ca_bundle_includes_the_missing_intermediate() -> None:
 def test_http_retry_on_timeout(monkeypatch) -> None:
     """ReadTimeout durumunda exponential backoff ve sınırlı retry işletilir."""
     import httpx
+
     from politikdesk.ingestion.http import HttpClient
 
     attempts = 0
@@ -201,6 +202,7 @@ def test_http_non_retryable_error(monkeypatch) -> None:
     """404 Not Found gibi kalıcı hatalarda retry yapılmaz, fail-closed fırlatılır."""
     import httpx
     import pytest
+
     from politikdesk.ingestion.http import HttpClient
 
     attempts = 0
@@ -224,6 +226,7 @@ def test_robots_txt_handling(monkeypatch) -> None:
     """robots.txt açıkça yasakladığında RobotsDisallowed fırlatılır."""
     import httpx
     import pytest
+
     from politikdesk.ingestion.http import HttpClient, RobotsDisallowed
 
     robots_content = "User-agent: *\nDisallow: /ozel/\n"
@@ -245,6 +248,7 @@ def test_robots_txt_handling(monkeypatch) -> None:
 def test_http_client_granular_timeout_construction() -> None:
     """F4: Granüler connect/read/write/pool timeout değerleri httpx.Timeout'a dönüştürülür."""
     import httpx
+
     from politikdesk.ingestion.http import HttpClient
 
     client = HttpClient(
@@ -286,8 +290,10 @@ def test_calculate_backoff_deterministic_and_jitter() -> None:
 
 def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
     """F4: Resmî Gazete bir gün için timeout alsa bile diğer günün verilerini başarıyla toplar."""
+    from datetime import date
+
     import httpx
-    from datetime import date, timedelta
+
     from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
 
     today_str = date.today().isoformat()

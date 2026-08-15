@@ -33,11 +33,11 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
-PROMPT_VERSION = "claims.v2"
+PROMPT_VERSION = "claims.v3"
 MAX_QUOTE_LEN = 200      # migrations/0001: CONSTRAINT quote_span_len
 MAX_CLAIM_LEN = 500
 
-CLAIM_TYPES = ("fact", "number", "attribution", "prediction")
+CLAIM_TYPES = ("fact", "number", "attribution", "prediction", "promise")
 
 VALID_METRICS = (
     "tufe_monthly", "tufe_annual", "ufe_monthly", "ufe_annual",
@@ -315,15 +315,18 @@ enflasyonun temmuzda yükseleceğini öngördü" İKİ iddiadır:
   number      Sayısal bir büyüklük bildiren iddia. "TÜFE aylık yüzde 1,78 arttı."
   attribution Birinin söylediği/açıkladığı şey. "Bakan Şimşek dezenflasyonun
               sürdüğünü söyledi." Söylenmiş olması olgudur; içeriği ayrıdır.
-  prediction  Gelecek hakkında. "Enflasyonun yıl sonunda düşmesi bekleniyor."
+  prediction  Gelecek hakkında genel tahmin/öngörü. "Enflasyonun düşmesi bekleniyor."
+  promise     Bir aktörün resmî vaadi, taahhüdü veya hedefi. "Bakan 2026 sonunda
+              enflasyonun yüzde 15'e ineceğini taahhüt etti."
 
 TİP AYRIMINDA DİKKAT:
 - Bir sayı içeriyor diye her iddia `number` değildir. `number`, iddianın
   ÖZÜ bir ölçüm ise kullanılır.
-- Beklenti, tahmin, öngörü, "bekleniyor", "öngörülüyor", "hedefleniyor"
-  ifadeleri `prediction`'dır — kim söylerse söylesin, sayı içerse bile.
-- "X, Y olacağını söyledi" → `prediction` (içerik gelecek hakkında).
-  "X, Y olduğunu söyledi" → `attribution`.
+- Beklenti, genel tahmin "bekleniyor", "öngörülüyor" ifadeleri `prediction`'dır.
+- Açık bir siyasi/kamusal taahhüt, vaat ve hedef bildiren beyanlar `promise`'tir.
+- "X, Y olacağını söyledi" (öngörü ise) → `prediction`.
+- "X, Y yapacağını taahhüt etti/söz verdi" → `promise`.
+- "X, Y olduğunu söyledi" → `attribution`.
 
 SAYISAL NORMALİZASYON (`number` tipinde ZORUNLU):
   metric  Ölçülen büyüklüğün kanonik adı (aşağıdaki listeden)

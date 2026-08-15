@@ -357,3 +357,66 @@ def test_excerpt_constraint_is_enforced_by_database(db_conn) -> None:  # noqa: A
                 (source_id, "https://example.test/too-long", "Test", "x" * 301, "hash"),
             )
     db_conn.rollback()
+
+
+# ==================================================================== I9
+@pytest.mark.db
+def test_editorial_profile_v2_and_claims_v3_constraints_enforced_by_database(db_conn) -> None:  # noqa: ANN001
+    """I9: 0009 ve 0010 migration kısıtları (quote_habit, promise, attribution_verified) veritabanında doğrulanır."""
+    import psycopg
+
+    with db_conn.cursor() as cur:
+        # 1. 0009: editorial_profiles quote_habit ve uncertainty_handling
+        cur.execute(
+            """
+            INSERT INTO editorial_profiles (
+                user_id, tone, sentence_length, emoji_usage, hashtag_usage,
+                citation_habit, formality, avoid_list, topic_priorities,
+                quote_habit, uncertainty_handling, compiled_prompt, compiler_version
+            ) VALUES (
+                1, '{"analytical"}', 'medium', 'none', 'none',
+                'always_link', 3, '{}', '{}',
+                'direct_quote', 'natural_concise', 'prompt', 'v2'
+            )
+            ON CONFLICT (user_id) DO UPDATE SET
+                quote_habit = EXCLUDED.quote_habit,
+                uncertainty_handling = EXCLUDED.uncertainty_handling
+            RETURNING quote_habit, uncertainty_handling
+            """
+        )
+        row = cur.fetchone()
+        assert row["quote_habit"] == "direct_quote"
+        assert row["uncertainty_handling"] == "natural_concise"
+
+        # 2. 0010: claims promise tipi
+        cur.execute(
+            """
+            INSERT INTO events (title, status, first_reported_at, last_update_at)
+            VALUES ('Vaat Test Olayi', 'developing', now(), now())
+            RETURNING id
+            """
+        )
+        event_id = cur.fetchone()["id"]
+
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_type, claim_text, evidence_status, status_reason, normalized_value)
+            VALUES (%s, 'promise', '2027 sonuna kadar enflasyon tek haneye inecek.', 'attribution_verified', '{"rule": "R8"}', NULL)
+            RETURNING id, claim_type, evidence_status
+            """,
+            (event_id,),
+        )
+        c_row = cur.fetchone()
+        assert c_row["claim_type"] == "promise"
+        assert c_row["evidence_status"] == "attribution_verified"
+
+        # Geçersiz claim_type reddedilmeli
+        with pytest.raises(psycopg.errors.CheckViolation):
+            cur.execute(
+                """
+                INSERT INTO claims (event_id, claim_type, claim_text, evidence_status, status_reason)
+                VALUES (%s, 'invalid_type', 'Gecersiz iddia metni.', 'unverified', '{"rule": "R7"}')
+                """,
+                (event_id,),
+            )
+    db_conn.rollback()

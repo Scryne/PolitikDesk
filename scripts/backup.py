@@ -94,9 +94,7 @@ def create(label: str = "") -> Path:
     tablo geri yüklenebiliyor ve dosya kendiliğinden sıkışıyor.
     """
     if not _container_running():
-        raise SystemExit(
-            f"'{DB_CONTAINER}' konteyneri çalışmıyor. Önce: make up"
-        )
+        raise SystemExit(f"'{DB_CONTAINER}' konteyneri çalışmıyor. Önce: make up")
 
     target_dir = backup_dir()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -106,8 +104,18 @@ def create(label: str = "") -> Path:
 
     with target.open("wb") as fh:
         result = subprocess.run(  # noqa: S603
-            ["docker", "exec", DB_CONTAINER,  # noqa: S607
-             "pg_dump", "-U", _db_user(), "-d", _db_name(), "-Fc", "--no-owner"],
+            [
+                "docker",
+                "exec",
+                DB_CONTAINER,  # noqa: S607
+                "pg_dump",
+                "-U",
+                _db_user(),
+                "-d",
+                _db_name(),
+                "-Fc",
+                "--no-owner",
+            ],
             stdout=fh,
             check=False,
         )
@@ -123,8 +131,7 @@ def create(label: str = "") -> Path:
     try:
         from politikdesk import audit
 
-        audit.write("backup_created", str(target),
-                    payload={"bytes": target.stat().st_size})
+        audit.write("backup_created", str(target), payload={"bytes": target.stat().st_size})
     except Exception as exc:  # noqa: BLE001 — denetim izi yedeği geçersiz kılmaz
         print(f"[UYARI] Denetim izine yazılamadı: {type(exc).__name__}: {exc}")
 
@@ -153,8 +160,11 @@ def verify(path: Path) -> bool:
         print(f"[HATA] Yedek okunamadı: {result.stderr.decode(errors='replace')[:300]}")
         return False
 
-    lines = [ln for ln in result.stdout.decode(errors="replace").splitlines()
-             if ln and not ln.startswith(";")]
+    lines = [
+        ln
+        for ln in result.stdout.decode(errors="replace").splitlines()
+        if ln and not ln.startswith(";")
+    ]
     tables = sum(1 for ln in lines if " TABLE DATA " in ln)
     print(f"[OK] Yedek okunabilir: {len(lines)} nesne, {tables} tablo verisi")
     return tables > 0
@@ -189,15 +199,25 @@ def restore(path: Path, into: str, *, force: bool = False) -> bool:
     _psql("CREATE EXTENSION IF NOT EXISTS vector", database=into)
 
     result = subprocess.run(  # noqa: S603
-        ["docker", "exec", "-i", DB_CONTAINER,  # noqa: S607
-         "pg_restore", "-U", user, "-d", into, "--no-owner", "--exit-on-error"],
+        [
+            "docker",
+            "exec",
+            "-i",
+            DB_CONTAINER,  # noqa: S607
+            "pg_restore",
+            "-U",
+            user,
+            "-d",
+            into,
+            "--no-owner",
+            "--exit-on-error",
+        ],
         stdin=path.open("rb"),
         capture_output=True,
         check=False,
     )
     if result.returncode != 0:
-        print(f"[HATA] Geri yükleme başarısız:\n"
-              f"{result.stderr.decode(errors='replace')[:800]}")
+        print(f"[HATA] Geri yükleme başarısız:\n{result.stderr.decode(errors='replace')[:800]}")
         return False
 
     ok = _compare(production, into)
@@ -205,8 +225,7 @@ def restore(path: Path, into: str, *, force: bool = False) -> bool:
         try:
             from politikdesk import audit
 
-            audit.write("backup_restored", str(path),
-                        payload={"into": into, "verified": True})
+            audit.write("backup_restored", str(path), payload={"into": into, "verified": True})
         except Exception:  # noqa: BLE001, S110
             pass
     return ok
@@ -214,13 +233,21 @@ def restore(path: Path, into: str, *, force: bool = False) -> bool:
 
 def _psql(sql: str, *, database: str = "postgres") -> None:
     result = _docker(
-        "exec", DB_CONTAINER, "psql", "-U", _db_user(), "-d", database,
-        "-v", "ON_ERROR_STOP=1", "-c", sql, capture=True,
+        "exec",
+        DB_CONTAINER,
+        "psql",
+        "-U",
+        _db_user(),
+        "-d",
+        database,
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-c",
+        sql,
+        capture=True,
     )
     if result.returncode != 0:
-        raise SystemExit(
-            f"psql başarısız: {result.stderr.decode(errors='replace')[:300]}"
-        )
+        raise SystemExit(f"psql başarısız: {result.stderr.decode(errors='replace')[:300]}")
 
 
 _COUNT_SQL = """
@@ -236,8 +263,20 @@ ORDER BY 1
 
 def _counts(database: str) -> dict[str, int]:
     result = _docker(
-        "exec", DB_CONTAINER, "psql", "-U", _db_user(), "-d", database,
-        "-t", "-A", "-F", "|", "-c", _COUNT_SQL, capture=True,
+        "exec",
+        DB_CONTAINER,
+        "psql",
+        "-U",
+        _db_user(),
+        "-d",
+        database,
+        "-t",
+        "-A",
+        "-F",
+        "|",
+        "-c",
+        _COUNT_SQL,
+        capture=True,
     )
     out: dict[str, int] = {}
     for line in result.stdout.decode(errors="replace").splitlines():
@@ -316,8 +355,9 @@ def main(argv: list[str] | None = None) -> int:
     p_restore = sub.add_parser("restore", help="Ayrı bir veritabanına geri yükle")
     p_restore.add_argument("path", type=Path)
     p_restore.add_argument("--into", required=True, help="Hedef veritabanı adı")
-    p_restore.add_argument("--force", action="store_true",
-                           help="Üretim veritabanının üzerine yazmayı zorla")
+    p_restore.add_argument(
+        "--force", action="store_true", help="Üretim veritabanının üzerine yazmayı zorla"
+    )
 
     p_prune = sub.add_parser("prune", help="Eski yedekleri sil")
     p_prune.add_argument("--keep", type=int, default=KEEP_DAILY)

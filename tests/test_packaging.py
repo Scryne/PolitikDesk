@@ -146,7 +146,7 @@ def test_all_required_adapters_are_registered() -> None:
         assert adapter_name in ADAPTERS, f"Adaptör kayıtlı değil: {adapter_name}"
         adapter_cls = ADAPTERS[adapter_name]
         assert hasattr(adapter_cls, "fetch"), f"{adapter_name} sınıfında 'fetch' metodu yok."
-        assert callable(getattr(adapter_cls, "fetch")), f"{adapter_name}.fetch çağrılabilir değil."
+        assert callable(adapter_cls.fetch), f"{adapter_name}.fetch çağrılabilir değil."
 
 
 def test_dockerignore_preserves_runtime_roots() -> None:
