@@ -154,6 +154,15 @@ def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
             )
             hit = cur.fetchone()
             if hit is None:
+                from datetime import UTC, datetime
+                expected = item["expected_at"]
+                if expected.tzinfo is None:
+                    expected = expected.replace(tzinfo=UTC)
+                if datetime.now(UTC) - expected > timedelta(hours=48):
+                    cur.execute(
+                        "UPDATE scheduled_events SET status = 'cancelled' WHERE id = %s",
+                        (item["id"],),
+                    )
                 continue
 
             cur.execute(

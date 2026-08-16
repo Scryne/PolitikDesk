@@ -1602,7 +1602,6 @@ name = "politikdesk"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "anthropic" },
     { name = "celery" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -1619,6 +1618,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+anthropic = [
+    { name = "anthropic" },
+]
 bench = [
     { name = "numpy" },
     { name = "scikit-learn" },
@@ -1641,7 +1643,7 @@ embed-local = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", specifier = ">=0.40" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40" },
     { name = "brotli", marker = "extra == 'dev'", specifier = ">=1.1" },
     { name = "celery", specifier = ">=5.4" },
     { name = "fastapi", specifier = ">=0.115" },
@@ -1669,7 +1671,7 @@ requires-dist = [
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
-provides-extras = ["dev", "bench", "embed-local"]
+provides-extras = ["dev", "anthropic", "bench", "embed-local"]
 
 [[package]]
 name = "prompt-toolkit"

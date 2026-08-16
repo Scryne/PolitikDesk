@@ -25,7 +25,6 @@ dependencies = [
     "celery>=5.4",
     "structlog>=24.4",
     "sentry-sdk[fastapi]>=2.18",
-    "anthropic>=0.40",
     "httpx>=0.27",
     "tenacity>=9.0",
     "PyYAML>=6.0",
@@ -47,6 +46,10 @@ dev = [
     # Arayuz denetimi (scripts/ui_check.py). Yatay tasma ve konsol hatasi
     # ekran goruntusunde GORUNMEZ; olculmesi gerekir (DESIGN.md Bolum 14).
     "playwright>=1.49",
+]
+# Opsiyonel Anthropic SDK (NVIDIA NIM/openai_compat varsayılandır)
+anthropic = [
+    "anthropic>=0.40",
 ]
 # F0-13 embedding benchmark'ı için (opsiyonel, ağır bağımlılıklar)
 bench = [
@@ -74,6 +77,9 @@ ignore = ["B008"]  # FastAPI Depends() varsayılan argümanda kullanılır
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
 "eval/*" = ["E501"]
+"politikdesk/web/*" = ["E501"]
+"politikdesk/web/ui/*" = ["E501"]
+"politikdesk/briefing/*" = ["E501"]
 
 
 [tool.pytest.ini_options]

@@ -181,7 +181,7 @@ def test_health_monitor_uses_same_predicate_as_the_worker() -> None:
         assert clause in claims_stage.sql, (
             f"İzleyicinin claims yüklemi işçininkiyle ayrışmış: {clause!r} yok."
         )
-    assert claims_stage.params == (MAX_CLAIM_ATTEMPTS,)
+    assert claims_stage.get_params() == (MAX_CLAIM_ATTEMPTS,)
 
 
 @pytest.mark.parametrize(
@@ -263,8 +263,12 @@ def test_stage_report_runs_against_live_schema(db_conn) -> None:  # noqa: ANN001
         "cluster",
         "claims",
         "evidence",
+        "context",
+        "political_relations",
+        "scheduler_match",
         "briefing",
         "metrics",
+        "purge",
     } <= keys
     for row in report:
         assert row.status in {"green", "amber", "red"}

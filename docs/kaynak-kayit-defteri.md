@@ -6,32 +6,71 @@
 
 ---
 
-## ✅ Karar durumu — 12 Ağustos 2026
+## ✅ Karar durumu — 17 Ağustos 2026 (Nihai Envanter: 88 Kaynak)
 
 **Bu belgenin aşağıdaki kart bölümü tarihseldir.** Güncel ve bağlayıcı
-durum `config/sources.yml` dosyasındadır; testler onu denetler.
+durum `config/sources.yml`, `config/sources_legislation.yml` ve `config/sources_social.yml` dosyalarındadır; testler onları denetler.
 
-| Kaynak | Tier | `tos_status` | Akış | Doğrulama |
+### 1. Makro Ekonomi Dikeyi (`config/sources.yml` — 20/20 Kaynak)
+
+| Kaynak | Tier | `tos_status` | Akış / Erişim | Doğrulama Durumu |
 |---|---|---|---|---|
-| TCMB | 1 | `allowed` | RSS (2 akış: Basın Duyuruları + PPK) | ✅ canlı, 41 öğe |
-| TÜİK | 1 | `allowed` | ❌ RSS yok, liste JS ile yükleniyor | 🔎 B-42 |
-| Hazine | 1 | `allowed` | ❌ aday yollar sonuç vermedi | 🔎 B-43 |
-| Resmî Gazete | 1 | `allowed` | `/rss` var ama bağlantı reddediliyor | 🔎 B-44 |
-| AA Ekonomi | 2 | `allowed` | `aa.com.tr/tr/rss/default?cat=ekonomi` | ✅ canlı, 30 öğe |
-| **Dünya Gazetesi** | 3 | `allowed` | `dunya.com/rss?dunya` | ✅ canlı, 25 öğe |
-| **BloombergHT** | 3 | `allowed` | `bloomberght.com/rss` | ✅ canlı, 20 öğe |
+| **TCMB** | 1 | `allowed` | RSS (`Basın Duyuruları` + `PPK`) | ✅ Canlı (20+ öğe) |
+| **TÜİK** | 1 | `allowed` | SDMX API (`nsiws.tuik.gov.tr/rest`) | ✅ Canlı (427 seri) |
+| **Hazine ve Maliye Bak.** | 1 | `allowed` | WP REST API (`/portal/v2/posts`) | ✅ Canlı (10+ öğe) |
+| **Resmî Gazete** | 1 | `allowed` | Günlük Fihrist HTML Adaptörü | ✅ Canlı |
+| **AA Ekonomi** | 2 | `allowed` | RSS (`aa.com.tr/tr/rss/default?cat=ekonomi`) | ✅ Canlı (30 öğe) |
+| **DW Türkçe Ekonomi** | 2 | `allowed` | RSS (`rss.dw.com/xml/rss-tur-eco`) | ✅ Canlı (10 öğe) |
+| **Dünya Gazetesi** | 3 | `allowed` | RSS (`dunya.com/rss?dunya`) | ✅ Canlı (25 öğe) |
+| **BloombergHT** | 3 | `allowed` | RSS (`bloomberght.com/rss`) | ✅ Canlı (20 öğe) |
+| **TRT Haber Ekonomi** | 3 | `allowed` | RSS (`trthaber.com/ekonomi_articles.rss`) | ✅ Canlı (60 öğe) |
+| **CNN Türk Ekonomi** | 3 | `allowed` | RSS (`cnnturk.com/feed/rss/ekonomi/news`) | ✅ Canlı (35 öğe) |
+| **Habertürk Ekonomi** | 3 | `allowed` | RSS (`haberturk.com/rss/ekonomi.xml`) | ✅ Canlı (30 öğe) |
+| **Ekonomim** | 3 | `allowed` | RSS (`ekonomim.com/rss`) | ✅ Canlı (25 öğe) |
+| **Investing.com TR** | 3 | `allowed` | RSS (`tr.investing.com/rss/news_25.rss`) | ✅ Canlı (10 öğe) |
+| **Euronews Ekonomi** | 3 | `allowed` | RSS (`tr.euronews.com/rss?format=mrss...`) | ✅ Canlı (50 öğe) |
+| **Cumhuriyet Ekonomi** | 3 | `allowed` | RSS (`cumhuriyet.com.tr/rss/ekonomi`) | ✅ Canlı (100 öğe) |
+| **Fikir Turu — Ekonomi** | 3 | `allowed` | RSS (`fikirturu.com/feed/`) | ✅ Canlı (10 öğe) |
+| **Ekotürk TV & Haber** | 3 | `allowed` | RSS (`ekoturk.com/feed/`) | ✅ Canlı (10 öğe) |
+| **Mahfi Eğilmez (Yazılar)**| 3 | `allowed` | RSS (`mahfiegilmez.com/feeds/...`) | ✅ Canlı (25 öğe) |
+| **Sabah Gazetesi Ekonomi**| 3 | `allowed` | RSS (`sabah.com.tr/rss/ekonomi.xml`) | ✅ Canlı (10 öğe) |
+| **FinTech İstanbul** | 3 | `allowed` | RSS (`fintechistanbul.org/feed/`) | ✅ Canlı (10 öğe) |
 
-**Reuters düşürüldü.** Açık RSS ucu yok, içerik lisansa tabi — aşağıdaki
-karar ağacının "lisans zorunlu, bütçe dışı → kaynak düşer" dalı işletildi.
-Kaynak sayısı 8 → **7**.
+### 2. Yasama & Siyaset Dikeyi (`config/sources_legislation.yml` — 22/22 Kaynak)
 
-**D17 kararı (F0-09):** Dünya + BloombergHT. Farklı yayın grubu ✓,
-farklı çerçeveleme ✓ (Dünya genel gündem ağırlıklı, BloombergHT
-piyasa/veri ağırlıklı).
+| Kaynak | Tier | `tos_status` | Akış / Erişim | Doğrulama Durumu |
+|---|---|---|---|---|
+| **TBMM** | 1 | `allowed` | HTML Adaptörü (Teklifler/Tutanaklar) | ✅ Canlı |
+| **Sayıştay** | 1 | `allowed` | HTML Adaptörü (Denetim Raporları) | ✅ Canlı |
+| **Cumhurbaşkanlığı** | 1 | `allowed` | HTML Adaptörü (Kararnameler/Genelgeler) | ✅ Canlı |
+| **AA Politika** | 2 | `allowed` | RSS (`aa.com.tr/tr/rss/default?cat=politika`) | ✅ Canlı (30 öğe) |
+| **BBC Türkçe** | 2 | `allowed` | RSS (`feeds.bbci.co.uk/turkce/rss.xml`) | ✅ Canlı (20 öğe) |
+| **Independent Türkçe** | 2 | `allowed` | RSS (`indyturk.com/rss.xml`) | ✅ Canlı (10 öğe) |
+| **TRT Haber Gündem** | 3 | `allowed` | RSS (`trthaber.com/gundem_articles.rss`) | ✅ Canlı (60 öğe) |
+| **Habertürk Gündem** | 3 | `allowed` | RSS (`haberturk.com/rss/kategori/gundem.xml`) | ✅ Canlı (30 öğe) |
+| **Gazete Duvar** | 3 | `allowed` | RSS (`gazeteduvar.com.tr/rss/politika`) | ✅ Canlı (50 öğe) |
+| **Diken** | 3 | `allowed` | RSS (`diken.com.tr/feed/`) | ✅ Canlı (30 öğe) |
+| **Sözcü Politika** | 3 | `allowed` | RSS (`sozcu.com.tr/rss/politika.xml`) | ✅ Canlı (50 öğe) |
+| **T24 Politika** | 3 | `allowed` | HTML Adaptörü (`t24.com.tr/haberler`) | ✅ Canlı |
+| **BirGün Politika** | 3 | `allowed` | RSS (`birgun.net/rss/home`) | ✅ Canlı (95 öğe) |
+| **Cumhuriyet Siyaset** | 3 | `allowed` | RSS (`cumhuriyet.com.tr/rss/siyaset`) | ✅ Canlı (100 öğe) |
+| **Medyascope** | 3 | `allowed` | RSS (`medyascope.tv/feed/`) | ✅ Canlı (12 öğe) |
+| **Kısa Dalga** | 3 | `allowed` | RSS (`kisadalga.net/service/rss.php`) | ✅ Canlı (35 öğe) |
+| **Serbestiyet** | 3 | `allowed` | RSS (`serbestiyet.com/feed/`) | ✅ Canlı (20 öğe) |
+| **YetkinReport** | 3 | `allowed` | RSS (`yetkinreport.com/feed/`) | ✅ Canlı (10 öğe) |
+| **Gazete Pencere** | 3 | `allowed` | RSS (`gazetepencere.com/service/rss.php`) | ✅ Canlı (40 öğe) |
+| **Karar Gazetesi** | 3 | `allowed` | RSS (`karar.com/service/rss.php`) | ✅ Canlı (40 öğe) |
+| **Evrensel — Politika** | 3 | `allowed` | RSS (`evrensel.net/rss/haber.xml`) | ✅ Canlı (100 öğe) |
+| **Halk TV — Politika** | 3 | `allowed` | RSS (`halktv.com.tr/export/rss`) | ✅ Canlı (50 öğe) |
 
-**Kalan iş:** Üç Tier 1 kaynağın akışı bulunmalı —
-`python -m scripts.discover_feeds` **yerel ağdan** koşturulmalı.
-Etkisi `docs/FAZ1-DURUM.md` içinde ayrıntılı.
+### 3. Sosyal Medya & X Aktörleri (`config/sources_social.yml` — 46 Kaynak)
+- 13 Resmî ve Anayasal Kurum (@TBMMresmi, @iletisim, @Merkez_Bankasi, @HMBakanligi, @tuikbilgi, @AYMBASKANLIGI, @YSKGovTr, @sayistaytr, @adalet_bakanlik, @TC_Disisleri, @BDDKResmi, @spkgovtr, @sgksosyalmedya)
+- 8 Kabine Bakanı & Yürütme (@memetsimsek, @_cevdetyilmaz, @HakanFidan, @AliYerlikaya, @murat_kurum, @Yusuf__Tekin, @isikhanvedat, @aBayraktar1)
+- 14 Siyasi Parti Genel Başkanı (@RTErdogan, @ozgur_ozel, @dbdevletbahceli, @bakirhantuncer, @MDervisogluTR, @FatihErbakan, @UmitOzdag, @erkanbas, @alibabacan, @Ahmet_Davutoglu, @arikanmahmut, @Mustafa_Destici, @vekilince, @OnderAksakal)
+- 2 Kilit Büyükşehir Belediye Başkanı (@ekrem_imamoglu, @mansuryavas06)
+- 9 Küratörlü Tematik Siyaset, Parlamento ve Ekonomi Listesi
+
+
 
 ---
 

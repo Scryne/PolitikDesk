@@ -112,6 +112,7 @@ _PATHS: Final[dict[str, str]] = {
     ),
     # ── Yön ──
     "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+    "chevron-right": '<path d="m9 18 6-6-6-6"/>',
     "trend-up": '<path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/>',
     "trend-down": '<path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/>',
     "trend-flat": '<path d="M3 12h18"/><path d="m16 7 5 5-5 5"/>',
@@ -135,6 +136,29 @@ _PATHS: Final[dict[str, str]] = {
     "filter-off": (
         '<path d="M8 3H2l7.6 9.5"/><path d="M14 10.5V21l-4-3v-4"/>'
         '<path d="m2 2 20 20"/><path d="M22 3H10l3 3.5"/>'
+    ),
+    "filter": '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+    "search": '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    "printer": (
+        '<polyline points="6 9 6 2 18 2 18 9"/>'
+        '<path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>'
+        '<rect width="12" height="8" x="6" y="14"/>'
+    ),
+    "arrow-right": '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+    "share": '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+    "zap": (
+        '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1'
+        ' 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1'
+        ' 1 0 0 0 11 14z"/>'
+    ),
+    "list": (
+        '<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/>'
+        '<line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/>'
+        '<line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>'
+    ),
+    "grid": (
+        '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>'
+        '<rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'
     ),
     # ── Kabuk ──
     "sun": (

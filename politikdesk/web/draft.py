@@ -247,10 +247,12 @@ def draft_page(draft_id: int) -> str:
         card(
             f'<textarea id="body"{"" if is_grounded else " disabled"}{disabled_note}'
             f' aria-label="Taslak metni">{esc(body_text)}</textarea>'
-            f'<div class="row" style="margin-top:12px">'
+            f'<div class="row" style="margin-top:12px;justify-content:space-between;align-items:center">'
             f'<span class="subtle" style="font-size:var(--text-xs)">'
-            f'<span id="len" class="num">{len(body_text)}</span> karakter · '
-            f"düzenlersen mesafe otomatik hesaplanır</span></div>"
+            f'<span id="len" class="num" style="font-weight:var(--weight-semibold)">{len(body_text)}</span> karakter · '
+            f'<span id="words" class="num">{len(body_text.split())}</span> kelime · '
+            f'<span id="x-limit" class="subtle"></span></span>'
+            f'<span id="edit-indicator" class="subtle" style="font-size:var(--text-xs)"></span></div>'
             f'<div class="btn-row" style="margin-top:var(--space-4)">'
             + button(
                 "Kabul et",
@@ -271,7 +273,7 @@ def draft_page(draft_id: int) -> str:
   {
         card(
             '<div class="btn-row">'
-            + button("Panoya kopyala", icon_name="copy", onclick="pdCopy()")
+            + button("Panoya kopyala", icon_name="copy", onclick="pdCopyDraft()")
             + button("X'te aç", href="#", icon_name="external", id_="intent")
             + "</div>"
             '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
@@ -287,15 +289,46 @@ def draft_page(draft_id: int) -> str:
     js = f"""
 var DRAFT_ID = {draft_id};
 var EVENT_ID = {draft["event_id"]};
+var INITIAL_BODY = document.getElementById('body') ? document.getElementById('body').value : '';
 
 function pdBody(){{ return document.getElementById('body').value; }}
 
-document.getElementById('body').addEventListener('input', function(){{
-  document.getElementById('len').textContent = this.value.length;
-}});
+function updateCounters(){{
+  var val = pdBody();
+  var l = val.length;
+  var w = val.trim() ? val.trim().split(/\\s+/).length : 0;
+  var lenEl = document.getElementById('len');
+  var wordsEl = document.getElementById('words');
+  var xEl = document.getElementById('x-limit');
+  var editEl = document.getElementById('edit-indicator');
+
+  if (lenEl) lenEl.textContent = l;
+  if (wordsEl) wordsEl.textContent = w;
+  if (xEl) {{
+    if (l <= 280) {{
+      xEl.innerHTML = '<span class="badge strong" style="font-size:11px;height:18px">X (280) Uygun</span>';
+    }} else {{
+      xEl.innerHTML = '<span class="badge neutral" style="font-size:11px;height:18px">Uzun / Thread (' + Math.ceil(l/280) + ' tweet)</span>';
+    }}
+  }}
+  if (editEl) {{
+    if (val !== INITIAL_BODY) {{
+      editEl.innerHTML = '<span class="badge partial" style="font-size:11px;height:18px">Düzenlendi</span>';
+    }} else {{
+      editEl.innerHTML = '';
+    }}
+  }}
+}}
+
+var bodyEl = document.getElementById('body');
+if (bodyEl) {{
+  bodyEl.addEventListener('input', updateCounters);
+  updateCounters();
+}}
 
 async function pdRefreshIntent(){{
   var link = document.getElementById('intent');
+  if (!link) return;
   try {{
     var r = await fetch('/api/drafts/' + DRAFT_ID + '/publish');
     if (!r.ok) throw new Error(r.status);
@@ -303,8 +336,6 @@ async function pdRefreshIntent(){{
     link.target = '_blank';
     link.rel = 'noopener noreferrer';
   }} catch (e) {{
-    // Adres kurulamadıysa BOZUK BİR LİNK BIRAKMA: butonu kapat ve nedenini
-    // söyle. Tıklanabilen ama hiçbir şey yapmayan bir buton daha kötüdür.
     link.removeAttribute('href');
     link.setAttribute('aria-disabled', 'true');
     link.title = 'Yayın adresi alınamadı — sayfayı yenile';
@@ -312,16 +343,8 @@ async function pdRefreshIntent(){{
 }}
 pdRefreshIntent();
 
-async function pdCopy(){{
-  try {{
-    await navigator.clipboard.writeText(pdBody());
-    alert('Panoya kopyalandı.');
-  }} catch (e) {{
-    // Güvenli bağlam yoksa Clipboard API çalışmaz; seçim yedeği.
-    var t = document.getElementById('body');
-    t.select(); document.execCommand('copy');
-    alert('Panoya kopyalandı (yedek yöntem).');
-  }}
+function pdCopyDraft(){{
+  window.pdCopy(pdBody(), 'Taslak metni');
 }}
 
 async function pdAct(action){{
@@ -332,14 +355,14 @@ async function pdAct(action){{
     body: JSON.stringify(payload)
   }});
   if (!r.ok) {{
-    alert('Kaydedilemedi. Bağlantını kontrol edip tekrar dene.');
+    window.pdToast('Kaydedilemedi. Bağlantını kontrol edip tekrar dene.');
     return;
   }}
   var data = await r.json();
   if (action === 'regenerated') {{ location.href = '/event/' + EVENT_ID; return; }}
-  alert('Kaydedildi.' + (data.edit_distance !== null && data.edit_distance !== undefined
+  window.pdToast('Kaydedildi.' + (data.edit_distance !== null && data.edit_distance !== undefined
         ? ' Düzenleme mesafesi: ' + data.edit_distance : ''));
-  location.reload();
+  setTimeout(function(){{ location.reload(); }}, 600);
 }}
 """
     return page(
@@ -353,3 +376,4 @@ async function pdAct(action){{
         ),
         extra_js=js,
     )
+

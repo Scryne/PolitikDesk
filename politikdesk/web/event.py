@@ -93,12 +93,20 @@ def _tldr(claims: list[dict[str, Any]]) -> str:
             tone="warn",
         )
     sentences = [c["claim_text"].strip().rstrip(".") + "." for c in verified[:MAX_TLDR_CLAIMS]]
+    summary_text = " ".join(sentences)
+    summary_json = json.dumps(summary_text)
+    copy_action = (
+        f'<button class="btn sm ghost" type="button" onclick=\'pdCopy({summary_json}, "Özet")\'>'
+        f'{icon("copy", 13)}<span>Özeti Kopyala</span></button>'
+    )
     return card(
         f'<p class="prose" style="margin:0;font-size:var(--text-lg);'
         f'line-height:var(--text-lg-lh)">{" ".join(esc(s) for s in sentences)}</p>'
         f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
         f"Özet yalnızca teyit edilmiş iddialardan kurulur; bir model tarafından "
-        f"yeniden yazılmaz.</p>"
+        f"yeniden yazılmaz.</p>",
+        title="TL;DR Doğrulanmış Özet",
+        actions=copy_action,
     )
 
 
@@ -292,6 +300,55 @@ def _sources_table(data: dict[str, Any]) -> str:
         actions='<span class="subtle" style="font-size:var(--text-xs)">çerçeve farkı</span>',
         cls="",
     )
+
+
+def _blindspot_block(data: dict[str, Any]) -> str:
+    """MEDYA KAPSAMI VE KÖR NOKTA RADARI."""
+    from politikdesk.evidence.blindspot import analyze_blindspot
+
+    event = data["event"]
+    articles = data["articles"]
+    source_names = [a.get("source_name") or a.get("source_slug", "") for a in articles]
+    report = analyze_blindspot(event_id=event["id"], covered_sources=source_names)
+
+    tier_b = report.tier_breakdown
+    dist_items = [
+        ("T1 Resmî / Birincil", float(tier_b.tier1_official), f"{tier_b.tier1_official} kaynak"),
+        ("T2 Ajans / Ana Akım", float(tier_b.tier2_mainstream), f"{tier_b.tier2_mainstream} kaynak"),
+        ("T3 Bağımsız / Sektörel", float(tier_b.tier3_independent), f"{tier_b.tier3_independent} kaynak"),
+    ]
+    dist_html = distribution(dist_items)
+
+    severity_tones = {
+        "balanced": "ok",
+        "mainstream_only": "warn",
+        "independent_only": "bad",
+        "single_source": "warn",
+        "minimal": "warn",
+    }
+    tone = severity_tones.get(report.severity, "")
+    badge_html = f'<span class="badge {tone}">{esc(report.summary_label)}</span>' if tone else f'<span class="badge">{esc(report.summary_label)}</span>'
+
+    export_links = (
+        f'<div class="row tight" style="margin-top:var(--space-4);gap:var(--space-2)">'
+        f'{button("Markdown İndir", href=f"/api/events/{event["id"]}/export?format=markdown", icon_name="download", small=True)}'
+        f'{button("Düz Metin", href=f"/api/events/{event["id"]}/export?format=text", icon_name="copy", small=True)}'
+        f'{button("JSON Kanıt Verisi", href=f"/api/events/{event["id"]}/export?format=json", icon_name="external", small=True)}'
+        f'</div>'
+    )
+
+    return card(
+        f'<div class="row tight" style="margin-bottom:var(--space-3)">{badge_html}</div>'
+        f'<p style="margin:0 0 var(--space-4);font-size:var(--text-sm)">{esc(report.description)}</p>'
+        f'<p class="eyebrow" style="margin-bottom:var(--space-2)">Medya Kademesi Dağılımı</p>'
+        f'{dist_html}'
+        f'<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+        f'{len(report.covered_sources)} kaynak haberi geçti, {len(report.missing_sources)} kaynak henüz haberleştirmedi.</p>'
+        f'{export_links}',
+        title="Medya Kapsamı ve Kör Nokta Radarı",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">%{int(report.coverage_ratio*100)} kapsama</span>',
+    )
+
 
 
 def _timeline_block(data: dict[str, Any]) -> str:
@@ -516,6 +573,7 @@ function pdUnderstood(btn){
 
 
 @router.get("/event/{event_id}", response_class=HTMLResponse)
+@router.get("/events/{event_id}", response_class=HTMLResponse, include_in_schema=False)
 def event_page(event_id: int) -> str:
     user_id = current_user_id()
     data = repository.event_page(event_id, user_id)
@@ -552,6 +610,7 @@ def event_page(event_id: int) -> str:
     {_knowledge_columns(data["claims"])}
     {_evidence_block(data)}
     {_sources_table(data)}
+    {_blindspot_block(data)}
     {_timeline_block(data)}
   </div>
   <div class="stack" style="position:sticky;top:calc(var(--topbar-h) + 24px)">

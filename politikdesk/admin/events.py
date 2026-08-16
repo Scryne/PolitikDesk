@@ -182,7 +182,7 @@ async function pdDecide(id, decision, btn) {
     location.reload();
   } catch (e) {
     row.querySelectorAll('button').forEach(function(b){ b.disabled = false; });
-    alert('Karar kaydedilemedi: ' + e.message);
+    window.pdToast('Karar kaydedilemedi: ' + e.message);
   }
 }
 

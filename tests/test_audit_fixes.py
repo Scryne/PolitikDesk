@@ -352,3 +352,252 @@ def test_admin_articles_vertical_filter_query() -> None:
         params_called = mock_cur.execute.call_args_list[0][0][1]
         assert "a.vertical = %s" in sql_called
         assert "legislation" in params_called
+
+
+# ===========================================================================
+# Phase 2 Hardening Fixes (DEF-01 to DEF-07, IMP-01 to IMP-04)
+# ===========================================================================
+def test_def01_claims_pipeline_extracts_with_article_vertical() -> None:
+    """DEF-01: claims_pipeline extract_claims çağrısına article vertical parametresini iletir."""
+    from unittest.mock import MagicMock, patch
+
+    from politikdesk.nlp import claims_pipeline
+
+    mock_articles = [
+        {
+            "id": 1,
+            "title": "TBMM Kanun Teklifi",
+            "excerpt": "Genel Kurul toplandı.",
+            "source_name": "TBMM",
+            "tier": 1,
+            "published_at": "2026-08-16T12:00:00Z",
+            "vertical": "legislation",
+        }
+    ]
+
+    mock_cur = MagicMock()
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+    mock_extract_result = MagicMock()
+    mock_extract_result.extracted_by = "test-model+v1"
+    mock_extract_result.claims = []
+    mock_extract_result.rejected = []
+
+    with (
+        patch("politikdesk.nlp.claims_pipeline.pending_events", return_value=[100]),
+        patch("politikdesk.nlp.claims_pipeline._articles_of", return_value=mock_articles),
+        patch("politikdesk.nlp.claims_pipeline.connection", return_value=mock_conn),
+        patch("politikdesk.nlp.claims_pipeline.extract_claims", return_value=mock_extract_result) as mock_extract,
+        patch("politikdesk.nlp.claims.group_claims_by_source", return_value=[]),
+        patch("politikdesk.nlp.claims_pipeline._persist", return_value=[]),
+        patch("politikdesk.nlp.opinion_classifier.classify_content_kind", return_value=MagicMock(kind="news")),
+    ):
+        claims_pipeline.run(limit=1, client=MagicMock())
+        assert mock_extract.called
+        call_kwargs = mock_extract.call_args.kwargs
+        assert call_kwargs.get("vertical") == "legislation"
+
+
+def test_def02_draft_request_accepts_accountability_angle() -> None:
+    """DEF-02: DraftRequest modeli 'accountability' açısını kabul eder."""
+    import pydantic
+
+    from politikdesk.web.api import DraftRequest
+
+    req = DraftRequest(angle="accountability")
+    assert req.angle == "accountability"
+
+    # Diğer geçerli açılar
+    for angle in ("inform", "analyze", "critique"):
+        assert DraftRequest(angle=angle).angle == angle  # type: ignore[arg-type]
+
+    # Geçersiz açı 422 / ValidationError üretir
+    with pytest.raises(pydantic.ValidationError):
+        DraftRequest(angle="invalid_angle")  # type: ignore[arg-type]
+
+
+def test_def03_budget_alert_monthly_suppression_window() -> None:
+    """DEF-03: alert_if_needed aylık bütçe için 24*31 saat bastırma penceresi kullanır."""
+    from unittest.mock import patch
+
+    from politikdesk.config import Settings
+    from politikdesk.llm.budget import BudgetGuard
+
+    guard = BudgetGuard(
+        settings=Settings(
+            env="test",
+            llm_daily_budget_usd=10.0,
+            llm_monthly_budget_usd=100.0,
+        )
+    )
+
+    fake_snapshot = {
+        "daily_spent_usd": 9.0,
+        "daily_cap_usd": 10.0,
+        "daily_ratio": 0.9,
+        "monthly_spent_usd": 90.0,
+        "monthly_cap_usd": 100.0,
+        "monthly_ratio": 0.9,
+    }
+
+    suppression_windows: dict[str, int] = {}
+
+    def mock_exists(action: str, target: str, hours: int = 25) -> bool:
+        suppression_windows[target] = hours
+        return True
+
+    with (
+        patch.object(guard, "snapshot", return_value=fake_snapshot),
+        patch("politikdesk.audit.exists_since", side_effect=mock_exists),
+    ):
+        guard.alert_if_needed(notify=False)
+
+        daily_key = [k for k in suppression_windows if "daily" in k][0]
+        monthly_key = [k for k in suppression_windows if "monthly" in k][0]
+
+        assert suppression_windows[daily_key] == 25
+        assert suppression_windows[monthly_key] == 24 * 31
+
+
+def test_def04_promises_and_archive_views_render_event_route() -> None:
+    """DEF-04: promises_view ve archive_view /event/{id} tekil rotasını kullanır."""
+    from unittest.mock import patch
+
+    from politikdesk.web.archive_view import archive_page
+    from politikdesk.web.promises_view import promises_page
+
+    mock_promise = [
+        {
+            "claim_id": 1,
+            "claim_text": "Vaat metni",
+            "evidence_status": "strongly_corroborated",
+            "event_id": 42,
+            "event_title": "Test Olayı",
+            "first_reported_at": "2026-08-16T12:00:00Z",
+            "speaker": "Bakan",
+            "outcome_relation": "fulfils",
+            "relation_status": "verified",
+            "evidence_payload": {},
+        }
+    ]
+
+    mock_archive = [
+        {
+            "draft_id": 10,
+            "event_id": 42,
+            "event_title": "Test Olayı",
+            "angle": "inform",
+            "body": "Taslak gövdesi",
+            "user_action": "accepted",
+            "created_at": "2026-08-16T12:00:00Z",
+            "cited_claim_ids": [1],
+            "is_grounded": True,
+            "model": "claude-3-5",
+            "prompt_version": "v1",
+        }
+    ]
+
+    with (
+        patch("politikdesk.web.promises_view.mem_service.get_promise_tracker", return_value=mock_promise),
+        patch("politikdesk.users.touch_last_seen"),
+    ):
+        resp = promises_page()
+        body = resp.body.decode("utf-8")
+        assert 'href="/event/42"' in body
+        assert 'href="/events/42"' not in body
+
+    with (
+        patch("politikdesk.web.archive_view.list_archived_publications", return_value=mock_archive),
+        patch("politikdesk.users.touch_last_seen"),
+    ):
+        resp_arch = archive_page()
+        body_arch = resp_arch.body.decode("utf-8")
+        assert 'href="/event/42"' in body_arch
+        assert 'href="/events/42"' not in body_arch
+
+
+def test_def05_twitter_adapter_is_registered() -> None:
+    """DEF-05: TwitterAdapter adapter registry'ye kayıtlıdır."""
+    import politikdesk.ingestion.adapters.twitter  # noqa: F401
+    from politikdesk.ingestion.adapters.base import registry
+    from politikdesk.ingestion.adapters.twitter import TwitterAdapter
+
+    assert registry.get("twitter") is TwitterAdapter
+
+
+def test_def06_sidebar_nav_includes_memory() -> None:
+    """DEF-06: shell.py NAV tuple'ı /memory rotasını içerir."""
+    from politikdesk.web.ui.shell import NAV
+
+    work_desk_group = next(items for title, items in NAV if title == "Çalışma masası")
+    routes = [href for href, label, icon in work_desk_group]
+    assert "/memory" in routes
+
+
+def test_def07_stemmer_suffix_tuples_are_unique() -> None:
+    """DEF-07: cross_source_matcher ve relation_engine suffix tablolarında mükerrer kayıt yoktur."""
+    from politikdesk.nlp import cross_source_matcher
+
+    assert len(cross_source_matcher._COMMON_SUFFIXES) == len(set(cross_source_matcher._COMMON_SUFFIXES))
+
+
+def test_imp01_manual_adapter_http_client_enforces_ssrf_dns() -> None:
+    """IMP-01: ManualImportAdapter HttpClient'ı enforce_ssrf=True ve resolve_dns=True ile kurar."""
+    from politikdesk.ingestion.adapters.manual import ManualImportAdapter
+
+    adapter = ManualImportAdapter()
+    assert adapter.http.enforce_ssrf is True
+    assert adapter.http.resolve_dns is True
+
+
+def test_imp02_get_actor_memory_queries_event_entities() -> None:
+    """IMP-02: get_actor_memory sorgusu event_entities tablosunu kontrol eder."""
+    from unittest.mock import MagicMock, patch
+
+    from politikdesk.political_memory.service import get_actor_memory
+
+    mock_cur = MagicMock()
+    mock_cur.fetchall.return_value = []
+    mock_conn = MagicMock()
+    mock_conn.__enter__.return_value = mock_conn
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+    with patch("politikdesk.political_memory.service.connection", return_value=mock_conn):
+        get_actor_memory("Ahmet")
+        assert mock_cur.execute.called
+        sql = mock_cur.execute.call_args_list[0][0][0]
+        assert "event_entities" in sql
+
+
+def test_imp03_scripts_ingest_has_memory_command() -> None:
+    """IMP-03: scripts.ingest CLI aracı memory alt komutunu destekler."""
+    from unittest.mock import patch
+
+    from scripts import ingest
+
+    with (
+        patch("sys.argv", ["scripts.ingest", "memory", "--limit", "25"]),
+        patch("scripts.ingest.cmd_memory", return_value=0) as mock_cmd,
+    ):
+        ret = ingest.main()
+        assert ret == 0
+        assert mock_cmd.called
+        assert mock_cmd.call_args[0][0] == 25
+
+
+def test_imp04_metric_value_status_defensive() -> None:
+    """IMP-04: MetricValue.status bilinmeyen yön ve eksik metada güvenli 'no_data' döner."""
+    from politikdesk.metrics import MetricValue
+
+    mv_none = MetricValue(name="unknown_metric", value=None, sample_size=0)
+    assert mv_none.status == "no_data"
+
+    mv_unregistered = MetricValue(name="custom_metric", value=5.0, sample_size=10)
+    assert mv_unregistered.status == "no_data"
+
+    # Bilinen metrik
+    mv_ok = MetricValue(name="time_to_understanding", value=5.0, sample_size=10)
+    assert mv_ok.status == "ok"
+

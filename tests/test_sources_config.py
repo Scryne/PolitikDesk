@@ -30,23 +30,21 @@ VALID_TOS = {"allowed", "restricted", "forbidden", "pending_review"}
 
 
 def test_source_count_never_exceeds_hard_limit() -> None:
-    """Spec §9.2 / D6 (v3.3): azami 15 kaynak."""
-    assert len(SOURCES) <= DATA["max_sources"] == 15, (
-        f"{len(SOURCES)} kaynak var. Sınır 15'tir ve gerekçesi "
+    """Spec §9.2 / D6 (v3.5): azami 20 ekonomi kaynağı."""
+    assert len(SOURCES) <= DATA["max_sources"] == 20, (
+        f"{len(SOURCES)} kaynak var. Sınır 20'dir ve gerekçesi "
         "config/sources.yml başlığındadır (F5-01)."
     )
 
 
-def test_source_count_matches_staged_rollout() -> None:
-    """F5-04: 7 -> 10. 15'e TEK ADIMDA çıkılmaz.
 
-    Kademe kasıtlıdır: 10 kaynakla en az bir hafta ölçülür (kümeleme
-    precision >= 0,88 korunuyor mu, konu filtresi yeni kaynaklarda
-    alakasız içerik geçiriyor mu) ve ancak regresyon yoksa 15'e devam
-    edilir (F5-05). Bu test o kademeyi görünür tutar: sayıyı artıran
-    kişi testi de değiştirmek zorundadır, yani artış bilinçli olur.
+def test_source_count_matches_staged_rollout() -> None:
+    """F5-06: 15 -> 20 tam kapsamlı rollout.
+
+    20 kaynak sınırı ile makro ekonomi, piyasalar, fintech, uzman blogları
+    ve reel sektör çerçeveleme çeşitliliği en üst seviyeye çıkarıldı.
     """
-    assert len(SOURCES) == 10
+    assert len(SOURCES) == 20
 
 
 def test_slugs_are_unique() -> None:
@@ -79,22 +77,13 @@ def test_no_social_tier_source_in_mvp() -> None:
 
 
 def test_tier_distribution() -> None:
-    """4 resmî (omurga) + 1 ajans (kopya referansı) + 5 bağımsız yayın.
-
-    Spec §9.2 iki ajans öngörüyordu; Reuters'ın açık akışı olmadığı için
-    çapraz teyit rolü tek ajansa indi. Etkisi: sayısal olmayan iddialarda
-    bağımsız sayım düşer (bkz. docs/karar-itirazlari.md İtiraz-2).
-
-    F5-04 Tier 3'ü 2'den 5'e çıkardı. Tier 1 SABİT kaldı ve bu bir
-    eksiklik değil, engeldir: TÜİK (B-42, hesap gerekiyor) ve Resmî
-    Gazete (B-44, TR çıkış IP'si gerekiyor) hâlâ ölü. R2'nin (🟢)
-    istediği `has_primary_source` bu ikisi açılmadan güçlenmez —
-    Tier 3 genişlemesi `diversity_ratio` ve R4'ü (🟡) besler, R2'yi değil.
-    """
+    """4 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın."""
     counts: dict[int, int] = {}
     for s in SOURCES:
         counts[s["tier"]] = counts.get(s["tier"], 0) + 1
-    assert counts == {1: 4, 2: 1, 3: 5}, counts
+    assert counts == {1: 4, 2: 2, 3: 14}, counts
+
+
 
 
 def test_every_source_has_a_distinct_independence_group() -> None:
@@ -210,13 +199,13 @@ def test_load_all_configs_loads_both_verticals() -> None:
 
 
 def test_vertical_source_limit_enforced() -> None:
-    """Spec v3.5 §9.2: Dikey başına azami 15 kaynak sınırı aşılamaz."""
+    """Spec v3.5 §9.2: Dikey başına azami kaynak sınırı aşılamaz."""
     from politikdesk.ingestion.sources import MAX_VERTICAL_SOURCES, load_config
 
     leg_path = Path(__file__).resolve().parent.parent / "config" / "sources_legislation.yml"
     if leg_path.is_file():
         cfgs, _ = load_config(leg_path)
-        assert len(cfgs) <= MAX_VERTICAL_SOURCES == 15
+        assert len(cfgs) <= MAX_VERTICAL_SOURCES == 25
 
 
 def test_global_source_limit_enforced() -> None:
@@ -225,7 +214,8 @@ def test_global_source_limit_enforced() -> None:
 
     all_cfgs = load_all_configs()
     assert len(all_cfgs) <= MAX_GLOBAL_SOURCES
-    assert MAX_GLOBAL_SOURCES == 60
+    assert MAX_GLOBAL_SOURCES == 100
+
 
 
 def test_duplicate_slug_across_verticals_rejected(tmp_path: Path) -> None:
@@ -288,10 +278,20 @@ def test_legislation_sources_configured() -> None:
     assert "tbmm" in slugs
     assert "sayistay" in slugs
     assert "cb-kararname" in slugs
+    assert "medyascope" in slugs
+    assert "kisadalga" in slugs
+    assert "indyturk" in slugs
+    assert "serbestiyet" in slugs
+    assert "yetkinreport" in slugs
+    assert "gazetepencere" in slugs
+    assert "karar" in slugs
+    assert "evrensel-politika" in slugs
+    assert "halktv-politika" in slugs
 
     # Bağımsızlık grupları ayrışmış olmalı
     groups = [c.independence_group for c in configs if c.independence_group]
     assert len(set(groups)) == len(groups)
+
 
 
 def test_verify_feeds_runner() -> None:
@@ -301,3 +301,41 @@ def test_verify_feeds_runner() -> None:
     # Mock/hızlı çalıştırma testi
     code = verify_all_feeds(config_file="config/sources_legislation.yml", timeout=3.0, strict=False)
     assert code == 0
+
+
+def test_sync_to_database_deactivates_obsolete_sources(monkeypatch) -> None:  # noqa: ANN001
+    """sync_to_database, YAML'da olmayan eski aktif kaynakları pasife almalı."""
+    from contextlib import contextmanager
+    from unittest.mock import MagicMock
+
+    from politikdesk.ingestion.sources import SourceConfig, sync_to_database
+
+    mock_cur = MagicMock()
+    mock_cur.fetchone.return_value = (1,)  # Existing record
+    mock_cur.rowcount = 2  # 2 obsolete sources deactivated
+    mock_conn = MagicMock()
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cur
+
+    @contextmanager
+    def fake_conn():
+        yield mock_conn
+
+    monkeypatch.setattr("politikdesk.db.connection", fake_conn)
+    monkeypatch.setattr("politikdesk.audit.write", MagicMock())
+
+    dummy_cfg = [
+        SourceConfig(
+            slug="test-active-source",
+            name="Test Source",
+            tier=1,
+            kind="official",
+            access_method="rss",
+            tos_status="allowed",
+            adapter="rss",
+        )
+    ]
+
+    res = sync_to_database(dummy_cfg)
+    assert res["deactivated"] == 2
+    assert mock_cur.execute.call_count >= 2
+

@@ -1,49 +1,23 @@
-"""Gündem ekranı (F3-02, F3-07, F3-18 · Spec §14.1 kalem 1).
+"""Gündem ekranı ve X (Twitter) Yayın Merkezi (F3-02, F3-07, F3-18 · Spec §14.1 kalem 1).
 
 F3-02 DoD: salience sıralı olay kartları; her kartta durum rozeti, kaynak
-sayısı kırılımı, son güncelleme; **30 sn'de bir sessiz yenileme.**
-
-"Sessiz" burada teknik bir kısıttır: yenileme sırasında sayfa kaymaz,
-kaydırma konumu korunur ve açık bir panel kapanmaz. Tam sayfa
-`location.reload()` bunların üçünü de bozardı; kart listesi ayrı bir uçtan
-(`/feed/cards`) çekilip yerine konur.
+sayısı kırılımı, son güncelleme; **30 sn'de bir sessiz yenileme** ve **entegre X yayın köprüsü**.
 
 ### Bu sayfanın tek işi (BRIEF `birincil_is`)
 
-> "Şu an gündemde ne var ve hangisi hakkında GÜVENLE yazabilirim?"
-
-Bu iki soru değil, tek sorudur — ve ekranın hiyerarşisi onu izler:
-
-  1. **Yazıma hazır olay sayısı** en büyük tipografide, sol üstte. Sorunun
-     cevabı bu. Sadece önemi gösteren bir feed ürünü haber okuyucusuna
-     indirir; kanıt gücü aynı bakışta okunmalıdır.
-  2. Filtre şeridi o cevabı **liste hâline getirir** — sayıya tıklanır.
-  3. Kartlar salience sırasıyla; her kartın sol kenarında kanıt cetveli.
-
-### Kanıt cetvelinin türetimi
-
-Kart cetvelinin rengi (`ui/css.py` — signature öğesi) olayın iddialarının
-kanıt durumlarının **görsel özetidir**, yeni bir skor değildir:
-
-    çelişki var        → contra   (bir çelişki, teyit oranından önce gelir)
-    hepsi teyitli      → strong
-    kısmen teyitli     → partial
-    iddia var, teyit yok → single
-    iddia yok          → unverified (kesikli cetvel)
-
-Kesin sayı **her zaman kartın metninde** yazılıdır ("6 iddiadan 5'i
-teyitli"). Cetvel gestaltı taşır, metin olguyu; Spec §15 madde 13'ün
-yasakladığı şey tek sayısal doğruluk skorudur ve burada öyle bir sayı
-üretilmiyor.
+> "Şu an gündemde ne var, hangisi hakkında GÜVENLE yazabilirim ve X paylaşımım hazır mı?"
 """
 
 from __future__ import annotations
 
+import json
+import urllib.parse
 from typing import Any
 
 from fastapi import APIRouter, Query
 from fastapi.responses import HTMLResponse
 
+from politikdesk.editorial.generator import ANGLES
 from politikdesk.evidence.explain import KIND_LABELS
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web import repository
@@ -59,6 +33,7 @@ from politikdesk.web.ui import (
     page_head,
     panel,
     ruled,
+    search_input,
     segment,
 )
 from politikdesk.web.ui import format as fmt
@@ -67,8 +42,6 @@ router = APIRouter(tags=["web"])
 
 REFRESH_SECONDS = 30
 
-# Salience şeffaflık popover'ı (F3-07). Anahtarlar `evidence/salience.py`
-# çıktısındandır; etiketler Spec §8.4'ün bileşen adlarını Türkçeleştirir.
 _COMPONENT_LABELS = {
     "independent_sources": "Bağımsız kaynak sayısı",
     "tier_weight": "Kaynak kalitesi (en iyi tier)",
@@ -84,29 +57,25 @@ _PENALTY_LABELS = {
     "stale": "Bayatlama",
 }
 
-# Filtreler URL'de tutulur (Bölüm 9.3) — yenilenince kaybolmaz, paylaşılabilir.
 FILTERS: tuple[tuple[str, str], ...] = (
     ("all", "Tümü"),
     ("ready", "Yazıma hazır"),
+    ("drafts", "Tweeti hazır"),
     ("pending", "Teyit bekliyor"),
     ("review", "Denetimde"),
 )
 
 
 def _is_ready(row: dict[str, Any]) -> bool:
-    """Üretim kapısının feed'den görülebilen iki koşulu (`guards.py`).
-
-    Üçüncü koşul — isimli kişi hakkında doğrulanmamış iddia — NER verisi
-    gerektirir ve 40 kart için N+1 sorgu demek olurdu. Bu yüzden kart
-    "kanıta bağlı" der, "yazılabilir" demez; kesin karar olay sayfasında
-    `service.can_generate` ile verilir ve buton oradan durum alır.
-    """
+    """Üretim kapısının feed'den görülebilen iki koşulu (`guards.py`)."""
     return bool(row.get("claim_count")) and bool(row.get("evidence_count"))
 
 
 def _matches(row: dict[str, Any], selected: str) -> bool:
     if selected == "ready":
         return _is_ready(row)
+    if selected == "drafts":
+        return bool(row.get("latest_draft"))
     if selected == "pending":
         return bool(row.get("weak_claim_count")) or not row.get("claim_count")
     if selected == "review":
@@ -115,7 +84,7 @@ def _matches(row: dict[str, Any], selected: str) -> bool:
 
 
 def _evidence_tone(row: dict[str, Any]) -> str:
-    """Kanıt cetvelinin durumu. Modül başlığındaki tabloyu uygular."""
+    """Kanıt cetvelinin durumu."""
     claims = int(row.get("claim_count") or 0)
     weak = int(row.get("weak_claim_count") or 0)
     if int(row.get("contradicted_count") or 0):
@@ -145,12 +114,6 @@ def _evidence_line(row: dict[str, Any]) -> str:
     contra = int(row.get("contradicted_count") or 0)
     groups = int(row.get("independence_groups") or 0)
 
-    # ⚠️ Ek uyumu (Ek B.3): sayıya EK GETİREN kalıp kurulmaz.
-    # İlk sürüm `f"{n} iddiadan {m}'i teyitli"` yazıyordu ve m=2 için
-    # "2'i teyitli" üretiyordu — doğrusu "2'si". Ek, sayının SON HECESİNE
-    # göre değişir (1'i, 2'si, 3'ü, 5'i, 6'sı, 20'si…) ve bunu tabloyla
-    # çözmek 10 satırlık bir kural motoru demek. Doğru çözüm kuralı
-    # uygulamak değil, EKSİZ KALIP kurmaktır.
     parts: list[str] = []
     if not claims:
         parts.append("iddia çıkarılmadı")
@@ -168,12 +131,7 @@ def _evidence_line(row: dict[str, Any]) -> str:
 
 
 def _salience_panel(row: dict[str, Any]) -> str:
-    """Skora tıklayınca açılan kırılım (F3-07).
-
-    DoD'nin ikinci yarısı — "bu bir doğruluk skoru değildir" notu —
-    kozmetik değil: Spec §15 madde 13 tek sayısal doğruluk yüzdesini
-    yasaklar ve 0-100 arası bir skor, not olmadan öyle okunur.
-    """
+    """Skora tıklayınca açılan kırılım (F3-07)."""
     breakdown = row.get("salience_breakdown") or {}
     components = breakdown.get("components") or {}
 
@@ -183,8 +141,6 @@ def _salience_panel(row: dict[str, Any]) -> str:
         for key, value in sorted(components.items())
         if isinstance(value, int | float)
     )
-    # Cezalar ayrı gösterilir: bir olayın skorunun NEDEN düştüğü, nasıl
-    # yükseldiği kadar açıklanmalıdır (P4).
     rows += "".join(
         f"<tr><td>{esc(_PENALTY_LABELS.get(key, key))}</td>"
         f"<td class='num mono' style='color:var(--color-contra)'>"
@@ -217,57 +173,154 @@ def _salience_panel(row: dict[str, Any]) -> str:
     return panel(summary, body, cls="quiet")
 
 
-def _card(row: dict[str, Any]) -> str:
-    """Gündem kartı — iki sütun: anlatı solda, KARAR sağda.
-
-    Tek sütunlu ilk sürümde 1440px'te kartın sağ %45'i boştu ve her kartın
-    "yazılabilir mi?" cevabı farklı bir x konumundaydı (metin uzunluğuna
-    göre kayıyordu). Sağdaki sabit genişlikli sütun ikisini birden çözer:
-    boşluk dolar ve **kullanıcı 40 kartı tek bir dikey çizgide tarar** —
-    gözün yatay sıçraması ortadan kalkar. Bu sayfanın işi tarama, okuma
-    değil (BRIEF `birincil_is`).
-    """
+def _tweet_module(row: dict[str, Any]) -> str:
+    """Gündem kartı içi X (Twitter) yayın ve hızlı üretim modülü."""
+    event_id = row["id"]
+    latest = row.get("latest_draft")
     ready = _is_ready(row)
+
+    if latest and latest.get("is_grounded"):
+        draft_id = latest["id"]
+        body_text = latest.get("body") or ""
+        angle_key = latest.get("angle") or "inform"
+        angle_label = ANGLES.get(angle_key, (angle_key, ""))[0]
+        char_len = len(body_text)
+        is_thread = char_len > 280
+
+        encoded_tweet = urllib.parse.quote(body_text)
+        intent_url = f"https://x.com/intent/tweet?text={encoded_tweet}"
+        body_json = json.dumps(body_text)
+
+        status_pill = (
+            f'<span class="badge strong" style="font-size:11px;height:18px">{char_len}/280 X Uyumlu</span>'
+            if not is_thread
+            else f'<span class="badge neutral" style="font-size:11px;height:18px">{char_len} Karakter (Thread)</span>'
+        )
+
+        return f"""
+        <div class="feed-tweet-box" id="tweet-box-{event_id}" data-has-draft="true">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-2)">
+            <div class="row tight" style="align-items:center">
+              <span class="badge accent" style="font-size:11px;height:18px">{icon("share", 11)}X Tweeti Hazır</span>
+              <span class="subtle" style="font-size:var(--text-xs)">Açı: <b>{esc(angle_label)}</b></span>
+              {status_pill}
+            </div>
+            <div class="row tight">
+              <button class="btn sm ghost" type="button" onclick='pdCopy({body_json}, "X Tweeti")' title="Tweet metnini kopyala">
+                {icon("copy", 12)}<span>Kopyala</span>
+              </button>
+              <a class="btn sm primary" href="{intent_url}" target="_blank" rel="noopener noreferrer" title="Yeni sekmede X'te aç">
+                {icon("share", 12)}<span>X'te Paylaş</span>
+              </a>
+            </div>
+          </div>
+          <textarea class="feed-tweet-textarea" readonly onclick="this.select()" aria-label="X Tweet Taslağı">{esc(body_text)}</textarea>
+          <div class="row" style="justify-content:space-between;align-items:center;margin-top:var(--space-2);font-size:var(--text-xs)">
+            <span class="subtle mono">Doğrulanmış kanıt kütüğüne bağlı</span>
+            <div class="row tight">
+              <a href="/draft/{draft_id}" class="subtle plain" style="font-size:var(--text-xs)">{icon("edit", 11)}Stüdyoda Düzenle &rarr;</a>
+            </div>
+          </div>
+        </div>
+        """
+
+    if not ready:
+        return f"""
+        <div class="row tight" style="margin-top:var(--space-2);font-size:var(--text-xs);color:var(--color-fg-subtle)">
+          <span class="badge neutral" style="font-size:11px;height:18px">{icon("clock", 11)}Kanıt bekleniyor</span>
+          <span class="subtle">Yeterli kanıt oluşmadan tweet üretimi kapalıdır (Spec §12.1).</span>
+        </div>
+        """
+
+    # Olay yazıma hazır ama henüz taslak üretilmemiş
+    angle_chips = "".join(
+        f'<button class="btn sm ghost" type="button" onclick="pdQuickDraft({event_id}, \'{key}\', this)" style="font-size:11px;height:22px;padding:0 6px">'
+        f'{esc(ANGLES[key][0])}</button>'
+        for key in ANGLES
+    )
+
+    return f"""
+    <div class="feed-tweet-box" id="tweet-box-{event_id}" data-has-draft="false" style="padding:var(--space-2) var(--space-3)">
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div class="row tight" style="align-items:center">
+          <span class="badge neutral" style="font-size:11px;height:18px">{icon("zap", 11)}X Tweeti</span>
+          <span class="subtle" style="font-size:var(--text-xs)">Açı seç & 1-tıkla hazırla:</span>
+          {angle_chips}
+        </div>
+        <button class="btn sm ghost" type="button" onclick="pdQuickDraft({event_id}, 'inform', this)" style="font-size:12px">
+          {icon("zap", 12)}<span>Hızlı Üret</span>
+        </button>
+      </div>
+    </div>
+    """
+
+
+def _card(row: dict[str, Any]) -> str:
+    """Gündem kartı — iki sütun: anlatı solda, KARAR ve X yayın modülü sağda/altta."""
+    ready = _is_ready(row)
+    has_draft = bool(row.get("latest_draft"))
+
     verdict = (
         f'<span class="badge strong">{icon("check", 13)}kanıta bağlı</span>'
         if ready
         else f'<span class="badge neutral">{icon("clock", 13)}kanıt bekliyor</span>'
     )
+    draft_badge = (
+        f'<span class="badge accent" style="font-size:11px">{icon("share", 11)}Tweet Hazır</span>'
+        if has_draft
+        else ""
+    )
+
     body = f"""
   <div class="feed-main">
-    <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle)">
-      {event_badge(row["status"])}
-      <span>{esc(_breakdown_text(row.get("source_breakdown")))}</span>
-      <span>· {esc(fmt.plural_count(int(row["article_count"] or 0), "makale"))}</span>
-      <span>· {esc(fmt.plural_count(int(row["independent_count"] or 0), "bağımsız teyit"))}</span>
+    <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle);justify-content:space-between">
+      <div class="row tight">
+        {event_badge(row["status"])}
+        <span>{esc(_breakdown_text(row.get("source_breakdown")))}</span>
+        <span>· {esc(fmt.plural_count(int(row["article_count"] or 0), "makale"))}</span>
+        <span>· {esc(fmt.plural_count(int(row["independent_count"] or 0), "bağımsız teyit"))}</span>
+      </div>
+      <div class="row tight">
+        {draft_badge}
+      </div>
     </div>
     <h3 style="margin:8px 0 6px">
       <a class="plain" href="/event/{row["id"]}">{esc(row["title"])}</a></h3>
     <p class="claim-text" style="margin:0 0 10px;font-size:var(--text-sm);
        color:var(--color-fg-muted)">{esc(_evidence_line(row))}</p>
     {_salience_panel(row)}
+    {_tweet_module(row)}
   </div>
   <div class="feed-aside">
     {verdict}
     <span class="subtle" style="font-size:var(--text-xs)"
           title="{esc(fmt.precise(row["last_update_at"]))}">
       {esc(fmt.relative(row["last_update_at"]))}</span>
+    <a class="btn sm ghost" href="/event/{row["id"]}" style="margin-top:var(--space-2)">
+      {icon("arrow-right", 12)}<span>Detay</span>
+    </a>
   </div>"""
-    return ruled(_evidence_tone(row), f'<article class="card">{body}</article>', cls="feed-card")
+
+    search_blob = f"{row['title']} {_evidence_line(row)} {row['status']}".replace('"', "&quot;")
+    return (
+        f'<div data-event-id="{row["id"]}" data-search="{esc(search_blob)}">'
+        + ruled(_evidence_tone(row), f'<article class="card feed-card" id="event-card-{row["id"]}">{body}</article>', cls="feed-card-wrap")
+        + "</div>"
+    )
 
 
 def _summary_kpis(rows: list[dict[str, Any]]) -> str:
-    """Sol üstteki cevap. Sıra hiyerarşiktir, alfabetik değil."""
+    """Sol üstteki cevap. Sıra hiyerarşiktir."""
     ready = sum(1 for row in rows if _is_ready(row))
+    with_drafts = sum(1 for row in rows if row.get("latest_draft"))
     weak_claims = sum(int(row.get("weak_claim_count") or 0) for row in rows)
-    lonely = sum(1 for row in rows if int(row.get("independence_groups") or 0) < 2)
     in_review = sum(1 for row in rows if row.get("review_flag") == "needs_review")
 
     return f"""<div class="kpis" style="margin-bottom:var(--space-6)">
-{kpi("Yazıma hazır", fmt.number(ready), unit="olay", icon_name="shield")}
-{kpi("Teyit bekleyen", fmt.number(weak_claims), unit="iddia", icon_name="clock")}
-{kpi("Tek yayın grubu", fmt.number(lonely), unit="olay", icon_name="warning")}
-{kpi("Denetimde", fmt.number(in_review), unit="olay", icon_name="review")}
+<a href="/feed?f=ready" class="plain">{kpi("Yazıma hazır", fmt.number(ready), unit="olay", icon_name="shield")}</a>
+<a href="/feed?f=drafts" class="plain">{kpi("Tweeti hazır", fmt.number(with_drafts), unit="taslak", icon_name="share")}</a>
+<a href="/feed?f=pending" class="plain">{kpi("Teyit bekleyen", fmt.number(weak_claims), unit="iddia", icon_name="clock")}</a>
+<a href="/feed?f=review" class="plain">{kpi("Denetimde", fmt.number(in_review), unit="olay", icon_name="warning")}</a>
 </div>"""
 
 
@@ -293,10 +346,8 @@ def _strip(summary: dict[str, Any]) -> str:
 
 
 def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
-    """Kart listesi. `rows` çağıran taraftan gelir — sayfa ve KPI'lar aynı
-    sorguyu paylaşır, iki kez çalıştırmaz (G3 #7: p95 < 1,5 sn)."""
+    """Kart listesi."""
     if not rows:
-        # Boş durum (10.1) — bir davettir, hata değil.
         from politikdesk.web.ui import empty_state
 
         return empty_state(
@@ -309,8 +360,6 @@ def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
 
     visible = [row for row in rows if _matches(row, selected)]
     if not visible:
-        # Filtre-boş (10.2) — 10.1 ile AYNI YAPILMAZ. Kullanıcı hangi
-        # durumda olduğunu bilmeli: veri mi yok, filtresi mi tutmadı?
         label = dict(FILTERS).get(selected, selected)
         return filtered_empty_state(
             f"“{label}” filtresi {fmt.plural_count(len(rows), 'olayın')} hiçbiriyle "
@@ -318,6 +367,25 @@ def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
             "/feed",
         )
     return "".join(_card(row) for row in visible)
+
+
+_SHORTCUTS_MODAL = f"""
+<div id="shortcuts-modal" class="shortcuts-backdrop" onclick="if(event.target===this)pdToggleShortcuts()">
+  <div class="shortcuts-modal">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
+      <h3 style="margin:0;font-size:var(--text-lg)">Klavye Kısayolları</h3>
+      <button class="btn sm ghost" type="button" onclick="pdToggleShortcuts()">{icon("close", 14)}</button>
+    </div>
+    <div class="shortcut-row"><span>Sonraki olay</span><span class="shortcut-key">J</span></div>
+    <div class="shortcut-row"><span>Önceki olay</span><span class="shortcut-key">K</span></div>
+    <div class="shortcut-row"><span>X Tweeti hazırla / odaklan</span><span class="shortcut-key">X veya T</span></div>
+    <div class="shortcut-row"><span>Seçili tweeti / başlığı kopyala</span><span class="shortcut-key">C</span></div>
+    <div class="shortcut-row"><span>Olay detayını aç</span><span class="shortcut-key">Enter veya O</span></div>
+    <div class="shortcut-row"><span>Gündemde anlık arama</span><span class="shortcut-key">/</span></div>
+    <div class="shortcut-row"><span>Kısayol penceresini aç/kapat</span><span class="shortcut-key">?</span></div>
+  </div>
+</div>
+"""
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -344,32 +412,154 @@ def feed_page(
         )
     )
 
+    actions_html = (
+        search_input("feed-search", "Gündemde ara… [/]", oninput="pdSearchFeed(this.value)")
+        + f'<button class="btn sm ghost" type="button" onclick="pdToggleView()" id="view-toggle" title="Görünüm değiştir">'
+        f'{icon("grid", 13)}<span id="view-mode-label">Kompakt</span></button>'
+        f'<button class="btn sm ghost" type="button" onclick="pdToggleShortcuts()" title="Klavye Kısayolları (?)">'
+        f'{icon("info", 13)}<span>Kısayollar</span></button>'
+        + button("Yenile", icon_name="refresh", onclick="pdRefresh()")
+    )
+
     body = f"""
 {
         page_head(
-            "Gündem",
-            lede="Makro ekonomi olayları, önem sırasıyla. Kanıt gücü her kartın sol "
-            "kenarındaki cetvelde okunur.",
-            actions=button("Yenile", icon_name="refresh", onclick="pdRefresh()"),
+            "Gündem & X Yayın Merkezi",
+            lede="Makro ekonomi olayları, kanıt gücü ve hazır X (Twitter) yayın taslakları.",
+            actions=actions_html,
         )
     }
 <div class="stack">
   {_strip(summary)}
   {_summary_kpis(rows)}
-  <div class="row">
-    {tabs}
-    <span class="spacer subtle" style="font-size:var(--text-xs)"
+  <div class="row" style="justify-content:space-between;align-items:center">
+    <div class="row tight" style="align-items:center">
+      <span class="subtle" style="font-size:var(--text-xs);display:flex;align-items:center;gap:4px">
+        {icon("filter", 12)}Filtrele:
+      </span>
+      {tabs}
+    </div>
+    <span class="subtle row tight" style="font-size:var(--text-xs)"
           id="pd-refreshed" aria-live="polite">
-      {esc(fmt.plural_count(REFRESH_SECONDS, "saniyede"))} bir sessizce yenilenir</span>
+      <span class="pulse-dot"></span>
+      <span>{esc(fmt.plural_count(REFRESH_SECONDS, "saniyede"))} bir sessizce yenilenir</span>
+    </span>
   </div>
   <div id="cards" class="stack-sm">{_cards_html(rows, selected)}</div>
+  <div id="feed-search-empty" style="display:none;padding:var(--space-12);text-align:center">
+    <p class="subtle">Arama kriterinize uygun gündem maddesi bulunamadı.</p>
+  </div>
 </div>
+{_SHORTCUTS_MODAL}
 """
 
     js = (
         ACTIVITY_JS
         + f"""
 var PD_URL = '/feed/cards?limit={limit}&f={selected}';
+var selectedIndex = -1;
+var isCompact = false;
+
+window.pdToggleView = function() {{
+  isCompact = !isCompact;
+  var box = document.getElementById('cards');
+  var lbl = document.getElementById('view-mode-label');
+  if (box) {{
+    if (isCompact) {{
+      box.classList.add('feed-compact');
+      if (lbl) lbl.textContent = 'Detaylı';
+    }} else {{
+      box.classList.remove('feed-compact');
+      if (lbl) lbl.textContent = 'Kompakt';
+    }}
+  }}
+}};
+
+window.pdToggleShortcuts = function() {{
+  var modal = document.getElementById('shortcuts-modal');
+  if (modal) modal.classList.toggle('open');
+}};
+
+window.pdSearchFeed = function(q) {{
+  var val = (q || '').toLowerCase().trim();
+  var cards = document.querySelectorAll('#cards [data-search]');
+  var visible = 0;
+  cards.forEach(function(c) {{
+    var text = (c.dataset.search || '').toLowerCase();
+    if (!val || text.indexOf(val) !== -1) {{
+      c.style.display = '';
+      visible++;
+    }} else {{
+      c.style.display = 'none';
+    }}
+  }});
+  var emptyEl = document.getElementById('feed-search-empty');
+  if (emptyEl) {{
+    emptyEl.style.display = (visible === 0 && cards.length > 0) ? '' : 'none';
+  }}
+}};
+
+window.pdQuickDraft = async function(eventId, angle, btn) {{
+  var box = document.getElementById('tweet-box-' + eventId);
+  if (!box) return;
+  var origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Hazırlanıyor…';
+  window.pdToast('Doğrulanmış kanıtlarla X tweeti üretiliyor…');
+
+  try {{
+    var r = await fetch('/api/events/' + eventId + '/drafts', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{angle: angle}})
+    }});
+    if (!r.ok) {{
+      var err = await r.json().catch(function(){{ return null; }});
+      throw new Error(err && err.detail ? (err.detail.message || err.detail) : 'Üretilemedi');
+    }}
+    var data = await r.json();
+    var draftId = data.draft_id;
+    var body = data.body || '';
+    var encTweet = encodeURIComponent(body);
+    var intentUrl = 'https://x.com/intent/tweet?text=' + encTweet;
+    var isThread = body.length > 280;
+    var pill = !isThread
+      ? '<span class="badge strong" style="font-size:11px;height:18px">' + body.length + '/280 X Uyumlu</span>'
+      : '<span class="badge neutral" style="font-size:11px;height:18px">' + body.length + ' Karakter (Thread)</span>';
+
+    box.innerHTML = `
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-2)">
+        <div class="row tight" style="align-items:center">
+          <span class="badge accent" style="font-size:11px;height:18px">X Tweeti Hazır</span>
+          <span class="subtle" style="font-size:var(--text-xs)">Açı: <b>` + angle.toUpperCase() + `</b></span>
+          ` + pill + `
+        </div>
+        <div class="row tight">
+          <button class="btn sm ghost" type="button" onclick='pdCopy(` + JSON.stringify(body) + `, "X Tweeti")'>
+            ` + window.pdIconCopy + `<span>Kopyala</span>
+          </button>
+          <a class="btn sm primary" href="` + intentUrl + `" target="_blank" rel="noopener noreferrer">
+            ` + window.pdIconShare + `<span>X'te Paylaş</span>
+          </a>
+        </div>
+      </div>
+      <textarea class="feed-tweet-textarea" readonly onclick="this.select()">` + body + `</textarea>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-top:var(--space-2);font-size:var(--text-xs)">
+        <span class="subtle mono">Doğrulanmış kanıt kütüğüne bağlı</span>
+        <a href="/draft/` + draftId + `" class="subtle plain" style="font-size:var(--text-xs)">Stüdyoda Düzenle &rarr;</a>
+      </div>
+    `;
+    box.dataset.hasDraft = 'true';
+    window.pdToast('X Tweeti hazır!');
+  }} catch(e) {{
+    btn.disabled = false;
+    btn.textContent = origText;
+    window.pdToast('Tweet hazırlanamadı: ' + e.message);
+  }}
+}};
+
+window.pdIconCopy = '{icon("copy", 12)}';
+window.pdIconShare = '{icon("share", 12)}';
 
 async function pdRefresh(){{
   var box = document.getElementById('cards');
@@ -377,24 +567,87 @@ async function pdRefresh(){{
   try {{
     var r = await fetch(PD_URL);
     if (!r.ok) throw new Error(r.status);
-    // Sessiz yenileme: açık paneller korunur, sayfa kaymaz.
     var open = new Set([...box.querySelectorAll('details[open]')]
                        .map(function(d){{ return d.closest('article')
                               .querySelector('a').getAttribute('href'); }}));
     box.innerHTML = await r.text();
+    if (isCompact) box.classList.add('feed-compact');
     box.querySelectorAll('article').forEach(function(a){{
       var link = a.querySelector('a');
       var panel = a.querySelector('details');
       if (link && panel && open.has(link.getAttribute('href'))) panel.open = true;
     }});
-    note.textContent = new Date().toLocaleTimeString('tr-TR') + ' güncellendi';
+    note.innerHTML = '<span class="pulse-dot"></span><span>' + new Date().toLocaleTimeString('tr-TR') + ' güncellendi</span>';
+    var searchEl = document.getElementById('feed-search');
+    if (searchEl && searchEl.value) window.pdSearchFeed(searchEl.value);
   }} catch (e) {{
-    // Ağ hatası sayfayı BOZMAZ: mevcut kartlar yerinde kalır, yalnızca
-    // durum satırı söyler. Listeyi silip hata basmak, çalışan bir ekranı
-    // geçici bir ağ kesintisi için boşaltmak olurdu.
-    note.textContent = 'Yenilenemedi — bağlantı yok. Kartlar son hâliyle duruyor.';
+    note.innerHTML = '<span class="subtle">Yenilenemedi — bağlantı yok. Kartlar son hâliyle duruyor.</span>';
   }}
 }}
+
+// Klavye Gezintisi (J / K / X / C / Enter / / / ?)
+document.addEventListener('keydown', function(e) {{
+  var tag = document.activeElement.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+  var cards = Array.from(document.querySelectorAll('#cards .feed-card'));
+  if (!cards.length) return;
+
+  if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') {{
+    e.preventDefault();
+    if (selectedIndex < cards.length - 1) selectedIndex++;
+    cards.forEach(function(c, i){{
+      if (i === selectedIndex) {{
+        c.classList.add('is-selected');
+        c.scrollIntoView({{behavior:'smooth', block:'center'}});
+      }} else {{
+        c.classList.remove('is-selected');
+      }}
+    }});
+  }} else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') {{
+    e.preventDefault();
+    if (selectedIndex > 0) selectedIndex--;
+    cards.forEach(function(c, i){{
+      if (i === selectedIndex) {{
+        c.classList.add('is-selected');
+        c.scrollIntoView({{behavior:'smooth', block:'center'}});
+      }} else {{
+        c.classList.remove('is-selected');
+      }}
+    }});
+  }} else if (e.key === 'x' || e.key === 'X' || e.key === 't' || e.key === 'T') {{
+    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
+      e.preventDefault();
+      var selCard = cards[selectedIndex];
+      var btn = selCard.querySelector('.feed-tweet-box button');
+      if (btn) btn.click();
+    }}
+  }} else if (e.key === 'c' || e.key === 'C') {{
+    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
+      e.preventDefault();
+      var selCard = cards[selectedIndex];
+      var tweetArea = selCard.querySelector('.feed-tweet-textarea');
+      var titleLink = selCard.querySelector('h3 a');
+      if (tweetArea && tweetArea.value) {{
+        window.pdCopy(tweetArea.value, 'X Tweeti');
+      }} else if (titleLink) {{
+        window.pdCopy(titleLink.textContent, 'Başlık');
+      }}
+    }}
+  }} else if (e.key === 'Enter' || e.key === 'o' || e.key === 'O') {{
+    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
+      var link = cards[selectedIndex].querySelector('h3 a');
+      if (link) link.click();
+    }}
+  }} else if (e.key === '/') {{
+    e.preventDefault();
+    var inp = document.getElementById('feed-search');
+    if (inp) {{ inp.focus(); inp.select(); }}
+  }} else if (e.key === '?') {{
+    e.preventDefault();
+    window.pdToggleShortcuts();
+  }}
+}});
 
 setInterval(function(){{ if (!document.hidden) pdRefresh(); }},
             {REFRESH_SECONDS * 1000});
@@ -408,6 +661,6 @@ def feed_cards(
     limit: int = Query(default=40, ge=1, le=200),
     f: str = Query(default="all"),
 ) -> str:
-    """Sessiz yenilemenin çektiği parça (tam sayfa değil)."""
+    """Sessiz yenilemenin çektiği parça."""
     selected = f if f in dict(FILTERS) else "all"
     return _cards_html(repository.feed(current_user_id(), limit=limit), selected)

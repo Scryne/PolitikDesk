@@ -4,7 +4,8 @@
 
 version: 3
 vertical: legislation
-max_sources: 15
+max_sources: 25
+
 
 sources:
   # ---------------------------------------------------------------- Tier 1
@@ -192,7 +193,7 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: "https://www.birgun.net"
-    feed_url: "https://www.birgun.net/xml/rss.xml"
+    feed_url: "https://www.birgun.net/rss/home"
     adapter: rss
     verified: true
     topics: [meclis_gundemi, yargi_ve_hukuk, sendika_ve_emek, yerel_yonetim]
@@ -208,9 +209,155 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: "https://www.cumhuriyet.com.tr"
-    feed_url: "https://www.cumhuriyet.com.tr/rss"
+    feed_url: "https://www.cumhuriyet.com.tr/rss/siyaset"
     adapter: rss
     verified: true
     topics: [meclis_gundemi, anayasa_ve_yargi, parti_sozculeri, dis_politika]
     produces_scheduled_events: false
     notes: "Köklü cumhuriyet basını, parlamento ve yargı haberleri."
+
+  - slug: medyascope
+    name: "Medyascope — Siyaset & Meclis"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-medyascope"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://medyascope.tv"
+    feed_url: "https://medyascope.tv/feed/"
+    adapter: rss
+    verified: true
+    topics: [parti_ve_siyaset, yasama_sureci, yargi_ve_hukuk, secim_ve_ysk]
+    produces_scheduled_events: false
+    notes: "Bağımsız gazetecilik — parlamento kulisleri, derinlemesine siyasi mülakatlar ve parti kongreleri."
+
+  - slug: kisadalga
+    name: "Kısa Dalga — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-kisadalga"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://kisadalga.net"
+    feed_url: "https://kisadalga.net/service/rss.php"
+    adapter: rss
+    verified: true
+    topics: [yargi_ve_hukuk, denetim_ve_yolsuzluk, yasama_sureci, parti_ve_siyaset]
+    produces_scheduled_events: false
+    notes: "Yargı kararları, Sayıştay incelemeleri ve meclis denetimi araştırmacı gazetecilik odağı."
+
+  - slug: indyturk
+    name: "Independent Türkçe"
+    tier: 2
+    kind: wire
+    vertical: legislation
+    independence_group: "wire-indyturk"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.indyturk.com"
+    feed_url: "https://www.indyturk.com/rss.xml"
+    adapter: rss
+    verified: true
+    topics: [dis_politika, parti_ve_siyaset, yasama_sureci, insan_haklari]
+    produces_scheduled_events: false
+    notes: "Uluslararası standartta bağımsız Türkçe haber, dış politika ve siyasi analiz."
+
+  - slug: serbestiyet
+    name: "Serbestiyet"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-serbestiyet"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://serbestiyet.com"
+    feed_url: "https://serbestiyet.com/feed/"
+    adapter: rss
+    verified: true
+    topics: [anayasa_ve_yargi, parti_ve_siyaset, ifade_ozgurlugu, meclis_gundemi]
+    produces_scheduled_events: false
+    notes: "Farklı siyasal/liberal çerçeveleme, anayasa tartışmaları ve derinlemesine siyaset yazıları."
+
+  - slug: yetkinreport
+    name: "YetkinReport (Murat Yetkin)"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-yetkinreport"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://yetkinreport.com"
+    feed_url: "https://yetkinreport.com/feed/"
+    adapter: rss
+    verified: true
+    topics: [dis_politika, hukumet_ve_kabine, meclis_gundemi, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Ankara diplomasisi, perde arkası kulisler ve stratejik dış politika değerlendirmeleri."
+
+  - slug: gazetepencere
+    name: "Gazete Pencere"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-pencere"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.gazetepencere.com"
+    feed_url: "https://www.gazetepencere.com/service/rss.php"
+    adapter: rss
+    verified: true
+    topics: [parti_ve_siyaset, meclis_gundemi, yargi_ve_hukuk, kamu_yonetimi]
+    produces_scheduled_events: false
+    notes: "Günlük dijital siyaset ve meclis gündemi bülteni."
+
+  - slug: karar
+    name: "Karar Gazetesi"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-karar"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.karar.com"
+    feed_url: "https://www.karar.com/service/rss.php"
+    adapter: rss
+    verified: true
+    topics: [parti_ve_siyaset, hukuk_devleti, dis_politika, ekonomi_politigi]
+    produces_scheduled_events: false
+    notes: "Muhafazakâr-demokrat eksenli eleştirel analiz, hukuk devleti ve siyaset değerlendirmeleri."
+
+  - slug: evrensel-politika
+    name: "Evrensel — Politika & Emek"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-evrensel"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.evrensel.net"
+    feed_url: "https://www.evrensel.net/rss/haber.xml"
+    adapter: rss
+    verified: true
+    topics: [sendika_ve_emek, meclis_gundemi, yargi_ve_hukuk, insan_haklari]
+    produces_scheduled_events: false
+    notes: "Emek, işçi hakları, sendikal süreçler ve sol muhalefet eksenli meclis takibi."
+
+  - slug: halktv-politika
+    name: "Halk TV — Politika & Gündem"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-halktv"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://halktv.com.tr"
+    feed_url: "https://halktv.com.tr/export/rss"
+    adapter: rss
+    verified: true
+    topics: [parti_ve_siyaset, meclis_gundemi, yargi_ve_hukuk, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Muhalefet partileri, meclis grup toplantıları ve güncel siyaset yayıncılığı."
+
+

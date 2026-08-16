@@ -16,12 +16,14 @@ Epistemik ve Hukuki İlkeler (Spec §9.4 / R7 / TCK 217/A):
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from urllib.parse import quote
 from xml.etree import ElementTree
 
+from politikdesk.ingestion.adapters.base import registry
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import RawItem
 from politikdesk.observability import get_logger
@@ -168,8 +170,20 @@ class TwitterAdapter:
         self.handle = (handle or "").strip("@")
         self.list_id = list_id
         self.base_url = base_url
-        self.bridge_url = bridge_url or "https://rsshub.app"
-        self.http = http or HttpClient()
+        env_bridge = (
+            os.getenv("PD_TWITTER_BRIDGE_URL") or os.getenv("PD_RSSHUB_BRIDGE_URL") or ""
+        ).strip()
+        self.bridge_url = bridge_url or (
+            env_bridge if env_bridge else "http://127.0.0.1:1200"
+        )
+        self.http = http or HttpClient(
+            respect_robots=False,
+            enforce_ssrf=False,
+            timeout=25.0,
+            connect_timeout=8.0,
+            read_timeout=18.0,
+            enable_jitter=True,
+        )
         self.max_consecutive_failures = max_consecutive_failures
         self._consecutive_failures = 0
         self._is_degraded = False
@@ -406,3 +420,7 @@ class TwitterAdapter:
             log.warning("twitter_oembed_fetch_failed", handle=self.handle, error=str(exc)[:200])
             self._failures.append(f"oEmbed istisnası: {type(exc).__name__}: {str(exc)[:200]}")
             return []
+
+
+registry.register("twitter", TwitterAdapter)
+

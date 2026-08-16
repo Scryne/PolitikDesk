@@ -337,19 +337,18 @@ def purge_expired_bodies(limit: int = 5_000) -> int:
         )
         purged = [r["id"] for r in cur.fetchall()]
 
-        if purged:
-            cur.execute(
-                """
-                INSERT INTO audit_log (actor, action, target, payload)
-                VALUES (%s, %s, %s, %s::jsonb)
-                """,
-                (
-                    "system:purge_job",
-                    "purge_lead_paragraph",
-                    "articles",
-                    f'{{"count": {len(purged)}}}',
-                ),
-            )
+        cur.execute(
+            """
+            INSERT INTO audit_log (actor, action, target, payload)
+            VALUES (%s, %s, %s, %s::jsonb)
+            """,
+            (
+                "system:purge_job",
+                "purge_expired_bodies",
+                "articles",
+                json.dumps({"count": len(purged)}),
+            ),
+        )
         conn.commit()
 
     if purged:

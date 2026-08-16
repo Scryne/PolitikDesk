@@ -232,7 +232,7 @@ def panel(summary: str, body: str, *, open_: bool = False, cls: str = "") -> str
     """
     return (
         f'<details class="panel {cls}"{" open" if open_ else ""}>'
-        f"<summary>{summary}{icon('chevron-right', 14)}</summary>"
+        f'<summary>{summary}{icon("chevron-right", 14)}</summary>'
         f'<div class="panel-body">{body}</div></details>'
     )
 
@@ -369,3 +369,21 @@ def timeline(items: Sequence[tuple[str, str]]) -> str:
         + "".join(f'<li><div class="when">{esc(when)}</div>{body}</li>' for when, body in items)
         + "</ul>"
     )
+
+
+def search_input(
+    id_: str,
+    placeholder: str = "Ara…",
+    *,
+    oninput: str | None = None,
+    cls: str = "",
+) -> str:
+    """Arama kutusu — ikonlu ve erişilebilir."""
+    return (
+        f'<div class="search-wrap {cls}">'
+        f'{icon("search", 14)}'
+        f'<input type="search" id="{esc(id_)}" placeholder="{esc(placeholder)}"'
+        f'{_attrs(oninput=oninput)}>'
+        f"</div>"
+    )
+

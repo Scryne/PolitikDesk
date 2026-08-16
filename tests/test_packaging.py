@@ -165,3 +165,61 @@ def test_dockerignore_preserves_runtime_roots() -> None:
             assert line != root and line != f"{root}/" and line != f"/{root}", (
                 f".dockerignore çalışma zamanı kök dizini '{root}'u dışlıyor: '{line}'"
             )
+
+
+def test_makefile_and_pd_cmd_commands_are_synced() -> None:
+    """Makefile ve pd.cmd arasındaki temel iş akışı komutlarının senkronizasyonunu denetler."""
+    import re
+
+    makefile_path = REPO_ROOT / "Makefile"
+    pd_cmd_path = REPO_ROOT / "pd.cmd"
+
+    assert makefile_path.is_file(), "Makefile bulunamadı."
+    assert pd_cmd_path.is_file(), "pd.cmd bulunamadı."
+
+    # Makefile .PHONY hedefleri
+    phony_match = re.search(r"^\.PHONY:\s*(.+)$", makefile_path.read_text(encoding="utf-8"), re.MULTILINE)
+    assert phony_match, "Makefile içinde .PHONY satırı bulunamadı."
+    make_targets = set(phony_match.group(1).split())
+
+    # pd.cmd :cmd_ etiketleri
+    pd_cmd_text = pd_cmd_path.read_text(encoding="utf-8")
+    pd_commands = set(re.findall(r"^:cmd_([a-zA-Z0-9_\-]+)", pd_cmd_text, re.MULTILINE))
+
+    # Ortak zorunlu temel komutlar listesi
+    core_commands = {
+        "start",
+        "stop",
+        "restart",
+        "update",
+        "migrate",
+        "test",
+        "lint",
+        "audit",
+        "ci",
+        "sync",
+        "ingest",
+        "embed",
+        "entities",
+        "cluster",
+        "claims",
+        "evidence",
+        "context",
+        "briefing",
+        "metrics",
+        "health",
+        "pipeline-health",
+        "watchdog",
+        "backup",
+        "backup-list",
+        "backup-verify",
+        "backup-restore",
+        "deploy-check",
+    }
+
+    missing_in_make = core_commands - make_targets
+    missing_in_pd = core_commands - pd_commands
+
+    assert not missing_in_make, f"Makefile içinde eksik temel komut(lar): {missing_in_make}"
+    assert not missing_in_pd, f"pd.cmd içinde eksik temel komut(lar): {missing_in_pd}"
+

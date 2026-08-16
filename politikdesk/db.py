@@ -23,8 +23,8 @@ def get_pool() -> ConnectionPool[DictConnection]:
     settings = get_settings()
     return ConnectionPool(
         conninfo=settings.database_url,
-        min_size=1,
-        max_size=10,
+        min_size=settings.db_pool_min,
+        max_size=settings.db_pool_max,
         open=True,
         connection_class=DictConnection,
         kwargs={"row_factory": dict_row},

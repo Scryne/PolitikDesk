@@ -15,6 +15,7 @@ import re
 import time
 from dataclasses import dataclass
 
+from politikdesk.feature_flags import is_twitter_ingestion_enabled
 from politikdesk.ingestion import guard, repository, topics
 from politikdesk.ingestion.adapters import base as adapter_base
 from politikdesk.ingestion.adapters.base import SourceAdapter
@@ -147,13 +148,22 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
             if m:
                 list_id = m.group(1)
 
-        handle = None if list_id else source.slug.replace("x-", "")
+        handle = None
+        if not list_id:
+            url_to_check = source.feed_url or source.base_url or ""
+            m_handle = re.search(r"(?:x\.com|twitter\.com)/([A-Za-z0-9_]+)", url_to_check)
+            if m_handle and m_handle.group(1).lower() not in ("i", "lists"):
+                handle = m_handle.group(1)
+            else:
+                handle = source.slug.replace("x-", "")
+
+        # Kendi HTTP istemcisini kullanır: RSSHub köprüsü yerel Docker ağı
+        # veya localhost üzerinde koştuğundan genel SSRF/robots engeli uygulanmaz.
         return TwitterAdapter(
             source.slug,
             handle=handle,
             list_id=list_id,
             base_url=source.base_url or "https://x.com",
-            http=http,
         )
 
     raise ValueError(f"{source.slug}: bilinmeyen adaptör {adapter_key!r}")
@@ -193,6 +203,10 @@ class Pipeline:
         try:
             decision = guard.check(source.slug, source.tos_status, is_active=source.is_active)
             if not decision.allowed:
+                return stats
+
+            if source.adapter == "twitter" and not is_twitter_ingestion_enabled():
+                log.debug("twitter_ingestion_disabled_by_feature_flag", source=source.slug)
                 return stats
 
             adapter = build_adapter(source, self.http)

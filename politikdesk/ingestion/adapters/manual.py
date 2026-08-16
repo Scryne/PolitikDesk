@@ -101,7 +101,12 @@ class ManualImportAdapter:
     def __init__(self, http: HttpClient | None = None) -> None:
         # Manuel içe aktarma kullanıcı tetiklidir; robots.txt bir tarama
         # kısıtıdır ve tek seferlik kullanıcı isteğine uygulanmaz.
-        self.http = http or HttpClient(respect_robots=False, max_per_minute=30)
+        self.http = http or HttpClient(
+            respect_robots=False,
+            max_per_minute=30,
+            enforce_ssrf=True,
+            resolve_dns=True,
+        )
 
     def fetch_one(self, url: str, *, source_slug: str | None = None) -> RawItem:
         from politikdesk.ingestion.adapters.rss import parse_feed_date

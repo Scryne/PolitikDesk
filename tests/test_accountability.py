@@ -135,3 +135,58 @@ def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
             cur.execute("DELETE FROM event_relations WHERE from_event_id = %s;", (e1,))
             cur.execute("DELETE FROM events WHERE id IN (%s, %s);", (e1, e2))
             db_conn.commit()
+
+
+def test_sparkline_svg_rendering() -> None:
+    """Satır içi mini sparkline SVG grafiği doğrulaması."""
+    from politikdesk.web.ui.charts import sparkline
+
+    # Boş veya tek noktalı veri için boş string dönmeli
+    assert sparkline([]) == ""
+    assert sparkline([42.0]) == ""
+
+    # Normal seri için geçerli SVG dönmeli
+    svg = sparkline([10.0, 15.0, 8.0, 22.0, 30.0], width=80, height=24)
+    assert "<svg" in svg
+    assert "</svg>" in svg
+    assert 'class="sparkline"' in svg
+    assert 'width="80"' in svg
+    assert 'height="24"' in svg
+    assert "<polyline" in svg
+    assert "<circle" in svg
+
+
+def test_political_memory_models_module_import() -> None:
+    """Modülerleştirilmiş models.py dosyası doğrudan import edilebilir ve tipleri tamdır."""
+    from datetime import UTC, datetime
+
+    from politikdesk.political_memory.models import (
+        EventData,
+        RelationResult,
+        RelationScoreBreakdown,
+    )
+
+    ev = EventData(
+        event_id=1,
+        title="Test Başlık",
+        published_at=datetime.now(UTC),
+        entities=frozenset(["TCMB"]),
+    )
+    assert ev.event_id == 1
+    assert "TCMB" in ev.entities
+
+    breakdown = RelationScoreBreakdown(1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0)
+    assert breakdown.to_dict()["total_score"] == 1.0
+
+    res = RelationResult(
+        source_event_id=1,
+        target_event_id=2,
+        relation_type="fulfils",
+        confidence=0.90,
+        status="verified",
+        score_breakdown=breakdown,
+        evidence_payload={},
+        explanation="Doğrulandı",
+    )
+    assert res.is_valid is True
+

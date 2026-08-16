@@ -506,8 +506,52 @@ def test_twitter_list_sources_config_validation() -> None:
         "x-list-1481019746921467908",
         "x-list-1480924470277812233",
         "x-list-1465344996131971087",
+        "x-list-1641042698202226688",
+        "x-list-1856602506538717451",
+        "x-list-1635155394849914880",
     }
+
 
     for el in expected_lists:
         assert el in slugs, f"{el} sources konfigürasyonunda bulunamadı!"
+
+
+def test_twitter_adapter_reads_bridge_url_from_env(monkeypatch) -> None:  # noqa: ANN001
+    """TwitterAdapter, PD_TWITTER_BRIDGE_URL ortam değişkenini okumalı."""
+    monkeypatch.setenv("PD_TWITTER_BRIDGE_URL", "http://my-custom-bridge:9999")
+    adapter = TwitterAdapter(slug="x-test", handle="testuser")
+    assert adapter.bridge_url == "http://my-custom-bridge:9999"
+
+
+def test_pipeline_skips_twitter_when_feature_flag_disabled(monkeypatch) -> None:  # noqa: ANN001
+    """PD_TWITTER_INGESTION_ENABLED=false iken Pipeline Twitter kaynağını hatasız atlamalı."""
+    from politikdesk.ingestion.pipeline import Pipeline
+    from politikdesk.ingestion.repository import SourceRow
+
+    monkeypatch.setenv("PD_TWITTER_INGESTION_ENABLED", "false")
+
+    pipeline = Pipeline()
+    source = SourceRow(
+        id=1,
+        slug="x-testuser",
+        name="Test Twitter",
+        tier=4,
+        kind="social",
+        independence_group="social-test",
+        access_method="social",
+        tos_status="allowed",
+        adapter="twitter",
+        base_url="https://x.com/testuser",
+        feed_url=None,
+        extra_feeds=[],
+        keyword_filter=[],
+        topics=["meclis_gundemi"],
+        is_active=True,
+        is_wire_reference=False,
+    )
+
+    stats = pipeline.run_source(source)
+    assert stats.fetched == 0
+    assert stats.errors == 0
+
 

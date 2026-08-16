@@ -59,3 +59,18 @@ def test_sse_stream_generator_emits_ping_on_timeout() -> None:
     first_item = next(generator)
     assert "event: ping" in first_item
     assert "alive" in first_item
+
+
+def test_sse_stream_cleanup_on_generator_close() -> None:
+    """İstemci bağlantısı koptuğunda (generator kapatıldığında) abone hub'dan düşmeli."""
+    from politikdesk.web.live_events import hub
+
+    initial_count = hub.subscriber_count
+    q = hub.subscribe()
+    assert hub.subscriber_count == initial_count + 1
+
+    gen = sse_event_stream(q, timeout=0.01)
+    _ = next(gen)
+    gen.close()
+
+    assert hub.subscriber_count == initial_count

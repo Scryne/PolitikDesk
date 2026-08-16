@@ -297,6 +297,17 @@ def cmd_context(limit: int) -> int:
     return 0
 
 
+def cmd_memory(limit: int) -> int:
+    """Siyasi hafiza ve olay iliskilerini degerlendirir (Spec v3.4 §14.1)."""
+    from politikdesk.political_memory.orchestrator import process_pending_political_relations
+
+    stats = process_pending_political_relations(limit)
+    print("Siyasi hafiza iliski turu tamamlandi:")
+    for key, value in stats.items():
+        print(f"  {key:20s}: {value}")
+    return 0
+
+
 def main() -> int:
     # Sağlayıcı anahtarları (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`…) `PD_`
     # önekli olmadığı için `Settings` onları okumaz; yerel koşumda ortama
@@ -351,6 +362,9 @@ def main() -> int:
     context = sub.add_parser("context", help="Tarihsel baglam baglari")
     context.add_argument("--limit", type=int, default=50)
 
+    memory = sub.add_parser("memory", help="Siyasi hafiza ve olay iliskileri (S3)")
+    memory.add_argument("--limit", type=int, default=50)
+
     sub.add_parser("health", help="Kaynak saglik raporu")
     sub.add_parser("purge", help="Suresi gecmis govdeleri sil")
 
@@ -380,6 +394,8 @@ def main() -> int:
         return cmd_evidence(args.limit)
     if args.command == "context":
         return cmd_context(args.limit)
+    if args.command == "memory":
+        return cmd_memory(args.limit)
     if args.command == "health":
         return cmd_health()
     if args.command == "purge":

@@ -63,27 +63,72 @@ def verify_all_feeds(
         detail = ""
 
         try:
-            resp = http.get(feed_url, source_slug=cfg.slug)
-            status_code = resp.status_code
-            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            if cfg.adapter == "resmi_gazete":
+                from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
 
-            if resp.status_code == 200:
-                try:
-                    root = ElementTree.fromstring(resp.text)
-                    items = root.findall(".//item") or root.findall(
-                        ".//{http://www.w3.org/2005/Atom}entry"
-                    )
-                    item_count = len(items)
-                    if item_count > 0:
-                        status_label = "[OK]"
-                    else:
-                        status_label = "[BOS]"
-                        detail = "0 öğe döndü"
-                except Exception as exc:
-                    status_label = "[PARSE]"
-                    detail = f"XML parse hatası: {str(exc)[:50]}"
+                adapter = ResmiGazeteAdapter(slug=cfg.slug, base_url=cfg.base_url or "https://www.resmigazete.gov.tr")
+                items_list = adapter.fetch()
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                status_code = 200 if items_list else 204
+                item_count = len(items_list)
+                if item_count > 0:
+                    status_label = "[OK]"
+                else:
+                    status_label = "[BOS]"
+                    detail = "Fihristten 0 kalem çekildi (tatil veya filtre)"
+            elif cfg.adapter == "wp_rest" or (cfg.feed_url and "/portal/v2/posts" in cfg.feed_url):
+                import json
+
+                resp = http.get(feed_url, source_slug=cfg.slug)
+                status_code = resp.status_code
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                if resp.status_code == 200:
+                    try:
+                        data = json.loads(resp.text)
+                        if isinstance(data, list):
+                            item_count = len(data)
+                            status_label = "[OK]" if item_count > 0 else "[BOS]"
+                        else:
+                            status_label = "[PARSE]"
+                            detail = "Beklenmeyen JSON yapısı (liste değil)"
+                    except Exception as exc:
+                        status_label = "[PARSE]"
+                        detail = f"JSON parse hatası: {str(exc)[:50]}"
+                else:
+                    detail = f"HTTP {resp.status_code}"
             else:
-                detail = f"HTTP {resp.status_code}"
+                resp = http.get(feed_url, source_slug=cfg.slug)
+                status_code = resp.status_code
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+
+                if resp.status_code == 200:
+                    try:
+                        root = ElementTree.fromstring(resp.text)
+                        items = root.findall(".//item") or root.findall(
+                            ".//{http://www.w3.org/2005/Atom}entry"
+                        )
+                        item_count = len(items)
+                        if item_count > 0:
+                            status_label = "[OK]"
+                        else:
+                            # Fallback regex kontrolü
+                            cnt = resp.text.count("<item") or resp.text.count("<entry")
+                            if cnt > 0:
+                                item_count = cnt
+                                status_label = "[OK]"
+                            else:
+                                status_label = "[BOS]"
+                                detail = "0 öğe döndü"
+                    except Exception as exc:
+                        cnt = resp.text.count("<item") or resp.text.count("<entry")
+                        if cnt > 0:
+                            item_count = cnt
+                            status_label = "[OK]"
+                        else:
+                            status_label = "[PARSE]"
+                            detail = f"XML parse hatası: {str(exc)[:50]}"
+                else:
+                    detail = f"HTTP {resp.status_code}"
         except Exception as exc:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             detail = f"{type(exc).__name__}: {str(exc)[:60]}"

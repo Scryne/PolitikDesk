@@ -34,11 +34,18 @@ class EventHub:
         self._subscribers: list[queue.Queue[LiveEventMessage]] = []
         self._lock = threading.Lock()
 
+    @property
+    def subscriber_count(self) -> int:
+        """Aktif SSE dinleyici sayısı."""
+        with self._lock:
+            return len(self._subscribers)
+
     def subscribe(self) -> queue.Queue[LiveEventMessage]:
         """Yeni bir SSE dinleyicisi kaydeder."""
         q: queue.Queue[LiveEventMessage] = queue.Queue(maxsize=100)
         with self._lock:
             self._subscribers.append(q)
+        log.debug("sse_subscriber_connected", total=len(self._subscribers))
         return q
 
     def unsubscribe(self, q: queue.Queue[LiveEventMessage]) -> None:
@@ -46,6 +53,7 @@ class EventHub:
         with self._lock:
             if q in self._subscribers:
                 self._subscribers.remove(q)
+        log.debug("sse_subscriber_disconnected", remaining=self.subscriber_count)
 
     def publish(self, event_type: str, data: dict[str, Any]) -> None:
         """Tüm aktif dinleyicilere anlık mesaj iletir."""
@@ -113,7 +121,11 @@ def format_sse(msg: LiveEventMessage) -> str:
 
 
 def sse_event_stream(q: queue.Queue[LiveEventMessage], timeout: float = 15.0) -> Iterator[str]:
-    """SSE akış üreteci: veri geldikçe yield eder, boşlukta ping atar."""
+    """SSE akış üreteci: veri geldikçe yield eder, boşlukta ping atar.
+
+    İstemci bağlantısı koptuğunda (GeneratorExit / CancelledError)
+    `finally` bloğu aboneliği EventHub'dan mutlak olarak düşürür.
+    """
     try:
         while True:
             try:
@@ -127,5 +139,8 @@ def sse_event_stream(q: queue.Queue[LiveEventMessage], timeout: float = 15.0) ->
                     timestamp=datetime.now(UTC).isoformat(),
                 )
                 yield format_sse(ping_msg)
+    except (GeneratorExit, BaseException) as exc:
+        log.debug("sse_stream_closed", reason=type(exc).__name__)
+        raise
     finally:
         hub.unsubscribe(q)

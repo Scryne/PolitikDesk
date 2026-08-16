@@ -94,9 +94,9 @@ def test_provider_setting_selects_the_backend() -> None:
 def test_openai_compat_requires_endpoint_and_key_variable() -> None:
     """Eksik yapılandırma ilk çağrıda değil, Settings kurulurken görünsün."""
     with pytest.raises(ValueError, match="PD_LLM_BASE_URL"):
-        Settings(env="test", llm_provider="openai_compat", llm_api_key_env="X")
+        Settings(env="test", llm_provider="openai_compat", llm_base_url="", llm_api_key_env="X")
     with pytest.raises(ValueError, match="PD_LLM_API_KEY_ENV"):
-        Settings(env="test", llm_provider="openai_compat", llm_base_url="https://x/v1")
+        Settings(env="test", llm_provider="openai_compat", llm_base_url="https://x/v1", llm_api_key_env="")
 
 
 def test_missing_key_names_the_configured_variable(

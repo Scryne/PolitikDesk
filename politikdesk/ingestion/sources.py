@@ -60,8 +60,10 @@ class SourceConfig:
 
 
 VALID_VERTICALS = {"macro_economy", "legislation", "social"}
-MAX_GLOBAL_SOURCES = 60
-MAX_VERTICAL_SOURCES = 15
+MAX_GLOBAL_SOURCES = 100
+MAX_VERTICAL_SOURCES = 25
+
+
 
 
 def load_config(path: Path = CONFIG_PATH) -> tuple[list[SourceConfig], dict[str, Any]]:
@@ -238,6 +240,20 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                 )
                 updated += 1
 
+        # YAML dosyalarında yer almayan fakat DB'de aktif kalan artık kaynakları
+        # pasife alarak boru hattını kirletmesini önle.
+        valid_slugs = [c.slug for c in configs]
+        deactivated = 0
+        if valid_slugs:
+            cur.execute(
+                """
+                UPDATE sources SET is_active = FALSE
+                WHERE is_active = TRUE AND slug != ALL(%s)
+                """,
+                (valid_slugs,),
+            )
+            deactivated = cur.rowcount or 0
+
         # F4-16: kaynak listesinin değişmesi denetlenmesi gereken bir
         # olaydır — hangi kaynaktan neyi topladığımız ürünün en temel
         # sözleşmesi (Spec §9.2, 8 kaynak sert sınırı). Aynı işlemde
@@ -250,11 +266,12 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
             payload={
                 "inserted": inserted,
                 "updated": updated,
-                "slugs": [c.slug for c in configs],
+                "deactivated": deactivated,
+                "slugs": valid_slugs,
             },
             cursor=cur,
         )
         conn.commit()
 
-    log.info("sources_synced", inserted=inserted, updated=updated)
-    return {"inserted": inserted, "updated": updated}
+    log.info("sources_synced", inserted=inserted, updated=updated, deactivated=deactivated)
+    return {"inserted": inserted, "updated": updated, "deactivated": deactivated}

@@ -85,7 +85,18 @@ def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[
                    -- türer; üçüncü koşul (isimli kişi hakkında doğrulanmamış
                    -- iddia) NER gerektirir ve olay sayfasında sorulur.
                    (SELECT count(*) FROM evidence ev JOIN claims c ON c.id = ev.claim_id
-                     WHERE c.event_id = e.id) AS evidence_count
+                     WHERE c.event_id = e.id) AS evidence_count,
+                   (SELECT jsonb_build_object(
+                      'id', d.id,
+                      'angle', d.angle,
+                      'body', COALESCE(d.final_body, d.body),
+                      'is_grounded', d.is_grounded,
+                      'user_action', d.user_action,
+                      'created_at', d.created_at
+                    )
+                    FROM drafts d
+                    WHERE d.event_id = e.id AND d.is_grounded = true
+                    ORDER BY d.created_at DESC LIMIT 1) AS latest_draft
             FROM events e
             WHERE {_VISIBLE} {vertical_clause}
             ORDER BY e.salience_score DESC NULLS LAST, e.last_update_at DESC

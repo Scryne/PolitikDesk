@@ -200,9 +200,10 @@ async function pdMatch(){
   try {
     var r = await fetch('/admin/calendar/match', {method:'POST'});
     if (!r.ok) throw new Error(r.status);
-    location.reload();
+    window.pdToast('Eşleştirme tamamlandı.');
+    setTimeout(function(){ location.reload(); }, 500);
   } catch (e) {
-    alert('Eşleştirme çalıştırılamadı. Veritabanına ulaşılamıyor olabilir.');
+    window.pdToast('Eşleştirme çalıştırılamadı. Veritabanına ulaşılamıyor olabilir.');
   }
 }
 """
@@ -213,3 +214,4 @@ async function pdMatch(){
         crumbs=(("Denetim", None), ("Beklenen gelişmeler", None)),
         extra_js=js,
     )
+

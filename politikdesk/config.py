@@ -143,6 +143,8 @@ class Settings(BaseSettings):
     # `db:5432` / `redis:6379` verir.
     database_url: str = "postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk"
     redis_url: str = "redis://127.0.0.1:6379/0"
+    db_pool_min: int = Field(default=1, ge=1)
+    db_pool_max: int = Field(default=10, ge=1, le=100)
 
     # --- LLM (Spec §11.1, §11.5) ---
     # Çıkarım (ucuz model) ile üretim (pahalı model) ayrımı: Risk R6 azaltımı.
@@ -278,6 +280,29 @@ class Settings(BaseSettings):
                 f"llm_provider='openai_compat' için {', '.join(missing)} zorunludur. "
                 "Örnek (NVIDIA NIM): PD_LLM_BASE_URL=https://integrate.api.nvidia.com/v1, "
                 "PD_LLM_API_KEY_ENV=NVIDIA_API_KEY"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _production_requires_api_token(self) -> Settings:
+        """Üretim ortamında api_token zorunludur.
+
+        Token ayarlanmamışsa kimlik doğrulama atlanır; üretim ortamında bu durum
+        tüm API ve yönetim uçlarını açıkta bırakır.
+        """
+        if self.is_production and not self.api_token:
+            raise ValueError(
+                "PD_ENV='production' iken PD_API_TOKEN zorunludur. "
+                "API ve admin uçlarını korumak için güvenli bir belirteç tanımlayın."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _db_pool_range_is_sane(self) -> Settings:
+        if self.db_pool_min > self.db_pool_max:
+            raise ValueError(
+                f"PD_DB_POOL_MIN ({self.db_pool_min}), "
+                f"PD_DB_POOL_MAX'ten ({self.db_pool_max}) büyük olamaz."
             )
         return self
 

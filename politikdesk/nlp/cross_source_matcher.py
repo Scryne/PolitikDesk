@@ -107,14 +107,11 @@ _COMMON_SUFFIXES: tuple[str, ...] = (
     "unda",
     "leri",
     "lari",
-    "lerle",
-    "larla",
     "den",
     "dan",
     "ten",
     "tan",
     "nin",
-    "nun",
     "nun",
     "in",
     "un",
@@ -166,7 +163,7 @@ def _has_negation(text: str) -> bool:
     tokens = set(re.findall(r"\w+", fold_text(text)))
     if tokens & _NEGATION_WORDS:
         return True
-    return any(t.endswith(("madi", "medi", "madi", "medi", "maz", "mez")) for t in tokens)
+    return any(t.endswith(("madi", "medi", "maz", "mez")) for t in tokens)
 
 
 def jaccard_similarity(set_a: set[str], set_b: set[str]) -> float:

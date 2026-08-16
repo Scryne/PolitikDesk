@@ -190,10 +190,12 @@ class MetricValue:
     @property
     def status(self) -> str:
         """`ok` / `off` / `no_data` — pano rozeti."""
-        if self.value is None or self.sample_size == 0:
+        if self.value is None or self.sample_size == 0 or self.name not in METRIC_TARGETS:
             return "no_data"
-        target = float(self.meta["target"])
-        if self.meta["direction"] == "lower":
+        meta = self.meta
+        target = float(meta.get("target", 0.0))
+        direction = str(meta.get("direction", "higher"))
+        if direction == "lower":
             return "ok" if self.value <= target else "off"
         return "ok" if self.value >= target else "off"
 
@@ -401,14 +403,16 @@ def compute_metrics(day: date, *, window_days: int = 7) -> list[MetricValue]:
             """,
             (start, day),
         )
-        active_users = max(int(fetch_one(cur)["users"] or 0), 1)
+        active_users_count = int(fetch_one(cur)["users"] or 0)
+        active_users = max(active_users_count, 1)
 
     monthly_llm = float(llm["spend"]) * (30.0 / window_days)
+    sample_size = max(int(llm["n"] or 0), active_users_count)
     values.append(
         MetricValue(
             "cost_per_active_user",
             (monthly_llm + _monthly_infra_usd()) / active_users,
-            int(llm["n"] or 0),
+            sample_size,
         )
     )
     return values

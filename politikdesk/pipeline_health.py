@@ -30,13 +30,15 @@ yalnızca sayar.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from politikdesk.db import connection
-from politikdesk.evidence.rules import ENGINE_VERSION
+from politikdesk.evidence.rules import engine_version
 from politikdesk.nlp.claims_pipeline import MAX_CLAIM_ATTEMPTS
 from politikdesk.observability import get_logger
+from politikdesk.political_memory.orchestrator import RELATION_ENGINE_VERSION
 
 log = get_logger(__name__)
 
@@ -46,12 +48,15 @@ StageStatus = Literal["green", "amber", "red"]
 # `tasks.py`'deki beat sıklıklarından türetildi: normal işleyişte hiçbir
 # öğe burada listelenen sürenin yakınına bile gelmez.
 #
-#   aşama      beat sıklığı   eşik    kat
-#   embed      60 sn          2 sa    120x
-#   entities   2 dk           2 sa     60x
-#   cluster    3 dk           3 sa     60x
-#   claims     10 dk          6 sa     36x   (LLM + bütçe tavanı)
-#   evidence   5 dk           3 sa     36x
+#   aşama               beat sıklığı   eşik    kat
+#   embed               60 sn          2 sa    120x
+#   entities            2 dk           2 sa     60x
+#   cluster             3 dk           3 sa     60x
+#   claims              10 dk          6 sa     36x   (LLM + bütçe tavanı)
+#   evidence            5 dk           3 sa     36x
+#   context             30 dk          6 sa     12x
+#   political_relations 15 dk          6 sa     24x
+#   scheduler_match     1 sa           24 sa    24x
 #
 # Kat payı bilerek yüksek: bu alarm "yavaş" demek için değil, "kopmuş"
 # demek için var. Yanlış alarm veren bir alarm kapatılır.
@@ -67,7 +72,12 @@ class Stage:
     threshold_hours: float
     sql: str
     hint: str
-    params: tuple[Any, ...] = ()
+    params: tuple[Any, ...] | Callable[[], tuple[Any, ...]] = ()
+
+    def get_params(self) -> tuple[Any, ...]:
+        if callable(self.params):
+            return self.params()
+        return self.params
 
 
 # Her sorgu iki sütun döndürür:
@@ -126,7 +136,7 @@ STAGES: tuple[Stage, ...] = (
         key="claims",
         label="İddia çıkarımı",
         threshold_hours=6,
-        # nlp/claims_pipeline.py::PENDING_EVENTS_SQL ile AYNI yüklem.
+        # nlp/claims_pipeline.py::PENDING_EVENTS_SQL ile AYNI yüklem (F5-16).
         # Deneme hakkı dolmuş olaylar burada sayılmaz: onlar birikme
         # değil, sonuçlanmış bir karardır ("bu metinden iddia çıkmıyor").
         # Sayılsalardı alarm kalıcı olarak kırmızı kalır ve susturulurdu.
@@ -137,11 +147,13 @@ STAGES: tuple[Stage, ...] = (
             FROM events e
             WHERE e.merged_into_id IS NULL
               AND e.article_count > 0
-              AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
               AND (
                     e.claims_attempted_at IS NULL
                  OR e.last_update_at > e.claims_attempted_at
-                 OR e.claims_attempt_count < %s
+                 OR (
+                      NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
+                      AND e.claims_attempt_count < %s
+                    )
               )
         """,
         params=(MAX_CLAIM_ATTEMPTS,),
@@ -152,17 +164,101 @@ STAGES: tuple[Stage, ...] = (
         key="evidence",
         label="Kanıt puanlaması",
         threshold_hours=3,
-        # evidence/pipeline.py::score_claims — aynı motor sürümü yüklemi
+        # evidence/pipeline.py::score_claims — aynı motor sürümü ve yeni kanıt yüklemi (F5-17)
         sql="""
             SELECT count(*) AS backlog,
-                   EXTRACT(EPOCH FROM (now() - min(created_at))) / 3600
-                     AS oldest_hours
-            FROM claims
+                   EXTRACT(EPOCH FROM (now() - min(
+                       COALESCE((status_reason->>'computed_at')::timestamptz, created_at)
+                   ))) / 3600 AS oldest_hours
+            FROM claims c
             WHERE status_reason IS NULL
                OR status_reason->>'engine_version' IS DISTINCT FROM %s
+               OR EXISTS (
+                    SELECT 1 FROM evidence ev
+                    WHERE ev.claim_id = c.id
+                      AND ev.created_at > (c.status_reason->>'computed_at')::timestamptz
+                  )
         """,
-        params=(ENGINE_VERSION,),
+        params=lambda: (engine_version(),),
         hint="kanıt motoru LLM kullanmaz; birikme varsa worker durmuştur",
+    ),
+    Stage(
+        key="context",
+        label="Tarihsel bağlam",
+        threshold_hours=6,
+        # context/related.py::run — aynı ilişkilendirilmemiş olay yüklemi (F2-17)
+        sql="""
+            SELECT count(*) AS backlog,
+                   EXTRACT(EPOCH FROM (now() - min(e.last_update_at))) / 3600
+                     AS oldest_hours
+            FROM events e
+            WHERE e.merged_into_id IS NULL
+              AND e.centroid_embedding IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM event_relations r WHERE r.from_event_id = e.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM audit_log a
+                WHERE a.target = 'events/' || e.id
+                  AND a.action = 'context_evaluated'
+                  AND a.created_at >= e.last_update_at
+              )
+        """,
+        hint="beat'te `context-every-30-minutes` zamanlaması var mı? `make workers`",
+    ),
+    Stage(
+        key="political_relations",
+        label="Siyasi ilişkiler",
+        threshold_hours=6,
+        # political_memory/orchestrator.py::process_pending_political_relations (S3)
+        sql="""
+            SELECT count(*) AS backlog,
+                   EXTRACT(EPOCH FROM (now() - min(e.last_update_at))) / 3600
+                     AS oldest_hours
+            FROM events e
+            WHERE e.merged_into_id IS NULL
+              AND (
+                  e.vertical = 'legislation'
+                  OR EXISTS (
+                      SELECT 1 FROM claims c
+                      WHERE c.event_id = e.id AND c.claim_type = 'promise'
+                  )
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM event_relations r
+                  WHERE r.from_event_id = e.id
+                    AND r.engine_version = %s
+                    AND r.updated_at >= e.last_update_at
+              )
+              AND NOT EXISTS (
+                  SELECT 1 FROM audit_log a
+                  WHERE a.target = 'events/' || e.id
+                    AND a.action = 'political_relations_evaluated'
+                    AND a.payload->>'engine_version' = %s
+                    AND a.created_at >= e.last_update_at
+              )
+        """,
+        params=(RELATION_ENGINE_VERSION, RELATION_ENGINE_VERSION),
+        hint="beat'te `political-relations-every-15-minutes` zamanlaması var mı?",
+    ),
+    Stage(
+        key="scheduler_match",
+        label="Takvim eşleştirmesi",
+        threshold_hours=24,
+        # context/scheduler_match.py::match_pending (F2-19)
+        sql="""
+            SELECT count(*) AS backlog,
+                   EXTRACT(EPOCH FROM (now() - min(expected_at))) / 3600
+                     AS oldest_hours
+            FROM scheduled_events
+            WHERE status = 'pending'
+              AND linked_event_id IS NULL
+              AND expected_at < now()
+        """,
+        hint=(
+            "beat'te `scheduler-match-hourly` zamanlaması var mı? "
+            "Eşleşmeyen resmî takvim olayları incelenmeli"
+        ),
     ),
 )
 
@@ -206,6 +302,16 @@ HEARTBEATS: tuple[Heartbeat, ...] = (
         # nabız olarak okununca yaş negatife düşüyordu (ölçülen: -14,66).
         sql="SELECT max(computed_at) AS last_at FROM metrics",
         hint="beat'te `metrics-rollup-nightly` var mı?",
+    ),
+    Heartbeat(
+        key="purge",
+        label="Gövde temizliği",
+        threshold_hours=48,  # günlük 03:15; iki tur kaçarsa alarm (Spec §9.3)
+        sql=(
+            "SELECT max(created_at) AS last_at FROM audit_log "
+            "WHERE action = 'purge_expired_bodies'"
+        ),
+        hint="beat'te `purge-daily` zamanlaması var mı?",
     ),
 )
 
@@ -260,7 +366,7 @@ def stage_report() -> list[StageReport]:
         out.append(_heartbeat_report(cur, ingest))
 
         for stage in STAGES:
-            cur.execute(stage.sql, stage.params)
+            cur.execute(stage.sql, stage.get_params())
             row = cur.fetchone() or {}
             backlog = int(row.get("backlog") or 0)
             oldest = row.get("oldest_hours")

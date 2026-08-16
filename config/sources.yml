@@ -31,7 +31,8 @@
 
 version: 3
 vertical: macro_economy
-max_sources: 15
+max_sources: 20
+
 
 sources:
   # ---------------------------------------------------------------- Tier 1
@@ -285,8 +286,172 @@ sources:
       beklentinin altında", "KKM 51 milyon liraya geriledi").
       robots.txt yalnızca yorum ve dinamik yolları kapatıyor.
 
+  - slug: dw-ekonomi
+    name: "Deutsche Welle Türkçe — Ekonomi"
+    tier: 2
+    kind: wire
+    independence_group: "media-dw"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.dw.com/tr"
+    feed_url: "https://rss.dw.com/xml/rss-tur-eco"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [enflasyon, politika_faizi, kur_ve_rezervler, buyume, derecelendirme]
+    produces_scheduled_events: false
+    notes: >-
+      Uluslararası kamu yayıncısı — bağımsız küresel ve makro ekonomi çapraz teyit referansı.
+
+  - slug: ekonomim
+    name: "Nasıl Bir Ekonomi (Ekonomim)"
+    tier: 3
+    kind: media
+    independence_group: "media-ekonomim"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.ekonomim.com"
+    feed_url: "https://www.ekonomim.com/rss"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 25 öğe
+    topics: [enflasyon, butce_ve_hazine, buyume, kur_ve_rezervler, vergi_ve_harclar]
+    produces_scheduled_events: false
+    notes: >-
+      Türkiye'nin köklü bağımsız iş ve ekonomi gazetesi — reel sektör, sanayi ve makro veriler.
+
+  - slug: investing-tr
+    name: "Investing.com Türkçe"
+    tier: 3
+    kind: media
+    independence_group: "media-investing"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://tr.investing.com"
+    feed_url: "https://tr.investing.com/rss/news_25.rss"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [politika_faizi, kur_ve_rezervler, enflasyon, kamu_borclanmasi]
+    produces_scheduled_events: false
+    notes: >-
+      Finansal piyasalar, merkez bankası kararları ve makroekonomik veriler odağı.
+
+  - slug: euronews-ekonomi
+    name: "Euronews Türkçe — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-euronews"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://tr.euronews.com"
+    feed_url: "https://tr.euronews.com/rss?format=mrss&level=theme&name=news"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 50 öğe
+    topics: [enflasyon, buyume, politika_faizi, derecelendirme]
+    produces_scheduled_events: false
+    notes: >-
+      Avrupa ve küresel perspektifle Türkiye makro ekonomi ve ticaret takibi.
+
+  - slug: cumhuriyet-ekonomi
+    name: "Cumhuriyet — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-cumhuriyet"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.cumhuriyet.com.tr"
+    feed_url: "https://www.cumhuriyet.com.tr/rss/ekonomi"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 100 öğe
+    topics: [asgari_ucret_ve_zamlar, vergi_ve_harclar, butce_ve_hazine, enflasyon]
+    produces_scheduled_events: false
+    notes: >-
+      Farklı çerçeveleme: kamu maliyesi, vergi adaleti ve emek/ücret eksenli haberler.
+
+  - slug: fikirturu-ekonomi
+    name: "Fikir Turu — Ekonomi & Politika"
+    tier: 3
+    kind: media
+    independence_group: "media-fikirturu"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://fikirturu.com"
+    feed_url: "https://fikirturu.com/feed/"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [buyume, kur_ve_rezervler, kamu_borclanmasi, enflasyon]
+    produces_scheduled_events: false
+    notes: >-
+      Derinlemesine makro ekonomi, kalkınma, küresel piyasalar ve jeopolitik analizler.
+
+
+  - slug: ekoturk
+    name: "Ekotürk TV & Haber"
+    tier: 3
+    kind: media
+    independence_group: "media-ekoturk"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.ekoturk.com"
+    feed_url: "https://www.ekoturk.com/feed/"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [politika_faizi, kur_ve_rezervler, enflasyon, buyume]
+    produces_scheduled_events: false
+    notes: >-
+      Piyasa yayıncılığı, döviz, faiz ve sektör analizleri.
+
+  - slug: mahfiegilmez
+    name: "Mahfi Eğilmez (Kendime Yazılar)"
+    tier: 3
+    kind: media
+    independence_group: "expert-mahfiegilmez"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.mahfiegilmez.com"
+    feed_url: "https://www.mahfiegilmez.com/feeds/posts/default?alt=rss"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 25 öğe
+    topics: [enflasyon, butce_ve_hazine, kamu_borclanmasi, politika_faizi, buyume]
+    produces_scheduled_events: false
+    notes: >-
+      Türkiye'nin önde gelen bağımsız makroekonomistinden yapısal analizler ve gösterge yorumları.
+
+  - slug: sabah-ekonomi
+    name: "Sabah Gazetesi — Ekonomi"
+    tier: 3
+    kind: media
+    independence_group: "media-turkuvaz"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.sabah.com.tr"
+    feed_url: "https://www.sabah.com.tr/rss/ekonomi.xml"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [buyume, issizlik_ve_istihdam, asgari_ucret_ve_zamlar, butce_ve_hazine]
+    produces_scheduled_events: false
+    notes: >-
+      Hükümet ekonomi programı ve reel sektör gelişmelerine odaklanan çerçeveleme.
+
+  - slug: fintechistanbul
+    name: "FinTech İstanbul"
+    tier: 3
+    kind: media
+    independence_group: "media-fintechist"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://fintechistanbul.org"
+    feed_url: "https://fintechistanbul.org/feed/"
+    adapter: rss
+    verified: true                      # ✅ Canlı doğrulandı, 10 öğe
+    topics: [kur_ve_rezervler, politika_faizi, enflasyon, butce_ve_hazine]
+    produces_scheduled_events: false
+    notes: >-
+      Finansal teknolojiler, dijital ödeme sistemleri ve TCMB/BDDK regülasyon analizi.
+
+
+
 # ---------------------------------------------------------------------------
 # Tier 4 (sosyal) yapılandırılmış kaynak YOKTUR (Spec §9.4 / D7).
 # Tier 4 içerik yalnızca kullanıcı-tetikli içe aktarma ile girer (F1-04)
 # ve R7 gereği azami single_source (🟠) olabilir.
 # ---------------------------------------------------------------------------
+

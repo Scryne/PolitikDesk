@@ -39,6 +39,7 @@ NAV: Final[tuple[tuple[str, tuple[tuple[str, str, str], ...]], ...]] = (
             ("/briefing", "Brifingler", "briefing"),
             ("/promises", "Vaat Takibi", "promise"),
             ("/accountability", "Hesap Sor", "accountability"),
+            ("/memory", "Siyasi Hafıza", "clock"),
             ("/archive", "Yayın Arşivi", "archive"),
         ),
     ),
@@ -92,21 +93,63 @@ _THEME_JS: Final[str] = """
   });
   paint();
 })();
+window.pdToast = function(msg) {
+  var t = document.getElementById('pd-toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'pd-toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.innerHTML = '<span>' + msg + '</span>';
+  t.classList.add('show');
+  clearTimeout(window._pdToastTimer);
+  window._pdToastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2600);
+};
+window.pdCopy = function(text, label) {
+  var ok = function() { window.pdToast((label || 'Metin') + ' kopyalandı.'); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(ok);
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    ok();
+  }
+};
 """
 
-# Kullanım izleme: sayfa açılışı + 60 sn'de bir kalp atışı (F3-19).
+# Kullanım izleme: sayfa açılışı + aktif olunduğunda 60 sn'de bir kalp atışı (F3-19).
 # `sendBeacon` sayfa kapanırken de gider; `fetch` gitmezdi.
+# Boşta bekleme (idle suppression): Son 65 saniyede kullanıcı etkileşimi
+# yoksa heartbeat atılmaz; böylece arkada açık kalan sekmeler aktif dakika
+# sayılmaz (Spec §13.3).
 ACTIVITY_JS: Final[str] = """
 (function(){
   var path = location.pathname;
   var eventId = document.body.dataset.eventId || null;
+  var lastActive = Date.now();
+  function onUserActive(){ lastActive = Date.now(); }
+  ['mousemove','keydown','scroll','touchstart','click'].forEach(function(ev){
+    window.addEventListener(ev, onUserActive, {passive:true});
+  });
+  document.addEventListener('visibilitychange', function(){
+    if (!document.hidden) lastActive = Date.now();
+  });
   function ping(kind, extra){
     var payload = Object.assign({kind:kind, path:path, event_id:eventId}, extra||{});
     var blob = new Blob([JSON.stringify(payload)], {type:'application/json'});
     if (navigator.sendBeacon) { navigator.sendBeacon('/api/activity', blob); }
   }
   ping(eventId ? 'event_open' : 'page_view');
-  var t = setInterval(function(){ if(!document.hidden) ping('heartbeat'); }, 60000);
+  var t = setInterval(function(){
+    if (!document.hidden && (Date.now() - lastActive < 65000)) {
+      ping('heartbeat');
+    }
+  }, 60000);
   window.addEventListener('pagehide', function(){ clearInterval(t); });
   window.pdPing = ping;
   window.pdOpenedAt = Date.now();
@@ -161,10 +204,170 @@ def _topbar(crumbs: tuple[tuple[str, str | None], ...]) -> str:
             parts.append(f'<a href="{esc(href)}">{esc(label)}</a>')
         else:
             parts.append(f'<span class="here">{esc(label)}</span>')
+
+    cmd_trigger = (
+        '<button class="btn ghost sm" id="pd-cmd-btn" type="button" '
+        'style="margin-left:auto;gap:var(--space-2);color:var(--color-fg-muted);" '
+        'title="Komuta Paleti (Ctrl+K / ⌘K)">'
+        f'{icon("search", 14)}<span>Ara & Komutlar</span>'
+        '<kbd class="shortcut-key" style="font-size:10px;">⌘K</kbd>'
+        '</button>'
+    )
+
     return (
         f'<header class="topbar"><nav class="crumbs" aria-label="Konum">'
-        f"{''.join(parts)}</nav></header>"
+        f"{''.join(parts)}</nav>{cmd_trigger}</header>"
     )
+
+
+_CMD_PALETTE_HTML = """
+<div id="pd-cmd-dialog" class="cmd-backdrop" role="dialog" aria-modal="true" aria-label="Komuta Paleti">
+  <div class="cmd-box">
+    <div class="cmd-header">
+      <span class="ic">""" + icon("search", 16) + """</span>
+      <input type="text" id="pd-cmd-input" class="cmd-input" placeholder="Sayfa, aktör veya komut ara... (Örn: Gündem, Şimşek, R8)" autocomplete="off" spellcheck="false">
+      <kbd class="shortcut-key" style="font-size:10px;">ESC</kbd>
+    </div>
+    <div id="pd-cmd-body" class="cmd-body"></div>
+    <div class="cmd-footer">
+      <span>↑↓ ile gezin, ↵ ile seç</span>
+      <span>PolitikDesk Komuta Merkezi</span>
+    </div>
+  </div>
+</div>
+"""
+
+_CMD_JS = """
+(function(){
+  var dialog = document.getElementById('pd-cmd-dialog');
+  var input = document.getElementById('pd-cmd-input');
+  var body = document.getElementById('pd-cmd-body');
+  var btn = document.getElementById('pd-cmd-btn');
+  if (!dialog || !input || !body) return;
+
+  var DEFAULT_ITEMS = [
+    { title: 'Gündem', href: '/feed', group: 'Çalışma Masası' },
+    { title: 'Brifingler', href: '/briefing', group: 'Çalışma Masası' },
+    { title: 'Vaat Takibi', href: '/promises', group: 'Çalışma Masası' },
+    { title: 'Hesap Sor', href: '/accountability', group: 'Çalışma Masası' },
+    { title: 'Siyasi Hafıza', href: '/memory', group: 'Çalışma Masası' },
+    { title: 'Yayın Arşivi', href: '/archive', group: 'Çalışma Masası' },
+    { title: 'Boru Hattı', href: '/admin/', group: 'Denetim' },
+    { title: 'Denetim Kuyruğu', href: '/admin/review/', group: 'Denetim' },
+    { title: 'Metrikler', href: '/admin/metrics', group: 'Denetim' },
+    { title: 'Editoryal Kimlik', href: '/onboarding/profile', group: 'Ayarlar' }
+  ];
+
+  function openDialog(){
+    dialog.classList.add('open');
+    input.value = '';
+    renderItems(DEFAULT_ITEMS);
+    setTimeout(function(){ input.focus(); }, 50);
+  }
+
+  function closeDialog(){
+    dialog.classList.remove('open');
+  }
+
+  if (btn) btn.addEventListener('click', openDialog);
+
+  window.addEventListener('keydown', function(e){
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      dialog.classList.contains('open') ? closeDialog() : openDialog();
+    } else if (e.key === 'Escape' && dialog.classList.contains('open')) {
+      closeDialog();
+    }
+  });
+
+  dialog.addEventListener('click', function(e){
+    if (e.target === dialog) closeDialog();
+  });
+
+  function renderItems(items){
+    body.innerHTML = '';
+    if (!items.length) {
+      body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--color-fg-subtle);font-size:var(--text-sm)">Sonuç bulunamadı.</div>';
+      return;
+    }
+    var currentGroup = '';
+    items.forEach(function(item, idx){
+      if (item.group && item.group !== currentGroup) {
+        currentGroup = item.group;
+        var grp = document.createElement('div');
+        grp.className = 'cmd-group-label';
+        grp.textContent = currentGroup;
+        body.appendChild(grp);
+      }
+      var a = document.createElement('a');
+      a.className = 'cmd-item' + (idx === 0 ? ' selected' : '');
+      a.href = item.href;
+      a.innerHTML = '<div class="cmd-item-left"><span>' + item.title + '</span></div>' + (item.hint ? '<span class="cmd-item-hint">' + item.hint + '</span>' : '');
+      a.addEventListener('click', closeDialog);
+      body.appendChild(a);
+    });
+  }
+
+  var searchTimer = null;
+  input.addEventListener('input', function(){
+    var q = input.value.trim().toLowerCase();
+    if (!q) { renderItems(DEFAULT_ITEMS); return; }
+    var filtered = DEFAULT_ITEMS.filter(function(i){ return i.title.toLowerCase().indexOf(q) !== -1 || (i.group && i.group.toLowerCase().indexOf(q) !== -1); });
+    renderItems(filtered);
+
+    clearTimeout(searchTimer);
+    if (q.length >= 2) {
+      searchTimer = setTimeout(function(){
+        fetch('/api/memory/actors?q=' + encodeURIComponent(q))
+          .then(function(r){ return r.json(); })
+          .then(function(data){
+            var dynamic = [];
+            if (data && data.items) {
+              data.items.forEach(function(act){
+                dynamic.push({
+                  title: act.actor_name,
+                  href: '/hafiza/' + encodeURIComponent(act.actor_name),
+                  group: 'Aktörler (' + act.total_claims + ' kayıt)',
+                  hint: 'Hafıza Profili'
+                });
+              });
+            }
+            if (dynamic.length) {
+              renderItems(filtered.concat(dynamic));
+            }
+          }).catch(function(){});
+      }, 150);
+    }
+  });
+
+  input.addEventListener('keydown', function(e){
+    var items = body.querySelectorAll('.cmd-item');
+    if (!items.length) return;
+    var selected = body.querySelector('.cmd-item.selected');
+    var idx = Array.prototype.indexOf.call(items, selected);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (selected) selected.classList.remove('selected');
+      var next = (idx + 1) % items.length;
+      items[next].classList.add('selected');
+      items[next].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (selected) selected.classList.remove('selected');
+      var prev = (idx - 1 + items.length) % items.length;
+      items[prev].classList.add('selected');
+      items[prev].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (selected) {
+        e.preventDefault();
+        selected.click();
+        window.location.href = selected.href;
+      }
+    }
+  });
+})();
+"""
 
 
 def page(
@@ -181,12 +384,10 @@ def page(
     `title` tarayıcı sekmesinde ve breadcrumb'ın sonunda kullanılır;
     sayfanın görünen H1'i `body` içindedir (`components.page_head`).
     """
-    # Spec §12.6 madde 5: Election Mode açıkken kullanıcıya görünür gösterge.
-    # Kapalıyken boş string döner (F4-15 — varsayılan kapalı).
     from config.election_mode import banner
 
     trail = crumbs or ((title, None),)
-    scripts = "\n".join(part for part in (_THEME_JS, extra_js) if part)
+    scripts = "\n".join(part for part in (_THEME_JS, _CMD_JS, extra_js) if part)
     election = banner()
     election_html = (
         f'<div style="margin-bottom:var(--space-6)">{election}</div>' if election else ""
@@ -210,5 +411,7 @@ def page(
 <main class="content" id="main">{election_html}{body}</main>
 </div>
 </div>
+{_CMD_PALETTE_HTML}
 <script>{scripts}</script>
 </body></html>"""
+

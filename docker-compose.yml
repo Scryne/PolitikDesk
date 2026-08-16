@@ -158,6 +158,8 @@ services:
       TZ: ${TZ:-Europe/Istanbul}
       PD_EMBEDDING_PROVIDER: ${PD_EMBEDDING_PROVIDER:-local}
       PD_EMBEDDING_MODEL: ${PD_EMBEDDING_MODEL:-intfloat/multilingual-e5-large}
+      PD_TWITTER_BRIDGE_URL: ${PD_TWITTER_BRIDGE_URL:-http://rsshub:1200}
+      PD_TWITTER_INGESTION_ENABLED: ${PD_TWITTER_INGESTION_ENABLED:-true}
     env_file:
       - path: .env
         required: false
@@ -190,6 +192,8 @@ services:
       # dilimine bakar. TZ verilmezse UTC kullanılır ve "08:00 sabah
       # brifingi" Türkiye'de 11:00'e düşerdi.
       TZ: ${TZ:-Europe/Istanbul}
+      PD_TWITTER_BRIDGE_URL: ${PD_TWITTER_BRIDGE_URL:-http://rsshub:1200}
+      PD_TWITTER_INGESTION_ENABLED: ${PD_TWITTER_INGESTION_ENABLED:-false}
     env_file:
       - path: .env
         required: false
@@ -197,6 +201,23 @@ services:
       redis:
         condition: service_healthy
     profiles: ["workers"]
+
+  rsshub:
+    image: diygod/rsshub:latest
+    container_name: pd-rsshub
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1200:1200"
+    environment:
+      NODE_ENV: production
+      CACHE_TYPE: redis
+      REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/1
+      TWITTER_COOKIES: ${PD_TWITTER_COOKIES:-}
+      TWITTER_AUTH_TOKEN: ${PD_TWITTER_AUTH_TOKEN:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+    profiles: ["social", "full", "workers"]
 
 volumes:
   pgdata:

@@ -149,10 +149,15 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
                    SELECT 1 FROM articles a
                    WHERE a.event_id = e.id AND a.title ILIKE %s
                )
+               OR EXISTS (
+                   SELECT 1 FROM event_entities ee
+                   JOIN entities en ON en.id = ee.entity_id
+                   WHERE ee.event_id = e.id AND en.canonical_name ILIKE %s
+               )
             ORDER BY e.first_reported_at DESC
             LIMIT 100;
             """,
-            (pattern, pattern, pattern),
+            (pattern, pattern, pattern, pattern),
         )
         rows = cur.fetchall()
         for r in rows:
@@ -299,3 +304,153 @@ def list_tracked_actors(limit: int = 50) -> list[dict[str, Any]]:
             (limit,),
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def search_actors(query: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    """Kayıtlı aktörleri filtreler ve sayfalar (FTS / trigram uyumlu)."""
+    q_str = f"%{query.strip()}%" if query.strip() else "%"
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT count(*) as total
+            FROM entities
+            WHERE entity_type IN ('person', 'institution')
+              AND canonical_name ILIKE %s;
+            """,
+            (q_str,),
+        )
+        row = cur.fetchone()
+        total = int(row["total"]) if row else 0
+
+        cur.execute(
+            """
+            SELECT id, canonical_name as name, entity_type, is_key_entity
+            FROM entities
+            WHERE entity_type IN ('person', 'institution')
+              AND canonical_name ILIKE %s
+            ORDER BY is_key_entity DESC, canonical_name ASC
+            LIMIT %s OFFSET %s;
+            """,
+            (q_str, limit, offset),
+        )
+        actors = [dict(r) for r in cur.fetchall()]
+
+    return {
+        "actors": actors,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + len(actors)) < total,
+    }
+
+
+def search_accountability(
+    query: str = "",
+    status_filter: str = "all",
+    limit: int = 50,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Hesap Sor kayıtlarını sunucu tarafında filtreler ve sayfalar."""
+    q_str = f"%{query.strip()}%" if query.strip() else "%"
+
+    # Durum filtresi koşulu
+    status_clause = ""
+    status_params: list[Any] = []
+    if status_filter == "verified":
+        status_clause = "AND r.status = 'verified'"
+    elif status_filter == "supported":
+        status_clause = "AND r.status = 'supported'"
+    elif status_filter == "contra":
+        status_clause = "AND r.relation IN ('contradicts', 'fails')"
+    elif status_filter == "inferred":
+        status_clause = "AND (r.status = 'inferred' OR r.status = 'unresolved')"
+
+    with connection() as conn, conn.cursor() as cur:
+        count_sql = f"""
+            SELECT count(*) as total
+            FROM claims c
+            JOIN events e ON e.id = c.event_id
+            LEFT JOIN event_relations r ON r.from_event_id = e.id
+                 AND r.relation IN ('fulfils', 'fails', 'contradicts')
+            WHERE c.claim_type = 'promise'
+              AND (c.claim_text ILIKE %s OR e.title ILIKE %s)
+              {status_clause};
+        """
+        cur.execute(count_sql, [q_str, q_str, *status_params])
+        count_row = cur.fetchone()
+        total = int(count_row["total"]) if count_row else 0
+
+        data_sql = f"""
+            SELECT c.id as claim_id, c.claim_text, c.evidence_status, c.event_id,
+                   e.title as event_title, e.first_reported_at,
+                   c.status_reason,
+                   r.relation as outcome_relation,
+                   r.status as relation_status,
+                   r.evidence_payload as evidence_payload
+            FROM claims c
+            JOIN events e ON e.id = c.event_id
+            LEFT JOIN event_relations r ON r.from_event_id = e.id
+                 AND r.relation IN ('fulfils', 'fails', 'contradicts')
+            WHERE c.claim_type = 'promise'
+              AND (c.claim_text ILIKE %s OR e.title ILIKE %s)
+              {status_clause}
+            ORDER BY e.first_reported_at DESC
+            LIMIT %s OFFSET %s;
+        """
+        cur.execute(data_sql, [q_str, q_str, *status_params, limit, offset])
+        out = []
+        for r in cur.fetchall():
+            reported = r["first_reported_at"].isoformat() if r["first_reported_at"] else ""
+            status_reason = r.get("status_reason") or {}
+            out.append(
+                {
+                    "claim_id": r["claim_id"],
+                    "event_title": r["event_title"],
+                    "promise_text": r["claim_text"],
+                    "speaker": status_reason.get("speaker", "Bilinmeyen Aktör")
+                    if isinstance(status_reason, dict)
+                    else "Bilinmeyen Aktör",
+                    "reported_at": reported,
+                    "status": r["outcome_relation"] or "pending",
+                    "relation_status": r.get("relation_status") or "unresolved",
+                    "evidence_status": r["evidence_status"],
+                    "evidence_payload": r.get("evidence_payload") or {},
+                }
+            )
+
+    return {
+        "items": out,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "has_more": (offset + len(out)) < total,
+    }
+
+
+def get_actor_stance_shifts(actor_name: str) -> list[dict[str, Any]]:
+    """Belirli bir aktöre ait söylem değişikliklerini ve zıtlıkları döndürür."""
+    from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
+
+    mem = get_actor_memory(actor_name)
+    shifts = detect_stance_shifts_from_memory(mem)
+    return [s.to_dict() for s in shifts]
+
+
+def list_all_stance_shifts(limit: int = 50) -> list[dict[str, Any]]:
+    """Tüm aktörler üzerinden tespit edilen söylem değişikliklerini listeler."""
+    from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
+
+    actors_res = search_actors(query="", limit=20)
+    all_shifts: list[dict[str, Any]] = []
+
+    for item in actors_res.get("items", []):
+        name = item.get("actor_name")
+        if name:
+            mem = get_actor_memory(name)
+            shifts = detect_stance_shifts_from_memory(mem)
+            all_shifts.extend([s.to_dict() for s in shifts])
+
+    all_shifts.sort(key=lambda s: s.get("earlier_date") or "", reverse=True)
+    return all_shifts[:limit]
+
+

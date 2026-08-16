@@ -8,6 +8,8 @@ F1-12 DoD: `raw_purge_at` geçmiş kayıtlarda `lead_paragraph` NULL oluyor;
 
 from __future__ import annotations
 
+from typing import Literal
+
 from celery.schedules import crontab
 
 from politikdesk.config import get_settings
@@ -213,7 +215,7 @@ def purge_expired_bodies() -> int:
 
 
 @app.task(name="politikdesk.generate_briefing", bind=True, max_retries=1)
-def generate_briefing(self, slot: str = "morning") -> dict[str, object]:  # noqa: ANN001
+def generate_briefing(self, slot: Literal["morning", "evening"] = "morning") -> dict[str, object]:  # noqa: ANN001
     """Sabah/akşam brifingi üretir ve gönderir (F3-16, F3-17).
 
     Üretim ve gönderim ayrı ele alınır: SMTP yokken de brifing üretilir
@@ -224,7 +226,7 @@ def generate_briefing(self, slot: str = "morning") -> dict[str, object]:  # noqa
     from politikdesk.briefing.mailer import send_briefing
 
     try:
-        result = generate(slot)  # type: ignore[arg-type]
+        result = generate(slot)
     except Exception as exc:  # noqa: BLE001
         log.error("briefing_failed", slot=slot, error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=300) from exc

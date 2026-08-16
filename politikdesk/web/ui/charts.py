@@ -29,6 +29,7 @@ kullanılmayan bir çizgi grafiği yazmak, bakımı yapılmayan bir API demek.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from politikdesk.web.ui.components import esc
 from politikdesk.web.ui.format import number
@@ -113,3 +114,151 @@ def bar_trend(
         f'stroke-dasharray="3 3"/>'
         f"{''.join(bars)}</svg>"
     )
+
+
+def sparkline(
+    values: Sequence[float],
+    *,
+    width: int = 64,
+    height: int = 20,
+    color: str = "var(--color-accent)",
+    label: str = "Eğilim grafiği",
+) -> str:
+    """Satır içi mini SVG kıvılcım (sparkline) çizgisi.
+
+    Boyutlar kompakttır (varsayılan 64x20px); veri tablosu hücrelerine veya
+    kart başlıklarının yanına satır içi gömülebilir.
+    """
+    if not values or len(values) < 2:
+        return ""
+
+    min_val = min(values)
+    max_val = max(values)
+    val_range = max_val - min_val if max_val != min_val else 1.0
+
+    pad_y = 2.0
+    plot_h = height - (2 * pad_y)
+    step_x = width / (len(values) - 1)
+
+    points = []
+    for i, val in enumerate(values):
+        x = i * step_x
+        y = pad_y + plot_h - ((val - min_val) / val_range) * plot_h
+        points.append(f"{x:.1f},{y:.1f}")
+
+    points_str = " ".join(points)
+    last_x = (len(values) - 1) * step_x
+    last_y = pad_y + plot_h - ((values[-1] - min_val) / val_range) * plot_h
+
+    return (
+        f'<svg class="sparkline" role="img" aria-label="{esc(label)}" '
+        f'width="{width}" height="{height}" viewBox="0 0 {width} {height}" '
+        f'style="display:inline-block;vertical-align:middle;overflow:visible">'
+        f'<polyline fill="none" stroke="{color}" stroke-width="1.5" '
+        f'stroke-linecap="round" stroke-linejoin="round" points="{points_str}"/>'
+        f'<circle cx="{last_x:.1f}" cy="{last_y:.1f}" r="2" fill="{color}"/>'
+        f"</svg>"
+    )
+
+
+def render_knowledge_graph(
+    nodes: Sequence[dict[str, Any]],
+    links: Sequence[dict[str, Any]],
+    *,
+    width: int = 760,
+    height: int = 340,
+    title: str = "Siyasi İlişki ve Hafıza Grafı",
+) -> str:
+    """Aktörler, kurumlar, yasalar ve vaatler arası ilişkileri çizen hafif SVG bilgi grafı."""
+    if not nodes:
+        return ""
+
+    import math
+
+    # Renk paleti eşlemeleri (Tasarım token'larına uyumlu)
+    type_fills = {
+        "actor": "var(--color-accent)",
+        "institution": "var(--color-chart-1)",
+        "promise": "var(--color-verified)",
+        "event": "var(--color-surface-2)",
+        "law": "var(--color-chart-2)",
+    }
+    rel_strokes = {
+        "fulfils": "var(--color-verified)",
+        "fails": "var(--color-contradicted)",
+        "contradicts": "var(--color-contradicted)",
+        "updates": "var(--color-partial)",
+        "same_thread": "var(--color-border-strong)",
+        "precedes": "var(--color-text-muted)",
+    }
+
+    # Düğümleri konumlandır (Halka / Düzenli Grid Düzeni)
+    node_coords: dict[str, tuple[float, float]] = {}
+    center_x = width / 2.0
+    center_y = height / 2.0
+    radius_x = min(width, height) * 0.38
+    radius_y = min(width, height) * 0.35
+
+    n_count = len(nodes)
+    for i, node in enumerate(nodes):
+        n_id = str(node.get("id", i))
+        angle = (2 * math.pi * i) / max(n_count, 1) - (math.pi / 2)
+        nx = center_x + radius_x * math.cos(angle)
+        ny = center_y + radius_y * math.sin(angle)
+        node_coords[n_id] = (nx, ny)
+
+    # 1. Kenarları (Bağlantı Çizgileri) Çiz
+    svg_links = []
+    for link in links:
+        src = str(link.get("source", ""))
+        tgt = str(link.get("target", ""))
+        rel = str(link.get("relation", "precedes"))
+        rel_label = link.get("label", rel)
+
+        if src in node_coords and tgt in node_coords:
+            x1, y1 = node_coords[src]
+            x2, y2 = node_coords[tgt]
+            stroke = rel_strokes.get(rel, "var(--color-border-strong)")
+            dash = ' stroke-dasharray="4 2"' if rel in ("contradicts", "fails") else ""
+
+            # Kenar çizgisi
+            svg_links.append(
+                f'<line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x2:.1f}" y2="{y2:.1f}" '
+                f'stroke="{stroke}" stroke-width="1.8"{dash} opacity="0.75">'
+                f'<title>{esc(src)} -> {esc(tgt)} ({esc(rel_label)})</title>'
+                f'</line>'
+            )
+
+    # 2. Düğümleri Çiz
+    svg_nodes = []
+    for node in nodes:
+        n_id = str(node.get("id", ""))
+        label = str(node.get("label", n_id))
+        n_type = str(node.get("type", "actor"))
+        if n_id not in node_coords:
+            continue
+
+        nx, ny = node_coords[n_id]
+        fill = type_fills.get(n_type, "var(--color-surface-2)")
+        short_label = label if len(label) <= 18 else label[:16] + "…"
+
+        svg_nodes.append(
+            f'<g class="graph-node" transform="translate({nx:.1f},{ny:.1f})">'
+            f'<circle r="14" fill="{fill}" stroke="var(--color-surface)" stroke-width="2">'
+            f'<title>{esc(label)} ({esc(n_type)})</title></circle>'
+            f'<text y="24" text-anchor="middle" font-size="11" '
+            f'fill="var(--color-text)" font-family="var(--font-sans)">{esc(short_label)}</text>'
+            f'</g>'
+        )
+
+    return (
+        f'<svg class="knowledge-graph" role="img" aria-label="{esc(title)}" '
+        f'width="{width}" height="{height}" viewBox="0 0 {width} {height}" '
+        f'style="max-width:100%;height:auto;background:var(--color-surface);'
+        f'border:1px solid var(--color-border);border-radius:var(--radius-lg);">'
+        f'<g class="graph-links">{"".join(svg_links)}</g>'
+        f'<g class="graph-nodes">{"".join(svg_nodes)}</g>'
+        f'</svg>'
+    )
+
+

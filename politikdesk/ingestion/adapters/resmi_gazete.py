@@ -74,15 +74,15 @@ class ResmiGazeteAdapter(FailureRecorder):
         self.base_url = base_url.rstrip("/")
         # Fihrist sayfası için gov.tr WAF bot engeline takılmamak adına
         # tarayıcı UA ve robots bypass kullanılır; istekler normalde ~100-300 ms'de döner.
-        # Sunucu takılmalarında worker'ı kilitlememek için granüler timeout ve jitter kullanılır.
+        # Sunucu takılmalarında worker'ı kilitlememek için dengeli timeout ve jitter kullanılır.
         self.http = http or HttpClient(
             respect_robots=False,
             user_agent=BROWSER_USER_AGENT,
-            timeout=15.0,
-            connect_timeout=5.0,
-            read_timeout=10.0,
-            write_timeout=5.0,
-            pool_timeout=5.0,
+            timeout=25.0,
+            connect_timeout=8.0,
+            read_timeout=18.0,
+            write_timeout=8.0,
+            pool_timeout=8.0,
             max_retries=3,
             enable_jitter=True,
         )

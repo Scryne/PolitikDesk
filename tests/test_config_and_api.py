@@ -125,3 +125,30 @@ def test_health_ready_reports_dependencies() -> None:
     assert response.status_code in (200, 503)
     body = response.json()
     assert set(body["checks"]) == {"postgres", "redis"}
+
+
+def test_production_env_requires_api_token() -> None:
+    """Üretim ortamında api_token zorunludur."""
+    with pytest.raises(ValueError, match="PD_API_TOKEN zorunludur"):
+        Settings(env="production", api_token="")
+
+    # Belirteç varsa geçer
+    s = Settings(env="production", api_token="secret_token_123")
+    assert s.is_production
+    assert s.api_token == "secret_token_123"
+
+    # Geliştirme ortamında boş olabilir
+    dev = Settings(env="development", api_token="")
+    assert not dev.is_production
+    assert dev.api_token == ""
+
+
+def test_db_pool_min_max_ordering() -> None:
+    """db_pool_min <= db_pool_max zorunludur."""
+    with pytest.raises(ValueError, match="PD_DB_POOL_MIN"):
+        Settings(db_pool_min=20, db_pool_max=10)
+
+    s = Settings(db_pool_min=2, db_pool_max=15)
+    assert s.db_pool_min == 2
+    assert s.db_pool_max == 15
+

@@ -208,6 +208,9 @@ goto :eof
 :cmd_briefing
 "%PY%" -m scripts.ingest briefing --slot morning --send
 goto :eof
+:cmd_metrics
+"%PY%" -m scripts.ingest metrics
+goto :eof
 :cmd_update
 "%PY%" -m scripts.ingest sync || goto :fail
 "%PY%" -m scripts.ingest run || goto :fail

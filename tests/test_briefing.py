@@ -179,7 +179,7 @@ def test_open_tracking_pixel_is_embedded_when_token_given(
 
 def test_smtp_is_optional() -> None:
     """SMTP yoksa brifing yine üretilir; gönderim atlanır."""
-    assert not is_configured(Settings(env="test"))
+    assert not is_configured(Settings(env="test", smtp_host="", smtp_from="", smtp_user=""))
     assert is_configured(Settings(env="test", smtp_host="smtp.example", smtp_from="a@b.c"))
 
 

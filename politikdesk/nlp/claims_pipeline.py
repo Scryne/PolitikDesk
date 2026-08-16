@@ -216,7 +216,8 @@ def _articles_of(cur: Any, event_id: int) -> list[dict[str, Any]]:
     cur.execute(
         """
         SELECT a.id, a.title, a.excerpt, a.published_at,
-               s.name AS source_name, s.tier
+               s.name AS source_name, s.tier,
+               COALESCE(a.vertical, s.vertical, 'macro_economy') AS vertical
         FROM articles a JOIN sources s ON s.id = a.source_id
         WHERE a.event_id = %s
         ORDER BY s.tier, a.published_at
@@ -369,6 +370,7 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                         tier=article["tier"],
                         published_at=str(article["published_at"] or ""),
                         client=client,
+                        vertical=article.get("vertical", "macro_economy"),
                     )
                     extracted_by = result.extracted_by
                     stats.claims_rejected += len(result.rejected)

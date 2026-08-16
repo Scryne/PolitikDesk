@@ -660,6 +660,122 @@ input[type=checkbox],input[type=radio]{{
     width:38%;color:var(--color-fg-subtle);font-size:var(--text-xs)}}
 }}
 
+/* ═══════════════════════════════════════════════ ek bileşenler */
+.search-wrap{{position:relative;display:flex;align-items:center;width:100%;max-width:360px}}
+.search-wrap .ic{{position:absolute;left:10px;color:var(--color-fg-subtle);pointer-events:none}}
+.search-wrap input{{padding-left:34px;height:34px;font-size:var(--text-sm)}}
+
+.pulse-dot{{width:8px;height:8px;border-radius:var(--radius-full);background:var(--color-strong);
+  display:inline-block;animation:pulse-glow 2s cubic-bezier(.4,0,.6,1) infinite}}
+@keyframes pulse-glow{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.4;transform:scale(.85)}}}}
+
+.grid-auto{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--space-4)}}
+
+.toast{{
+  position:fixed;bottom:var(--space-6);right:var(--space-6);z-index:999;
+  padding:var(--space-3) var(--space-4);background:var(--color-fg);color:var(--color-bg);
+  border-radius:var(--radius-md);box-shadow:var(--shadow-lg);
+  font-size:var(--text-sm);font-weight:var(--weight-medium);
+  display:flex;align-items:center;gap:var(--space-2);
+  opacity:0;transform:translateY(12px);transition:all var(--dur-pop) var(--ease-spring);
+  pointer-events:none;
+}}
+.toast.show{{opacity:1;transform:translateY(0);pointer-events:auto}}
+
+.diff-del{{background:var(--color-contra-subtle);color:var(--color-contra);text-decoration:line-through;padding:1px 4px;border-radius:2px}}
+.diff-ins{{background:var(--color-strong-subtle);color:var(--color-strong);padding:1px 4px;border-radius:2px}}
+
+/* ═══════════════════════════════════ feed tweet & power UI */
+.feed-card{{transition:border-color var(--dur-hover) var(--ease-out),box-shadow var(--dur-hover) var(--ease-out)}}
+.feed-card.is-selected{{outline:2px solid var(--color-accent);box-shadow:var(--shadow-md)}}
+
+.feed-tweet-box{{
+  background:var(--color-surface-sunken);
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-md);
+  padding:var(--space-3) var(--space-4);
+  margin-top:var(--space-3);
+  transition:all var(--dur-hover) var(--ease-out);
+}}
+.feed-tweet-box:focus-within{{
+  border-color:var(--color-accent);
+}}
+.feed-tweet-textarea{{
+  width:100%;min-height:68px;resize:vertical;font-size:var(--text-sm);
+  background:transparent;border:0;padding:0;outline:none;
+  color:var(--color-fg);font-family:var(--font-body);line-height:1.55;
+}}
+
+/* Kompakt Liste Görünümü */
+.feed-compact .feed-card{{padding:var(--space-2) var(--space-3)}}
+.feed-compact .feed-card .claim-text{{display:none}}
+.feed-compact .feed-card details.quiet{{display:none}}
+.feed-compact .feed-main h3{{margin:2px 0 4px;font-size:var(--text-base)}}
+
+/* Kısayol Modalı */
+.shortcuts-backdrop{{
+  position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;
+  display:none;align-items:center;justify-content:center;padding:var(--space-4);
+  backdrop-filter:blur(2px);
+}}
+.shortcuts-backdrop.open{{display:flex}}
+.shortcuts-modal{{
+  background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);padding:var(--space-6);max-width:480px;width:100%;
+  box-shadow:var(--shadow-lg);
+}}
+.shortcut-row{{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border-subtle)}}
+.shortcut-key{{background:var(--color-surface-sunken);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:2px 6px;font-family:var(--font-mono);font-size:var(--text-xs);font-weight:var(--weight-semibold)}}
+
+/* ═══════════════════════════════════ komuta paleti (cmd+k) */
+.cmd-backdrop{{
+  position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:2000;
+  display:none;align-items:flex-start;justify-content:center;padding:var(--space-12) var(--space-4);
+  backdrop-filter:blur(3px);
+}}
+.cmd-backdrop.open{{display:flex}}
+.cmd-box{{
+  background:var(--color-surface);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-lg);max-width:560px;width:100%;
+  box-shadow:var(--shadow-lg);overflow:hidden;display:flex;flex-direction:column;
+  animation:cmdFadeIn var(--dur-pop) var(--ease-spring);
+}}
+@keyframes cmdFadeIn{{
+  from{{opacity:0;transform:scale(0.97) translateY(-8px)}}
+  to{{opacity:1;transform:scale(1) translateY(0)}}
+}}
+.cmd-header{{
+  display:flex;align-items:center;padding:var(--space-3) var(--space-4);
+  border-bottom:1px solid var(--color-border);gap:var(--space-2);
+}}
+.cmd-header .ic{{color:var(--color-fg-subtle);flex:none}}
+.cmd-input{{
+  flex:1;background:transparent;border:0;outline:none;font-size:var(--text-base);
+  color:var(--color-fg);font-family:var(--font-sans);
+}}
+.cmd-body{{
+  max-height:360px;overflow-y:auto;padding:var(--space-2);display:flex;flex-direction:column;gap:2px;
+}}
+.cmd-group-label{{
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);color:var(--color-fg-subtle);
+  padding:var(--space-2) var(--space-3) var(--space-1);
+}}
+.cmd-item{{
+  display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-3);
+  border-radius:var(--radius-md);color:var(--color-fg);text-decoration:none;
+  font-size:var(--text-sm);cursor:pointer;transition:background var(--dur-hover) var(--ease-out);
+}}
+.cmd-item:hover,.cmd-item.selected{{
+  background:var(--color-surface-sunken);color:var(--color-accent);
+}}
+.cmd-item-left{{display:flex;align-items:center;gap:var(--space-2)}}
+.cmd-item-hint{{font-size:var(--text-xs);color:var(--color-fg-subtle)}}
+.cmd-footer{{
+  display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-4);
+  border-top:1px solid var(--color-border-subtle);background:var(--color-surface-sunken);
+  font-size:var(--text-xs);color:var(--color-fg-subtle);
+}}
+
 /* ═══════════════════════════════════ hareket · Bölüm 11.4 */
 @media (prefers-reduced-motion:reduce){{
   *,*::before,*::after{{
@@ -668,8 +784,11 @@ input[type=checkbox],input[type=radio]{{
   }}
 }}
 @media print{{
-  .side,.topbar,.btn,.actions{{display:none}}
-  .content{{padding:0;max-width:none}}
+  .side,.topbar,.btn,.actions,.search-wrap,#pd-theme{{display:none !important}}
+  .app{{display:block !important}}
+  .main{{display:block !important}}
+  .content{{padding:0 !important;max-width:none !important}}
+  .card{{border:1px solid var(--color-border) !important;box-shadow:none !important}}
 }}
 """
     )

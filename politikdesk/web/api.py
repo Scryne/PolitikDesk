@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api", tags=["api"])
 
 # ------------------------------------------------------------------ modeller
 class DraftRequest(BaseModel):
-    angle: Literal["inform", "analyze", "critique"]
+    angle: Literal["inform", "analyze", "critique", "accountability"]
 
 
 class ActionRequest(BaseModel):
@@ -204,6 +204,30 @@ def angles() -> list[dict[str, str]]:
 
 
 # --------------------------------------------------------------- siyaset dikeyi
+@router.get("/memory/actors")
+def search_memory_actors(q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
+    """Siyasi hafıza aktörlerini filtreler ve sayfalar."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.search_actors(query=q, limit=limit, offset=offset)
+
+
+@router.get("/memory/stance-shifts")
+def list_memory_stance_shifts(limit: int = 50) -> list[dict[str, Any]]:
+    """Sistem genelinde tespit edilen söylem değişikliklerini listeler."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.list_all_stance_shifts(limit=limit)
+
+
+@router.get("/memory/actors/{actor_name}/shifts")
+def get_actor_shifts(actor_name: str) -> list[dict[str, Any]]:
+    """Belirli bir aktörün söylem değişikliklerini döndürür."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.get_actor_stance_shifts(actor_name=actor_name)
+
+
 @router.get("/memory/{actor}")
 def get_actor_memory(actor: str) -> dict[str, Any]:
     """Aktör siyasi hafıza ve iddia kronolojisi (Spec §7.3, §8.3)."""
@@ -211,6 +235,7 @@ def get_actor_memory(actor: str) -> dict[str, Any]:
 
     memory = mem_service.get_actor_memory(actor)
     return memory.to_dict()
+
 
 
 @router.get("/promises")
@@ -315,3 +340,142 @@ def live_events_stream() -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/accountability/search")
+def search_accountability_digest(
+    q: str = "", status: str = "all", limit: int = 50, offset: int = 0
+) -> dict[str, Any]:
+    """Hesap Sor vaat/icraat kayıtlarını sunucu tarafında arar ve sayfalar."""
+    from politikdesk.political_memory import service as mem_service
+
+    return mem_service.search_accountability(
+        query=q, status_filter=status, limit=limit, offset=offset
+    )
+
+
+@router.get("/events/{event_id}/evidence-card")
+def get_event_evidence_card(event_id: int) -> dict[str, Any]:
+    """Olayın kanıt durumunu, kaynak dağılımını ve iddialarını dışa aktarılabilir kart formatında döner."""
+    user_id = current_user_id()
+    data = repository.event_page(event_id, user_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Olay bulunamadı.")
+
+    ev = data["event"]
+    claims = data["claims"]
+    articles = data["articles"]
+
+    return {
+        "event_id": ev["id"],
+        "title": ev["title"],
+        "salience_score": ev.get("salience_score", 0),
+        "status": ev.get("status", "developing"),
+        "has_primary_source": ev.get("has_primary_source", False),
+        "independence_groups": ev.get("independence_groups", 0),
+        "article_count": len(articles),
+        "claim_count": len(claims),
+        "claims": [
+            {
+                "claim_id": c["id"],
+                "text": c["claim_text"],
+                "type": c["claim_type"],
+                "evidence_status": c["evidence_status"],
+                "evidence_count": c.get("evidence_count", 0),
+            }
+            for c in claims
+        ],
+        "sources": [
+            {
+                "name": a.get("source_name"),
+                "tier": a.get("tier"),
+                "kind": a.get("kind"),
+            }
+            for a in articles
+        ],
+    }
+
+
+@router.get("/events/{event_id}/blindspot")
+def get_event_blindspot(event_id: int) -> dict[str, Any]:
+    """Olayın medya kör noktası ve kaynak dağılım analizini döner."""
+    from politikdesk.evidence.blindspot import analyze_blindspot
+
+    user_id = current_user_id()
+    data = repository.event_page(event_id, user_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Olay bulunamadı.")
+
+    articles = data["articles"]
+    source_names = [a.get("source_name") or a.get("slug", "") for a in articles]
+    report = analyze_blindspot(event_id=event_id, covered_sources=source_names)
+    return report.to_dict()
+
+
+@router.get("/events/{event_id}/export")
+def export_event_dossier(
+    event_id: int, format: Literal["markdown", "text", "factsheet", "json"] = "markdown"
+) -> Any:
+    """Olayı ve kanıt zincirini istenen formatta dışa aktarır."""
+    from fastapi.responses import PlainTextResponse
+
+    user_id = current_user_id()
+    data = repository.event_page(event_id, user_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Olay bulunamadı.")
+
+    ev = data["event"]
+    claims = data["claims"]
+    articles = data["articles"]
+
+    if format == "json":
+        return {
+            "event": ev,
+            "claims": claims,
+            "sources": articles,
+        }
+
+    if format == "text":
+        lines = [
+            f"POLİTİKDESK KANIT DOSYASI: {ev['title']}",
+            "=" * 60,
+            f"Olay No: #{ev['id']} | Kaynak Sayısı: {len(articles)} | İddia Sayısı: {len(claims)}",
+            "",
+            "İDDİALAR VE KANIT DURUMLARI:",
+        ]
+        for c in claims:
+            lines.append(f"- [{c['evidence_status'].upper()}] {c['claim_text']}")
+        lines.append("")
+        lines.append("KAYNAKLAR:")
+        for a in articles:
+            lines.append(f"- {a.get('source_name')} ({a.get('tier', 'T2')})")
+        return PlainTextResponse("\n".join(lines), media_type="text/plain; charset=utf-8")
+
+    # Markdown / Factsheet
+    md_lines = [
+        f"# {ev['title']}",
+        "",
+        f"> **PolitikDesk Doğrulanmış İstihbarat Dosyası #{ev['id']}**",
+        f"> Gündem Skoru: {ev.get('salience_score', 0)}/90 · Bağımsız Kaynak: {len(articles)}",
+        "",
+        "## Doğrulanmış İddialar ve Kanıt Zinciri",
+        "",
+    ]
+    for c in claims:
+        status_tag = {
+            "strongly_corroborated": "[Güçlü Teyitli]",
+            "partially_corroborated": "[Kısmen Teyitli]",
+            "single_source": "[Tek Kaynaklı]",
+            "contradicted": "[Çelişkili]",
+            "unverified": "[Doğrulanmamış]",
+            "attribution_verified": "[Beyan Sabit]",
+        }.get(c["evidence_status"], f"[{c['evidence_status']}]")
+        md_lines.append(f"* **{status_tag}:** {c['claim_text']}")
+
+    md_lines.extend(["", "## Kaynakça", ""])
+    for a in articles:
+        md_lines.append(f"* **{a.get('source_name')}** ({a.get('title', '')})")
+
+    return PlainTextResponse("\n".join(md_lines), media_type="text/markdown; charset=utf-8")
+
+

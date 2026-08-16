@@ -19,6 +19,7 @@ hedefi değil — bu yüzden liste sade bir tablodur, kart ızgarası değil.
 
 from __future__ import annotations
 
+import json
 from datetime import date
 
 from fastapi import APIRouter, HTTPException
@@ -31,6 +32,7 @@ from politikdesk.web.ui import (
     cell,
     empty_state,
     esc,
+    icon,
     page,
     page_head,
     panel,
@@ -138,7 +140,7 @@ def briefing_open_pixel(token: str) -> Response:
 
 
 @router.get("/briefing/{on}", response_class=HTMLResponse)
-def briefing_page(on: str, slot: str = "morning") -> str:
+def briefing_page(on: str, slot: generator.Slot = "morning") -> str:
     """Uygulama içi brifing — e-posta gövdesinin aynısını gösterir."""
     if slot not in ("morning", "evening"):
         raise HTTPException(status_code=400, detail="slot: morning | evening")
@@ -147,7 +149,7 @@ def briefing_page(on: str, slot: str = "morning") -> str:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Tarih biçimi: YYYY-AA-GG") from exc
 
-    record = generator.get_briefing(on_date, slot)  # type: ignore[arg-type]
+    record = generator.get_briefing(on_date, slot)
     if record is None:
         raise HTTPException(status_code=404, detail=f"{on} {slot} brifingi üretilmemiş.")
 
@@ -158,6 +160,15 @@ def briefing_page(on: str, slot: str = "morning") -> str:
         )
     )
 
+    body_text_json = json.dumps(record.get("body_text", ""))
+    actions_html = (
+        f'<button class="btn sm ghost" type="button" onclick=\'pdCopy({body_text_json}, "Brifing metni")\'>'
+        f'{icon("copy", 13)}<span>Metni Kopyala</span></button>'
+        f'<button class="btn sm ghost" type="button" onclick="window.print()">'
+        f'{icon("printer", 13)}<span>Yazdır</span></button>'
+        + button("Listeye dön", href="/briefing", icon_name="arrow-left")
+    )
+
     # E-posta gövdesi `srcdoc` ile izole edilir: brifing HTML'i kendi
     # stilini taşır ve sayfa stiliyle karışmamalıdır. `sandbox` betik
     # çalıştırmayı kapatır — gövde bir e-posta şablonu, betik içermez.
@@ -166,7 +177,7 @@ def briefing_page(on: str, slot: str = "morning") -> str:
         page_head(
             generator.SLOT_LABELS[slot],
             lede=esc(fmt.full_date(on_date)),
-            actions=button("Listeye dön", href="/briefing", icon_name="arrow-left"),
+            actions=actions_html,
         )
     }
 <div class="row" style="margin:-16px 0 var(--space-6)">

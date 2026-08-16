@@ -221,11 +221,11 @@ class BudgetGuard:
         fired: list[dict[str, object]] = []
 
         periods = (
-            ("günlük", "daily", now.strftime("%Y-%m-%d")),
-            ("aylık", "monthly", now.strftime("%Y-%m")),
+            ("günlük", "daily", now.strftime("%Y-%m-%d"), 25),
+            ("aylık", "monthly", now.strftime("%Y-%m"), 24 * 31),
         )
 
-        for label, key, bucket in periods:
+        for label, key, bucket, suppress_hours in periods:
             ratio = float(snap[f"{key}_ratio"])
             if ratio >= 1.0:
                 level = "exceeded"
@@ -235,7 +235,7 @@ class BudgetGuard:
                 continue
 
             target = f"budget:{key}:{bucket}:{level}"
-            if audit.exists_since("llm_budget_alert", target, hours=25):
+            if audit.exists_since("llm_budget_alert", target, hours=suppress_hours):
                 continue
 
             spent = float(snap[f"{key}_spent_usd"])
