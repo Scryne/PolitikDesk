@@ -39,9 +39,7 @@ def test_pricing_table_covers_configured_models() -> None:
 
 def test_cost_is_computed_per_million_tokens() -> None:
     # claude-opus-5: 5 $/M girdi, 25 $/M çıktı
-    cost = estimate_cost_usd(
-        "claude-opus-5", input_tokens=1_000_000, output_tokens=1_000_000
-    )
+    cost = estimate_cost_usd("claude-opus-5", input_tokens=1_000_000, output_tokens=1_000_000)
     assert cost == pytest.approx(30.0)
 
 
@@ -53,12 +51,8 @@ def test_cache_reads_are_cheaper_than_fresh_input() -> None:
 
 def test_sonnet_intro_pricing_expires() -> None:
     """Tanıtım fiyatı maliyet modelini yanıltmasın: tarihe bağlı hesaplanır."""
-    during = estimate_cost_usd(
-        "claude-sonnet-5", input_tokens=1_000_000, on=date(2026, 8, 15)
-    )
-    after = estimate_cost_usd(
-        "claude-sonnet-5", input_tokens=1_000_000, on=date(2026, 9, 1)
-    )
+    during = estimate_cost_usd("claude-sonnet-5", input_tokens=1_000_000, on=date(2026, 8, 15))
+    after = estimate_cost_usd("claude-sonnet-5", input_tokens=1_000_000, on=date(2026, 9, 1))
     assert during == pytest.approx(2.0)
     assert after == pytest.approx(3.0)
 
@@ -180,10 +174,8 @@ def test_extraction_and_generation_use_different_models_and_effort() -> None:
     backend = _FakeBackend()
     client, _ = _client(backend)
 
-    client.complete_json(purpose="claims", system="s", user="u", schema=SCHEMA,
-                         task="extraction")
-    client.complete_json(purpose="draft", system="s", user="u", schema=SCHEMA,
-                         task="generation")
+    client.complete_json(purpose="claims", system="s", user="u", schema=SCHEMA, task="extraction")
+    client.complete_json(purpose="draft", system="s", user="u", schema=SCHEMA, task="generation")
 
     assert backend.calls[0]["model"] == "claude-sonnet-5"
     assert backend.calls[1]["model"] == "claude-opus-5"
@@ -207,9 +199,7 @@ def test_budget_exceeded_prevents_the_call_entirely() -> None:
     s = _settings(llm_daily_budget_usd=0.001)
     ledger = InMemoryLedger()
     ledger.record(CallRecord(purpose="x", model="claude-opus-5", cost_usd=0.002))
-    client = LLMClient(
-        backend=backend, guard=BudgetGuard(ledger=ledger, settings=s), settings=s
-    )
+    client = LLMClient(backend=backend, guard=BudgetGuard(ledger=ledger, settings=s), settings=s)
 
     with pytest.raises(BudgetExceeded):
         client.complete_json(purpose="draft", system="s", user="u", schema=SCHEMA)

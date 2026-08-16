@@ -168,9 +168,7 @@ def stale_events(prompt_version: str = PROMPT_VERSION) -> list[dict[str, Any]]:
         return [dict(r) for r in cur.fetchall()]
 
 
-def reextract(
-    event_ids: list[int], client: Any = None, *, actor: str = "user:admin"
-) -> ClaimStats:
+def reextract(event_ids: list[int], client: Any = None, *, actor: str = "user:admin") -> ClaimStats:
     """Belirtilen olayların iddialarını SİLER ve yeniden çıkarır (B-70).
 
     ⚠ Yıkıcı işlem. Çağıran katman onay almalıdır; `scripts/ingest.py`
@@ -304,7 +302,8 @@ def _persist(
                     claim.claim_text,
                     claim.claim_type,
                     json.dumps(claim.normalized_value, ensure_ascii=False)
-                    if claim.normalized_value else None,
+                    if claim.normalized_value
+                    else None,
                     # Başlangıç durumu: kanıt motoru henüz koşmadı. `unverified`
                     # güvenli varsayılandır — R0'ın tahmin kısıtıyla da uyumlu,
                     # ve DB CHECK'i ihlal etmez.
@@ -424,7 +423,7 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                         event_id=event_id,
                         articles=len(articles),
                         hint="Metinde çıkarılabilir iddia yok. Olaya yeni "
-                             "makale katılmadıkça yeniden denenmeyecek.",
+                        "makale katılmadıkça yeniden denenmeyecek.",
                     )
 
             stats.events_processed += 1

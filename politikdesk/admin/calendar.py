@@ -117,15 +117,14 @@ def calendar_dashboard() -> str:
             token, label = _STATUS.get(r["status"], ("neutral", r["status"]))
             event_id = r.get("linked_event_id")
             linked = (
-                f'<a href="/event/{event_id}">'
-                f'{esc((r.get("linked_event_title") or "")[:50])}</a>'
+                f'<a href="/event/{event_id}">{esc((r.get("linked_event_title") or "")[:50])}</a>'
                 if event_id
                 else '<span class="subtle">—</span>'
             )
             out.append(
                 "<tr>"
                 + cell(
-                    f'{esc(fmt.date_time(r["expected_at"]))}'
+                    f"{esc(fmt.date_time(r['expected_at']))}"
                     f'<div class="cell-sub">{relative_time(r["expected_at"])}</div>',
                     label="Beklenen zaman",
                 )
@@ -134,16 +133,18 @@ def calendar_dashboard() -> str:
                     f'<span class="mono subtle">{esc(r["source_slug"] or "—")}</span>',
                     label="Kaynak",
                 )
-                + cell(f'<span class="badge {token}">{esc(label)}</span>',
-                       label="Durum")
+                + cell(f'<span class="badge {token}">{esc(label)}</span>', label="Durum")
                 + cell(linked, label="Bağlanan olay")
                 + "</tr>"
             )
         return out
 
     headers = (
-        ("Beklenen zaman", ""), ("Başlık", ""), ("Kaynak", ""),
-        ("Durum", ""), ("Bağlanan olay", ""),
+        ("Beklenen zaman", ""),
+        ("Başlık", ""),
+        ("Kaynak", ""),
+        ("Durum", ""),
+        ("Bağlanan olay", ""),
     )
 
     if items:
@@ -159,9 +160,7 @@ def calendar_dashboard() -> str:
             title=f"Sırada · {len(upcoming)}",
         )
         past_card = (
-            card(table(headers, build_rows(past)), title=f"Geçmiş · {len(past)}")
-            if past
-            else ""
+            card(table(headers, build_rows(past)), title=f"Geçmiş · {len(past)}") if past else ""
         )
     else:
         upcoming_card = card(
@@ -178,13 +177,14 @@ def calendar_dashboard() -> str:
         past_card = ""
 
     body = f"""
-{page_head(
-    "Beklenen gelişmeler",
-    lede="Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. "
-         "Gerçekleşen olay otomatik bağlanır (F2-19).",
-    actions=button("Eşleştirmeyi çalıştır", icon_name="refresh",
-                   onclick="pdMatch()"),
-)}
+{
+        page_head(
+            "Beklenen gelişmeler",
+            lede="Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. "
+            "Gerçekleşen olay otomatik bağlanır (F2-19).",
+            actions=button("Eşleştirmeyi çalıştır", icon_name="refresh", onclick="pdMatch()"),
+        )
+    }
 <div class="stack">
   <div class="kpis">
     {kpi("Sırada", fmt.number(len(upcoming)), unit="kayıt", icon_name="calendar")}

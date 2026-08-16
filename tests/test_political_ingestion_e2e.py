@@ -79,7 +79,9 @@ def test_cumhurbaskanligi_to_normalized_article_pipeline() -> None:
     )
 
     norm = normalize(raw)
-    assert norm.canonical_url == "https://tccb.gov.tr/basin-aciklamalari/ust-kademe-atama-kararnamesi"
+    assert (
+        norm.canonical_url == "https://tccb.gov.tr/basin-aciklamalari/ust-kademe-atama-kararnamesi"
+    )
     assert "Atama Kararnamesi" in norm.title
 
 

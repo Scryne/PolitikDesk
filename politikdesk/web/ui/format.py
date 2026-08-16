@@ -34,12 +34,32 @@ from typing import Any
 # Türkçe kısa ay adları. `%b` locale'e bağlıdır ve konteynerde İngilizce
 # döner — bu yüzden tablo elle tutulur.
 MONTHS_SHORT: tuple[str, ...] = (
-    "Oca", "Şub", "Mar", "Nis", "May", "Haz",
-    "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara",
+    "Oca",
+    "Şub",
+    "Mar",
+    "Nis",
+    "May",
+    "Haz",
+    "Tem",
+    "Ağu",
+    "Eyl",
+    "Eki",
+    "Kas",
+    "Ara",
 )
 MONTHS_LONG: tuple[str, ...] = (
-    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+    "Ocak",
+    "Şubat",
+    "Mart",
+    "Nisan",
+    "Mayıs",
+    "Haziran",
+    "Temmuz",
+    "Ağustos",
+    "Eylül",
+    "Ekim",
+    "Kasım",
+    "Aralık",
 )
 DAYS_SHORT: tuple[str, ...] = ("Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz")
 

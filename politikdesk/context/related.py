@@ -48,6 +48,7 @@ log = get_logger(__name__)
 # Tarihsel bağlam penceresi: bir yıllık seri + revizyonlar için pay.
 LOOKBACK_DAYS = 400
 
+
 # Kümeleme eşiğinden AYRI ve daha yüksektir: burada aranan "aynı olay"
 # değil "aynı dizinin başka halkası"dır ve yanlış bağlantı, olay
 # sayfasında alakasız bir "geçmiş" göstermek demektir.
@@ -74,6 +75,7 @@ def same_thread_min_similarity() -> float:
     from politikdesk.config import get_settings
 
     return get_settings().cluster_t_high
+
 
 # Bir olaya bağlanacak azami geçmiş olay. Olay sayfasında 5'ten fazla
 # tarihsel bağlam okunabilirliği düşürür.
@@ -139,8 +141,16 @@ def find_related(
             ORDER BY e.centroid_embedding <=> %s::vector
             LIMIT %s
             """,
-            (source["c"], event_id, source["vertical"], source["first_reported_at"],
-             source["first_reported_at"], lookback_days, source["c"], limit * 3),
+            (
+                source["c"],
+                event_id,
+                source["vertical"],
+                source["first_reported_at"],
+                source["first_reported_at"],
+                lookback_days,
+                source["c"],
+                limit * 3,
+            ),
         )
         candidates = [dict(r) for r in cur.fetchall()]
 

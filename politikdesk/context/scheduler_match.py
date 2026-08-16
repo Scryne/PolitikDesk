@@ -50,9 +50,7 @@ class ScheduledEvent:
     linked_event_id: int | None
 
 
-def list_scheduled(
-    *, upcoming_only: bool = False, limit: int = 100
-) -> list[dict[str, Any]]:
+def list_scheduled(*, upcoming_only: bool = False, limit: int = 100) -> list[dict[str, Any]]:
     """Takvim kayıtları (F2-18 admin ekranının veri kaynağı)."""
     where = "WHERE se.expected_at > now()" if upcoming_only else ""
     with connection() as conn, conn.cursor() as cur:
@@ -74,7 +72,10 @@ def list_scheduled(
 
 
 def add_scheduled(
-    *, title: str, expected_at: Any, source_slug: str | None = None,
+    *,
+    title: str,
+    expected_at: Any,
+    source_slug: str | None = None,
     vertical: str = "macro_economy",
 ) -> int:
     """Takvime elle giriş (F2-18)."""
@@ -140,9 +141,16 @@ def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
                 ORDER BY delta
                 LIMIT 1
                 """,
-                (item["expected_at"], item["vertical"],
-                 item["expected_at"], window, item["expected_at"], window,
-                 item["source_id"], item["source_id"]),
+                (
+                    item["expected_at"],
+                    item["vertical"],
+                    item["expected_at"],
+                    window,
+                    item["expected_at"],
+                    window,
+                    item["source_id"],
+                    item["source_id"],
+                ),
             )
             hit = cur.fetchone()
             if hit is None:
@@ -159,7 +167,8 @@ def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
             matched += 1
             log.info(
                 "scheduled_event_matched",
-                scheduled_id=item["id"], event_id=hit["id"],
+                scheduled_id=item["id"],
+                event_id=hit["id"],
                 delta_seconds=int(hit["delta"]),
             )
         conn.commit()

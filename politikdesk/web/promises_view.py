@@ -66,13 +66,11 @@ def promises_page() -> HTMLResponse:
     else:
         for p in promises:
             badge = _status_badge(p["outcome_relation"], p["evidence_status"])
-            link_style = (
-                "color: var(--pd-color-accent); text-decoration: none; font-weight: 500;"
-            )
-            reported_date = esc(p['first_reported_at'][:10])
-            speaker_esc = esc(p['speaker'])
-            title_esc = esc(p['event_title'])
-            claim_esc = esc(p['claim_text'])
+            link_style = "color: var(--pd-color-accent); text-decoration: none; font-weight: 500;"
+            reported_date = esc(p["first_reported_at"][:10])
+            speaker_esc = esc(p["speaker"])
+            title_esc = esc(p["event_title"])
+            claim_esc = esc(p["claim_text"])
             claim_div_style = (
                 "font-size: 0.85rem; color: var(--pd-color-muted); margin-top: 0.25rem;"
             )
@@ -80,7 +78,7 @@ def promises_page() -> HTMLResponse:
                 <tr>
                     <td style="font-weight: 500;">{speaker_esc}</td>
                     <td>
-                        <a href="/events/{p['event_id']}" style="{link_style}">
+                        <a href="/events/{p["event_id"]}" style="{link_style}">
                             {title_esc}
                         </a>
                         <div style="{claim_div_style}">
@@ -104,8 +102,6 @@ def promises_page() -> HTMLResponse:
 
             """)
 
-
-
     disc_style = (
         "background: var(--pd-color-bg-subtle); "
         "border-left: 4px solid var(--pd-color-accent); "
@@ -117,7 +113,6 @@ def promises_page() -> HTMLResponse:
         <strong>Epistemik & Hukuki Çekince:</strong> {esc(LEGAL_DISCLAIMER)}
     </div>
     """
-
 
     content = f"""
     <div class="pd-stack pd-stack--lg">
@@ -136,7 +131,7 @@ def promises_page() -> HTMLResponse:
                     </tr>
                 </thead>
                 <tbody>
-                    {''.join(rows_html)}
+                    {"".join(rows_html)}
                 </tbody>
             </table>
         </div>

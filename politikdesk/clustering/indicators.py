@@ -48,8 +48,11 @@ INDICATOR_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
     "house_sales": ("konut satis",),
     "current_account": ("cari islemler", "cari acik", "cari denge", "cari fazla"),
     "policy_rate": (
-        "politika faizi", "faiz karari", "faiz oranlarina iliskin",
-        "para politikasi kurulu", "haftalik repo",
+        "politika faizi",
+        "faiz karari",
+        "faiz oranlarina iliskin",
+        "para politikasi kurulu",
+        "haftalik repo",
     ),
     "retail_sales": ("perakende satis",),
     "capacity_utilization": ("kapasite kullanim",),

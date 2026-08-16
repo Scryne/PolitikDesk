@@ -71,7 +71,9 @@ def test_b46_in_scope_macro_economy_retained(title: str, summary: str, expected_
     assert not is_non_event(title, summary)
     topics = classify(title, summary)
     assert in_scope(title, summary)
-    assert expected_topic in topics, f"'{title}' için '{expected_topic}' konusu atanmalıydı, çıkan: {topics}"
+    assert expected_topic in topics, (
+        f"'{title}' için '{expected_topic}' konusu atanmalıydı, çıkan: {topics}"
+    )
 
 
 # ===========================================================================
@@ -111,8 +113,14 @@ def test_b46_foreign_macro_news_isolated(title: str, summary: str) -> None:
     ("title", "summary"),
     [
         ("Dolar bugün ne kadar oldu? Güncel döviz kurları", "Canlı dolar kuru ve euro fiyatları"),
-        ("Gram altın kaç TL oldu? Kapalıçarşı güncel altın fiyatları", "Çeyrek altın alış satış fiyatı"),
-        ("Merkez Bankası faiz kararı ne zaman açıklanacak?", "PPK toplantı takvimi ve saat detayları"),
+        (
+            "Gram altın kaç TL oldu? Kapalıçarşı güncel altın fiyatları",
+            "Çeyrek altın alış satış fiyatı",
+        ),
+        (
+            "Merkez Bankası faiz kararı ne zaman açıklanacak?",
+            "PPK toplantı takvimi ve saat detayları",
+        ),
     ],
 )
 def test_b46_non_event_price_checks_filtered(title: str, summary: str) -> None:
@@ -127,8 +135,14 @@ def test_b46_non_event_price_checks_filtered(title: str, summary: str) -> None:
 @pytest.mark.parametrize(
     ("title", "summary"),
     [
-        ("Süper Lig'de derbi heyecanı: Fenerbahçe Beşiktaş maç sonucu", "Karşılaşmada atılan goller"),
-        ("Sinemaseverler müjde: Yeni film festivali başlıyor", "Vizyona girecek filmler ve konserler"),
+        (
+            "Süper Lig'de derbi heyecanı: Fenerbahçe Beşiktaş maç sonucu",
+            "Karşılaşmada atılan goller",
+        ),
+        (
+            "Sinemaseverler müjde: Yeni film festivali başlıyor",
+            "Vizyona girecek filmler ve konserler",
+        ),
     ],
 )
 def test_b46_out_of_scope_sports_and_entertainment_filtered(title: str, summary: str) -> None:

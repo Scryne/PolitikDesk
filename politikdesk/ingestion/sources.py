@@ -53,17 +53,15 @@ class SourceConfig:
             "sayistay",
             "tuik_sdmx",
             "resmi_gazete",
+            "twitter",
         }
         allowed_tos = self.tos_status in {"allowed", "restricted"}
         return allowed_tos and (feed_or_probe or has_custom_adapter)
 
 
-
-
-
-VALID_VERTICALS = {"macro_economy", "legislation"}
-MAX_GLOBAL_SOURCES = 30
-MAX_VERTICAL_SOURCES = 12
+VALID_VERTICALS = {"macro_economy", "legislation", "social"}
+MAX_GLOBAL_SOURCES = 60
+MAX_VERTICAL_SOURCES = 15
 
 
 def load_config(path: Path = CONFIG_PATH) -> tuple[list[SourceConfig], dict[str, Any]]:
@@ -135,6 +133,8 @@ def _infer_adapter(raw: dict[str, Any]) -> str:
         return "sayistay"
     if "cb-" in raw.get("slug", "") or "cumhurbaskanligi" in raw.get("slug", ""):
         return "cumhurbaskanligi"
+    if raw.get("access_method") == "social" or raw.get("slug", "").startswith("x-"):
+        return "twitter"
     return "generic_html"
 
 
@@ -159,7 +159,6 @@ def load_all_configs(config_dir: Path | None = None) -> list[SourceConfig]:
             f"Toplam {len(all_configs)} kaynak tanımlı; "
             f"global azami sınır {MAX_GLOBAL_SOURCES}'dur."
         )
-
 
     return all_configs
 
@@ -191,10 +190,21 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                     ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     """,
                     (
-                        cfg.name, cfg.slug, cfg.tier, cfg.kind, cfg.independence_group,
-                        cfg.access_method, cfg.tos_status, cfg.base_url, cfg.feed_url,
-                        cfg.adapter, cfg.extra_feeds, cfg.keyword_filter, cfg.topics,
-                        cfg.is_wire_reference, cfg.vertical,
+                        cfg.name,
+                        cfg.slug,
+                        cfg.tier,
+                        cfg.kind,
+                        cfg.independence_group,
+                        cfg.access_method,
+                        cfg.tos_status,
+                        cfg.base_url,
+                        cfg.feed_url,
+                        cfg.adapter,
+                        cfg.extra_feeds,
+                        cfg.keyword_filter,
+                        cfg.topics,
+                        cfg.is_wire_reference,
+                        cfg.vertical,
                     ),
                 )
                 inserted += 1
@@ -210,10 +220,20 @@ def sync_to_database(configs: list[SourceConfig] | None = None) -> dict[str, int
                     WHERE slug = %s
                     """,
                     (
-                        cfg.name, cfg.tier, cfg.kind, cfg.independence_group,
-                        cfg.access_method, cfg.base_url, cfg.feed_url, cfg.adapter,
-                        cfg.extra_feeds, cfg.keyword_filter, cfg.topics,
-                        cfg.is_wire_reference, cfg.vertical, cfg.slug,
+                        cfg.name,
+                        cfg.tier,
+                        cfg.kind,
+                        cfg.independence_group,
+                        cfg.access_method,
+                        cfg.base_url,
+                        cfg.feed_url,
+                        cfg.adapter,
+                        cfg.extra_feeds,
+                        cfg.keyword_filter,
+                        cfg.topics,
+                        cfg.is_wire_reference,
+                        cfg.vertical,
+                        cfg.slug,
                     ),
                 )
                 updated += 1

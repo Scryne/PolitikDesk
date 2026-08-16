@@ -102,9 +102,7 @@ def get_db_schema_version() -> str | None:
         from politikdesk.db import connection
 
         with connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1"
-            )
+            cur.execute("SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1")
             row = cur.fetchone()
             if row and "version" in row:
                 return str(row["version"])

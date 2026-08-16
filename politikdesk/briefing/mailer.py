@@ -63,7 +63,10 @@ def _send_smtp(message: EmailMessage, settings: Settings) -> None:
 
 
 def send_notification(
-    *, subject: str, text_body: str, html_body: str = "",
+    *,
+    subject: str,
+    text_body: str,
+    html_body: str = "",
     settings: Settings | None = None,
 ) -> SendResult:
     """Brifing dışı operasyonel bildirim gönderir (F4-07 bütçe alarmı).

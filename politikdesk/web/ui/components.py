@@ -66,7 +66,10 @@ EVENT_STATUS: dict[str, tuple[str, str]] = {
 }
 
 TIER_LABELS: dict[int, str] = {
-    1: "Resmî kaynak", 2: "Ajans", 3: "Yayın", 4: "Sosyal",
+    1: "Resmî kaynak",
+    2: "Ajans",
+    3: "Yayın",
+    4: "Sosyal",
 }
 
 
@@ -78,10 +81,7 @@ def status_badge(status: str, *, size: int = 13) -> str:
     """
     token = STATUS_TOKEN.get(status, "unverified")
     label = STATUS_LABELS.get(status, status)
-    return (
-        f'<span class="badge {token}">{status_icon(status, size)}'
-        f"{esc(label)}</span>"
-    )
+    return f'<span class="badge {token}">{status_icon(status, size)}{esc(label)}</span>'
 
 
 def event_badge(status: str) -> str:
@@ -128,7 +128,7 @@ def card(body: str, *, title: str = "", actions: str = "", cls: str = "") -> str
     if title or actions:
         head = (
             f'<div class="card-head">{f"<h3>{esc(title)}</h3>" if title else ""}'
-            f'{f"<div class=\'actions\'>{actions}</div>" if actions else ""}</div>'
+            f"{f"<div class='actions'>{actions}</div>" if actions else ''}</div>"
         )
     return f'<section class="card {cls}">{head}{body}</section>'
 
@@ -153,9 +153,7 @@ def kpi(
     if delta is not None:
         good = (delta > 0) == higher_is_better
         tone = "flat" if delta == 0 else ("up" if good else "down")
-        arrow = "trend-flat" if delta == 0 else (
-            "trend-up" if delta > 0 else "trend-down"
-        )
+        arrow = "trend-flat" if delta == 0 else ("trend-up" if delta > 0 else "trend-down")
         # Bağlamsız yüzde değersizdir — karşılaştırma dönemi zorunlu.
         note = delta_note or "önceki döneme göre"
         delta_html = (
@@ -219,8 +217,7 @@ def error_state(title: str, body: str, *, retry: str = "", code: str = "") -> st
 def skeleton_rows(count: int = 5, *, height: int = 20) -> str:
     """Yükleniyor (10.3): skeleton, spinner DEĞİL. Gerçek içeriğin şekli."""
     return "".join(
-        f'<div class="skeleton" style="height:{height}px;'
-        f'width:{width}%;margin-bottom:12px"></div>'
+        f'<div class="skeleton" style="height:{height}px;width:{width}%;margin-bottom:12px"></div>'
         for width in ([92, 78, 86, 70, 81] * ((count // 5) + 1))[:count]
     )
 
@@ -235,7 +232,7 @@ def panel(summary: str, body: str, *, open_: bool = False, cls: str = "") -> str
     """
     return (
         f'<details class="panel {cls}"{" open" if open_ else ""}>'
-        f'<summary>{summary}{icon("chevron-right", 14)}</summary>'
+        f"<summary>{summary}{icon('chevron-right', 14)}</summary>"
         f'<div class="panel-body">{body}</div></details>'
     )
 
@@ -268,9 +265,7 @@ def table(
     body = "".join(rows)
     if not body:
         return empty or empty_state("Kayıt yok", "Bu listede henüz kayıt bulunmuyor.")
-    head = "".join(
-        f'<th{_attrs(cls=cls or None)}>{esc(label)}</th>' for label, cls in headers
-    )
+    head = "".join(f"<th{_attrs(cls=cls or None)}>{esc(label)}</th>" for label, cls in headers)
     cls = "table-cards" if cards_on_mobile else ""
     return (
         f'<div class="table-wrap"><table class="{cls}"><thead><tr>{head}</tr>'
@@ -280,14 +275,12 @@ def table(
 
 def cell(content: str, *, label: str, cls: str = "") -> str:
     """`data-label` mobilde kart görünümünde sütun adını basar."""
-    return f'<td{_attrs(cls=cls or None, data_label=label)}>{content}</td>'
+    return f"<td{_attrs(cls=cls or None, data_label=label)}>{content}</td>"
 
 
 def relative_time(value: Any) -> str:
     """Göreli zaman + `title`'da tam tarih (Bölüm 8.3)."""
-    return (
-        f'<span title="{esc(fmt.precise(value))}">{esc(fmt.relative(value))}</span>'
-    )
+    return f'<span title="{esc(fmt.precise(value))}">{esc(fmt.relative(value))}</span>'
 
 
 # ═══════════════════════════════════════ 8.12 sıralı dağılım listesi
@@ -313,11 +306,14 @@ def distribution(items: Sequence[tuple[str, float, str]]) -> str:
 # ═══════════════════════════════════════════ 8.11 segment kontrolü
 def segment(options: Sequence[tuple[str, str, bool]]) -> str:
     """`(etiket, href, aktif mi)`. Sekme DEĞİLDİR — aynı veriyi farklı gösterir."""
-    return '<div class="segment">' + "".join(
-        f'<a href="{esc(href)}"{" aria-current=\"true\"" if active else ""}>'
-        f"{esc(label)}</a>"
-        for label, href, active in options
-    ) + "</div>"
+    return (
+        '<div class="segment">'
+        + "".join(
+            f'<a href="{esc(href)}"{' aria-current="true"' if active else ""}>{esc(label)}</a>'
+            for label, href, active in options
+        )
+        + "</div>"
+    )
 
 
 # ═══════════════════════════════════════════════ 8.5 buton
@@ -350,11 +346,8 @@ def button(
         id=id_,
     )
     if href is not None:
-        return f"<a{common} href=\"{esc(href)}\">{graphic}{text}</a>"
-    return (
-        f"<button{common}{_attrs(onclick=onclick, disabled=disabled)}>"
-        f"{graphic}{text}</button>"
-    )
+        return f'<a{common} href="{esc(href)}">{graphic}{text}</a>'
+    return f"<button{common}{_attrs(onclick=onclick, disabled=disabled)}>{graphic}{text}</button>"
 
 
 def chip(label: str, href: str, *, active: bool = False, icon_name: str | None = None) -> str:
@@ -371,7 +364,8 @@ def timeline(items: Sequence[tuple[str, str]]) -> str:
     """`(zaman metni, gövde HTML)`."""
     if not items:
         return ""
-    return '<ul class="timeline">' + "".join(
-        f'<li><div class="when">{esc(when)}</div>{body}</li>'
-        for when, body in items
-    ) + "</ul>"
+    return (
+        '<ul class="timeline">'
+        + "".join(f'<li><div class="when">{esc(when)}</div>{body}</li>' for when, body in items)
+        + "</ul>"
+    )

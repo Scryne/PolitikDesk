@@ -24,15 +24,16 @@ from politikdesk.observability import configure_logging
 
 
 def cmd_sync() -> int:
-    from politikdesk.ingestion.sources import load_config, sync_to_database
+    from politikdesk.ingestion.sources import load_all_configs, sync_to_database
 
-    configs, meta = load_config()
+    configs = load_all_configs()
     result = sync_to_database(configs)
-    print(f"Kaynak yapilandirmasi v{meta.get('version')} senkronize edildi.")
+    print(f"Toplam {len(configs)} kaynak senkronize edildi.")
     print(f"  eklenen: {result['inserted']}  guncellenen: {result['updated']}")
     for cfg in configs:
         mark = "OK" if cfg.verified else "??"
-        print(f"  [{mark}] {cfg.slug:<14} T{cfg.tier} {cfg.tos_status:<10} {cfg.adapter}")
+        slug_v = f"{cfg.slug:<28} [{cfg.vertical:<11}]"
+        print(f"  [{mark}] {slug_v} T{cfg.tier} {cfg.tos_status:<8} {cfg.adapter}")
     return 0
 
 

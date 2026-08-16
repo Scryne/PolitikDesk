@@ -39,9 +39,7 @@ LONG_TEXT = (
 )
 
 
-def _article(
-    article_id: int, slug: str, tier: int, **over: object
-) -> EvidenceArticle:
+def _article(article_id: int, slug: str, tier: int, **over: object) -> EvidenceArticle:
     base = {
         "article_id": article_id,
         "source_slug": slug,
@@ -58,8 +56,11 @@ def _supports(*articles: EvidenceArticle) -> list[Evidence]:
 
 
 def _claim(**over: object) -> Claim:
-    base = {"claim_id": 1, "claim_text": "Politika faizi yüzde 37'de sabit tutuldu.",
-            "claim_type": "fact"}
+    base = {
+        "claim_id": 1,
+        "claim_text": "Politika faizi yüzde 37'de sabit tutuldu.",
+        "claim_type": "fact",
+    }
     base.update(over)
     return Claim(**base)  # type: ignore[arg-type]
 
@@ -104,9 +105,12 @@ def test_copy_paste_needs_both_signals() -> None:
 
     # Aynı vektör, tamamen farklı ifade -> kopya DEĞİL
     different_wording = _article(
-        3, "c", 3, embedding=vec,
+        3,
+        "c",
+        3,
+        embedding=vec,
         text="Enflasyon raporu bilgilendirme toplantısı istanbul finans merkezinde "
-             "düzenlenecek ve canlı yayımlanacaktır bugün",
+        "düzenlenecek ve canlı yayımlanacaktır bugün",
     )
     assert not is_copy_paste(same_text, different_wording)
 
@@ -118,18 +122,19 @@ def test_copy_paste_ignored_when_embeddings_differ() -> None:
 
 
 def test_independent_sources_count_separately() -> None:
-    articles = [_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2),
-                _article(3, "dunya", 3)]
+    articles = [_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2), _article(3, "dunya", 3)]
     assert independent_count(articles) == 3
 
 
 def test_breakdown_shows_kinds_not_a_single_total() -> None:
     """Spec §8.2: tek bir toplam sayı gösterilmez."""
-    articles = [_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2),
-                _article(3, "dunya", 3), _article(4, "bloomberght", 3)]
-    assert breakdown_by_kind(articles) == {
-        "official": 1, "wire": 1, "media": 2, "social": 0
-    }
+    articles = [
+        _article(1, "tcmb", 1),
+        _article(2, "aa-ekonomi", 2),
+        _article(3, "dunya", 3),
+        _article(4, "bloomberght", 3),
+    ]
+    assert breakdown_by_kind(articles) == {"official": 1, "wire": 1, "media": 2, "social": 0}
 
 
 def test_has_primary_source_requires_tier_one() -> None:
@@ -166,8 +171,7 @@ def test_r0_short_circuits_r1_contradiction() -> None:
 
 def test_r1_contradiction_wins_over_corroboration() -> None:
     evidence = [
-        *_supports(_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2),
-                   _article(3, "dunya", 3)),
+        *_supports(_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2), _article(3, "dunya", 3)),
         Evidence(_article(4, "bloomberght", 3), "contradicts"),
     ]
     result = compute_status(_claim(), evidence)
@@ -197,8 +201,7 @@ def test_r2_needs_primary_source_and_three_independent() -> None:
 
 def test_r2_blocked_by_any_contradiction() -> None:
     evidence = [
-        *_supports(_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2),
-                   _article(3, "dunya", 3)),
+        *_supports(_article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2), _article(3, "dunya", 3)),
         Evidence(_article(4, "sosyal", 4), "contradicts"),
     ]
     # Tier 4 çelişki R1'i tetiklemez ama R2'yi de engellemez (Tier <= 3 şartı)
@@ -209,8 +212,12 @@ def test_r3_official_number_skips_the_three_source_requirement() -> None:
     """TÜİK enflasyon verisini TÜİK açıkladıysa 3 teyit beklemek anlamsız."""
     claim = _claim(
         claim_type="number",
-        normalized_value={"metric": "tufe_monthly", "value": 1.78,
-                          "unit": "%", "period": "2026-07"},
+        normalized_value={
+            "metric": "tufe_monthly",
+            "value": 1.78,
+            "unit": "%",
+            "period": "2026-07",
+        },
         value_verified_against_source=True,
     )
     result = compute_status(claim, _supports(_article(1, "tuik", 1)))
@@ -259,8 +266,10 @@ def test_r6_no_evidence_is_unverified() -> None:
 def test_r7_caps_social_only_evidence_at_single_source() -> None:
     """Sosyal medyada çok tekrar, doğrulama değildir."""
     evidence = _supports(
-        _article(1, "sosyal-a", 4), _article(2, "sosyal-b", 4),
-        _article(3, "sosyal-c", 4), _article(4, "sosyal-d", 4),
+        _article(1, "sosyal-a", 4),
+        _article(2, "sosyal-b", 4),
+        _article(3, "sosyal-c", 4),
+        _article(4, "sosyal-d", 4),
     )
     result = compute_status(_claim(), evidence)
     assert result.status == "single_source"
@@ -288,9 +297,7 @@ def test_r8_attribution_verified_for_official_record() -> None:
 def test_all_nine_rules_are_reachable() -> None:
     """F2-12 / Spec v3.4 DoD: 9 kuralın (R0-R8) her biri için test var."""
     covered = {
-        name.split("_")[1].upper()
-        for name in globals()
-        if re.fullmatch(r"test_r\d+_.*", name)
+        name.split("_")[1].upper() for name in globals() if re.fullmatch(r"test_r\d+_.*", name)
     }
     assert {"R0", "R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"} <= covered
 
@@ -304,8 +311,15 @@ def test_status_reason_is_machine_readable() -> None:
         _article(1, "tcmb", 1), _article(2, "aa-ekonomi", 2), _article(3, "dunya", 3)
     )
     reason = compute_status(_claim(), evidence).as_status_reason()
-    for key in ("rule", "independent_count", "breakdown", "has_primary_source",
-                "contradictions", "computed_at", "engine_version"):
+    for key in (
+        "rule",
+        "independent_count",
+        "breakdown",
+        "has_primary_source",
+        "contradictions",
+        "computed_at",
+        "engine_version",
+    ):
         assert key in reason, f"status_reason'da eksik alan: {key}"
     assert reason["engine_version"] == rules.ENGINE_VERSION
     assert reason["breakdown"] == {"official": 1, "wire": 1, "media": 1, "social": 0}
@@ -322,10 +336,14 @@ def test_status_reason_records_independence_keys() -> None:
 # ==========================================================================
 def _signals(**over: object) -> EventSignals:
     base = {
-        "independent_count": 4, "has_primary_source": True,
-        "articles_in_first_hour": 5, "best_tier": 1, "has_key_entity": True,
+        "independent_count": 4,
+        "has_primary_source": True,
+        "articles_in_first_hour": 5,
+        "best_tier": 1,
+        "has_key_entity": True,
         "evidence_status": "strongly_corroborated",
-        "first_reported_at": NOW - timedelta(hours=1), "now": NOW,
+        "first_reported_at": NOW - timedelta(hours=1),
+        "now": NOW,
     }
     base.update(over)
     return EventSignals(**base)  # type: ignore[arg-type]
@@ -339,17 +357,21 @@ def test_global_salience_never_exceeds_ninety() -> None:
 
 def test_global_salience_is_never_negative() -> None:
     worst = _signals(
-        independent_count=0, has_primary_source=False, articles_in_first_hour=0,
-        best_tier=4, has_key_entity=False, evidence_status="unverified",
-        first_reported_at=NOW - timedelta(days=2), duplicate_suspect=True,
+        independent_count=0,
+        has_primary_source=False,
+        articles_in_first_hour=0,
+        best_tier=4,
+        has_key_entity=False,
+        evidence_status="unverified",
+        first_reported_at=NOW - timedelta(days=2),
+        duplicate_suspect=True,
     )
     assert global_salience(worst).score >= 0
 
 
 def test_penalty_applies_only_to_weak_and_stale_events() -> None:
     fresh = _signals(evidence_status="unverified")
-    stale = _signals(evidence_status="unverified",
-                     first_reported_at=NOW - timedelta(hours=7))
+    stale = _signals(evidence_status="unverified", first_reported_at=NOW - timedelta(hours=7))
     assert "weak_evidence_and_stale" not in global_salience(fresh).penalties
     assert global_salience(stale).penalties["weak_evidence_and_stale"] == 15
     assert global_salience(stale).score < global_salience(fresh).score
@@ -364,8 +386,11 @@ def test_breakdown_is_transparent() -> None:
     """P4: kullanıcı 'neden 84?' sorusunun cevabını görmeli."""
     result = global_salience(_signals())
     assert set(result.components) == {
-        "independent_sources", "primary_source", "velocity",
-        "tier_weight", "key_entity",
+        "independent_sources",
+        "primary_source",
+        "velocity",
+        "tier_weight",
+        "key_entity",
     }
     assert result.as_dict()["range"] == [0, 90]
 
@@ -439,8 +464,18 @@ def test_salience_has_no_engagement_input() -> None:
     popülerlik sıralayıcısına — dönüşür.
     """
     identifiers = _identifiers(salience)
-    banned = ("like", "retweet", "share", "click", "view_count",
-              "engagement", "begeni", "paylasim", "tiklan", "popular")
+    banned = (
+        "like",
+        "retweet",
+        "share",
+        "click",
+        "view_count",
+        "engagement",
+        "begeni",
+        "paylasim",
+        "tiklan",
+        "popular",
+    )
     hits = [b for b in banned if any(b in name for name in identifiers)]
     assert not hits, f"salience'ta yasak etkileşim girdisi: {hits}"
 
@@ -470,7 +505,8 @@ def test_evidence_modules_do_not_import_llm(module) -> None:  # noqa: ANN001
             imported.add(node.module)
 
     forbidden = [
-        name for name in imported
+        name
+        for name in imported
         if name.startswith("politikdesk.llm") or name.split(".")[0] == "anthropic"
     ]
     assert not forbidden, (

@@ -19,6 +19,7 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
+
 def _visible(alias: str = "e") -> str:
     """Feed'de gösterilecek olayların koşulu.
 
@@ -26,10 +27,7 @@ def _visible(alias: str = "e") -> str:
     reddedilmiş olay. `needs_review` GÖSTERİLİR ama rozetiyle —
     belirsizliği gizlemek P4'e aykırıdır.
     """
-    return (
-        f"{alias}.merged_into_id IS NULL "
-        f"AND COALESCE({alias}.review_flag,'') <> 'rejected'"
-    )
+    return f"{alias}.merged_into_id IS NULL AND COALESCE({alias}.review_flag,'') <> 'rejected'"
 
 
 _VISIBLE = _visible()
@@ -113,7 +111,7 @@ def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[
 
 
 def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
-    """"Sen yokken ne oldu" şeridi (F3-18).
+    """ "Sen yokken ne oldu" şeridi (F3-18).
 
     Tek satır: son girişten bu yana N önemli olay. Eşik salience 30'dur —
     her yeni olayı "önemli" saymak şeridi gürültüye çevirirdi.
@@ -242,15 +240,12 @@ def event_page(event_id: int, user_id: int) -> dict[str, Any] | None:
 
         # --- açık geri bildirim (F3-21)
         cur.execute(
-            "SELECT count(*) AS n FROM event_feedback "
-            "WHERE event_id = %s AND resolved_at IS NULL",
+            "SELECT count(*) AS n FROM event_feedback WHERE event_id = %s AND resolved_at IS NULL",
             (event_id,),
         )
         feedback_row = cur.fetchone()
 
-    personal = personal_adjustment(
-        list(event["topic_tags"] or []), _topic_priorities(user_id)
-    )
+    personal = personal_adjustment(list(event["topic_tags"] or []), _topic_priorities(user_id))
     event["global_salience"] = int(event["salience_score"] or 0)
     event["personal_salience"] = personal
     event["displayed_salience"] = event["global_salience"] + personal
@@ -269,7 +264,7 @@ def event_page(event_id: int, user_id: int) -> dict[str, Any] | None:
 def add_feedback(
     *, event_id: int, user_id: int, note: str | None = None, claim_id: int | None = None
 ) -> dict[str, Any]:
-    """"Bu yanlış" işareti (F3-21).
+    """ "Bu yanlış" işareti (F3-21).
 
     İki şey yapar: olayı **insan denetim kuyruğuna** düşürür ve
     `correction_rate` metriğini besler. Bir "güvenilirlik skoru"
@@ -283,8 +278,13 @@ def add_feedback(
             INSERT INTO event_feedback (event_id, user_id, note, claim_id, scope)
             VALUES (%s, %s, %s, %s, %s) RETURNING id
             """,
-            (event_id, user_id, (note or "")[:500] or None, claim_id,
-             "claim" if claim_id else "event"),
+            (
+                event_id,
+                user_id,
+                (note or "")[:500] or None,
+                claim_id,
+                "claim" if claim_id else "event",
+            ),
         )
         feedback_id = int(fetch_one(cur)["id"])
 
@@ -299,17 +299,17 @@ def add_feedback(
             INSERT INTO audit_log (actor, action, target, payload)
             VALUES (%s, 'event_flagged_by_user', %s, %s::jsonb)
             """,
-            (f"user:{user_id}", f"events/{event_id}",
-             f'{{"feedback_id": {feedback_id}}}'),
+            (f"user:{user_id}", f"events/{event_id}", f'{{"feedback_id": {feedback_id}}}'),
         )
         conn.commit()
 
     from politikdesk import metrics
 
     metrics.record(
-        "event_flagged", 1.0, user_id=user_id,
+        "event_flagged",
+        1.0,
+        user_id=user_id,
         dimensions={"event_id": event_id, "feedback_id": int(feedback_id)},
     )
     log.info("event_feedback", event_id=event_id, feedback_id=int(feedback_id))
-    return {"feedback_id": int(feedback_id), "event_id": event_id,
-            "review_flag": "needs_review"}
+    return {"feedback_id": int(feedback_id), "event_id": event_id, "review_flag": "needs_review"}

@@ -28,8 +28,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$BackupTask  = 'PolitikDesk-GunlukYedek'
-$HealthTask  = 'PolitikDesk-SaglikNobeti'
+$BackupTask   = 'PolitikDesk-GunlukYedek'
+$HealthTask   = 'PolitikDesk-SaglikNobeti'
+$SnapshotTask = 'PolitikDesk-G4Snapshot'
 
 function Get-PythonPath {
     $venv = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
@@ -85,6 +86,20 @@ function Install-Tasks {
         -Force | Out-Null
     Write-Host "[OK] '$HealthTask' kuruldu - 6 saatte bir"
 
+    # --- G4' Gunluk Snapshot: her gun 23:55 ---
+    # 23:50 metrik rollup sonrasi gunluk olcumleri docs/G4-SNAPSHOTS.md'e yazar ve git'e isler.
+    $snapshotAction = New-ScheduledTaskAction -Execute $python `
+        -Argument "-m scripts.g4_snapshot --git-commit" -WorkingDirectory $ProjectRoot
+    $snapshotTrigger = New-ScheduledTaskTrigger -Daily -At 23:55
+
+    Register-ScheduledTask -TaskName $SnapshotTask `
+        -Action $snapshotAction `
+        -Trigger $snapshotTrigger `
+        -Settings $settings `
+        -Description 'PolitikDesk G4 gunluk snapshot kaydi (G4-1)' `
+        -Force | Out-Null
+    Write-Host "[OK] '$SnapshotTask' kuruldu - her gun 23:55"
+
     Write-Host ""
     Write-Host "Docker Desktop'in acilista baslamasi da gerekir:"
     Write-Host "  Docker Desktop > Settings > General >"
@@ -92,7 +107,7 @@ function Install-Tasks {
 }
 
 function Remove-Tasks {
-    foreach ($name in @($BackupTask, $HealthTask)) {
+    foreach ($name in @($BackupTask, $HealthTask, $SnapshotTask)) {
         if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $name -Confirm:$false
             Write-Host "[OK] '$name' kaldirildi"
@@ -103,7 +118,7 @@ function Remove-Tasks {
 }
 
 function Show-Status {
-    foreach ($name in @($BackupTask, $HealthTask)) {
+    foreach ($name in @($BackupTask, $HealthTask, $SnapshotTask)) {
         $task = Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
         if ($task) {
             $info = Get-ScheduledTaskInfo -TaskName $name

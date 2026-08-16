@@ -14,85 +14,33 @@ kullanıcı girdisi alan ilk uç burasıdır, korumasız bırakılamaz).
 
 from __future__ import annotations
 
-import ipaddress
-import socket
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlparse
 
-from politikdesk.ingestion.http import HttpClient
+from politikdesk.ingestion.http import (
+    HttpClient,
+    UnsafeUrlError,
+    validate_url,
+)
 from politikdesk.ingestion.models import RawItem
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
 # Sosyal platformlar Tier 4'e düşer (Spec §9.1); R7 gereği asla 🟢 olamaz.
-SOCIAL_HOSTS = frozenset({
-    "x.com", "twitter.com", "mobile.twitter.com", "nitter.net",
-    "bsky.app", "threads.net", "mastodon.social",
-})
-
-_ALLOWED_SCHEMES = frozenset({"http", "https"})
-
-
-class UnsafeUrlError(ValueError):
-    """URL güvenli değil (iç ağ, desteklenmeyen şema, çözülemeyen host)."""
-
+SOCIAL_HOSTS = frozenset(
+    {
+        "x.com",
+        "twitter.com",
+        "mobile.twitter.com",
+        "nitter.net",
+        "bsky.app",
+        "threads.net",
+        "mastodon.social",
+    }
+)
 
 MAX_REDIRECTS = 3
-
-
-def validate_url(url: str, *, resolve_dns: bool = True) -> str:
-    """SSRF koruması: yalnızca genel internet adreslerine izin verir."""
-    parsed = urlparse(url.strip())
-
-    if parsed.scheme not in _ALLOWED_SCHEMES:
-        raise UnsafeUrlError(f"Desteklenmeyen şema: {parsed.scheme!r}")
-    if not parsed.hostname:
-        raise UnsafeUrlError("URL'de host yok")
-
-    host = parsed.hostname.lower().strip("[]")
-    if (
-        host in {"localhost", "localhost.localdomain", "0.0.0.0", "127.0.0.1", "::1"}
-        or host.endswith(".local")
-        or host.endswith(".internal")
-        or host.endswith(".corp")
-        or host.endswith(".lan")
-    ):
-        raise UnsafeUrlError(f"Yerel/özel adrese erişilemez: {host}")
-
-    # Doğrudan IP verilmişse
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        ip = None
-
-    if ip is not None and _is_private(ip):
-        raise UnsafeUrlError(f"Özel/ayrılmış IP adresine erişilemez: {host}")
-
-    if resolve_dns and ip is None:
-        try:
-            infos = socket.getaddrinfo(host, None)
-        except socket.gaierror as exc:
-            raise UnsafeUrlError(f"Host çözümlenemedi: {host}") from exc
-        for info in infos:
-            resolved = ipaddress.ip_address(info[4][0])
-            if _is_private(resolved):
-                raise UnsafeUrlError(
-                    f"Host özel bir adrese çözümleniyor: {host} -> {resolved}"
-                )
-
-    return url.strip()
-
-
-def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
 
 
 class _MetaParser(HTMLParser):
@@ -131,12 +79,12 @@ def parse_metadata(html: str) -> dict[str, str]:
     meta = parser.meta
 
     return {
-        "title": (
-            meta.get("og:title") or meta.get("twitter:title") or parser.title or ""
-        ).strip(),
+        "title": (meta.get("og:title") or meta.get("twitter:title") or parser.title or "").strip(),
         "description": (
-            meta.get("og:description") or meta.get("twitter:description")
-            or meta.get("description") or ""
+            meta.get("og:description")
+            or meta.get("twitter:description")
+            or meta.get("description")
+            or ""
         ).strip(),
         "published_at": (
             meta.get("article:published_time") or meta.get("og:updated_time") or ""
@@ -164,9 +112,7 @@ class ManualImportAdapter:
 
         # Güvenli adım-adım yönlendirme doğrulaması (SSRF bypass savunması)
         for _ in range(MAX_REDIRECTS + 1):
-            response = self.http.get(
-                current_url, source_slug="manual", follow_redirects=False
-            )
+            response = self.http.get(current_url, source_slug="manual", follow_redirects=False)
             if response.status_code in (301, 302, 303, 307, 308):
                 location = response.headers.get("Location")
                 if not location:

@@ -84,7 +84,6 @@ def run_s2_gate() -> S2GateReport:
             )
         )
 
-
     # 2. Mypy Typecheck
     try:
         res = subprocess.run(["uv", "run", "mypy"], capture_output=True, text=True, check=False)

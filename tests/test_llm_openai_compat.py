@@ -183,9 +183,7 @@ def test_unsupported_json_mode_downgrades_and_is_remembered(
         return httpx.Response(
             200,
             json={
-                "choices": [
-                    {"message": {"content": '{"claims": []}'}, "finish_reason": "stop"}
-                ],
+                "choices": [{"message": {"content": '{"claims": []}'}, "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 2},
             },
         )
@@ -265,9 +263,7 @@ def test_transient_503_is_retried_and_then_succeeds(
         return httpx.Response(
             200,
             json={
-                "choices": [
-                    {"message": {"content": '{"claims": []}'}, "finish_reason": "stop"}
-                ],
+                "choices": [{"message": {"content": '{"claims": []}'}, "finish_reason": "stop"}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 2},
             },
         )
@@ -398,9 +394,7 @@ def test_free_tier_costs_zero_but_tokens_are_still_recorded(
         settings=settings,
     )
 
-    result = client.complete_json(
-        purpose="claim_extraction", system="s", user="u", schema=SCHEMA
-    )
+    result = client.complete_json(purpose="claim_extraction", system="s", user="u", schema=SCHEMA)
 
     assert result.data == {"claims": []}
     assert result.model == MODEL

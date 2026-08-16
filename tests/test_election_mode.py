@@ -65,9 +65,14 @@ def test_flag_rejects_everything_else(monkeypatch, value) -> None:  # noqa: ANN0
 # ===================================================== eşikler sıkılaşıyor
 def _article(article_id: int, tier: int, slug: str) -> EvidenceArticle:
     return EvidenceArticle(
-        article_id=article_id, source_slug=slug, tier=tier, kind="media",
-        independence_group=f"grp{article_id}", simhash=article_id,
-        embedding=[], text=f"metin {article_id}",
+        article_id=article_id,
+        source_slug=slug,
+        tier=tier,
+        kind="media",
+        independence_group=f"grp{article_id}",
+        simhash=article_id,
+        embedding=[],
+        text=f"metin {article_id}",
     )
 
 
@@ -114,24 +119,26 @@ def test_official_number_exception_is_closed_in_election_mode(election_on) -> No
     """R3 tek Tier 1 resmî kaynağa 🟢 verir. Spec §12.6 "🟢 için ≥4"
     diyorsa bu istisna açık kalamaz."""
     claim = Claim(
-        claim_id=2, claim_text="TÜİK enflasyonu %30 açıkladı", claim_type="number",
-        normalized_value={"value": 30}, value_verified_against_source=True,
+        claim_id=2,
+        claim_text="TÜİK enflasyonu %30 açıkladı",
+        claim_type="number",
+        normalized_value={"value": 30},
+        value_verified_against_source=True,
     )
-    evidence = [
-        Evidence(article=_article(0, 1, "tuik"), stance="supports", quote_span="%30")
-    ]
+    evidence = [Evidence(article=_article(0, 1, "tuik"), stance="supports", quote_span="%30")]
     assert compute_status(claim, evidence).status != "strongly_corroborated"
 
 
 def test_official_number_exception_works_in_normal_mode(election_off) -> None:  # noqa: ANN001
     """Ters yön: istisna normal modda çalışmaya devam etmeli."""
     claim = Claim(
-        claim_id=2, claim_text="TÜİK enflasyonu %30 açıkladı", claim_type="number",
-        normalized_value={"value": 30}, value_verified_against_source=True,
+        claim_id=2,
+        claim_text="TÜİK enflasyonu %30 açıkladı",
+        claim_type="number",
+        normalized_value={"value": 30},
+        value_verified_against_source=True,
     )
-    evidence = [
-        Evidence(article=_article(0, 1, "tuik"), stance="supports", quote_span="%30")
-    ]
+    evidence = [Evidence(article=_article(0, 1, "tuik"), stance="supports", quote_span="%30")]
     result = compute_status(claim, evidence)
     assert result.status == "strongly_corroborated"
     assert result.rule == "R3"

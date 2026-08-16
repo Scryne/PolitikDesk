@@ -54,8 +54,9 @@ class _FakeHttp:
     calls: list[str] = field(default_factory=list)
     fail: bool = False
 
-    def get(self, url: str, *, headers: dict[str, str] | None = None,
-            source_slug: str = "") -> _FakeResponse:
+    def get(
+        self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = ""
+    ) -> _FakeResponse:
         self.calls.append(url)
         if self.fail:
             raise TimeoutError("okuma zaman asimi")
@@ -127,9 +128,7 @@ def test_days_back_queries_previous_day_too() -> None:
 
 def test_same_item_is_not_returned_twice_across_days() -> None:
     """İki gün aynı HTML'i döndürse bile kalem TEK kez üretilir."""
-    items = ResmiGazeteAdapter(
-        "resmi-gazete", base_url=BASE, http=_FakeHttp(), days_back=1
-    ).fetch()
+    items = ResmiGazeteAdapter("resmi-gazete", base_url=BASE, http=_FakeHttp(), days_back=1).fetch()
     assert len(items) == len({i.url for i in items})
 
 
@@ -320,6 +319,3 @@ def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
     assert len(failures) == 1
     assert "ReadTimeout" in failures[0]
     assert today_str in failures[0]
-
-
-

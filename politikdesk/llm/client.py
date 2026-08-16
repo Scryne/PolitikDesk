@@ -248,14 +248,17 @@ class _OpenAICompatBackend:
             raise LLMNotConfigured(var)
         return key
 
-    def _post_with_retry(
-        self, url: str, headers: dict[str, str], payload: dict[str, Any]
-    ) -> Any:
+    def _post_with_retry(self, url: str, headers: dict[str, str], payload: dict[str, Any]) -> Any:
         """Geçici sunucu hatalarında üstel geri çekilmeyle yeniden dener.
 
         Yalnızca GEÇİCİ durumlar yeniden denenir. 400/404/422 lehçe
         sorunudur ve tekrar denemek düzeltmez — onları çağıran katmandaki
         düşüş merdiveni ele alır.
+
+        D03 düzeltmesi: tüm denemeler tükendiğinde artık başarısız yanıt
+        döndürülmez, `LLMHTTPError` fırlatılır. Eski davranış çağıranın
+        durum kodunu yeniden kontrol etmesine bağlıydı; yeni çağıranlar
+        bu sözleşmeyi bilmeden hatalı yanıtı geçerli sayabilirdi.
         """
         attempts = max(self._settings.llm_max_retries, 1)
         response: Any = None
@@ -280,7 +283,9 @@ class _OpenAICompatBackend:
             )
             time.sleep(delay)
 
-        return response
+        # D03: tüm denemeler tükendi — başarısız yanıtı sessizce döndürme.
+        assert response is not None
+        raise LLMHTTPError(response.status_code, response.text, url)
 
     # -- istek gövdesi -------------------------------------------------------
     def _payload(
@@ -369,13 +374,18 @@ class _OpenAICompatBackend:
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
         # Merdiven: yapılandırılmış mevcut moddan başlar, aşağı iner.
-        ladder = list(JSON_MODES[JSON_MODES.index(self._mode):])
+        ladder = list(JSON_MODES[JSON_MODES.index(self._mode) :])
         last_error: LLMHTTPError | None = None
 
         for mode in ladder:
             payload = self._payload(
-                mode=mode, model=model, system=system, user=user,
-                schema=schema, effort=effort, max_tokens=max_tokens,
+                mode=mode,
+                model=model,
+                system=system,
+                user=user,
+                schema=schema,
+                effort=effort,
+                max_tokens=max_tokens,
             )
             response = self._post_with_retry(url, headers, payload)
 

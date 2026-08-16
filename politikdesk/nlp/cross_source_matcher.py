@@ -12,13 +12,50 @@ from typing import Any
 
 from politikdesk.nlp.claims import ExtractedClaim, fold_text
 
-TURKISH_STOPWORDS: frozenset[str] = frozenset({
-    "ve", "veya", "ile", "de", "da", "ki", "bir", "bu", "su", "o", "icin",
-    "olarak", "gore", "tarafindan", "dair", "gibi", "kadar", "olan", "oldugu",
-    "etti", "ettigini", "acikladi", "bildirdi", "duyurdu", "belirtti", "aktardi",
-    "soyledi", "yapti", "oldu", "ise", "daha", "en", "cok", "az", "sonra",
-    "once", "ayni", "seviyesinde", "duzeyinde", "oraninda",
-})
+TURKISH_STOPWORDS: frozenset[str] = frozenset(
+    {
+        "ve",
+        "veya",
+        "ile",
+        "de",
+        "da",
+        "ki",
+        "bir",
+        "bu",
+        "su",
+        "o",
+        "icin",
+        "olarak",
+        "gore",
+        "tarafindan",
+        "dair",
+        "gibi",
+        "kadar",
+        "olan",
+        "oldugu",
+        "etti",
+        "ettigini",
+        "acikladi",
+        "bildirdi",
+        "duyurdu",
+        "belirtti",
+        "aktardi",
+        "soyledi",
+        "yapti",
+        "oldu",
+        "ise",
+        "daha",
+        "en",
+        "cok",
+        "az",
+        "sonra",
+        "once",
+        "ayni",
+        "seviyesinde",
+        "duzeyinde",
+        "oraninda",
+    }
+)
 
 INSTITUTION_ALIASES: dict[str, str] = {
     "merkez bankasi": "tcmb",
@@ -29,26 +66,74 @@ INSTITUTION_ALIASES: dict[str, str] = {
     "hazine ve maliye bakanligi": "hazine",
 }
 
-_NEGATION_WORDS: frozenset[str] = frozenset({
-    "degil", "yok", "olmadi", "gerceklesmedi", "artmadi", "azalmadi", "dusmedi",
-})
+_NEGATION_WORDS: frozenset[str] = frozenset(
+    {
+        "degil",
+        "yok",
+        "olmadi",
+        "gerceklesmedi",
+        "artmadi",
+        "azalmadi",
+        "dusmedi",
+    }
+)
 
 _COMMON_SUFFIXES: tuple[str, ...] = (
-    "lerden", "lardan", "lerine", "larina", "lerinde", "larinda",
-    "lerini", "larini", "lerin", "larin", "lerle", "larla",
-    "sinden", "sindan", "sinde", "sinda", "sini", "sina", "sine",
-    "inden", "indan", "unden",
-    "inde", "inda", "unde", "unda",
-    "leri", "lari", "lerle", "larla",
-    "den", "dan", "ten", "tan",
-    "nin", "nun", "nun",
-    "in", "un",
-    "ye", "ya", "ne", "na",
-    "de", "da", "te", "ta",
-    "yi", "yu",
-    "i", "u",
-    "si", "su",
-    "ce", "ca",
+    "lerden",
+    "lardan",
+    "lerine",
+    "larina",
+    "lerinde",
+    "larinda",
+    "lerini",
+    "larini",
+    "lerin",
+    "larin",
+    "lerle",
+    "larla",
+    "sinden",
+    "sindan",
+    "sinde",
+    "sinda",
+    "sini",
+    "sina",
+    "sine",
+    "inden",
+    "indan",
+    "unden",
+    "inde",
+    "inda",
+    "unde",
+    "unda",
+    "leri",
+    "lari",
+    "lerle",
+    "larla",
+    "den",
+    "dan",
+    "ten",
+    "tan",
+    "nin",
+    "nun",
+    "nun",
+    "in",
+    "un",
+    "ye",
+    "ya",
+    "ne",
+    "na",
+    "de",
+    "da",
+    "te",
+    "ta",
+    "yi",
+    "yu",
+    "i",
+    "u",
+    "si",
+    "su",
+    "ce",
+    "ca",
 )
 
 
@@ -57,7 +142,7 @@ def _stem_turkish(word: str) -> str:
         return word
     for suff in _COMMON_SUFFIXES:
         if word.endswith(suff) and len(word) - len(suff) >= 3:
-            return word[:-len(suff)]
+            return word[: -len(suff)]
     return word
 
 
@@ -143,9 +228,11 @@ def match_and_group_claims(
             if not any(aid == article_id for aid, _ in sources):
                 sources.append((article_id, claim.quote_span))
         else:
-            groups.append({
-                "representative": claim,
-                "sources": [(article_id, claim.quote_span)],
-            })
+            groups.append(
+                {
+                    "representative": claim,
+                    "sources": [(article_id, claim.quote_span)],
+                }
+            )
 
     return [(g["representative"], g["sources"]) for g in groups]

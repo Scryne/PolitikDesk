@@ -41,13 +41,14 @@ class SourceRow:
     topics: list[str]
     is_active: bool
     is_wire_reference: bool
+    vertical: str = "macro_economy"
 
 
 def list_sources(*, only_active: bool = True) -> list[SourceRow]:
     sql = """
         SELECT id, slug, name, tier, kind, independence_group, access_method,
                tos_status, adapter, base_url, feed_url, extra_feeds,
-               keyword_filter, topics, is_active, is_wire_reference
+               keyword_filter, topics, is_active, is_wire_reference, vertical
         FROM sources
     """
     if only_active:
@@ -65,7 +66,7 @@ def get_source(slug: str) -> SourceRow | None:
             """
             SELECT id, slug, name, tier, kind, independence_group, access_method,
                    tos_status, adapter, base_url, feed_url, extra_feeds,
-                   keyword_filter, topics, is_active, is_wire_reference
+                   keyword_filter, topics, is_active, is_wire_reference, vertical
             FROM sources WHERE slug = %s
             """,
             (slug,),
@@ -86,8 +87,7 @@ class DedupWindow:
     simhashes: list[tuple[int, int]]
     texts: dict[int, str]
 
-    def remember(self, article_id: int, content_hash: str, simhash: int,
-                 text: str) -> None:
+    def remember(self, article_id: int, content_hash: str, simhash: int, text: str) -> None:
         """Aynı tur içinde eklenen makaleler de karşılaştırmaya girsin."""
         self.hashes[content_hash] = article_id
         self.simhashes.append((article_id, simhash))
@@ -141,19 +141,31 @@ def insert_article(
                 source_id, canonical_url, title, excerpt, lead_paragraph,
                 published_at, content_hash, simhash, lang, raw_purge_at,
                 near_duplicate_of_id, simhash_distance, independence_key,
-                topics, is_manual_import, official_value
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)
+                topics, is_manual_import, official_value, vertical
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
             ON CONFLICT (canonical_url) DO NOTHING
             RETURNING id
             """,
             (
-                source_id, article.canonical_url, article.title, article.excerpt,
-                article.lead_paragraph, article.published_at, article.content_hash,
-                _to_signed_bigint(article.simhash), article.lang, article.raw_purge_at,
-                near_duplicate_of_id, simhash_distance, independence_key,
-                list(article.topics), is_manual_import,
+                source_id,
+                article.canonical_url,
+                article.title,
+                article.excerpt,
+                article.lead_paragraph,
+                article.published_at,
+                article.content_hash,
+                _to_signed_bigint(article.simhash),
+                article.lang,
+                article.raw_purge_at,
+                near_duplicate_of_id,
+                simhash_distance,
+                independence_key,
+                list(article.topics),
+                is_manual_import,
                 json.dumps(article.official_value, ensure_ascii=False)
-                if article.official_value else None,
+                if article.official_value
+                else None,
+                article.vertical,
             ),
         )
         row = cur.fetchone()
@@ -204,8 +216,17 @@ def record_fetch(
                 exact_dupes, near_dupes, filtered_out, succeeded, error
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
-            (source_id, duration_ms, items_fetched, items_stored, exact_dupes,
-             near_dupes, filtered_out, error is None, logged_error),
+            (
+                source_id,
+                duration_ms,
+                items_fetched,
+                items_stored,
+                exact_dupes,
+                near_dupes,
+                filtered_out,
+                error is None,
+                logged_error,
+            ),
         )
 
         if error is None and items_fetched > 0:
@@ -283,11 +304,13 @@ def health_report(stale_after_hours: int = 6) -> list[dict[str, Any]]:
         else:
             status = "green"
 
-        report.append({
-            **row,
-            "hours_since_success": round(hours_since, 1) if hours_since else None,
-            "status": status,
-        })
+        report.append(
+            {
+                **row,
+                "hours_since_success": round(hours_since, 1) if hours_since else None,
+                "status": status,
+            }
+        )
     return report
 
 

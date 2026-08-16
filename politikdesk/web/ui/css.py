@@ -91,8 +91,15 @@ def _vars(palette: dict[str, str]) -> str:
 
 def _static_vars() -> str:
     """Temaya göre değişmeyen token'lar."""
-    parts = [_vars(SPACE), _vars(RADIUS), _vars(SHADOW), _vars(FONT),
-             _vars(WEIGHT), _vars(LAYOUT), _vars(MOTION)]
+    parts = [
+        _vars(SPACE),
+        _vars(RADIUS),
+        _vars(SHADOW),
+        _vars(FONT),
+        _vars(WEIGHT),
+        _vars(LAYOUT),
+        _vars(MOTION),
+    ]
     for name, (size, line, tracking) in TEXT.items():
         parts.append(f"--{name}:{size};--{name}-lh:{line};--{name}-ls:{tracking};")
     return "".join(parts)
@@ -428,7 +435,7 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 .btn.ghost:hover:not(:disabled){{background:var(--color-surface-sunken);
   color:var(--color-fg)}}
 .btn.danger{{background:var(--color-contra);border-color:var(--color-contra);
-  color:#FFF}}
+  color:var(--color-fg-on-accent)}}
 .btn.sm{{height:32px;padding:0 10px;font-size:var(--text-sm)}}
 .btn.icon{{width:var(--control-h);padding:0;flex:none}}
 .btn.icon.sm{{width:32px}}

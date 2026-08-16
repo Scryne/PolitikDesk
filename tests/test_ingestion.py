@@ -34,6 +34,7 @@ from politikdesk.ingestion.dedup import (
     ngram_set,
     tokenize,
 )
+from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.independence import (
     ArticleFingerprint,
     breakdown_by_kind,
@@ -127,8 +128,7 @@ def test_rss_adapter_skips_unresolvable_relative_link() -> None:
 
 def test_rss_adapter_resolves_relative_links() -> None:
     """TCMB göreli yol döndürür; base_url ile mutlaklaştırılmalı."""
-    adapter = RssAdapter("tcmb", "https://ornek.test/rss",
-                         base_url="https://www.tcmb.gov.tr")
+    adapter = RssAdapter("tcmb", "https://ornek.test/rss", base_url="https://www.tcmb.gov.tr")
     items = adapter.parse(RSS_SAMPLE)
     assert len(items) == 2
     assert items[1].url == "https://www.tcmb.gov.tr/wps/goreli/yol/2"
@@ -149,6 +149,7 @@ def test_rss_adapter_raises_on_malformed_xml() -> None:
 
 def test_rss_adapter_does_not_crash_on_bad_feed() -> None:
     """DoD: hatalı feed'de çökmüyor, loglayıp geçiyor."""
+
     class _BoomHttp:
         def get(self, url: str, *, source_slug: str = "") -> object:
             raise ConnectionError("ag hatasi")
@@ -251,6 +252,151 @@ def test_manual_import_accepts_public_url() -> None:
     assert validate_url("https://ornek.test/haber", resolve_dns=False)
 
 
+def test_http_client_centralized_ssrf_enforcement() -> None:
+    """IMP-02: HttpClient genel dış isteklerde SSRF korumasını merkezi olarak zorlar."""
+    client = HttpClient(max_retries=1, respect_robots=False)
+
+    unsafe_targets = [
+        "http://127.0.0.1:8000/api",
+        "http://localhost/admin",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://10.20.30.40/secret",
+        "http://192.168.0.1/router",
+        "http://[::1]:8080/",
+        "gopher://127.0.0.1:6379/_flushall",
+    ]
+
+    for target in unsafe_targets:
+        with pytest.raises(UnsafeUrlError):
+            client.get(target)
+
+
+def test_rate_limiter_redis_atomic_lua_coordination() -> None:
+    """NEW-02 / IMP-01: RateLimiter Redis istemcisi varsa atomik Lua scripti kullanır."""
+    from unittest.mock import MagicMock
+
+    from politikdesk.ingestion.http import RateLimiter
+
+    mock_redis = MagicMock()
+    # Lua script [allowed (1), wait_time (0.0)] döner
+    mock_redis.eval.return_value = [1, 0.0]
+
+    limiter = RateLimiter(max_per_minute=10, redis_client=mock_redis)
+    waited = limiter.acquire("api.tccb.gov.tr")
+
+    assert waited == 0.0
+    mock_redis.eval.assert_called_once()
+    args = mock_redis.eval.call_args[0]
+    assert "ZREMRANGEBYSCORE" in args[0]
+    assert "ZCARD" in args[0]
+    assert "ZADD" in args[0]
+    assert args[2] == "pd:ratelimit:api.tccb.gov.tr"
+
+
+def test_rate_limiter_redis_error_falls_back_to_memory() -> None:
+    """NEW-02: Redis bağlantısı koptuğunda RateLimiter in-memory mekanizmasına güvenli geri çekilir."""
+    from unittest.mock import MagicMock
+
+    from politikdesk.ingestion.http import RateLimiter
+
+    mock_redis = MagicMock()
+    mock_redis.eval.side_effect = ConnectionError("Redis down")
+
+    limiter = RateLimiter(max_per_minute=5, redis_client=mock_redis)
+    waited = limiter.acquire("resmigazete.gov.tr")
+
+    assert waited == 0.0
+    assert len(limiter._hits["resmigazete.gov.tr"]) == 1
+
+
+def test_rate_limiter_atomic_concurrency_simulation() -> None:
+    """NEW-02: Eşzamanlı worker senaryosunda atomik Redis yürütümü rate limit aşımını engeller."""
+    import concurrent.futures
+    import threading
+    import time
+
+    from politikdesk.ingestion.http import RateLimiter
+
+    class FakeAtomicRedis:
+        def __init__(self) -> None:
+            self._lock = threading.Lock()
+            self._entries: dict[str, list[tuple[float, str]]] = {}
+
+        def eval(
+            self,
+            script: str,
+            numkeys: int,
+            key: str,
+            now_str: str,
+            limit_str: str,
+            member: str,
+            window_str: str,
+            ttl_str: str,
+        ) -> list[int | float]:
+            with self._lock:
+                now = float(now_str)
+                limit = int(limit_str)
+                window = float(window_str)
+                lst = self._entries.setdefault(key, [])
+                lst[:] = [(ts, m) for ts, m in lst if ts > now - window]
+                if len(lst) < limit:
+                    lst.append((now, member))
+                    return [1, 0.0]
+                oldest_ts = lst[0][0] if lst else now - window
+                return [0, max(0.01, window - (now - oldest_ts) + 0.01)]
+
+    fake_redis = FakeAtomicRedis()
+    limiter = RateLimiter(max_per_minute=5, redis_client=fake_redis)
+
+    def worker_attempt() -> int:
+        now_val = time.time()
+        member_val = f"worker_{time.monotonic()}"
+        res = fake_redis.eval(
+            "", 1, "pd:ratelimit:shared.gov.tr", str(now_val), "5", member_val, "60.0", "65"
+        )
+        return int(res[0])
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(worker_attempt) for _ in range(10)]
+        outcomes = [f.result() for f in futures]
+
+    admitted = sum(1 for o in outcomes if o == 1)
+    rejected = sum(1 for o in outcomes if o == 0)
+
+    assert admitted == 5
+    assert rejected == 5
+    assert limiter.max_per_minute == 5
+
+
+def test_robots_cache_redis_caching() -> None:
+    """IMP-01: RobotsCache Redis varsa önbelleğe alır ve oradan okur."""
+    from unittest.mock import MagicMock
+
+    from politikdesk.ingestion.http import RobotsCache
+
+    mock_client = MagicMock()
+    mock_redis = MagicMock()
+    mock_redis.get.return_value = "User-agent: *\nDisallow: /gizli\n"
+
+    cache = RobotsCache(mock_client, redis_client=mock_redis)
+    allowed = cache.allowed("https://ornek.gov.tr/kamu")
+    disallowed = cache.allowed("https://ornek.gov.tr/gizli")
+
+    assert allowed is True
+    assert disallowed is False
+    # Redis'te bulunduğu için mock_client.get çağrılmamalı
+    mock_client.get.assert_not_called()
+
+
+def test_topic_patterns_cached_per_vertical() -> None:
+    """IMP-03: Dikey konu regex kalıpları lru_cache ile önbelleklenir."""
+    from politikdesk.ingestion.topics import _get_vertical_patterns
+
+    p1 = _get_vertical_patterns("legislation")
+    p2 = _get_vertical_patterns("legislation")
+    assert p1 is p2  # Aynı sözlük ve derlenmiş pattern nesnesi
+
+
 def test_social_links_route_to_tier4() -> None:
     """Spec §9.4: X içeriği Tier 4'e düşer, R7 tavanına tabidir."""
     assert is_social("https://x.com/kullanici/status/123")
@@ -313,8 +459,10 @@ def test_guard_rejects_unknown_status() -> None:
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        ("https://ornek.test/haber?utm_source=twitter&utm_medium=social",
-         "https://ornek.test/haber"),
+        (
+            "https://ornek.test/haber?utm_source=twitter&utm_medium=social",
+            "https://ornek.test/haber",
+        ),
         ("https://www.ornek.test/haber/", "https://ornek.test/haber"),
         ("https://ORNEK.test/Haber#bolum", "https://ornek.test/Haber"),
         ("https://ornek.test/h?fbclid=abc&id=5", "https://ornek.test/h?id=5"),
@@ -368,8 +516,9 @@ def test_normalize_sets_purge_deadline_at_30_days() -> None:
     """Spec §9.3: gövde azami 30 gün saklanır."""
     now = datetime(2026, 8, 12, tzinfo=UTC)
     article = normalize(
-        RawItem(source_slug="aa", url="https://ornek.test/a", title="Enflasyon",
-                summary="TUFE verisi"),
+        RawItem(
+            source_slug="aa", url="https://ornek.test/a", title="Enflasyon", summary="TUFE verisi"
+        ),
         now=now,
     )
     assert article.raw_purge_at == now + timedelta(days=RAW_RETENTION_DAYS)
@@ -377,8 +526,9 @@ def test_normalize_sets_purge_deadline_at_30_days() -> None:
 
 def test_normalize_omits_excerpt_for_restricted_source() -> None:
     article = normalize(
-        RawItem(source_slug="x", url="https://ornek.test/a", title="Baslik",
-                summary="Uzun ozet metni"),
+        RawItem(
+            source_slug="x", url="https://ornek.test/a", title="Baslik", summary="Uzun ozet metni"
+        ),
         store_excerpt=False,
     )
     assert article.excerpt is None
@@ -387,8 +537,12 @@ def test_normalize_omits_excerpt_for_restricted_source() -> None:
 
 def test_normalize_converts_naive_datetime_to_utc() -> None:
     article = normalize(
-        RawItem(source_slug="x", url="https://ornek.test/a", title="B",
-                published_at=datetime(2026, 8, 12, 10, 0)),
+        RawItem(
+            source_slug="x",
+            url="https://ornek.test/a",
+            title="B",
+            published_at=datetime(2026, 8, 12, 10, 0),
+        ),
     )
     assert article.published_at is not None
     assert article.published_at.tzinfo is UTC
@@ -406,8 +560,10 @@ def test_content_hash_is_case_insensitive() -> None:
 def test_exact_duplicate_is_not_stored() -> None:
     """F1-10 DoD: aynı içerik iki kez gelirse ikinci kayıt oluşmuyor."""
     verdict = classify(
-        "hash-a", 123,
-        existing_hashes={"hash-a": 7}, existing_simhashes=[(7, 123)],
+        "hash-a",
+        123,
+        existing_hashes={"hash-a": 7},
+        existing_simhashes=[(7, 123)],
     )
     assert verdict.kind == "exact"
     assert verdict.should_store is False
@@ -442,8 +598,10 @@ def test_simhash_detects_wire_copy() -> None:
     )
     # Spec §8.2 iki sinyal tanımlar; kısa metinde simhash tek başına yetmez.
     assert is_near_duplicate(
-        compute_simhash(original), compute_simhash(copy),
-        text_a=original, text_b=copy,
+        compute_simhash(original),
+        compute_simhash(copy),
+        text_a=original,
+        text_b=copy,
     ), "Ajans kopyası her iki sinyalle de yakalanamadı"
 
 
@@ -485,8 +643,10 @@ def test_near_duplicate_is_stored_but_flagged() -> None:
     text = "TCMB faizi sabit tuttu enflasyon gorunumu degismedi karar metni"
     simhash = compute_simhash(text)
     verdict = classify(
-        "farkli-hash", simhash,
-        existing_hashes={}, existing_simhashes=[(3, simhash)],
+        "farkli-hash",
+        simhash,
+        existing_hashes={},
+        existing_simhashes=[(3, simhash)],
     )
     assert verdict.kind == "near"
     assert verdict.should_store is True
@@ -529,9 +689,13 @@ def test_wire_copy_collapses_into_wire_group() -> None:
 
     wire = _fp(1, "aa-ekonomi", "wire-aa", "wire", simhash)
     copier = _fp(2, "kopyaci", None, "media", simhash)
-    original = _fp(3, "ozgun", None, "media", compute_simhash(
-        "Hazine eurobond ihracina cikti talep guclu geldi yatirimci ilgisi"
-    ))
+    original = _fp(
+        3,
+        "ozgun",
+        None,
+        "media",
+        compute_simhash("Hazine eurobond ihracina cikti talep guclu geldi yatirimci ilgisi"),
+    )
 
     assert independence_key(copier, wire_articles=[wire]) == "wire:aa-ekonomi"
     assert count_independent([wire, copier, original]) == 2
@@ -545,9 +709,7 @@ def test_breakdown_by_kind_matches_ui_contract() -> None:
         _fp(3, "dunya", "media-dunya", "media"),
         _fp(4, "bloomberght", "media-bloomberght", "media"),
     ]
-    assert breakdown_by_kind(articles) == {
-        "official": 1, "wire": 1, "media": 2, "social": 0
-    }
+    assert breakdown_by_kind(articles) == {"official": 1, "wire": 1, "media": 2, "social": 0}
 
 
 # ---------------------------------------------------------------- konu
@@ -643,18 +805,19 @@ def test_short_abbreviations_do_not_fake_turkey_context() -> None:
 
 def test_country_neutral_phrases_do_not_fake_turkey_context() -> None:
     """'ABD merkez bankasının' ifadesi Türkiye bağlamı sayılmamalı."""
-    assert topics.classify(
-        "Fed yetkililerinden şahin açıklamalar",
-        "Minneapolis Fed Başkanı Neel Kashkari, ABD merkez bankasının faiz "
-        "oranlarını kademeli artırması gerektiğini söyledi.",
-    ) == ()
+    assert (
+        topics.classify(
+            "Fed yetkililerinden şahin açıklamalar",
+            "Minneapolis Fed Başkanı Neel Kashkari, ABD merkez bankasının faiz "
+            "oranlarını kademeli artırması gerektiğini söyledi.",
+        )
+        == ()
+    )
 
 
 def test_turkish_central_bank_without_explicit_country_stays_in_scope() -> None:
     """Yabancı sinyal yoksa 'Merkez Bankası' Türkiye varsayılır."""
-    assert "politika_faizi" in topics.classify(
-        "Merkez Bankası faiz kararını açıkladı"
-    )
+    assert "politika_faizi" in topics.classify("Merkez Bankası faiz kararını açıkladı")
 
 
 # ---------------------------------------------------------------------------
@@ -684,7 +847,8 @@ _WP_PAYLOAD = json.dumps(
 
 def _wp_adapter() -> WordPressRestAdapter:
     return WordPressRestAdapter(
-        "hazine", api_url="https://example.invalid/portal/v2/posts",
+        "hazine",
+        api_url="https://example.invalid/portal/v2/posts",
         base_url="https://www.hmb.gov.tr",
     )
 
@@ -701,9 +865,7 @@ def test_wp_rest_parses_posts() -> None:
 def test_wp_rest_builds_public_url_not_backend_link() -> None:
     """`link` alanı api.hmb.gov.tr'yi gösterir; kullanıcı onu açamaz."""
     item = _wp_adapter().parse(_WP_PAYLOAD)[0]
-    assert item.url == (
-        "https://www.hmb.gov.tr/duyuru/agustos-ekim-2026-ic-borclanma-stratejisi"
-    )
+    assert item.url == ("https://www.hmb.gov.tr/duyuru/agustos-ekim-2026-ic-borclanma-stratejisi")
     assert "api.hmb.gov.tr" not in item.url
 
 

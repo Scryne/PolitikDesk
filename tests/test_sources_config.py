@@ -210,21 +210,22 @@ def test_load_all_configs_loads_both_verticals() -> None:
 
 
 def test_vertical_source_limit_enforced() -> None:
-    """Spec v3.4 §9.2: Dikey başına azami 12 kaynak sınırı aşılamaz."""
-    from politikdesk.ingestion.sources import load_config
+    """Spec v3.5 §9.2: Dikey başına azami 15 kaynak sınırı aşılamaz."""
+    from politikdesk.ingestion.sources import MAX_VERTICAL_SOURCES, load_config
 
     leg_path = Path(__file__).resolve().parent.parent / "config" / "sources_legislation.yml"
     if leg_path.is_file():
         cfgs, _ = load_config(leg_path)
-        assert len(cfgs) <= 12
+        assert len(cfgs) <= MAX_VERTICAL_SOURCES == 15
 
 
 def test_global_source_limit_enforced() -> None:
-    """Spec v3.4 §9.2: Toplam azami 30 kaynak sınırı aşılamaz."""
+    """Spec v3.5 §9.2: Toplam azami kaynak sınırı aşılamaz."""
     from politikdesk.ingestion.sources import MAX_GLOBAL_SOURCES, load_all_configs
 
     all_cfgs = load_all_configs()
-    assert len(all_cfgs) <= MAX_GLOBAL_SOURCES == 30
+    assert len(all_cfgs) <= MAX_GLOBAL_SOURCES
+    assert MAX_GLOBAL_SOURCES == 60
 
 
 def test_duplicate_slug_across_verticals_rejected(tmp_path: Path) -> None:
@@ -232,7 +233,8 @@ def test_duplicate_slug_across_verticals_rejected(tmp_path: Path) -> None:
     from politikdesk.ingestion.sources import load_all_configs
 
     f1 = tmp_path / "sources_1.yml"
-    f1.write_text("""
+    f1.write_text(
+        """
 vertical: macro_economy
 max_sources: 12
 sources:
@@ -243,10 +245,13 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: https://test1.com
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     f2 = tmp_path / "sources_2.yml"
-    f2.write_text("""
+    f2.write_text(
+        """
 vertical: legislation
 max_sources: 12
 sources:
@@ -257,10 +262,42 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: https://test2.com
-""", encoding="utf-8")
+""",
+        encoding="utf-8",
+    )
 
     import pytest
 
     with pytest.raises(ValueError, match="çakışan slug"):
         load_all_configs(tmp_path)
 
+
+def test_legislation_sources_configured() -> None:
+    """sources_legislation.yml dosyasındaki tüm medya ve resmi kaynaklar doğrulanmalı."""
+    from politikdesk.ingestion.sources import load_config
+
+    leg_path = Path(__file__).resolve().parent.parent / "config" / "sources_legislation.yml"
+    configs, _ = load_config(leg_path)
+    slugs = {c.slug for c in configs}
+
+    assert "t24-politika" in slugs
+    assert "gazeteduvar-politika" in slugs
+    assert "diken-siyaset" in slugs
+    assert "sozcu-politika" in slugs
+    assert "bbc-turkce" in slugs
+    assert "tbmm" in slugs
+    assert "sayistay" in slugs
+    assert "cb-kararname" in slugs
+
+    # Bağımsızlık grupları ayrışmış olmalı
+    groups = [c.independence_group for c in configs if c.independence_group]
+    assert len(set(groups)) == len(groups)
+
+
+def test_verify_feeds_runner() -> None:
+    """verify_feeds aracı yapılandırma dosyalarını başarıyla denetlemeli."""
+    from scripts.verify_feeds import verify_all_feeds
+
+    # Mock/hızlı çalıştırma testi
+    code = verify_all_feeds(config_file="config/sources_legislation.yml", timeout=3.0, strict=False)
+    assert code == 0

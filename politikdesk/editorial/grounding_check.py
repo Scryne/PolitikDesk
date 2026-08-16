@@ -53,21 +53,27 @@ _MAGNITUDES: Final[dict[str, Decimal]] = {
     "trilyon": Decimal(10) ** 12,
     "katrilyon": Decimal(10) ** 15,
 }
-_MAGNITUDE_RE: Final[re.Pattern[str]] = re.compile(
-    r"^[^\w]{0,3}(" + "|".join(_MAGNITUDES) + r")\b"
-)
+_MAGNITUDE_RE: Final[re.Pattern[str]] = re.compile(r"^[^\w]{0,3}(" + "|".join(_MAGNITUDES) + r")\b")
 
 # --------------------------------------------------------------- tarihler
 _MONTHS_TR: Final[tuple[str, ...]] = (
-    "ocak", "şubat", "mart", "nisan", "mayıs", "haziran",
-    "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık",
+    "ocak",
+    "şubat",
+    "mart",
+    "nisan",
+    "mayıs",
+    "haziran",
+    "temmuz",
+    "ağustos",
+    "eylül",
+    "ekim",
+    "kasım",
+    "aralık",
 )
 # Ay adları KATLANMIŞ biçimde tutulur ("ağustos" -> "agustos"). Elle
 # yazmak yerine `fold_text` ile üretilir: iki farklı katlama tanımı,
 # sessizce eşleşmeyen bir sözlük demektir.
-_MONTH_INDEX: Final[dict[str, int]] = {
-    fold_text(name): i + 1 for i, name in enumerate(_MONTHS_TR)
-}
+_MONTH_INDEX: Final[dict[str, int]] = {fold_text(name): i + 1 for i, name in enumerate(_MONTHS_TR)}
 _MONTH_ALT: Final[str] = "|".join(sorted(_MONTH_INDEX, key=len, reverse=True))
 
 # "12 Ağustos 2026" / "12 ağustosta" / "Ağustos 2026" / "ağustosta"
@@ -87,8 +93,15 @@ _DATE_ISO_RE: Final[re.Pattern[str]] = re.compile(
 _QUARTER_ISO_RE: Final[re.Pattern[str]] = re.compile(r"\b(?P<year>\d{4})-q(?P<q>[1-4])\b")
 _HALF_ISO_RE: Final[re.Pattern[str]] = re.compile(r"\b(?P<year>\d{4})-h(?P<h>[12])\b")
 _ORDINAL_TR: Final[dict[str, int]] = {
-    "birinci": 1, "ilk": 1, "1": 1,
-    "ikinci": 2, "2": 2, "3": 3, "ucuncu": 3, "4": 4, "dorduncu": 4,
+    "birinci": 1,
+    "ilk": 1,
+    "1": 1,
+    "ikinci": 2,
+    "2": 2,
+    "3": 3,
+    "ucuncu": 3,
+    "4": 4,
+    "dorduncu": 4,
 }
 _QUARTER_TR_RE: Final[re.Pattern[str]] = re.compile(
     r"\b(?P<ord>" + "|".join(_ORDINAL_TR) + r")[’'ʼ.]?\w{0,4}\s+ceyre\w*"
@@ -99,9 +112,7 @@ _YEAR_RE: Final[re.Pattern[str]] = re.compile(r"(?:19|20)\d{2}")
 # ---------------------------------------------------------------- alıntı
 # Tırnak biçimleri: düz, tipografik, açılı. Kesme işareti (') KASITLI
 # olarak yok: Türkçede ek ayırıcıdır ("TÜİK'in"), alıntı işareti değil.
-_QUOTE_RE: Final[re.Pattern[str]] = re.compile(
-    r"[\"“”]([^\"“”]{2,300})[\"“”]|«([^»]{2,300})»"
-)
+_QUOTE_RE: Final[re.Pattern[str]] = re.compile(r"[\"“”]([^\"“”]{2,300})[\"“”]|«([^»]{2,300})»")
 # Tek kelimelik "vurgu tırnağı" alıntı sayılmaz: hem yaygın bir üslup
 # aracıdır hem de tek kelime kanıt metninde neredeyse her zaman geçer,
 # yani denetleyici değeri sıfırdır.
@@ -317,7 +328,9 @@ def _date_mentions(text: str) -> list[_DateMention]:
 
     for m in _DATE_ISO_RE.finditer(text):
         _calendar(
-            m.group(0), m.group("year"), int(m.group("month")),
+            m.group(0),
+            m.group("year"),
+            int(m.group("month")),
             int(m.group("day")) if m.group("day") else None,
         )
     for m in _DATE_NUMERIC_RE.finditer(text):
@@ -330,7 +343,9 @@ def _date_mentions(text: str) -> list[_DateMention]:
             continue
         day = int(m.group("day")) if m.group("day") else None
         _calendar(
-            m.group(0).strip(), m.group("year"), named_month,
+            m.group(0).strip(),
+            m.group("year"),
+            named_month,
             day if day and 1 <= day <= 31 else None,
         )
 
@@ -419,9 +434,7 @@ def build_context(
                 numbers.add(parsed)
         dates |= _period_tokens(str(value.get("period") or ""))
 
-    return GroundingContext(
-        haystack=haystack, numbers=frozenset(numbers), dates=frozenset(dates)
-    )
+    return GroundingContext(haystack=haystack, numbers=frozenset(numbers), dates=frozenset(dates))
 
 
 def check(draft_text: str, context: GroundingContext) -> GroundingReport:
@@ -441,9 +454,7 @@ def check(draft_text: str, context: GroundingContext) -> GroundingReport:
 
     for mention in mentions:
         if mention.primary not in context.dates:
-            issues.append(
-                GroundingIssue("date", mention.raw, _snippet(folded, mention.raw))
-            )
+            issues.append(GroundingIssue("date", mention.raw, _snippet(folded, mention.raw)))
 
     # --- sayılar
     numbers = _number_candidates(folded)
@@ -467,9 +478,7 @@ def check(draft_text: str, context: GroundingContext) -> GroundingReport:
     for quote in quotes:
         folded_quote = fold_text(quote)
         if folded_quote not in context.haystack:
-            issues.append(
-                GroundingIssue("quote", quote[:120], _snippet(folded, folded_quote[:40]))
-            )
+            issues.append(GroundingIssue("quote", quote[:120], _snippet(folded, folded_quote[:40])))
 
     return GroundingReport(
         issues=tuple(issues),

@@ -34,25 +34,48 @@ from politikdesk.observability import get_logger
 log = get_logger(__name__)
 
 PROMPT_VERSION = "claims.v3"
-MAX_QUOTE_LEN = 200      # migrations/0001: CONSTRAINT quote_span_len
+MAX_QUOTE_LEN = 200  # migrations/0001: CONSTRAINT quote_span_len
 MAX_CLAIM_LEN = 500
 
 CLAIM_TYPES = ("fact", "number", "attribution", "prediction", "promise")
 
 VALID_METRICS = (
-    "tufe_monthly", "tufe_annual", "ufe_monthly", "ufe_annual",
-    "policy_rate", "overnight_lending_rate", "overnight_borrowing_rate",
-    "unemployment_rate", "employment_rate", "participation_rate",
-    "gdp_growth_annual", "gdp_growth_quarterly", "industrial_production",
-    "current_account_balance", "budget_balance", "trade_balance",
-    "minimum_wage", "public_debt", "reserves", "exchange_rate", "other",
+    "tufe_monthly",
+    "tufe_annual",
+    "ufe_monthly",
+    "ufe_annual",
+    "policy_rate",
+    "overnight_lending_rate",
+    "overnight_borrowing_rate",
+    "unemployment_rate",
+    "employment_rate",
+    "participation_rate",
+    "gdp_growth_annual",
+    "gdp_growth_quarterly",
+    "industrial_production",
+    "current_account_balance",
+    "budget_balance",
+    "trade_balance",
+    "minimum_wage",
+    "public_debt",
+    "reserves",
+    "exchange_rate",
+    "other",
 )
 
 # Modelin ÜRETMESİ YASAK alanlar. Şemada yoklar; burada ikinci savunma
 # hattı olarak da denetlenir (Spec §8.1).
 FORBIDDEN_FIELDS = (
-    "evidence_status", "status", "confidence", "confidence_score",
-    "truth", "is_true", "accuracy", "bias", "sentiment", "political",
+    "evidence_status",
+    "status",
+    "confidence",
+    "confidence_score",
+    "truth",
+    "is_true",
+    "accuracy",
+    "bias",
+    "sentiment",
+    "political",
 )
 
 # ---------------------------------------------------------------- şema
@@ -149,9 +172,7 @@ def validate_claim(raw: dict[str, Any], source_text: str) -> ExtractedClaim:
 
     for banned in FORBIDDEN_FIELDS:
         if banned in raw:
-            problems.append(
-                f"yasak alan '{banned}': kanit durumu LLM ciktisi olamaz (Spec §8.1)"
-            )
+            problems.append(f"yasak alan '{banned}': kanit durumu LLM ciktisi olamaz (Spec §8.1)")
 
     claim_text = (raw.get("claim_text") or "").strip()
     claim_type = raw.get("claim_type")
@@ -357,6 +378,47 @@ YAPMAYACAKLARIN:
 - Metinde olmayan bağlam ekleme.
 - Aynı iddiayı farklı sözcüklerle iki kez çıkarma."""
 
+POLITICAL_PROMPT_VERSION = "claims.siyaset.v1"
+POLITICAL_SYSTEM_PROMPT = """Sen bir haber metninden ATOMİK İDDİALARI çıkaran bir çıkarım aracısın.
+Türkiye siyaset, yasama, meclis ve kamu politikaları gündemi üzerinde çalışıyorsun.
+
+TEMEL KURAL — GROUNDING:
+Yalnızca sana verilen metindeki bilgiyi kullan. Metinde olmayan hiçbir
+olgu, sayı, tarih, isim veya alıntı ekleme. Metinden çıkarılamayan bir
+alan varsa null bırak. Emin değilsen iddiayı hiç çıkarma.
+
+ATOMİK İDDİA NEDİR:
+Tek bir doğrulanabilir önerme veya siyasi beyan.
+  1. (fact)        TBMM Genel Kurulu 9. Yargı Paketini kabul etti.
+  2. (promise)     Genel Başkan Özel ilk 100 günde mülakatı kaldıracaklarını taahhüt etti.
+  3. (attribution) Bakan Yerlikaya organize suç örgütlerine operasyon yapıldığını açıkladı.
+
+İDDİA TİPLERİ — tam olarak biri:
+  fact        Gerçekleşmiş yasama, yargı veya idari olay. "Kanun teklifi kabul edildi."
+  number      Sayısal büyüklük bildiren iddia (ödenek, kadro, ceza, oy).
+  attribution Siyasi aktörün beyanı, eleştirisi veya duruşu. "Lider X politikayı eleştirdi."
+  prediction  Geleceğe dönük genel siyasi tahmin veya seçim öngörüsü.
+  promise     Açık siyasi vaat, hedef veya taahhüt ("yapacağız", "kaldıracağız", "getireceğiz").
+
+SİYASİ VAAT (PROMISE) ÖZEL DİKKAT:
+- Bir aktör geleceğe dönük açık bir taahhütte bulunuyorsa ("seçilince...",
+  "2026 sonuna kadar...", "kanun teklifi vereceğiz") tip 'promise' olmalıdır.
+- Sadece gerçekleşmiş açıklamalar 'attribution', bağlayıcı sözler 'promise'tir.
+
+ALINTI (`quote_span`):
+  Her iddia için metinden EN FAZLA 200 KARAKTER birebir alıntı ver.
+
+YAPMAYACAKLARIN:
+- Yorum katma, tarafsızlığı bozma.
+- İddianın haklılığına dair hüküm verme."""
+
+
+def get_system_prompt(vertical: str = "macro_economy") -> tuple[str, str]:
+    """Dikey için geçerli prompt ve sürüm bilgisini döndürür."""
+    if vertical in {"legislation", "social"}:
+        return POLITICAL_SYSTEM_PROMPT, POLITICAL_PROMPT_VERSION
+    return SYSTEM_PROMPT, PROMPT_VERSION
+
 
 def build_user_prompt(
     *, title: str, excerpt: str, source_name: str, tier: int, published_at: str
@@ -391,6 +453,7 @@ def extract_claims(
     tier: int,
     published_at: str,
     client: Any,
+    vertical: str = "macro_economy",
 ) -> ExtractionResult:
     """Bir makaleden iddiaları çıkarır ve doğrular.
 
@@ -398,22 +461,24 @@ def extract_claims(
     sahte istemci verilir; üretimde `politikdesk.llm.client.LLMClient`.
     """
     source_text = f"{title} {excerpt}"
+    system_prompt, prompt_ver = get_system_prompt(vertical)
 
     result = client.complete_json(
         purpose="claim_extraction",
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         user=build_user_prompt(
-            title=title, excerpt=excerpt, source_name=source_name,
-            tier=tier, published_at=published_at,
+            title=title,
+            excerpt=excerpt,
+            source_name=source_name,
+            tier=tier,
+            published_at=published_at,
         ),
         schema=CLAIMS_SCHEMA,
         task="extraction",
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_ver,
     )
 
-    validated = [
-        validate_claim(raw, source_text) for raw in result.data.get("claims", [])
-    ]
+    validated = [validate_claim(raw, source_text) for raw in result.data.get("claims", [])]
     accepted = dedupe_claims([c for c in validated if c.is_valid])
     rejected = [c for c in validated if not c.is_valid]
 
@@ -428,5 +493,5 @@ def extract_claims(
         claims=accepted,
         rejected=rejected,
         model=result.model,
-        prompt_version=PROMPT_VERSION,
+        prompt_version=prompt_ver,
     )

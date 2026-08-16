@@ -26,22 +26,35 @@ from typing import Final
 # --------------------------------------------------------------------------
 INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     "Türkiye Cumhuriyet Merkez Bankası": (
-        "tcmb", "merkez bankası", "merkez bankasi", "türkiye cumhuriyet merkez bankası",
-        "turkiye cumhuriyet merkez bankasi", "cumhuriyet merkez bankası",
+        "tcmb",
+        "merkez bankası",
+        "merkez bankasi",
+        "türkiye cumhuriyet merkez bankası",
+        "turkiye cumhuriyet merkez bankasi",
+        "cumhuriyet merkez bankası",
         "central bank of the republic of türkiye",
     ),
     "Türkiye İstatistik Kurumu": (
-        "tüik", "tuik", "türkiye istatistik kurumu", "turkiye istatistik kurumu",
-        "istatistik kurumu", "turkstat",
+        "tüik",
+        "tuik",
+        "türkiye istatistik kurumu",
+        "turkiye istatistik kurumu",
+        "istatistik kurumu",
+        "turkstat",
     ),
     "Hazine ve Maliye Bakanlığı": (
-        "hazine ve maliye bakanlığı", "hazine ve maliye bakanligi", "hazine bakanlığı",
-        "hazine", "maliye bakanlığı", "hmb",
+        "hazine ve maliye bakanlığı",
+        "hazine ve maliye bakanligi",
+        "hazine bakanlığı",
+        "hazine",
+        "maliye bakanlığı",
+        "hmb",
     ),
     "Resmî Gazete": ("resmî gazete", "resmi gazete"),
     "Para Politikası Kurulu": ("ppk", "para politikası kurulu", "para politikasi kurulu"),
     "Bankacılık Düzenleme ve Denetleme Kurumu": (
-        "bddk", "bankacılık düzenleme ve denetleme kurumu",
+        "bddk",
+        "bankacılık düzenleme ve denetleme kurumu",
     ),
     "Sermaye Piyasası Kurulu": ("spk", "sermaye piyasası kurulu"),
     "Sosyal Güvenlik Kurumu": ("sgk", "sosyal güvenlik kurumu"),
@@ -69,42 +82,54 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     # düşerse bu kural gevşetilmiş demektir.
     "Ticaret Bakanlığı": ("ticaret bakanlığı", "ticaret bakanligi"),
     "Ulaştırma ve Altyapı Bakanlığı": (
-        "ulaştırma ve altyapı bakanlığı", "ulastirma ve altyapi bakanligi",
+        "ulaştırma ve altyapı bakanlığı",
+        "ulastirma ve altyapi bakanligi",
         "ulaştırma bakanlığı",
     ),
     "Tarım ve Orman Bakanlığı": (
-        "tarım ve orman bakanlığı", "tarim ve orman bakanligi", "tarım bakanlığı",
+        "tarım ve orman bakanlığı",
+        "tarim ve orman bakanligi",
+        "tarım bakanlığı",
     ),
     "Sanayi ve Teknoloji Bakanlığı": (
-        "sanayi ve teknoloji bakanlığı", "sanayi ve teknoloji bakanligi",
+        "sanayi ve teknoloji bakanlığı",
+        "sanayi ve teknoloji bakanligi",
     ),
     "Enerji ve Tabii Kaynaklar Bakanlığı": (
-        "enerji ve tabii kaynaklar bakanlığı", "enerji bakanlığı",
+        "enerji ve tabii kaynaklar bakanlığı",
+        "enerji bakanlığı",
     ),
     "Çalışma ve Sosyal Güvenlik Bakanlığı": (
-        "çalışma ve sosyal güvenlik bakanlığı", "çalışma bakanlığı",
+        "çalışma ve sosyal güvenlik bakanlığı",
+        "çalışma bakanlığı",
     ),
     "Vergi Denetim Kurulu": ("vergi denetim kurulu", "vdk"),
     "Gelir İdaresi Başkanlığı": ("gelir idaresi başkanlığı", "gelir idaresi"),
     "Rekabet Kurumu": ("rekabet kurumu", "rekabet kurulu"),
     "Enerji Piyasası Düzenleme Kurumu": (
-        "epdk", "enerji piyasası düzenleme kurumu",
+        "epdk",
+        "enerji piyasası düzenleme kurumu",
     ),
     "Sigortacılık ve Özel Emeklilik Düzenleme ve Denetleme Kurumu": (
-        "seddk", "sigortacılık ve özel emeklilik düzenleme ve denetleme kurumu",
+        "seddk",
+        "sigortacılık ve özel emeklilik düzenleme ve denetleme kurumu",
     ),
     "Tasarruf Mevduatı Sigorta Fonu": ("tmsf", "tasarruf mevduatı sigorta fonu"),
     "Kamu İhale Kurumu": ("kamu ihale kurumu",),
     "Türkiye Varlık Fonu": ("türkiye varlık fonu", "turkiye varlik fonu"),
     "Türkiye Bilimsel ve Teknolojik Araştırma Kurumu": (
-        "tübitak", "tubitak", "türkiye bilimsel ve teknolojik araştırma kurumu",
+        "tübitak",
+        "tubitak",
+        "türkiye bilimsel ve teknolojik araştırma kurumu",
     ),
     "Küçük ve Orta Ölçekli İşletmeleri Geliştirme İdaresi": (
-        "kosgeb", "küçük ve orta ölçekli işletmeleri geliştirme idaresi",
+        "kosgeb",
+        "küçük ve orta ölçekli işletmeleri geliştirme idaresi",
     ),
     "Türkiye İhracatçılar Meclisi": ("türkiye ihracatçılar meclisi",),
     "Türkiye Odalar ve Borsalar Birliği": (
-        "tobb", "türkiye odalar ve borsalar birliği",
+        "tobb",
+        "türkiye odalar ve borsalar birliği",
     ),
     "Türkiye Bankalar Birliği": ("türkiye bankalar birliği",),
     "Ziraat Bankası": ("ziraat bankası", "ziraat bankasi", "t.c. ziraat bankası"),
@@ -112,14 +137,14 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     "Türkiye Vakıflar Bankası": ("vakıfbank", "vakifbank", "türkiye vakıflar bankası"),
     "Türkiye İş Bankası": ("türkiye iş bankası", "iş bankası"),
     "Türk Eximbank": ("eximbank", "türk eximbank"),
-    "Türkiye Kalkınma ve Yatırım Bankası": (
-        "türkiye kalkınma ve yatırım bankası",
-    ),
+    "Türkiye Kalkınma ve Yatırım Bankası": ("türkiye kalkınma ve yatırım bankası",),
     "Ekonomik İşbirliği ve Kalkınma Örgütü": (
-        "oecd", "ekonomik işbirliği ve kalkınma örgütü",
+        "oecd",
+        "ekonomik işbirliği ve kalkınma örgütü",
     ),
     "Avrupa İmar ve Kalkınma Bankası": (
-        "ebrd", "avrupa imar ve kalkınma bankası",
+        "ebrd",
+        "avrupa imar ve kalkınma bankası",
     ),
     "Dünya Ticaret Örgütü": ("dünya ticaret örgütü", "world trade organization"),
     # --- Yasama, Yargı ve Siyaset Kurumları (Spec v3.4 §5) ---
@@ -128,22 +153,60 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     "Yargıtay": ("yargıtay", "yargitay", "yargıtay cumhuriyet başsavcılığı"),
     "Danıştay": ("danıştay", "danistay"),
     "Hâkimler ve Savcılar Kurulu": (
-        "hsk", "hâkimler ve savcılar kurulu", "hakimler ve savcilar kurulu",
+        "hsk",
+        "hâkimler ve savcılar kurulu",
+        "hakimler ve savcilar kurulu",
     ),
     "Yüksek Seçim Kurulu": ("ysk", "yüksek seçim kurulu", "yuksek secim kurulu"),
     "Adalet Bakanlığı": ("adalet bakanlığı", "adalet bakanligi"),
     "İçişleri Bakanlığı": ("içişleri bakanlığı", "icisleri bakanligi"),
     "Dışişleri Bakanlığı": ("dışişleri bakanlığı", "disisleri bakanligi"),
     "Millî Savunma Bakanlığı": ("millî savunma bakanlığı", "milli savunma bakanlığı", "msb"),
+    "Millî Eğitim Bakanlığı": ("millî eğitim bakanlığı", "milli egitim bakanligi", "meb"),
+    "Sağlık Bakanlığı": ("sağlık bakanlığı", "saglik bakanligi"),
+    "Kültür ve Turizm Bakanlığı": ("kültür ve turizm bakanlığı", "kultur ve turizm bakanligi"),
+    "Aile ve Sosyal Hizmetler Bakanlığı": (
+        "aile ve sosyal hizmetler bakanlığı",
+        "aile bakanlığı",
+    ),
+    "Gençlik ve Spor Bakanlığı": ("gençlik ve spor bakanlığı", "genclik ve spor bakanligi"),
+    "Çevre, Şehircilik ve İklim Değişikliği Bakanlığı": (
+        "çevre, şehircilik ve iklim değişikliği bakanlığı",
+        "çevre ve şehircilik bakanlığı",
+        "çevre bakanlığı",
+    ),
     "İletişim Başkanlığı": ("iletişim başkanlığı", "iletisim baskanligi"),
+    "Millî İstihbarat Teşkilatı": (
+        "millî istihbarat teşkilatı",
+        "mit",
+        "milli istihbarat teskilati",
+    ),
     "Radyo ve Televizyon Üst Kurulu": ("rtük", "rtuk", "radyo ve televizyon üst kurulu"),
     "Bilgi Teknolojileri ve İletişim Kurumu": ("btk", "bilgi teknolojileri ve iletişim kurumu"),
+    "Kamu Denetçiliği Kurumu": ("kamu denetçiliği kurumu", "ombudsmanlık", "kdk"),
+    "Diyanet İşleri Başkanlığı": ("diyanet işleri başkanlığı", "diyanet"),
+    "Savunma Sanayii Başkanlığı": ("savunma sanayii başkanlığı", "ssb"),
+    "Millî Güvenlik Kurulu": ("millî güvenlik kurulu", "mgk", "milli guvenlik kurulu"),
+    # --- TBMM İhtisas Komisyonları ---
+    "TBMM Plan ve Bütçe Komisyonu": ("plan ve bütçe komisyonu", "plan butce komisyonu"),
+    "TBMM Anayasa Komisyonu": ("anayasa komisyonu",),
+    "TBMM Adalet Komisyonu": ("adalet komisyonu",),
+    "TBMM Millî Savunma Komisyonu": ("millî savunma komisyonu", "milli savunma komisyonu"),
+    "TBMM Dışişleri Komisyonu": ("dışişleri komisyonu", "disisleri komisyonu"),
+    "TBMM İnsan Haklarını İnceleme Komisyonu": (
+        "insan haklarını inceleme komisyonu",
+        "insan hakları komisyonu",
+    ),
+    "TBMM KİT Komisyonu": ("kit komisyonu", "kamu iktisadi teşebbüsleri komisyonu"),
+    "TBMM Güvenlik ve İstihbarat Komisyonu": ("güvenlik ve istihbarat komisyonu",),
     # --- Siyasi Partiler ---
     "Adalet ve Kalkınma Partisi": ("ak parti", "akp", "adalet ve kalkınma partisi"),
     "Cumhuriyet Halk Partisi": ("chp", "cumhuriyet halk partisi"),
     "Milliyetçi Hareket Partisi": ("mhp", "milliyetçi hareket partisi"),
     "Halkların Eşitlik ve Demokrasi Partisi": (
-        "dem parti", "dem", "halkların eşitlik ve demokrasi partisi",
+        "dem parti",
+        "dem",
+        "halkların eşitlik ve demokrasi partisi",
     ),
     "İYİ Parti": ("iyi parti", "i̇yi parti"),
     "Saadet Partisi": ("saadet partisi", "saadet"),
@@ -152,49 +215,400 @@ INSTITUTIONS: Final[dict[str, tuple[str, ...]]] = {
     "Türkiye İşçi Partisi": ("tip", "türkiye işçi partisi", "turkiye isci partisi"),
     "Yeniden Refah Partisi": ("yrp", "yeniden refah partisi", "yeniden refah"),
     "Zafer Partisi": ("zafer partisi",),
+    "Demokrat Parti": ("demokrat parti", "demokrat partisi"),
+    "Demokratik Sol Parti": ("demokratik sol parti", "dsp"),
+    "Hür Dava Partisi": ("hür dava partisi", "hüda par", "huda par"),
+    "Büyük Birlik Partisi": ("büyük birlik partisi", "bbp"),
+    "Memleket Partisi": ("memleket partisi",),
+    "Vatan Partisi": ("vatan partisi",),
+}
+
+# --------------------------------------------------------------------------
+# Siyasi Aktörler Kataloğu: Kanonik Kişi Adı -> Alias'lar (Spec v3.5 §5)
+# --------------------------------------------------------------------------
+POLITICAL_ACTORS: Final[dict[str, tuple[str, ...]]] = {
+    # --- Parti Liderleri ve Genel Başkanlar ---
+    "Recep Tayyip Erdoğan": (
+        "recep tayyip erdoğan",
+        "recep tayyip erdogan",
+        "tayyip erdoğan",
+        "tayyip erdogan",
+        "cumhurbaşkanı erdoğan",
+        "cumhurbaskani erdogan",
+        "cumhurbaşkanı recep tayyip erdoğan",
+        "erdoğan",
+        "erdogan",
+    ),
+    "Özgür Özel": (
+        "özgür özel",
+        "ozgur ozel",
+        "chp genel başkanı özgür özel",
+        "chp lideri özel",
+        "chp lideri ozgur ozel",
+        "özgür özel'in",
+    ),
+    "Devlet Bahçeli": (
+        "devlet bahçeli",
+        "devlet bahceli",
+        "mhp genel başkanı devlet bahçeli",
+        "bahçeli",
+        "bahceli",
+    ),
+    "Tuncer Bakırhan": (
+        "tuncer bakırhan",
+        "tuncer bakirhan",
+        "dem parti eş genel başkanı tuncer bakırhan",
+    ),
+    "Tülay Hatimoğulları": (
+        "tülay hatimoğulları",
+        "tulay hatimogullari",
+        "tülay hatimoğulları oruç",
+        "dem parti eş genel başkanı tülay hatimoğulları",
+    ),
+    "Müsavat Dervişoğlu": (
+        "müsavat dervişoğlu",
+        "musavat dervisoglu",
+        "iyi parti genel başkanı müsavat dervişoğlu",
+    ),
+    "Fatih Erbakan": (
+        "fatih erbakan",
+        "dr. fatih erbakan",
+        "muhammed ali fatih erbakan",
+        "yeniden refah partisi genel başkanı fatih erbakan",
+    ),
+    "Ümit Özdağ": (
+        "ümit özdağ",
+        "umit ozdag",
+        "prof. dr. ümit özdağ",
+        "zafer partisi genel başkanı ümit özdağ",
+    ),
+    "Erkan Baş": ("erkan baş", "erkan bas", "tip genel başkanı erkan baş"),
+    "Ali Babacan": ("ali babacan", "deva partisi genel başkanı ali babacan"),
+    "Ahmet Davutoğlu": (
+        "ahmet davutoğlu",
+        "ahmet davutoglu",
+        "gelecek partisi genel başkanı ahmet davutoğlu",
+    ),
+    "Temel Karamollaoğlu": ("temel karamollaoğlu", "temel karamollaoglu"),
+    "Mahmut Arıkan": (
+        "mahmut arıkan",
+        "mahmut arikan",
+        "saadet partisi genel başkanı mahmut arıkan",
+    ),
+    "Gültekin Uysal": (
+        "gültekin uysal",
+        "gultekin uysal",
+        "demokrat parti genel başkanı gültekin uysal",
+    ),
+    "Önder Aksakal": ("önder aksakal", "onder aksakal", "dsp genel başkanı önder aksakal"),
+    "Zekeriya Yapıcıoğlu": (
+        "zekeriya yapıcıoğlu",
+        "zekeriya yapicioglu",
+        "hüda par genel başkanı zekeriya yapıcıoğlu",
+    ),
+    "Mustafa Destici": ("mustafa destici", "bbp genel başkanı mustafa destici"),
+    "Muharrem İnce": ("muharrem ince", "memleket partisi genel başkanı muharrem ince"),
+    "Kemal Kılıçdaroğlu": ("kemal kılıçdaroğlu", "kemal kilicdaroglu", "kılıçdaroğlu"),
+    "Meral Akşener": ("meral akşener", "meral aksener", "akşener"),
+    "Selahattin Demirtaş": ("selahattin demirtaş", "selahattin demirtas", "demirtaş"),
+    # --- Cumhurbaşkanlığı Kabinesi ve Üst Yönetim ---
+    "Cevdet Yılmaz": ("cevdet yılmaz", "cevdet yilmaz", "cumhurbaşkanı yardımcısı cevdet yılmaz"),
+    "Hakan Fidan": ("hakan fidan", "dışişleri bakanı hakan fidan"),
+    "Ali Yerlikaya": ("ali yerlikaya", "içişleri bakanı ali yerlikaya"),
+    "Yılmaz Tunç": ("yılmaz tunç", "yilmaz tunc", "adalet bakanı yılmaz tunç"),
+    "Yaşar Güler": ("yaşar güler", "yasar guler", "millî savunma bakanı yaşar güler"),
+    "Mehmet Şimşek": ("mehmet şimşek", "mehmet simsek", "hazine ve maliye bakanı mehmet şimşek"),
+    "Yusuf Tekin": ("yusuf tekin", "millî eğitim bakanı yusuf tekin"),
+    "Kemal Memişoğlu": ("kemal memişoğlu", "kemal memisoglu", "sağlık bakanı kemal memişoğlu"),
+    "Abdulkadir Uraloğlu": (
+        "abdulkadir uraloğlu",
+        "abdulkadir uraloglu",
+        "ulaştırma ve altyapı bakanı abdulkadir uraloğlu",
+    ),
+    "Vedat Işıkhan": (
+        "vedat ışıkhan",
+        "vedat isikhan",
+        "çalışma ve sosyal güvenlik bakanı vedat ışıkhan",
+    ),
+    "İbrahim Yumaklı": (
+        "ibrahim yumaklı",
+        "ibrahim yumakli",
+        "tarım ve orman bakanı ibrahim yumaklı",
+    ),
+    "Ömer Bolat": ("ömer bolat", "omer bolat", "ticaret bakanı ömer bolat"),
+    "Alparslan Bayraktar": (
+        "alparslan bayraktar",
+        "enerji ve tabii kaynaklar bakanı alparslan bayraktar",
+    ),
+    "Mehmet Fatih Kacır": (
+        "mehmet fatih kaçır",
+        "mehmet fatih kacır",
+        "mehmet fatih kacir",
+        "sanayi ve teknoloji bakanı mehmet fatih kacır",
+    ),
+    "Mehmet Nuri Ersoy": ("mehmet nuri ersoy", "kültür ve turizm bakanı mehmet nuri ersoy"),
+    "Mahinur Özdemir Göktaş": (
+        "mahinur özdemir göktaş",
+        "mahinur ozdemir goktas",
+        "aile ve sosyal hizmetler bakanı mahinur özdemir göktaş",
+    ),
+    "Osman Aşkın Bak": (
+        "osman aşkın bak",
+        "osman askin bak",
+        "gençlik ve spor bakanı osman aşkın bak",
+    ),
+    "Murat Kurum": ("murat kurum", "çevre, şehircilik ve iklim değişikliği bakanı murat kurum"),
+    "Fahrettin Altun": ("fahrettin altun", "iletişim başkanı fahrettin altun"),
+    "İbrahim Kalın": ("ibrahim kalın", "ibrahim kalin", "mit başkanı ibrahim kalın"),
+    # --- TBMM Yönetimi ve Grup Başkanvekilleri ---
+    "Numan Kurtulmuş": ("numan kurtulmuş", "numan kurtulmus", "tbmm başkanı numan kurtulmuş"),
+    "Bekir Bozdağ": ("bekir bozdağ", "bekir bozdag", "tbmm başkanvekili bekir bozdağ"),
+    "Gülizar Biçer Karaca": (
+        "gülizar biçer karaca",
+        "gulizar bicer karaca",
+        "tbmm başkanvekili gülizar biçer karaca",
+    ),
+    "Celal Adan": ("celal adan", "tbmm başkanvekili celal adan"),
+    "Sırrı Süreyya Önder": (
+        "sırrı süreyya önder",
+        "sirri sureyya onder",
+        "tbmm başkanvekili sırrı süreyya önder",
+    ),
+    "Abdullah Güler": ("abdullah güler", "abdullah guler", "ak parti grup başkanı abdullah güler"),
+    "Muhammet Emin Akbaşoğlu": ("muhammet emin akbaşoğlu", "muhammet emin akbasoglu", "akbaşoğlu"),
+    "Leyla Şahin Usta": ("leyla şahin usta", "leyla sahin usta"),
+    "Abdulhamit Gül": ("abdulhamit gül", "abdulhamit gul"),
+    "Bahadır Yenişehirlioğlu": ("bahadır yenişehirlioğlu", "bahadir yenisehirlioglu"),
+    "Özlem Zengin": ("özlem zengin", "ozlem zengin"),
+    "Ali Mahir Başarır": ("ali mahir başarır", "ali mahir basarir"),
+    "Murat Emir": ("murat emir", "chp grup başkanvekili murat emir"),
+    "Gökhan Günaydın": ("gökhan günaydın", "gokhan gunaydin"),
+    "Erkan Akçay": ("erkan akçay", "erkan akcay"),
+    "Muhammed Levent Bülbül": ("muhammed levent bülbül", "levent bülbül", "levent bulbul"),
+    "Filiz Kılıç": ("filiz kılıç", "filiz kilic"),
+    "Gülistan Kılıç Koçyiğit": ("gülistan kılıç koçyiğit", "gulistan kilic kocyigit"),
+    "Sezai Temelli": ("sezai temelli", "dem parti grup başkanvekili sezai temelli"),
+    "Buğra Kavuncu": ("buğra kavuncu", "bugra kavuncu"),
+    "Erhan Usta": ("erhan usta", "iyi parti grup başkanvekili erhan usta"),
+    "Turhan Çömez": ("turhan çömez", "turhan comez"),
+    "Bülent Kaya": ("bülent kaya", "bulent kaya"),
+    "İsa Mesih Şahin": ("isa mesih şahin", "isa mesih sahin"),
+    "Sera Kadıgil": ("sera kadıgil", "sera kadigil"),
+    "Ahmet Şık": ("ahmet şık", "ahmet sik"),
+    "Mustafa Yeneroğlu": ("mustafa yeneroğlu", "mustafa yeneroglu"),
+    "İdris Şahin": ("idris şahin", "idris sahin"),
+    "Ömer Faruk Gergerlioğlu": (
+        "ömer faruk gergerlioğlu",
+        "omer faruk gergerlioglu",
+        "gergerlioğlu",
+    ),
+    # --- Büyükşehir ve Kilit İl Belediye Başkanları (81 İl Kapsamı) ---
+    "Ekrem İmamoğlu": (
+        "ekrem imamoğlu",
+        "ekrem imamoglu",
+        "istanbul büyükşehir belediye başkanı ekrem imamoğlu",
+        "ibb başkanı ekrem imamoğlu",
+        "imamoğlu",
+    ),
+    "Mansur Yavaş": (
+        "mansur yavaş",
+        "mansur yavas",
+        "ankara büyükşehir belediye başkanı mansur yavaş",
+        "abb başkanı mansur yavaş",
+        "mansur yavas",
+    ),
+    "Cemil Tugay": ("cemil tugay", "izmir büyükşehir belediye başkanı cemil tugay"),
+    "Mustafa Bozbey": ("mustafa bozbey", "bursa büyükşehir belediye başkanı mustafa bozbey"),
+    "Vahap Seçer": ("vahap seçer", "vahap secer", "mersin büyükşehir belediye başkanı vahap seçer"),
+    "Zeydan Karalar": ("zeydan karalar", "adana büyükşehir belediye başkanı zeydan karalar"),
+    "Uğur İbrahim Altay": (
+        "uğur ibrahim altay",
+        "ugur ibrahim altay",
+        "konya büyükşehir belediye başkanı uğur ibrahim altay",
+    ),
+    "Fatma Şahin": (
+        "fatma şahin",
+        "fatma sahin",
+        "gaziantep büyükşehir belediye başkanı fatma şahin",
+    ),
+    "Özlem Çerçioğlu": (
+        "özlem çerçioğlu",
+        "ozlem cercioglu",
+        "aydın büyükşehir belediye başkanı özlem çerçioğlu",
+    ),
+    "Ayşe Ünlüce": (
+        "ayşe ünlüce",
+        "ayse unluce",
+        "eskişehir büyükşehir belediye başkanı ayşe ünlüce",
+    ),
+    "Muhittin Böcek": (
+        "muhittin böcek",
+        "muhittin bocek",
+        "antalya büyükşehir belediye başkanı muhittin böcek",
+    ),
+    "Ahmet Akın": ("ahmet akın", "ahmet akin", "balıkesir büyükşehir belediye başkanı ahmet akın"),
+    "Bülent Nuri Çavuşoğlu": (
+        "bülent nuri çavuşoğlu",
+        "bulent nuri cavusoglu",
+        "denizli büyükşehir belediye başkanı bülent nuri çavuşoğlu",
+    ),
+    "Mehmet Kasım Gülpınar": (
+        "mehmet kasım gülpınar",
+        "mehmet kasim gulpinar",
+        "şanlıurfa büyükşehir belediye başkanı mehmet kasım gülpınar",
+    ),
+    "Tahir Büyükakın": (
+        "tahir büyükakın",
+        "tahir buyukakin",
+        "kocaeli büyükşehir belediye başkanı tahir büyükakın",
+    ),
+    "Ferdi Zeyrek": ("ferdi zeyrek", "manisa büyükşehir belediye başkanı ferdi zeyrek"),
+    "Candan Yüceer": (
+        "candan yüceer",
+        "candan yuceer",
+        "tekirdağ büyükşehir belediye başkanı candan yüceer",
+    ),
+    "Ahmet Metin Genç": (
+        "ahmet metin genç",
+        "ahmet metin genc",
+        "trabzon büyükşehir belediye başkanı ahmet metin genç",
+    ),
+    "Halit Doğan": ("halit doğan", "halit dogan", "samsun büyükşehir belediye başkanı halit doğan"),
+    "Yusuf Alemdar": ("yusuf alemdar", "sakarya büyükşehir belediye başkanı yusuf alemdar"),
+    "Fırat Görgel": (
+        "fırat görgel",
+        "firat gorgel",
+        "kahramanmaraş büyükşehir belediye başkanı fırat görgel",
+    ),
+    "Sami Er": ("sami er", "malatya büyükşehir belediye başkanı sami er"),
+    "Mehmet Sekmen": ("mehmet sekmen", "erzurum büyükşehir belediye başkanı mehmet sekmen"),
+    "Memduh Büyükkılıç": (
+        "memduh büyükkılıç",
+        "memduh buyukkilic",
+        "kayseri büyükşehir belediye başkanı memduh büyükkılıç",
+    ),
+    "Hilmi Güler": ("hilmi güler", "hilmi guler", "ordu büyükşehir belediye başkanı hilmi güler"),
+    "Ahmet Türk": ("ahmet türk", "ahmet turk", "mardin büyükşehir belediye başkanı ahmet türk"),
+    "Abdullah Zeydan": ("abdullah zeydan", "van büyükşehir belediye başkanı abdullah zeydan"),
+    "Ayşe Serra Bucak Küçük": (
+        "ayşe serra bucak",
+        "serra bucak",
+        "diyarbakır büyükşehir belediye başkanı serra bucak",
+    ),
+    "Mehmet Öntürk": (
+        "mehmet öntürk",
+        "mehmet onturk",
+        "hatay büyükşehir belediye başkanı mehmet öntürk",
+    ),
+    "Ahmet Cin": ("ahmet cin", "pendik belediye başkanı ahmet cin"),
+    "Rıza Akpolat": ("rıza akpolat", "riza akpolat", "beşiktaş belediye başkanı rıza akpolat"),
+    "Mesut Özarslan": (
+        "mesut özarslan",
+        "mesut ozarslan",
+        "keçiören belediye başkanı mesut özarslan",
+    ),
+    # --- Yüksek Yargı ve Bağımsız Kurul Başkanları ---
+    "Kadir Özkaya": (
+        "kadir özkaya",
+        "kadir ozkaya",
+        "anayasa mahkemesi başkanı kadir özkaya",
+        "aym başkanı kadir özkaya",
+    ),
+    "Zühtü Arslan": ("zühtü arslan", "zuhtu arslan", "eski aym başkanı zühtü arslan"),
+    "Ömer Kerkez": ("ömer kerkez", "omer kerkez", "yargıtay başkanı ömer kerkez"),
+    "Mehmet Akarca": ("mehmet akarca", "yargıtay onursal başkanı mehmet akarca"),
+    "Zeki Yiğit": ("zeki yiğit", "zeki yigit", "danıştay başkanı zeki yiğit"),
+    "Ahmet Yener": (
+        "ahmet yener",
+        "yüksek seçim kurulu başkanı ahmet yener",
+        "ysk başkanı ahmet yener",
+    ),
+    "Metin Yener": ("metin yener", "sayıştay başkanı metin yener"),
+    "Ebubekir Şahin": ("ebubekir şahin", "ebubekir sahin", "rtük başkanı ebubekir şahin"),
+    "Ömer Abdullah Karagözoğlu": (
+        "ömer abdullah karagözoğlu",
+        "omer abdullah karagozoglu",
+        "btk başkanı ömer abdullah karagözoğlu",
+    ),
+    "Şeref Malkoç": (
+        "şeref malkoç",
+        "seref malkoc",
+        "başdenetçi şeref malkoç",
+        "kamu başdenetçisi şeref malkoç",
+    ),
 }
 
 # Salience formülünün "varlik_onemi" bileşeni (Spec §8.4) için anahtar varlıklar
-KEY_ENTITIES: Final[frozenset[str]] = frozenset({
-    "Türkiye Cumhuriyet Merkez Bankası",
-    "Türkiye İstatistik Kurumu",
-    "Hazine ve Maliye Bakanlığı",
-    "Resmî Gazete",
-    "Para Politikası Kurulu",
-    "Cumhurbaşkanlığı",
-})
+KEY_ENTITIES: Final[frozenset[str]] = frozenset(
+    {
+        "Türkiye Cumhuriyet Merkez Bankası",
+        "Türkiye İstatistik Kurumu",
+        "Hazine ve Maliye Bakanlığı",
+        "Resmî Gazete",
+        "Para Politikası Kurulu",
+        "Cumhurbaşkanlığı",
+    }
+)
 
-POLITICAL_KEY_ENTITIES: Final[frozenset[str]] = frozenset({
-    "Türkiye Büyük Millet Meclisi",
-    "Sayıştay",
-    "Anayasa Mahkemesi",
-    "Yüksek Seçim Kurulu",
-    "Cumhurbaşkanlığı",
-})
+POLITICAL_KEY_ENTITIES: Final[frozenset[str]] = frozenset(
+    {
+        "Türkiye Büyük Millet Meclisi",
+        "Sayıştay",
+        "Anayasa Mahkemesi",
+        "Yüksek Seçim Kurulu",
+        "Cumhurbaşkanlığı",
+        "Recep Tayyip Erdoğan",
+        "Özgür Özel",
+        "Devlet Bahçeli",
+        "Ekrem İmamoğlu",
+        "Mansur Yavaş",
+    }
+)
 
 # --------------------------------------------------------------------------
-# Kişi çıkarımı: unvan kalıbı
+# Kişi çıkarımı: unvan kalıbı + Siyasi Aktörler İndeksi
 # --------------------------------------------------------------------------
 # "Hazine ve Maliye Bakanı Mehmet Şimşek", "TBMM Başkanı Numan Kurtulmuş"
 _TITLES = (
-    "Cumhurbaşkanı Yardımcısı", "Cumhurbaşkanı",
-    "TBMM Başkanı", "Meclis Başkanı",
-    "Grup Başkanvekili", "Grup Başkan Vekili",
-    "Genel Başkan Yardımcısı", "Genel Başkanı", "Genel Başkan",
-    "Bakan Yardımcısı", "Bakanı", "Bakan",
+    "Cumhurbaşkanı Yardımcısı",
+    "Cumhurbaşkanı",
+    "TBMM Başkanı",
+    "Meclis Başkanı",
+    "Grup Başkanvekili",
+    "Grup Başkan Vekili",
+    "Grup Başkanı",
+    "Eş Genel Başkanı",
+    "Eş Genel Başkan",
+    "Genel Başkan Yardımcısı",
+    "Genel Başkanı",
+    "Genel Başkan",
+    "Bakan Yardımcısı",
+    "Bakanı",
+    "Bakan",
     "Milletvekili",
-    "Parti Sözcüsü", "Sözcüsü", "Sözcü",
-    "Büyükşehir Belediye Başkanı", "Belediye Başkanı",
-    "Cumhuriyet Başsavcısı", "Başsavcısı", "Başsavcı",
-    "Valisi", "Vali",
-    "Başkan Vekili", "Başkanvekili", "Başkan Yardımcısı", "Başkanı", "Başkan",
-    "Genel Müdürü", "Genel Müdür", "Müsteşarı",
+    "Parti Sözcüsü",
+    "Sözcüsü",
+    "Sözcü",
+    "Büyükşehir Belediye Başkanı",
+    "İl Belediye Başkanı",
+    "Belediye Başkanı",
+    "Cumhuriyet Başsavcısı",
+    "Başsavcısı",
+    "Başsavcı",
+    "Valisi",
+    "Vali",
+    "Başkan Vekili",
+    "Başkanvekili",
+    "Başkan Yardımcısı",
+    "Başkanı",
+    "Başkan",
+    "Genel Müdürü",
+    "Genel Müdür",
+    "Müsteşarı",
 )
 _TITLE_ALT = "|".join(sorted(_TITLES, key=len, reverse=True))
 _NAME_PART = r"[A-ZÇĞİÖŞÜ][a-zçğıöşü]+"
-_PERSON_RE = re.compile(
-    rf"(?:{_TITLE_ALT})\s+((?:{_NAME_PART}\s+){{0,2}}{_NAME_PART})"
-)
+_PERSON_RE = re.compile(rf"(?:{_TITLE_ALT})\s+((?:{_NAME_PART}\s+){{0,2}}{_NAME_PART})")
 
 
 def _fold(text: str) -> str:
@@ -218,9 +632,9 @@ class EntityIndex:
     aliases: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def build(cls, institutions: dict[str, tuple[str, ...]] | None = None) -> EntityIndex:
+    def build(cls, mapping: dict[str, tuple[str, ...]] | None = None) -> EntityIndex:
         index = cls()
-        for canonical, alias_list in (institutions or INSTITUTIONS).items():
+        for canonical, alias_list in (mapping or INSTITUTIONS).items():
             index.aliases[_fold(canonical)] = canonical
             for alias in alias_list:
                 index.aliases[_fold(alias)] = canonical
@@ -230,7 +644,8 @@ class EntityIndex:
         return self.aliases.get(_fold(text))
 
 
-_DEFAULT_INDEX = EntityIndex.build()
+_DEFAULT_INDEX = EntityIndex.build(INSTITUTIONS)
+_POLITICAL_ACTORS_INDEX = EntityIndex.build(POLITICAL_ACTORS)
 
 
 def _alias_pattern(index: EntityIndex) -> re.Pattern[str]:
@@ -241,6 +656,7 @@ def _alias_pattern(index: EntityIndex) -> re.Pattern[str]:
 
 
 _ALIAS_RE = _alias_pattern(_DEFAULT_INDEX)
+_ACTOR_ALIAS_RE = _alias_pattern(_POLITICAL_ACTORS_INDEX)
 
 
 def extract_institutions(text: str, index: EntityIndex | None = None) -> list[ExtractedEntity]:
@@ -259,30 +675,60 @@ def extract_institutions(text: str, index: EntityIndex | None = None) -> list[Ex
             canonical_name=canonical,
             entity_type="institution",
             matched_text=match.group(1),
-            is_key_entity=canonical in KEY_ENTITIES,
+            is_key_entity=canonical in KEY_ENTITIES or canonical in POLITICAL_KEY_ENTITIES,
+        )
+    return list(found.values())
+
+
+def extract_political_actors(text: str, index: EntityIndex | None = None) -> list[ExtractedEntity]:
+    """Metindeki kilit siyasi aktörleri kanonik adlarına çözerek döndürür."""
+    index = index or _POLITICAL_ACTORS_INDEX
+    pattern = _ACTOR_ALIAS_RE if index is _POLITICAL_ACTORS_INDEX else _alias_pattern(index)
+
+    folded = _fold(text)
+    found: dict[str, ExtractedEntity] = {}
+
+    for match in pattern.finditer(folded):
+        canonical = index.resolve(match.group(1))
+        if not canonical or canonical in found:
+            continue
+        found[canonical] = ExtractedEntity(
+            canonical_name=canonical,
+            entity_type="person",
+            matched_text=match.group(1),
+            is_key_entity=canonical in POLITICAL_KEY_ENTITIES,
         )
     return list(found.values())
 
 
 def extract_people(text: str) -> list[ExtractedEntity]:
-    """Unvanla anılan kişileri çıkarır.
+    """Unvanla anılan kişileri ve siyasi aktör kataloğundaki figürleri çıkarır.
 
-    Yalnızca unvan kalıbıyla eşleşenler alınır. Bu bilinçli bir kısıttır:
-    unvansız her iki büyük harfli sözcüğü kişi saymak, kurum ve yer
-    adlarını kişiye dönüştürür ve doğruluğu düşürür.
+    Önce siyasi aktörler kataloğu çözümlenir, ardından unvan kalıbı uygulanır.
     """
     found: dict[str, ExtractedEntity] = {}
 
+    # 1. Tanımlı siyasi aktörler kataloğundan çıkar
+    for actor in extract_political_actors(text):
+        found[actor.canonical_name] = actor
+
+    # 2. Unvan kalıbıyla anılan diğer kişileri çıkar
     for match in _PERSON_RE.finditer(text):
-        name = " ".join(match.group(1).split())
-        if len(name) < 5 or name in found:
+        raw_name = " ".join(match.group(1).split())
+        if len(raw_name) < 5:
             continue
         # Kurum adının parçası mı? ("Merkez Bankası Başkanı" -> isim değil)
-        if _DEFAULT_INDEX.resolve(name):
+        if _DEFAULT_INDEX.resolve(raw_name):
             continue
-        found[name] = ExtractedEntity(
-            canonical_name=name, entity_type="person", matched_text=name
-        )
+        # Siyasi aktör alias'ı olarak çözümlenebiliyor mu?
+        canonical = _POLITICAL_ACTORS_INDEX.resolve(raw_name) or raw_name
+        if canonical not in found:
+            found[canonical] = ExtractedEntity(
+                canonical_name=canonical,
+                entity_type="person",
+                matched_text=raw_name,
+                is_key_entity=canonical in POLITICAL_KEY_ENTITIES,
+            )
     return list(found.values())
 
 
@@ -292,19 +738,21 @@ SOURCE_PRIMARY_ENTITIES: Final[dict[str, str]] = {
     "tuik_sdmx": "Türkiye İstatistik Kurumu",
     "tcmb": "Türkiye Cumhuriyet Merkez Bankası",
     "resmigazete": "Resmî Gazete",
+    "resmi-gazete": "Resmî Gazete",
     "hazine": "Hazine ve Maliye Bakanlığı",
     "bddk": "Bankacılık Düzenleme ve Denetleme Kurumu",
     "spk": "Sermaye Piyasası Kurulu",
     "sayistay": "Sayıştay",
     "tbmm": "Türkiye Büyük Millet Meclisi",
     "cumhurbaskanligi": "Cumhurbaşkanlığı",
+    "cb-kararname": "Cumhurbaşkanlığı",
 }
 
 
 def extract(
     title: str, excerpt: str | None = None, source_slug: str | None = None
 ) -> list[ExtractedEntity]:
-    """Bir makaleden tüm varlıkları çıkarır (F1-15 & B-63)."""
+    """Bir makaleden tüm varlıkları çıkarır (F1-15, B-63 & Spec v3.5)."""
     text = f"{title}. {excerpt or ''}"
     entities = [*extract_institutions(text), *extract_people(text)]
 
@@ -320,7 +768,15 @@ def extract(
                     is_key_entity=canonical in KEY_ENTITIES or canonical in POLITICAL_KEY_ENTITIES,
                 )
             )
-    return entities
+
+    # Tekilleştir (aynı kanonik isimden birden fazla nesne kalmasın)
+    seen: set[str] = set()
+    deduped: list[ExtractedEntity] = []
+    for e in entities:
+        if e.canonical_name not in seen:
+            seen.add(e.canonical_name)
+            deduped.append(e)
+    return deduped
 
 
 def entity_set(entities: list[ExtractedEntity]) -> frozenset[str]:

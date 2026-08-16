@@ -33,7 +33,6 @@ class GateStatus(StrEnum):
     INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
 
 
-
 @dataclass
 class GateResult:
     num: int

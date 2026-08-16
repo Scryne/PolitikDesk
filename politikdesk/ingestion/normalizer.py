@@ -27,11 +27,28 @@ RAW_RETENTION_DAYS = 30
 # Takip parametreleri: aynı içerik farklı URL ile gelmesin (tekilleştirme
 # doğruluğunu doğrudan etkiler).
 _TRACKING_PREFIXES = ("utm_", "pk_", "mtm_", "hsa_", "vero_")
-_TRACKING_EXACT = frozenset({
-    "fbclid", "gclid", "gbraid", "wbraid", "msclkid", "igshid", "mc_cid",
-    "mc_eid", "yclid", "ref", "ref_src", "referrer", "spm", "_ga", "_gl",
-    "cmpid", "campaign_id", "source",
-})
+_TRACKING_EXACT = frozenset(
+    {
+        "fbclid",
+        "gclid",
+        "gbraid",
+        "wbraid",
+        "msclkid",
+        "igshid",
+        "mc_cid",
+        "mc_eid",
+        "yclid",
+        "ref",
+        "ref_src",
+        "referrer",
+        "spm",
+        "_ga",
+        "_gl",
+        "cmpid",
+        "campaign_id",
+        "source",
+    }
+)
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -129,6 +146,7 @@ def normalize(
     store_excerpt: bool = True,
     now: datetime | None = None,
     topics: tuple[str, ...] = (),
+    vertical: str = "macro_economy",
 ) -> NormalizedArticle:
     """RawItem'ı saklamaya hazır makaleye çevirir.
 
@@ -162,6 +180,7 @@ def normalize(
         lang=item.lang,
         raw_purge_at=now + timedelta(days=RAW_RETENTION_DAYS),
         topics=topics,
+        vertical=item.extra.get("vertical", vertical),
         # Yalnızca resmî veri servisinden gelen adaptörler doldurur; RSS
         # kaynaklarında yoktur ve None kalır (F5-19).
         official_value=item.extra.get("normalized_value"),

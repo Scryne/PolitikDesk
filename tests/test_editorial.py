@@ -42,9 +42,25 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # tests/test_schema.py ile AYNI liste. İki dosyada iki farklı liste
 # tutmak, birinde yakalanan bir terimin diğerinde kaçması demekti.
 FORBIDDEN_PROFILE_TERMS = (
-    "ideolog", "ideolo", "political", "politik", "siyasi", "parti", "party",
-    "partisan", "leaning", "bias", "religion", "ethnic", "etnik", "vote",
-    "orientation", "yandaş", "muhalif", "sağcı", "solcu",
+    "ideolog",
+    "ideolo",
+    "political",
+    "politik",
+    "siyasi",
+    "parti",
+    "party",
+    "partisan",
+    "leaning",
+    "bias",
+    "religion",
+    "ethnic",
+    "etnik",
+    "vote",
+    "orientation",
+    "yandaş",
+    "muhalif",
+    "sağcı",
+    "solcu",
 )
 
 
@@ -112,8 +128,7 @@ def test_form_has_exactly_ten_questions() -> None:
 def test_form_has_no_ideological_question() -> None:
     """P6 / KVKK m.6 — soru metinlerinde siyasi terim bulunamaz."""
     blob = " ".join(
-        f"{q.field} {q.prompt} {q.help_text} "
-        + " ".join(f"{k} {v}" for k, v in q.choices)
+        f"{q.field} {q.prompt} {q.help_text} " + " ".join(f"{k} {v}" for k, v in q.choices)
         for q in QUESTIONS
     ).lower()
     hits = [term for term in FORBIDDEN_PROFILE_TERMS if term in blob]
@@ -289,10 +304,12 @@ def test_compiler_v2_renders_all_editorial_sections() -> None:
 
 def test_citation_policy_takes_precedence_over_legacy_citation_habit() -> None:
     """citation_policy canonical alandır; citation_habit ile birlikte gelirse citation_policy geçerlidir."""
-    answers = normalize_answers({
-        "citation_policy": "always_link",
-        "citation_habit": "sometimes",
-    })
+    answers = normalize_answers(
+        {
+            "citation_policy": "always_link",
+            "citation_habit": "sometimes",
+        }
+    )
     assert answers["citation_policy"] == "always_link"
     assert answers["citation_habit"] == "always_link"
 
@@ -311,9 +328,6 @@ def test_semantic_compilation_for_usage_levels() -> None:
     compiled_topic = compile_profile({"emoji_usage": "necessary", "hashtag_usage": "topic_bound"})
     assert "en fazla 1-2 adet" in compiled_topic
     assert "doğrudan ilgili ana konu başlığında" in compiled_topic
-
-
-
 
 
 # ==================================================================== F3-11
@@ -411,9 +425,9 @@ def test_user_prompt_contains_only_claims_and_evidence() -> None:
         profile_block="EDİTORYAL KİMLİK",
         max_chars=600,
     )
-    assert "TCMB politika faizini yüzde 37" in prompt   # iddia metni
+    assert "TCMB politika faizini yüzde 37" in prompt  # iddia metni
     assert "politika faizini yüzde 37 seviyesinde" in prompt  # kanıt alıntısı
-    assert "Tier 1" in prompt                            # kaynak katmanı
+    assert "Tier 1" in prompt  # kaynak katmanı
     # Olay başlığı gibi kanıt seti dışı bir metin buraya konmadı:
     assert "olay başlığı" not in prompt.lower()
     assert "event_title" not in prompt
@@ -440,8 +454,11 @@ def test_output_schema_rejects_verdict_fields() -> None:
 
 def test_forbidden_field_in_output_is_flagged() -> None:
     client = FakeClient(
-        {"body": "TCMB faizi %37'de tuttu.", "cited_claim_ids": [1],
-         "evidence_status": "strongly_corroborated"}
+        {
+            "body": "TCMB faizi %37'de tuttu.",
+            "cited_claim_ids": [1],
+            "evidence_status": "strongly_corroborated",
+        }
     )
     draft = generate_draft(angle="inform", claims=[make_claim()], client=client)
     assert not draft.is_usable
@@ -449,9 +466,7 @@ def test_forbidden_field_in_output_is_flagged() -> None:
 
 
 def test_invented_claim_id_is_rejected() -> None:
-    client = FakeClient(
-        {"body": "TCMB faizi %37'de tuttu.", "cited_claim_ids": [1, 999]}
-    )
+    client = FakeClient({"body": "TCMB faizi %37'de tuttu.", "cited_claim_ids": [1, 999]})
     draft = generate_draft(angle="inform", claims=[make_claim()], client=client)
     assert draft.cited_claim_ids == (1,)
     assert any("uydurulmus iddia kimligi" in p for p in draft.problems)
@@ -468,8 +483,7 @@ def test_generation_uses_the_generation_task_not_extraction() -> None:
 
 def test_ungrounded_draft_is_not_usable() -> None:
     client = FakeClient(
-        {"body": "TCMB faizi %37'de tuttu; kredi hacmi %12 daraldı.",
-         "cited_claim_ids": [1]}
+        {"body": "TCMB faizi %37'de tuttu; kredi hacmi %12 daraldı.", "cited_claim_ids": [1]}
     )
     draft = generate_draft(angle="inform", claims=[make_claim()], client=client)
     assert not draft.is_grounded
@@ -501,9 +515,14 @@ def test_check_report_has_all_checks() -> None:
     draft = _draft_with("TCMB politika faizini yüzde 37'de sabit tuttu.")
     report = run_checks(draft, [make_claim()])
     assert [i.key for i in report.items] == [
-        "source_link", "numeric_match", "news_opinion",
-        "single_source", "unlinked", "missing_context",
-        "profile_form", "imputation_language",
+        "source_link",
+        "numeric_match",
+        "news_opinion",
+        "single_source",
+        "unlinked",
+        "missing_context",
+        "profile_form",
+        "imputation_language",
     ]
 
 
@@ -527,7 +546,8 @@ def test_profile_form_flags_emoji_and_hashtag_when_profile_forbids_them() -> Non
     """
     draft = _draft_with("TCMB politika faizini yüzde 37'de sabit tuttu 📊. #Ekonomi")
     report = run_checks(
-        draft, [make_claim()],
+        draft,
+        [make_claim()],
         profile={"emoji_usage": "none", "hashtag_usage": "none"},
     )
     item = next(i for i in report.items if i.key == "profile_form")
@@ -541,7 +561,8 @@ def test_profile_form_allows_what_the_profile_allows() -> None:
     """`frequent` sınırsızdır; kontrol kullanıcının tercihini dayatmaz."""
     draft = _draft_with("TCMB faizi yüzde 37'de tuttu 📊📈. #Ekonomi #Faiz")
     report = run_checks(
-        draft, [make_claim()],
+        draft,
+        [make_claim()],
         profile={"emoji_usage": "frequent", "hashtag_usage": "frequent"},
     )
     assert next(i for i in report.items if i.key == "profile_form").severity == "ok"
@@ -573,8 +594,7 @@ def test_unmatched_number_is_blocking() -> None:
 
 def test_unmarked_opinion_is_warned_not_blocked() -> None:
     draft = _draft_with(
-        "TCMB politika faizini yüzde 37'de sabit tuttu. "
-        "Bu karar endişe verici bir sinyal."
+        "TCMB politika faizini yüzde 37'de sabit tuttu. Bu karar endişe verici bir sinyal."
     )
     report = run_checks(draft, [make_claim()])
     opinion = next(i for i in report.items if i.key == "news_opinion")
@@ -600,9 +620,7 @@ def test_marked_commentary_does_not_excuse_an_unmatched_number() -> None:
     iddia"dır; etiket onu ortadan kaldırmaz.
     """
     sentence = "Kredi hacmi yüzde 12 daralmış görünüyor."
-    draft = _draft_with(
-        f"TCMB faizi %37'de tuttu. {sentence}", commentary_sentences=[sentence]
-    )
+    draft = _draft_with(f"TCMB faizi %37'de tuttu. {sentence}", commentary_sentences=[sentence])
     report = run_checks(draft, [make_claim()])
     assert report.is_blocking
 
@@ -628,7 +646,7 @@ def test_missing_prior_context_is_informational_only() -> None:
 
 
 def test_sentence_splitter_survives_turkish_thousands_separator() -> None:
-    """"13.704,98" cümle sonu değildir."""
+    """ "13.704,98" cümle sonu değildir."""
     sentences = split_sentences(
         "BIST 100 endeksi 13.704,98 puandan başladı. Endeks günü yatay kapattı."
     )
@@ -676,9 +694,7 @@ def test_publish_module_has_no_outgoing_post_to_x() -> None:
     Bu test kaynak metnini tarar: bir gün biri "kolaylık olsun diye"
     gönderim eklerse CI kırılır.
     """
-    source = (REPO_ROOT / "politikdesk" / "editorial" / "service.py").read_text(
-        encoding="utf-8"
-    )
+    source = (REPO_ROOT / "politikdesk" / "editorial" / "service.py").read_text(encoding="utf-8")
     assert "intent/tweet" in source, "Web Intent adresi kaldırılmış"
     for banned in ("api.twitter.com", "api.x.com", "statuses/update", "tweepy"):
         assert banned not in source, f"Otomatik yayın kod yolu: {banned}"
@@ -695,11 +711,14 @@ def test_editorial_stance_file_is_ignored_by_git_and_docker() -> None:
 
 
 # ==================================================================== D7 (B-95)
-def test_compile_profile_does_not_contain_editorial_stance(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compile_profile_does_not_contain_editorial_stance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """D7 / Test A: compile_profile() çıktısında hiçbir şekilde stance bloğu bulunamaz."""
     stance_file = tmp_path / "editorial_stance.md"
     stance_file.write_text("SENTHETIC_STANCE_TEST_VALUE_A", encoding="utf-8")
     from politikdesk.editorial import stance
+
     monkeypatch.setattr(stance, "DEFAULT_STANCE_PATH", stance_file)
 
     profile_answers = {
@@ -717,13 +736,17 @@ def test_compile_profile_does_not_contain_editorial_stance(tmp_path: Path, monke
     assert "USER EDITORIAL STANCE" not in compiled
 
 
-def test_compile_and_store_keeps_stance_out_of_database(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compile_and_store_keeps_stance_out_of_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """D7 / Test B: DB'ye kaydedilen compiled_prompt içinde stance bulunamaz."""
     import os
+
     if not os.environ.get("PD_DATABASE_URL"):
         pytest.skip("DB required for storage test")
 
     from politikdesk.editorial import profile_compiler, stance
+
     stance_file = tmp_path / "editorial_stance.md"
     stance_file.write_text("SENTHETIC_STANCE_TEST_VALUE_B", encoding="utf-8")
     monkeypatch.setattr(stance, "DEFAULT_STANCE_PATH", stance_file)
@@ -748,7 +771,9 @@ def test_compile_and_store_keeps_stance_out_of_database(tmp_path: Path, monkeypa
     assert "USER EDITORIAL STANCE" not in (stored.get("compiled_prompt") or "")
 
 
-def test_generation_composes_runtime_stance_at_generation_time(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generation_composes_runtime_stance_at_generation_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """D7 / Test C: generate_for_event generation sırasında runtime stance'ı prompta ekler."""
     from politikdesk.editorial import repository, service, stance
 
@@ -760,12 +785,14 @@ def test_generation_composes_runtime_stance_at_generation_time(tmp_path: Path, m
     monkeypatch.setattr(repository, "save_draft", lambda **kwargs: 42)
     monkeypatch.setattr(service, "_prior_context", lambda eid: [])
 
-    fake_client = FakeClient({
-        "body": "TCMB politika faizini yüzde 37'de sabit tuttu.",
-        "cited_claim_ids": [1],
-        "commentary_sentences": [],
-        "unresolved": [],
-    })
+    fake_client = FakeClient(
+        {
+            "body": "TCMB politika faizini yüzde 37'de sabit tuttu.",
+            "cited_claim_ids": [1],
+            "commentary_sentences": [],
+            "unresolved": [],
+        }
+    )
 
     service.generate_for_event(
         event_id=10,
@@ -782,7 +809,9 @@ def test_generation_composes_runtime_stance_at_generation_time(tmp_path: Path, m
     assert "COMPILED_PROFILE_PART" in user_prompt
 
 
-def test_stance_change_reflects_immediately_without_profile_resave(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_stance_change_reflects_immediately_without_profile_resave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """D7 / Test D: Stance dosyasındaki değişiklik profil re-save edilmeden anında yeni üretime yansır."""
     from politikdesk.editorial import repository, service, stance
 
@@ -794,22 +823,28 @@ def test_stance_change_reflects_immediately_without_profile_resave(tmp_path: Pat
     monkeypatch.setattr(repository, "save_draft", lambda **kwargs: 42)
     monkeypatch.setattr(service, "_prior_context", lambda eid: [])
 
-    fake_client = FakeClient({
-        "body": "TCMB politika faizini yüzde 37'de sabit tuttu.",
-        "cited_claim_ids": [1],
-        "commentary_sentences": [],
-        "unresolved": [],
-    })
+    fake_client = FakeClient(
+        {
+            "body": "TCMB politika faizini yüzde 37'de sabit tuttu.",
+            "cited_claim_ids": [1],
+            "commentary_sentences": [],
+            "unresolved": [],
+        }
+    )
 
     # First generation with Alpha
-    service.generate_for_event(event_id=10, angle="inform", user_id=1, client=fake_client, persist=False)
+    service.generate_for_event(
+        event_id=10, angle="inform", user_id=1, client=fake_client, persist=False
+    )
     assert "STANCE_VERSION_ALPHA" in fake_client.calls[-1]["user"]
 
     # Change stance to Beta
     stance_file.write_text("STANCE_VERSION_BETA", encoding="utf-8")
 
     # Second generation without profile re-save
-    service.generate_for_event(event_id=10, angle="inform", user_id=1, client=fake_client, persist=False)
+    service.generate_for_event(
+        event_id=10, angle="inform", user_id=1, client=fake_client, persist=False
+    )
     assert "STANCE_VERSION_BETA" in fake_client.calls[-1]["user"]
     assert "STANCE_VERSION_ALPHA" not in fake_client.calls[-1]["user"]
 
@@ -850,6 +885,7 @@ def test_normalize_answers_hashtag_emoji_independence() -> None:
 def test_compile_and_store_with_necessary_emoji_persists_to_db() -> None:
     """L3: emoji_usage=necessary ve hashtag_usage=None ile DB INSERT hatasız çalışır."""
     import os
+
     if not os.environ.get("PD_DATABASE_URL"):
         pytest.skip("DB required for storage test")
 
@@ -907,7 +943,9 @@ def test_ungrounded_draft_cannot_be_accepted_or_published(monkeypatch: pytest.Mo
             return mock_grounded
         return None
 
-    def fake_record_action(draft_id: int, action: str, stored_body: str | None, distance: float | None) -> dict[str, Any]:
+    def fake_record_action(
+        draft_id: int, action: str, stored_body: str | None, distance: float | None
+    ) -> dict[str, Any]:
         return {"draft_id": draft_id, "action": action, "final_body": stored_body}
 
     monkeypatch.setattr(service.repository, "get_draft", fake_get_draft)
@@ -951,7 +989,9 @@ def test_citation_habit_never_is_rejected() -> None:
 
 
 # ==================================================================== D15
-def test_apply_action_calculates_distance_for_accepted_with_changed_body(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_apply_action_calculates_distance_for_accepted_with_changed_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """D15: action='accepted' olsa bile final_body değiştiyse gerçek edit_distance hesaplanmalı."""
     from politikdesk.editorial import service
 
@@ -1001,7 +1041,9 @@ def test_apply_action_calculates_distance_for_accepted_with_changed_body(monkeyp
 
 
 # ==================================================================== D17
-def test_compiled_prompt_for_persists_on_compiler_version_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_compiled_prompt_for_persists_on_compiler_version_mismatch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """D17: Compiler version mismatch olduğunda profil yeniden derlenir ve DB'ye persist edilir."""
     from politikdesk.editorial import profile_compiler
 

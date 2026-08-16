@@ -27,9 +27,7 @@ NS = 'xmlns:generic="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/data/gene
 
 
 def _series(dims: dict[str, str], period: str, value: str) -> str:
-    keys = "".join(
-        f'<generic:Value id="{k}" value="{v}" />' for k, v in dims.items()
-    )
+    keys = "".join(f'<generic:Value id="{k}" value="{v}" />' for k, v in dims.items())
     return (
         f"<generic:Series><generic:SeriesKey>{keys}</generic:SeriesKey>"
         f'<generic:Obs><generic:ObsDimension value="{period}" />'
@@ -38,9 +36,11 @@ def _series(dims: dict[str, str], period: str, value: str) -> str:
 
 
 def _document(*series: str) -> str:
-    return f"<message:GenericData {NS} " \
-           'xmlns:message="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message">' \
-           f"<message:DataSet>{''.join(series)}</message:DataSet></message:GenericData>"
+    return (
+        f"<message:GenericData {NS} "
+        'xmlns:message="http://www.sdmx.org/resources/sdmxml/schemas/v2_1/message">'
+        f"<message:DataSet>{''.join(series)}</message:DataSet></message:GenericData>"
+    )
 
 
 @dataclass
@@ -53,8 +53,9 @@ class _FakeHttp:
     body: str
     calls: list[str] = field(default_factory=list)
 
-    def get(self, url: str, *, headers: dict[str, str] | None = None,
-            source_slug: str = "") -> _FakeResponse:
+    def get(
+        self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = ""
+    ) -> _FakeResponse:
         self.calls.append(url)
         return _FakeResponse(self.body)
 
@@ -92,23 +93,22 @@ def test_picks_the_series_that_matches_every_dimension() -> None:
     """Karışık serilerden YALNIZCA filtreye tam uyanı alır."""
     body = _document(
         # İstihdam oranı — gösterge farklı
-        _series({"ISGUCU_GOSTERGE": "7", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "48.9"),
+        _series({"ISGUCU_GOSTERGE": "7", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "48.9"),
         # İşsizlik ama ERKEK
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "1", "SEASONAL_ADJUST": "S"},
-                "2026-06", "6.9"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "1", "SEASONAL_ADJUST": "S"}, "2026-06", "6.9"),
         # İşsizlik, toplam, ama mevsimsellikten arındırılmamış
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "N"},
-                "2026-06", "8.4"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "N"}, "2026-06", "8.4"),
         # ARANAN
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "7.6"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "7.6"),
     )
     items = _adapter(body).fetch()
 
     assert len(items) == 1
     assert items[0].extra["normalized_value"] == {
-        "metric": "unemployment_rate", "value": 7.6, "unit": "%", "period": "2026-06",
+        "metric": "unemployment_rate",
+        "value": 7.6,
+        "unit": "%",
+        "period": "2026-06",
     }
 
 
@@ -120,10 +120,8 @@ def test_ambiguous_filter_produces_no_item() -> None:
     kanıt motorunun en çok güvendiği kaynağa yalan söyletmek.
     """
     body = _document(
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "7.6"),
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "9.1"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "7.6"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "9.1"),
     )
     adapter = _adapter(body)
 
@@ -134,8 +132,7 @@ def test_ambiguous_filter_produces_no_item() -> None:
 
 def test_missing_series_is_not_an_error_but_yields_nothing() -> None:
     body = _document(
-        _series({"ISGUCU_GOSTERGE": "7", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "48.9"),
+        _series({"ISGUCU_GOSTERGE": "7", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "48.9"),
     )
     assert _adapter(body).fetch() == []
 
@@ -149,8 +146,11 @@ def test_float_noise_is_rounded_away() -> None:
     yine kurulamazdı.
     """
     body = _document(
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "48.89999999999999"),
+        _series(
+            {"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
+            "2026-06",
+            "48.89999999999999",
+        ),
     )
     assert _adapter(body).fetch()[0].extra["normalized_value"]["value"] == 48.9
 
@@ -164,8 +164,7 @@ def test_turkish_lowercase_does_not_produce_combining_dot() -> None:
 
 def test_summary_uses_turkish_lowercase() -> None:
     body = _document(
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "7.6"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "7.6"),
     )
     summary = _adapter(body).fetch()[0].summary or ""
     assert "işsizlik oranı" in summary
@@ -174,8 +173,12 @@ def test_summary_uses_turkish_lowercase() -> None:
 
 @pytest.mark.parametrize(
     ("period", "expected"),
-    [("2026-06", "Haziran 2026"), ("2026-01", "Ocak 2026"),
-     ("2026", "2026"), ("2026-Q1", "2026-Q1")],
+    [
+        ("2026-06", "Haziran 2026"),
+        ("2026-01", "Ocak 2026"),
+        ("2026", "2026"),
+        ("2026-Q1", "2026-Q1"),
+    ],
 )
 def test_period_is_written_in_turkish(period: str, expected: str) -> None:
     assert format_period(period) == expected
@@ -189,8 +192,7 @@ def test_url_and_guid_carry_the_period() -> None:
     olmasaydı yeni ayın verisi eskisinin tekrarı sanılırdı.
     """
     body = _document(
-        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                "2026-06", "7.6"),
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "7.6"),
     )
     item = _adapter(body).fetch()[0]
     assert "2026-06" in item.url
@@ -243,13 +245,22 @@ def test_pipeline_resolves_the_adapter_for_a_tuik_sdmx_source() -> None:
     from politikdesk.ingestion.repository import SourceRow
 
     source = SourceRow(
-        id=1, slug="tuik", name="TÜİK", tier=1, kind="official",
-        independence_group="official-tuik", access_method="api",
-        tos_status="allowed", adapter="tuik_sdmx",
+        id=1,
+        slug="tuik",
+        name="TÜİK",
+        tier=1,
+        kind="official",
+        independence_group="official-tuik",
+        access_method="api",
+        tos_status="allowed",
+        adapter="tuik_sdmx",
         base_url="https://www.tuik.gov.tr",
         feed_url="https://nsiws.tuik.gov.tr/rest",
-        extra_feeds=[], keyword_filter=[], topics=[],
-        is_active=True, is_wire_reference=False,
+        extra_feeds=[],
+        keyword_filter=[],
+        topics=[],
+        is_active=True,
+        is_wire_reference=False,
     )
 
     adapter = build_adapter(source)
@@ -304,10 +315,15 @@ def test_token_expiry_triggers_invalidation_and_retry() -> None:
                 resp = _FakeResponse("Unauthorized")
                 resp.status_code = 401  # type: ignore[attr-defined]
                 return resp
-            resp = _FakeResponse(_document(
-                _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
-                        "2026-06", "7.6")
-            ))
+            resp = _FakeResponse(
+                _document(
+                    _series(
+                        {"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
+                        "2026-06",
+                        "7.6",
+                    )
+                )
+            )
             resp.status_code = 200  # type: ignore[attr-defined]
             return resp
 
@@ -320,4 +336,3 @@ def test_token_expiry_triggers_invalidation_and_retry() -> None:
     items = adapter.fetch()
     assert len(items) == 1
     assert invalidated is True
-

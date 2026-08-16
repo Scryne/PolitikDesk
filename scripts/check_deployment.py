@@ -227,10 +227,10 @@ def main() -> int:
             version_ok = c_rel.get("app_version") == repo_rel.app_version
             c_sha = c_rel.get("git_sha", "unknown")
             if repo_rel.git_sha and repo_rel.git_sha != "unknown":
-                sha_ok = (c_sha == repo_rel.git_sha) or (
-                    len(c_sha) >= 7 and repo_rel.git_sha.startswith(c_sha)
-                ) or (
-                    len(repo_rel.git_sha) >= 7 and c_sha.startswith(repo_rel.git_sha[:12])
+                sha_ok = (
+                    (c_sha == repo_rel.git_sha)
+                    or (len(c_sha) >= 7 and repo_rel.git_sha.startswith(c_sha))
+                    or (len(repo_rel.git_sha) >= 7 and c_sha.startswith(repo_rel.git_sha[:12]))
                 )
             else:
                 sha_ok = True
@@ -355,7 +355,6 @@ def main() -> int:
             "&& python -m scripts.migrate up"
         )
         return 1
-
 
     print("[SONUC] [PASS] DAGITIM VE SURUM BUTUNLUGU KAPISI BASARIYLA GECTI.")
     print("        Tum servisler, moduller, zamanlamalar ve semalar depoyla tam senkron.")

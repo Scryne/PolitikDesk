@@ -11,6 +11,7 @@ Boru hattının sözleşmesi:
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 
@@ -27,6 +28,7 @@ from politikdesk.ingestion.adapters.rss import RssAdapter
 from politikdesk.ingestion.adapters.sayistay import CumhurbaskanligiAdapter, SayistayAdapter
 from politikdesk.ingestion.adapters.tbmm import TbmmAdapter
 from politikdesk.ingestion.adapters.tuik_sdmx import TuikSdmxAdapter
+from politikdesk.ingestion.adapters.twitter import TwitterAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import IngestionStats, RawItem
@@ -47,6 +49,7 @@ ADAPTER_REGISTRY: dict[str, type[SourceAdapter]] = {
     "tuik_sdmx": TuikSdmxAdapter,
     "wp_rest": WordPressRestAdapter,
     "generic_html": GenericHtmlAdapter,
+    "twitter": TwitterAdapter,
 }
 ADAPTERS = ADAPTER_REGISTRY
 
@@ -133,6 +136,26 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
             http=http,
         )
 
+    if adapter_key == "twitter":
+        list_id = None
+        if "list-" in source.slug:
+            m = re.search(r"list-(?:[a-zA-Z0-9_]+-)?(\d+)", source.slug)
+            if m:
+                list_id = m.group(1)
+        elif source.feed_url and "/lists/" in source.feed_url:
+            m = re.search(r"/lists/(\d+)", source.feed_url)
+            if m:
+                list_id = m.group(1)
+
+        handle = None if list_id else source.slug.replace("x-", "")
+        return TwitterAdapter(
+            source.slug,
+            handle=handle,
+            list_id=list_id,
+            base_url=source.base_url or "https://x.com",
+            http=http,
+        )
+
     raise ValueError(f"{source.slug}: bilinmeyen adaptör {adapter_key!r}")
 
 
@@ -149,9 +172,12 @@ class Pipeline:
             total.merge(self.run_source(source))
         log.info(
             "ingestion_cycle_complete",
-            fetched=total.fetched, stored=total.stored,
-            exact_dupes=total.exact_duplicates, near_dupes=total.near_duplicates,
-            filtered=total.filtered_out, errors=total.errors,
+            fetched=total.fetched,
+            stored=total.stored,
+            exact_dupes=total.exact_duplicates,
+            near_dupes=total.near_duplicates,
+            filtered=total.filtered_out,
+            errors=total.errors,
         )
         return total
 
@@ -165,8 +191,7 @@ class Pipeline:
         failures: list[str] = []
 
         try:
-            decision = guard.check(source.slug, source.tos_status,
-                                   is_active=source.is_active)
+            decision = guard.check(source.slug, source.tos_status, is_active=source.is_active)
             if not decision.allowed:
                 return stats
 
@@ -190,21 +215,33 @@ class Pipeline:
         except Exception as exc:  # noqa: BLE001 — bir kaynak diğerlerini düşürmez
             error = f"{type(exc).__name__}: {exc}"
             stats.errors = 1
-            log.warning("source_fetch_failed", source=source.slug,
-                        error=type(exc).__name__, detail=str(exc)[:300])
+            log.warning(
+                "source_fetch_failed",
+                source=source.slug,
+                error=type(exc).__name__,
+                detail=str(exc)[:300],
+            )
 
         # Hiç öğe gelmediyse ve adaptör içeride bir şey yuttuysa, bu tur
         # başarısızdır — `succeeded=true, 0 öğe` yazmak ham kaydı yalanlar.
         if error is None and stats.fetched == 0 and failures:
             error = "; ".join(failures)[:1000]
             stats.errors = 1
-            log.warning("source_fetch_silent_failure", source=source.slug,
-                        failures=len(failures), detail=error[:300])
+            log.warning(
+                "source_fetch_silent_failure",
+                source=source.slug,
+                failures=len(failures),
+                detail=error[:300],
+            )
         elif failures:
             # Kısmi başarısızlık: bazı akışlar düştü ama öğe geldi. Tur
             # başarılıdır; kaynağı kırmızıya çekmek yanlış alarm olurdu.
-            log.info("source_fetch_partial_failure", source=source.slug,
-                     failures=len(failures), fetched=stats.fetched)
+            log.info(
+                "source_fetch_partial_failure",
+                source=source.slug,
+                failures=len(failures),
+                fetched=stats.fetched,
+            )
 
         duration_ms = int((time.perf_counter() - started) * 1000)
         repository.record_fetch(
@@ -234,7 +271,7 @@ class Pipeline:
         window = repository.load_dedup_window()
 
         for item in items:
-            matched_topics = topics.classify(item.title, item.summary)
+            matched_topics = topics.classify(item.title, item.summary, vertical=source.vertical)
             if self.enforce_topic_scope and not matched_topics:
                 stats.filtered_out += 1
                 continue
@@ -243,6 +280,7 @@ class Pipeline:
                 item,
                 store_excerpt=decision.store_excerpt,
                 topics=matched_topics,
+                vertical=source.vertical,
             )
             article_text = f"{article.title} {article.excerpt or ''}"
 
@@ -269,8 +307,7 @@ class Pipeline:
                 article,
                 source_id=source.id,
                 independence_key=independence_key,
-                near_duplicate_of_id=verdict.matched_article_id
-                if verdict.kind == "near" else None,
+                near_duplicate_of_id=verdict.matched_article_id if verdict.kind == "near" else None,
                 simhash_distance=verdict.distance if verdict.kind == "near" else None,
             )
 
@@ -284,13 +321,15 @@ class Pipeline:
                 stats.near_duplicates += 1
 
             # Aynı tur içindeki tekrarları da yakala
-            window.remember(article_id, article.content_hash, article.simhash,
-                            article_text)
+            window.remember(article_id, article.content_hash, article.simhash, article_text)
 
         log.info(
             "source_ingested",
-            source=source.slug, fetched=stats.fetched, stored=stats.stored,
-            exact_dupes=stats.exact_duplicates, near_dupes=stats.near_duplicates,
+            source=source.slug,
+            fetched=stats.fetched,
+            stored=stats.stored,
+            exact_dupes=stats.exact_duplicates,
+            near_dupes=stats.near_duplicates,
             filtered=stats.filtered_out,
         )
         return stats

@@ -38,8 +38,8 @@ from politikdesk.ingestion.dedup import (
     ngram_set,
 )
 
-WIRE_COPY_MAX_DISTANCE = 6      # Spec §8.2 kural 2
-DUP_COSINE_THRESHOLD = 0.95     # Spec §8.2 kural 3
+WIRE_COPY_MAX_DISTANCE = 6  # Spec §8.2 kural 2
+DUP_COSINE_THRESHOLD = 0.95  # Spec §8.2 kural 3
 DUP_NGRAM_THRESHOLD = NGRAM_CONTAINMENT_THRESHOLD
 
 # Spec §9.1 — kaynak katmanı ile `kind` eşlemesi
@@ -57,7 +57,7 @@ class EvidenceArticle:
     article_id: int
     source_slug: str
     tier: int
-    kind: str                              # official | wire | media | social
+    kind: str  # official | wire | media | social
     independence_group: str | None = None
     simhash: int = 0
     embedding: list[float] = field(default_factory=list)
@@ -140,9 +140,11 @@ def merge_key(
     for other in others:
         if other.article_id == article.article_id or not other.is_wire:
             continue
-        if article.simhash and other.simhash and hamming_distance(
-            article.simhash, other.simhash
-        ) <= max_distance:
+        if (
+            article.simhash
+            and other.simhash
+            and hamming_distance(article.simhash, other.simhash) <= max_distance
+        ):
             return _own_key(other)
 
     # 3) Kopyala-yapıştır: embedding + n-gram

@@ -1,0 +1,272 @@
+# PolitikDesk — Sosyal Medya & X (Twitter) Hesap Listesi (Spec v3.5 §9.4, §12.4)
+#
+# ⛔ SERT EPİSTEMİK KURAL (Spec §9.4 / R7):
+#    Sosyal medya (Twitter/X) içerikleri HER ZAMAN Tier 4 (social) olarak işlenir.
+#    R7 kuralı gereği yalnızca sosyal medya kanıtı içeren bir iddia ASLA 🟢 (strongly_corroborated)
+#    veya 🟡 (partially_corroborated) olamaz; azami 🟠 (single_source) olabilir.
+#    Sosyal medyadan çıkan tüm iddialar 'attribution' (aktör beyanı) türündedir.
+
+version: 3
+vertical: social
+max_sources: 35
+
+sources:
+  # ---------------------------------------------------------------- Tier 1 Kurumsal / Resmi Hesaplar
+  - slug: x-tbmm
+    name: "TBMM Resmî X Hesabı (@TBMMresmi)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-tbmm"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/TBMMresmi"
+    feed_url: "https://x.com/TBMMresmi"
+    adapter: twitter
+    handle: "TBMMresmi"
+    account_type: "official_institution"
+    verified: true
+    topics: [yasama_sureci, meclis_gundemi, genel_kurul_tutanaklari]
+    produces_scheduled_events: false
+
+  - slug: x-iletisim
+    name: "İletişim Başkanlığı X Hesabı (@iletisim)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-iletisim"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/iletisim"
+    feed_url: "https://x.com/iletisim"
+    adapter: twitter
+    handle: "iletisim"
+    account_type: "official_institution"
+    verified: true
+    topics: [parti_sozculeri, dis_politika, cumhurbaskanligi_kararnameleri]
+    produces_scheduled_events: false
+
+  # ---------------------------------------------------------------- Tier 2 Parti Liderleri
+  - slug: x-rterdogan
+    name: "Recep Tayyip Erdoğan (@RTErdogan)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-rterdogan"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/RTErdogan"
+    feed_url: "https://x.com/RTErdogan"
+    adapter: twitter
+    handle: "RTErdogan"
+    account_type: "political_leader"
+    actor_canonical_name: "Recep Tayyip Erdoğan"
+    verified: true
+    topics: [parti_sozculeri, secim_ve_anketler, dis_politika]
+    produces_scheduled_events: false
+
+  - slug: x-ozgurozel
+    name: "Özgür Özel (@ozgur_ozel)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-ozgurozel"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/ozgur_ozel"
+    feed_url: "https://x.com/ozgur_ozel"
+    adapter: twitter
+    handle: "ozgur_ozel"
+    account_type: "political_leader"
+    actor_canonical_name: "Özgür Özel"
+    verified: true
+    topics: [parti_sozculeri, meclis_gundemi, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  - slug: x-dbdevletbahceli
+    name: "Devlet Bahçeli (@dbdevletbahceli)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-dbdevletbahceli"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/dbdevletbahceli"
+    feed_url: "https://x.com/dbdevletbahceli"
+    adapter: twitter
+    handle: "dbdevletbahceli"
+    account_type: "political_leader"
+    actor_canonical_name: "Devlet Bahçeli"
+    verified: true
+    topics: [parti_sozculeri, dis_politika, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  - slug: x-fatiherbakan
+    name: "Fatih Erbakan (@FatihErbakan)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-fatiherbakan"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/FatihErbakan"
+    feed_url: "https://x.com/FatihErbakan"
+    adapter: twitter
+    handle: "FatihErbakan"
+    account_type: "political_leader"
+    actor_canonical_name: "Fatih Erbakan"
+    verified: true
+    topics: [parti_sozculeri, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  - slug: x-umitozdag
+    name: "Ümit Özdağ (@UmitOzdag)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-umitozdag"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/UmitOzdag"
+    feed_url: "https://x.com/UmitOzdag"
+    adapter: twitter
+    handle: "UmitOzdag"
+    account_type: "political_leader"
+    actor_canonical_name: "Ümit Özdağ"
+    verified: true
+    topics: [parti_sozculeri, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  # ---------------------------------------------------------------- Tier 3 Kilit Belediye Başkanları
+  - slug: x-ekremimamoglu
+    name: "Ekrem İmamoğlu (@ekrem_imamoglu)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-ekremimamoglu"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/ekrem_imamoglu"
+    feed_url: "https://x.com/ekrem_imamoglu"
+    adapter: twitter
+    handle: "ekrem_imamoglu"
+    account_type: "mayor"
+    actor_canonical_name: "Ekrem İmamoğlu"
+    verified: true
+    topics: [yerel_yonetim, parti_sozculeri, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  - slug: x-mansuryavas
+    name: "Mansur Yavaş (@mansuryavas06)"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-mansuryavas"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/mansuryavas06"
+    feed_url: "https://x.com/mansuryavas06"
+    adapter: twitter
+    handle: "mansuryavas06"
+    account_type: "mayor"
+    actor_canonical_name: "Mansur Yavaş"
+    verified: true
+    topics: [yerel_yonetim, parti_sozculeri, secim_ve_anketler]
+    produces_scheduled_events: false
+
+  # ---------------------------------------------------------------- Tier 4 Tematik ve Gazeteci X Listeleri (Spec §9.4)
+  - slug: x-list-1473396544820948992
+    name: "X Siyaset & Gazeteciler Listesi"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-list-1473396544820948992"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1473396544820948992"
+    feed_url: "https://x.com/i/lists/1473396544820948992"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [parti_ve_siyaset, meclis_gundemi, yargi_ve_hukuk, secim_ve_ysk]
+    produces_scheduled_events: false
+
+  - slug: x-list-1494242247231033347
+    name: "X Medya & Siyaset Listesi"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-list-1494242247231033347"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1494242247231033347"
+    feed_url: "https://x.com/i/lists/1494242247231033347"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [parti_ve_siyaset, yargi_ve_hukuk, ifade_ozgurlugu_ve_basin]
+    produces_scheduled_events: false
+
+  - slug: x-list-1326818255273680896
+    name: "X Haber Merkezleri & Ajanslar Listesi"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-list-1326818255273680896"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1326818255273680896"
+    feed_url: "https://x.com/i/lists/1326818255273680896"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [parti_ve_siyaset, yasama_sureci, hukumet_ve_kabine, dis_politika]
+    produces_scheduled_events: false
+
+  - slug: x-list-1481019746921467908
+    name: "X TBMM & Siyasi Gündem Listesi"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-list-1481019746921467908"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1481019746921467908"
+    feed_url: "https://x.com/i/lists/1481019746921467908"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [yasama_sureci, parti_ve_siyaset, meclis_gundemi, secim_ve_ysk]
+    produces_scheduled_events: false
+
+  - slug: x-list-1480924470277812233
+    name: "X Ekonomi & Politika Listesi"
+    tier: 4
+    kind: social
+    vertical: macro_economy
+    independence_group: "social-list-1480924470277812233"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1480924470277812233"
+    feed_url: "https://x.com/i/lists/1480924470277812233"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [enflasyon, politika_faizi, butce_ve_hazine, buyume, kur_ve_rezervler]
+    produces_scheduled_events: false
+
+  - slug: x-list-1465344996131971087
+    name: "X Son Dakika & Gündem Listesi"
+    tier: 4
+    kind: social
+    vertical: legislation
+    independence_group: "social-list-1465344996131971087"
+    access_method: social
+    tos_status: allowed
+    base_url: "https://x.com/i/lists/1465344996131971087"
+    feed_url: "https://x.com/i/lists/1465344996131971087"
+    adapter: twitter
+    account_type: "curated_list"
+    verified: false
+    topics: [parti_ve_siyaset, yasama_sureci, secim_ve_ysk, dis_politika]
+    produces_scheduled_events: false

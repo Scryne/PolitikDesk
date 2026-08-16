@@ -44,15 +44,14 @@ router = APIRouter(tags=["web"])
 
 # 1x1 saydam GIF — bağımlılıksız, 43 bayt.
 _PIXEL = bytes.fromhex(
-    "47494638396101000100800000000000ffffff21f90401000000002c00000000"
-    "010001000002024401003b"
+    "47494638396101000100800000000000ffffff21f90401000000002c00000000010001000002024401003b"
 )
 
 
 def _send_state(row: dict) -> str:
     if row.get("sent_at"):
         opened = (
-            f' · açıldı {fmt.relative(row["opened_at"])}'
+            f" · açıldı {fmt.relative(row['opened_at'])}"
             if row.get("opened_at")
             else " · henüz açılmadı"
         )
@@ -72,7 +71,7 @@ def briefing_index() -> str:
         body = page_head(
             "Brifingler",
             lede="Sabah ve akşam brifingleri gündem penceresini deterministik "
-                 "olarak özetler — brifing üretimi LLM kullanmaz.",
+            "olarak özetler — brifing üretimi LLM kullanmaz.",
         ) + empty_state(
             "Henüz brifing üretilmedi",
             "Brifingler her sabah ve akşam otomatik üretilir. İlkini hemen "
@@ -80,19 +79,17 @@ def briefing_index() -> str:
             action=button("Gündeme dön", href="/feed", variant="primary"),
             icon_name="briefing",
         )
-        return page("Brifingler", body, active="/briefing",
-                    crumbs=(("Brifingler", None),))
+        return page("Brifingler", body, active="/briefing", crumbs=(("Brifingler", None),))
 
     rows = [
         "<tr>"
         + cell(
             f'<a href="/briefing/{r["briefing_date"]}?slot={r["slot"]}">'
-            f'{esc(fmt.full_date(r["briefing_date"]))}</a>',
+            f"{esc(fmt.full_date(r['briefing_date']))}</a>",
             label="Tarih",
         )
         + cell(
-            f'<span class="badge neutral">'
-            f'{esc(generator.SLOT_LABELS[r["slot"]])}</span>',
+            f'<span class="badge neutral">{esc(generator.SLOT_LABELS[r["slot"]])}</span>',
             label="Slot",
         )
         + cell(esc(fmt.number(r["event_count"] or 0)), label="Olay", cls="num")
@@ -103,19 +100,25 @@ def briefing_index() -> str:
     ]
 
     body = f"""
-{page_head(
-    "Brifingler",
-    lede=f"Sabah {generator.SLOT_WINDOW_HOURS['morning']} saatlik, akşam "
-         f"{generator.SLOT_WINDOW_HOURS['evening']} saatlik pencereyi özetler. "
-         f"İçerik deterministiktir — brifing üretimi LLM kullanmaz.",
-)}
-{card(table(
-    (("Tarih", ""), ("Slot", ""), ("Olay", "num"), ("Üretim", ""), ("Gönderim", "")),
-    rows,
-), cls="flush")}
+{
+        page_head(
+            "Brifingler",
+            lede=f"Sabah {generator.SLOT_WINDOW_HOURS['morning']} saatlik, akşam "
+            f"{generator.SLOT_WINDOW_HOURS['evening']} saatlik pencereyi özetler. "
+            f"İçerik deterministiktir — brifing üretimi LLM kullanmaz.",
+        )
+    }
+{
+        card(
+            table(
+                (("Tarih", ""), ("Slot", ""), ("Olay", "num"), ("Üretim", ""), ("Gönderim", "")),
+                rows,
+            ),
+            cls="flush",
+        )
+    }
 """
-    return page("Brifingler", body, active="/briefing",
-                crumbs=(("Brifingler", None),))
+    return page("Brifingler", body, active="/briefing", crumbs=(("Brifingler", None),))
 
 
 @router.get("/briefing/open/{token}.gif")
@@ -146,9 +149,7 @@ def briefing_page(on: str, slot: str = "morning") -> str:
 
     record = generator.get_briefing(on_date, slot)  # type: ignore[arg-type]
     if record is None:
-        raise HTTPException(
-            status_code=404, detail=f"{on} {slot} brifingi üretilmemiş."
-        )
+        raise HTTPException(status_code=404, detail=f"{on} {slot} brifingi üretilmemiş.")
 
     slots = segment(
         tuple(
@@ -161,29 +162,35 @@ def briefing_page(on: str, slot: str = "morning") -> str:
     # stilini taşır ve sayfa stiliyle karışmamalıdır. `sandbox` betik
     # çalıştırmayı kapatır — gövde bir e-posta şablonu, betik içermez.
     body = f"""
-{page_head(
-    generator.SLOT_LABELS[slot],
-    lede=esc(fmt.full_date(on_date)),
-    actions=button("Listeye dön", href="/briefing", icon_name="arrow-left"),
-)}
+{
+        page_head(
+            generator.SLOT_LABELS[slot],
+            lede=esc(fmt.full_date(on_date)),
+            actions=button("Listeye dön", href="/briefing", icon_name="arrow-left"),
+        )
+    }
 <div class="row" style="margin:-16px 0 var(--space-6)">
   {slots}
   <span class="spacer subtle" style="font-size:var(--text-xs)">
     Üretildi {esc(fmt.relative(record["generated_at"]))} · {esc(_send_state(record))}
   </span>
 </div>
-{card(
-    f'<iframe srcdoc="{esc(record["body_html"])}" sandbox '
-    f'style="width:100%;height:72vh;border:0;border-radius:var(--radius-md);'
-    f'background:#FFF" title="Brifing gövdesi" loading="lazy"></iframe>',
-    cls="flush",
-)}
+{
+        card(
+            f'<iframe srcdoc="{esc(record["body_html"])}" sandbox '
+            f'style="width:100%;height:72vh;border:0;border-radius:var(--radius-md);'
+            f'background:var(--color-surface)" title="Brifing gövdesi" loading="lazy"></iframe>',
+            cls="flush",
+        )
+    }
 <div style="margin-top:var(--space-6)">
-{panel(
-    "Düz metin sürümü",
-    f'<pre class="mono" style="white-space:pre-wrap;margin:0">'
-    f'{esc(record["body_text"])}</pre>',
-)}
+{
+        panel(
+            "Düz metin sürümü",
+            f'<pre class="mono" style="white-space:pre-wrap;margin:0">'
+            f"{esc(record['body_text'])}</pre>",
+        )
+    }
 </div>
 """
     return page(

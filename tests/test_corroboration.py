@@ -32,10 +32,14 @@ from politikdesk.nlp.claims import (
 )
 
 
-def _claim(text: str, *, quote: str, ctype: str = "fact",
-           value: dict | None = None) -> ExtractedClaim:
+def _claim(
+    text: str, *, quote: str, ctype: str = "fact", value: dict | None = None
+) -> ExtractedClaim:
     return ExtractedClaim(
-        claim_text=text, claim_type=ctype, quote_span=quote, normalized_value=value,
+        claim_text=text,
+        claim_type=ctype,
+        quote_span=quote,
+        normalized_value=value,
     )
 
 
@@ -85,8 +89,7 @@ def test_numeric_claims_group_by_normalized_value() -> None:
     value = {"metric": "cpi", "value": 1.78, "period": "2026-07"}
     collected = [
         (_claim("TÜFE aylık %1,78 arttı", quote="a", ctype="number", value=value), 1),
-        (_claim("Aylık enflasyon yüzde 1,78 oldu", quote="b",
-                ctype="number", value=value), 2),
+        (_claim("Aylık enflasyon yüzde 1,78 oldu", quote="b", ctype="number", value=value), 2),
     ]
 
     grouped = group_claims_by_source(collected)
@@ -140,9 +143,14 @@ def test_dedupe_claims_still_works_for_its_own_purpose() -> None:
 def _evidence(article_id: int, tier: int, group: str) -> Evidence:
     return Evidence(
         article=EvidenceArticle(
-            article_id=article_id, source_slug=f"kaynak{article_id}", tier=tier,
-            kind="media", independence_group=group, simhash=article_id * 7919,
-            embedding=[], text=f"birbirinden farkli metin {article_id}",
+            article_id=article_id,
+            source_slug=f"kaynak{article_id}",
+            tier=tier,
+            kind="media",
+            independence_group=group,
+            simhash=article_id * 7919,
+            embedding=[],
+            text=f"birbirinden farkli metin {article_id}",
         ),
         stance="supports",
         quote_span=f"alinti {article_id}",

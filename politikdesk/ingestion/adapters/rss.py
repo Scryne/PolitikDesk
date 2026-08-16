@@ -26,8 +26,14 @@ log = get_logger(__name__)
 ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
 # Bazı kaynaklar tarih alanını farklı isimlendirir.
-_DATE_TAGS = ("pubDate", "published", "updated", f"{ATOM_NS}published",
-              f"{ATOM_NS}updated", "{http://purl.org/dc/elements/1.1/}date")
+_DATE_TAGS = (
+    "pubDate",
+    "published",
+    "updated",
+    f"{ATOM_NS}published",
+    f"{ATOM_NS}updated",
+    "{http://purl.org/dc/elements/1.1/}date",
+)
 
 
 class RssAdapter(FailureRecorder):

@@ -1,10 +1,10 @@
-# PolitikDesk — Siyaset & Yasama Dikey Kaynakları (Spec v3.4 §5, §9.2)
+# PolitikDesk — Siyaset & Yasama Dikey Kaynakları (Spec v3.5 §5, §9.2)
 #
-# ⛔ SERT KURAL: Dikey başına azami 12 kaynak, toplam sistem azami 30 kaynak.
+# ⛔ SERT KURAL: Dikey başına azami 15 kaynak, toplam sistem azami 40 kaynak.
 
 version: 3
 vertical: legislation
-max_sources: 12
+max_sources: 15
 
 sources:
   # ---------------------------------------------------------------- Tier 1
@@ -63,13 +63,30 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: "https://www.aa.com.tr"
-    feed_url: "https://www.aa.com.tr/tr/rss/default?cat=guncel"
+    feed_url: "https://www.aa.com.tr/tr/rss/default?cat=politika"
     adapter: rss
     verified: true
     topics: [parti_sozculeri, meclis_gundemi, secim_ve_anketler]
     produces_scheduled_events: false
     is_wire_reference: true
     notes: "Ajans haberleri ve siyasi beyanlar."
+
+  - slug: bbc-turkce
+    name: "BBC Türkçe — Politika"
+    tier: 2
+    kind: wire
+    vertical: legislation
+    independence_group: "wire-bbc"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.bbc.com/turkce"
+    feed_url: "https://feeds.bbci.co.uk/turkce/rss.xml"
+    adapter: rss
+    verified: true
+    is_wire_reference: true
+    topics: [meclis_gundemi, dis_politika, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Uluslararası standartta Türkçe haber ve çapraz teyit referansı."
 
   # ---------------------------------------------------------------- Tier 3
   - slug: trthaber-politika
@@ -96,8 +113,104 @@ sources:
     access_method: rss
     tos_status: allowed
     base_url: "https://www.haberturk.com"
-    feed_url: "https://www.haberturk.com/rss/manset.xml"
+    feed_url: "https://www.haberturk.com/rss/kategori/gundem.xml"
     adapter: rss
     verified: true
     topics: [parti_sozculeri, secim_ve_anketler, yargi_ve_anayasa]
     produces_scheduled_events: false
+
+  - slug: gazeteduvar-politika
+    name: "Gazete Duvar — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-duvar"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.gazeteduvar.com.tr"
+    feed_url: "https://www.gazeteduvar.com.tr/rss/politika"
+    adapter: rss
+    verified: true
+    topics: [parti_sozculeri, yargi_ve_hukuk, yerel_yonetim]
+    produces_scheduled_events: false
+    notes: "Siyaset, meclis ve yerel yönetim haberleri."
+
+  - slug: diken-siyaset
+    name: "Diken — Siyaset"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-diken"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.diken.com.tr"
+    feed_url: "https://www.diken.com.tr/feed/"
+    adapter: rss
+    verified: true
+    topics: [yasama_sureci, meclis_gundemi, dis_politika]
+    produces_scheduled_events: false
+    notes: "Siyasi gelişmeler ve analizler."
+
+  - slug: sozcu-politika
+    name: "Sözcü — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-sozcu"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.sozcu.com.tr"
+    feed_url: "https://www.sozcu.com.tr/rss/politika.xml"
+    adapter: rss
+    verified: true
+    topics: [meclis_gundemi, parti_sozculeri, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Ulusal siyaset ve parti açıklamaları."
+
+  - slug: t24-politika
+    name: "T24 — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-t24"
+    access_method: generic_html
+    tos_status: allowed
+    base_url: "https://t24.com.tr"
+    feed_url: "https://t24.com.tr/haberler"
+    adapter: generic_html
+    verified: true
+    topics: [meclis_gundemi, parti_sozculeri, yargi_ve_hukuk, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Bağımsız internet gazeteciliği — T24 haber ve kulis akışı."
+
+  - slug: birgun-politika
+    name: "BirGün — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-birgun"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.birgun.net"
+    feed_url: "https://www.birgun.net/xml/rss.xml"
+    adapter: rss
+    verified: true
+    topics: [meclis_gundemi, yargi_ve_hukuk, sendika_ve_emek, yerel_yonetim]
+    produces_scheduled_events: false
+    notes: "Bağımsız ve eleştirel siyaset, emek ve kamu politikaları takibi."
+
+  - slug: cumhuriyet-politika
+    name: "Cumhuriyet — Politika"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-cumhuriyet"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.cumhuriyet.com.tr"
+    feed_url: "https://www.cumhuriyet.com.tr/rss"
+    adapter: rss
+    verified: true
+    topics: [meclis_gundemi, anayasa_ve_yargi, parti_sozculeri, dis_politika]
+    produces_scheduled_events: false
+    notes: "Köklü cumhuriyet basını, parlamento ve yargı haberleri."

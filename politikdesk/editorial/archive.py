@@ -174,15 +174,17 @@ def list_archived_publications(limit: int = 50) -> list[dict[str, Any]]:
         rows = cur.fetchall()
         out = []
         for r in rows:
-            out.append({
-                "draft_id": r["draft_id"],
-                "event_id": r["event_id"],
-                "event_title": r["event_title"],
-                "body": r["body"],
-                "angle": r["angle"],
-                "user_action": r["user_action"],
-                "created_at": r["created_at"].isoformat() if r["created_at"] else "",
-                "cited_claim_ids": list(r["cited_claim_ids"] or []),
-                "is_grounded": r["is_grounded"],
-            })
+            out.append(
+                {
+                    "draft_id": r["draft_id"],
+                    "event_id": r["event_id"],
+                    "event_title": r["event_title"],
+                    "body": r["body"],
+                    "angle": r["angle"],
+                    "user_action": r["user_action"],
+                    "created_at": r["created_at"].isoformat() if r["created_at"] else "",
+                    "cited_claim_ids": list(r["cited_claim_ids"] or []),
+                    "is_grounded": r["is_grounded"],
+                }
+            )
         return out

@@ -120,7 +120,7 @@ STAGES: tuple[Stage, ...] = (
               AND entities_extracted_at IS NOT NULL
         """,
         hint="beat'te `cluster-every-3-minutes` zamanlaması var mı? "
-             "`make deploy-check` bayat imajı yakalar",
+        "`make deploy-check` bayat imajı yakalar",
     ),
     Stage(
         key="claims",
@@ -146,7 +146,7 @@ STAGES: tuple[Stage, ...] = (
         """,
         params=(MAX_CLAIM_ATTEMPTS,),
         hint="LLM bütçesi dolmuş olabilir (`/admin/metrics` bütçe kutusu) "
-             "ya da sağlayıcı hata veriyor",
+        "ya da sağlayıcı hata veriyor",
     ),
     Stage(
         key="evidence",
@@ -165,6 +165,7 @@ STAGES: tuple[Stage, ...] = (
         hint="kanıt motoru LLM kullanmaz; birikme varsa worker durmuştur",
     ),
 )
+
 
 # Birikme sayısıyla değil, *son çalışma zamanıyla* ölçülen aşamalar.
 # Bunlarda "bekleyen öğe" kavramı yok: brifing ya üretildi ya üretilmedi.
@@ -292,12 +293,19 @@ def _heartbeat_report(cur: Any, beat: Heartbeat) -> StageReport:
         # Hiç üretilmemiş: henüz kurulmuş bir sistemde bu normaldir, ama
         # sessizce yeşil göstermek de doğru değil. Sarı: "bakılmalı".
         return StageReport(
-            key=beat.key, label=beat.label, status="amber", backlog=0,
-            oldest_hours=None, threshold_hours=beat.threshold_hours,
-            hint=f"Hiç kayıt yok. {beat.hint}", kind="heartbeat",
+            key=beat.key,
+            label=beat.label,
+            status="amber",
+            backlog=0,
+            oldest_hours=None,
+            threshold_hours=beat.threshold_hours,
+            hint=f"Hiç kayıt yok. {beat.hint}",
+            kind="heartbeat",
         )
 
     from datetime import UTC, datetime
+
+    last_at = last_at.replace(tzinfo=UTC) if last_at.tzinfo is None else last_at.astimezone(UTC)
 
     # Gelecek tarihli kayıt bir NABIZ DEĞİLDİR. Negatif yaş panoda anlamsız
     # bir sayı gösterir ve "çok taze" gibi okunur; oysa kaynağı ya saat
@@ -339,8 +347,7 @@ def check_and_log() -> list[dict[str, Any]]:
                 f"{r.label}: {r.backlog} bekliyor, en eskisi {r.oldest_hours} sa "
                 f"(eşik {r.threshold_hours} sa)"
                 if r.kind == "backlog"
-                else f"{r.label}: {r.oldest_hours} saattir üretim yok "
-                     f"(eşik {r.threshold_hours} sa)"
+                else f"{r.label}: {r.oldest_hours} saattir üretim yok (eşik {r.threshold_hours} sa)"
                 for r in red
             ],
         )

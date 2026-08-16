@@ -55,20 +55,18 @@ def archive_page() -> HTMLResponse:
                 if r["is_grounded"]
                 else '<span class="pd-badge pd-badge--contra">Grounding Engelli</span>'
             )
-            created_str = esc(r['created_at'][:19].replace('T', ' '))
+            created_str = esc(r["created_at"][:19].replace("T", " "))
             body_style = (
                 "background: var(--pd-color-surface-subtle); padding: 1rem; "
                 "border-radius: 4px; font-family: monospace; font-size: 0.9rem; "
                 "white-space: pre-wrap;"
             )
-            h4_style = (
-                "margin: 0.5rem 0; font-size: 1rem; color: var(--pd-color-text-secondary);"
-            )
-            angle_esc = esc(r['angle'].upper())
-            title_esc = esc(r['event_title'])
-            body_esc = esc(r['body'])
-            action_esc = esc(r['user_action'] or 'üretildi')
-            cited_len = len(r['cited_claim_ids'])
+            h4_style = "margin: 0.5rem 0; font-size: 1rem; color: var(--pd-color-text-secondary);"
+            angle_esc = esc(r["angle"].upper())
+            title_esc = esc(r["event_title"])
+            body_esc = esc(r["body"])
+            action_esc = esc(r["user_action"] or "üretildi")
+            cited_len = len(r["cited_claim_ids"])
             cards.append(f"""
                 <div class="pd-panel pd-stack" style="padding: 1.25rem; margin-bottom: 1rem;">
                     <div style="display: flex; justify-content: space-between;">
@@ -80,7 +78,7 @@ def archive_page() -> HTMLResponse:
                             </span>
                             <span style="margin-left: 0.5rem;">{grounded_badge}</span>
                         </div>
-                        <a href="/events/{r['event_id']}" class="pd-btn pd-btn--sm">Olay Detayı</a>
+                        <a href="/events/{r["event_id"]}" class="pd-btn pd-btn--sm">Olay Detayı</a>
                     </div>
                     <h4 style="{h4_style}">{title_esc}</h4>
                     <div style="{body_style}">{body_esc}</div>
@@ -90,15 +88,12 @@ def archive_page() -> HTMLResponse:
                 </div>
             """)
 
-
-
-
     content = f"""
     <div class="pd-stack pd-stack--lg">
         {head}
 
         <div class="pd-stack">
-            {''.join(cards)}
+            {"".join(cards)}
         </div>
     </div>
     """

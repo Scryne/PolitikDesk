@@ -146,9 +146,7 @@ def test_salience_score_is_capped_at_global_range() -> None:
 
 def test_editorial_profiles_has_no_ideological_column_in_sql() -> None:
     """P6 / KVKK m.6 — statik kontrol (DB olmadan da koşar)."""
-    block = re.search(
-        r"CREATE TABLE editorial_profiles \((.*?)\n\);", MIGRATION, flags=re.DOTALL
-    )
+    block = re.search(r"CREATE TABLE editorial_profiles \((.*?)\n\);", MIGRATION, flags=re.DOTALL)
     assert block, "editorial_profiles tanımı bulunamadı"
     body = block.group(1).lower()
     hits = [term for term in FORBIDDEN_PROFILE_TERMS if term in body]
@@ -185,7 +183,7 @@ def test_grounding_result_is_separate_from_check_result() -> None:
 
 
 def test_event_feedback_has_no_score_column() -> None:
-    """"Bu yanlış" bir DÜZELTME sinyalidir, bir güvenilirlik skoru değil."""
+    """ "Bu yanlış" bir DÜZELTME sinyalidir, bir güvenilirlik skoru değil."""
     block = re.search(
         r"CREATE TABLE IF NOT EXISTS event_feedback \((.*?)\n\);",
         ALL_MIGRATIONS,
@@ -275,9 +273,7 @@ def test_editorial_profiles_columns_are_stylistic_only(db_conn) -> None:  # noqa
         columns = [r["column_name"].lower() for r in cur.fetchall()]
 
     assert columns, "editorial_profiles tablosu bulunamadı"
-    offenders = [
-        c for c in columns if any(term in c for term in FORBIDDEN_PROFILE_TERMS)
-    ]
+    offenders = [c for c in columns if any(term in c for term in FORBIDDEN_PROFILE_TERMS)]
     assert not offenders, (
         f"editorial_profiles'ta ideolojik sütun(lar): {offenders}. "
         "Spec §10.1 ve KVKK m.6 uyarınca bu şema alanı bulunamaz."

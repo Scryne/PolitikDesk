@@ -92,9 +92,7 @@ class TuikTokenProvider:
             )
         except Exception as exc:  # noqa: BLE001
             # Anahtar istisna metnine sızmasın diye tür adıyla yetinilir.
-            raise TuikAuthError(
-                f"TÜİK belirteç ucu yanıt vermedi: {type(exc).__name__}"
-            ) from None
+            raise TuikAuthError(f"TÜİK belirteç ucu yanıt vermedi: {type(exc).__name__}") from None
         finally:
             if owns_client:
                 client.close()

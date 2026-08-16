@@ -134,9 +134,7 @@ def _breakdown_text(raw: dict[str, Any] | None) -> str:
     if not raw:
         return "kaynak kırılımı yok"
     return " · ".join(
-        f"{KIND_LABELS.get(kind, kind)} {count}"
-        for kind, count in sorted(raw.items())
-        if count
+        f"{KIND_LABELS.get(kind, kind)} {count}" for kind, count in sorted(raw.items()) if count
     )
 
 
@@ -212,7 +210,7 @@ def _salience_panel(row: dict[str, Any]) -> str:
   etkileşim girdisi içermez (Spec §8.4, §15 madde 14).</p>"""
 
     summary = (
-        f'{icon("shield", 14)}<span>Önem '
+        f"{icon('shield', 14)}<span>Önem "
         f'<b class="num">{esc(fmt.number(row["displayed_salience"]))}</b></span>'
         f'<span class="subtle">— kırılımı gör</span>'
     )
@@ -241,8 +239,7 @@ def _card(row: dict[str, Any]) -> str:
       {event_badge(row["status"])}
       <span>{esc(_breakdown_text(row.get("source_breakdown")))}</span>
       <span>· {esc(fmt.plural_count(int(row["article_count"] or 0), "makale"))}</span>
-      <span>· {esc(fmt.plural_count(int(row["independent_count"] or 0),
-                                    "bağımsız teyit"))}</span>
+      <span>· {esc(fmt.plural_count(int(row["independent_count"] or 0), "bağımsız teyit"))}</span>
     </div>
     <h3 style="margin:8px 0 6px">
       <a class="plain" href="/event/{row["id"]}">{esc(row["title"])}</a></h3>
@@ -256,8 +253,7 @@ def _card(row: dict[str, Any]) -> str:
           title="{esc(fmt.precise(row["last_update_at"]))}">
       {esc(fmt.relative(row["last_update_at"]))}</span>
   </div>"""
-    return ruled(_evidence_tone(row), f'<article class="card">{body}</article>',
-                 cls="feed-card")
+    return ruled(_evidence_tone(row), f'<article class="card">{body}</article>', cls="feed-card")
 
 
 def _summary_kpis(rows: list[dict[str, Any]]) -> str:
@@ -276,7 +272,7 @@ def _summary_kpis(rows: list[dict[str, Any]]) -> str:
 
 
 def _strip(summary: dict[str, Any]) -> str:
-    """"Sen yokken ne oldu" şeridi (F3-18) — tek satır."""
+    """ "Sen yokken ne oldu" şeridi (F3-18) — tek satır."""
     from politikdesk.web.ui import notice
 
     if not summary.get("available"):
@@ -339,20 +335,24 @@ def feed_page(
     counts = {key: sum(1 for row in rows if _matches(row, key)) for key, _ in FILTERS}
     tabs = segment(
         tuple(
-            (f"{label} · {fmt.number(counts[key])}",
-             f"/feed?f={key}" + (f"&limit={limit}" if limit != 40 else ""),
-             key == selected)
+            (
+                f"{label} · {fmt.number(counts[key])}",
+                f"/feed?f={key}" + (f"&limit={limit}" if limit != 40 else ""),
+                key == selected,
+            )
             for key, label in FILTERS
         )
     )
 
     body = f"""
-{page_head(
-    "Gündem",
-    lede="Makro ekonomi olayları, önem sırasıyla. Kanıt gücü her kartın sol "
-         "kenarındaki cetvelde okunur.",
-    actions=button("Yenile", icon_name="refresh", onclick="pdRefresh()"),
-)}
+{
+        page_head(
+            "Gündem",
+            lede="Makro ekonomi olayları, önem sırasıyla. Kanıt gücü her kartın sol "
+            "kenarındaki cetvelde okunur.",
+            actions=button("Yenile", icon_name="refresh", onclick="pdRefresh()"),
+        )
+    }
 <div class="stack">
   {_strip(summary)}
   {_summary_kpis(rows)}
@@ -366,7 +366,9 @@ def feed_page(
 </div>
 """
 
-    js = ACTIVITY_JS + f"""
+    js = (
+        ACTIVITY_JS
+        + f"""
 var PD_URL = '/feed/cards?limit={limit}&f={selected}';
 
 async function pdRefresh(){{
@@ -397,8 +399,8 @@ async function pdRefresh(){{
 setInterval(function(){{ if (!document.hidden) pdRefresh(); }},
             {REFRESH_SECONDS * 1000});
 """
-    return page("Gündem", body, active="/feed", crumbs=(("Gündem", None),),
-                extra_js=js)
+    )
+    return page("Gündem", body, active="/feed", crumbs=(("Gündem", None),), extra_js=js)
 
 
 @router.get("/feed/cards", response_class=HTMLResponse)

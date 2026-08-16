@@ -153,7 +153,11 @@ def test_dockerignore_preserves_runtime_roots() -> None:
     """.dockerignore dosyasının kritik çalışma zamanı dizinlerini dışlamadığını doğrular (F2)."""
     dockerignore_path = REPO_ROOT / ".dockerignore"
     assert dockerignore_path.is_file(), ".dockerignore dosyası bulunamadı."
-    lines = [line.strip() for line in dockerignore_path.read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+    lines = [
+        line.strip()
+        for line in dockerignore_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
 
     forbidden_ignores = ["politikdesk", "config", "certs", "migrations", "scripts"]
     for line in lines:
@@ -161,4 +165,3 @@ def test_dockerignore_preserves_runtime_roots() -> None:
             assert line != root and line != f"{root}/" and line != f"/{root}", (
                 f".dockerignore çalışma zamanı kök dizini '{root}'u dışlıyor: '{line}'"
             )
-

@@ -38,12 +38,12 @@ from politikdesk.evidence.independence import (
 ENGINE_VERSION = "evidence-engine@1.0.0"
 
 EvidenceStatus = Literal[
-    "strongly_corroborated",   # 🟢
+    "strongly_corroborated",  # 🟢
     "partially_corroborated",  # 🟡
-    "single_source",           # 🟠
-    "contradicted",            # 🔴
-    "unverified",              # ⚪
-    "attribution_verified",    # 🔵 (Beyan Sabit - Spec v3.4 §8.1 / B-92)
+    "single_source",  # 🟠
+    "contradicted",  # 🔴
+    "unverified",  # ⚪
+    "attribution_verified",  # 🔵 (Beyan Sabit - Spec v3.4 §8.1 / B-92)
 ]
 
 ClaimType = Literal["fact", "number", "attribution", "prediction", "promise"]
@@ -187,9 +187,7 @@ def _r3_official_number(claim: Claim, evidence: list[Evidence]) -> bool:
     if claim.claim_type != "number" or not claim.value_verified_against_source:
         return False
     return any(
-        e.supports
-        and e.article.tier == 1
-        and e.article.source_slug in OFFICIAL_STATISTICAL_SOURCES
+        e.supports and e.article.tier == 1 and e.article.source_slug in OFFICIAL_STATISTICAL_SOURCES
         for e in evidence
     )
 
@@ -243,29 +241,37 @@ def compute_status(
     }
 
     # ---- BLOK 2: kanıt kuralları, ilk eşleşen kazanır
+    corroborating_count = independent_count([a for a in supporting if a.tier <= 3])
     if _r1_contradicted(evidence):
         result = StatusResult("contradicted", "R1", {**_base_reason("R1"), **facts})
-    elif primary and count >= strong_min_sources() and not contradicting:
-        result = StatusResult(
-            "strongly_corroborated", "R2", {**_base_reason("R2"), **facts}
-        )
+    elif primary and corroborating_count >= strong_min_sources() and not contradicting:
+        result = StatusResult("strongly_corroborated", "R2", {**_base_reason("R2"), **facts})
     elif _r3_official_number(claim, evidence):
         result = StatusResult(
-            "strongly_corroborated", "R3",
-            {**_base_reason("R3"), **facts,
-             "exception": "official_numeric_publication",
-             "normalized_value": claim.normalized_value},
+            "strongly_corroborated",
+            "R3",
+            {
+                **_base_reason("R3"),
+                **facts,
+                "exception": "official_numeric_publication",
+                "normalized_value": claim.normalized_value,
+            },
         )
     elif _r8_attribution_verified(claim, evidence):
         result = StatusResult(
-            "attribution_verified", "R8",
-            {**_base_reason("R8"), **facts,
-             "label": "Beyan Sabit",
-             "exception": "primary_official_attribution_record"},
+            "attribution_verified",
+            "R8",
+            {
+                **_base_reason("R8"),
+                **facts,
+                "label": "Beyan Sabit",
+                "exception": "primary_official_attribution_record",
+            },
         )
-    elif count >= 2 and (not primary or partial_elements):
+    elif count >= 2:
         result = StatusResult(
-            "partially_corroborated", "R4",
+            "partially_corroborated",
+            "R4",
             {**_base_reason("R4"), **facts, "partial_elements": partial_elements},
         )
     elif count == 1:
@@ -277,9 +283,7 @@ def compute_status(
     return _apply_r7_ceiling(result, supporting)
 
 
-def _apply_r7_ceiling(
-    result: StatusResult, supporting: list[EvidenceArticle]
-) -> StatusResult:
+def _apply_r7_ceiling(result: StatusResult, supporting: list[EvidenceArticle]) -> StatusResult:
     """R7 — yalnızca Tier 4 (sosyal) kanıt varsa azami `single_source`.
 
     Sayı kaç olursa olsun 🟢/🟡 olamaz: sosyal medyada bir iddianın çok

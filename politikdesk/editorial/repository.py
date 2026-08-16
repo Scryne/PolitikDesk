@@ -125,20 +125,22 @@ def save_draft(
             RETURNING id
             """,
             (
-                user_id, event_id, angle, body, cited_claim_ids,
+                user_id,
+                event_id,
+                angle,
+                body,
+                cited_claim_ids,
                 json.dumps(grounding_result, ensure_ascii=False),
                 is_grounded,
                 json.dumps(check_result, ensure_ascii=False) if check_result else None,
-                model, prompt_version,
+                model,
+                prompt_version,
             ),
         )
         draft_id = int(fetch_one(cur)["id"])
         conn.commit()
 
-    log.info(
-        "draft_saved",
-        draft_id=draft_id, event_id=event_id, angle=angle, grounded=is_grounded
-    )
+    log.info("draft_saved", draft_id=draft_id, event_id=event_id, angle=angle, grounded=is_grounded)
     return draft_id
 
 

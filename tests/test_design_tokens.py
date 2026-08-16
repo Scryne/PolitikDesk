@@ -45,15 +45,11 @@ FONT_DIR = PACKAGE_DIR / "web" / "static" / "fonts"
 EMAIL_RENDERER = PACKAGE_DIR / "briefing" / "renderer.py"
 
 HEX_EXEMPT = {TOKENS_FILE, EMAIL_RENDERER}
-HEX_PATTERN = re.compile(r"#[0-9a-fA-F]{6}\b")
+HEX_PATTERN = re.compile(r"#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")
 
 
 def _python_sources() -> list[Path]:
-    return [
-        path
-        for path in PACKAGE_DIR.rglob("*.py")
-        if "__pycache__" not in path.parts
-    ]
+    return [path for path in PACKAGE_DIR.rglob("*.py") if "__pycache__" not in path.parts]
 
 
 def _emittable_strings(path: Path) -> list[str]:
@@ -73,9 +69,7 @@ def _emittable_strings(path: Path) -> list[str]:
 
     docstrings: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(
-            node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-        ):
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
             first = next(iter(getattr(node, "body", [])), None)
             if (
                 isinstance(first, ast.Expr)
@@ -137,10 +131,7 @@ def test_email_palette_comes_from_tokens() -> None:
         for value in _emittable_strings(EMAIL_RENDERER)
         if HEX_PATTERN.fullmatch(value.strip())
     ]
-    assert not literals, (
-        f"E-posta sablonunda elle yazilmis renk: {literals}. "
-        "tokens.LIGHT'tan oku."
-    )
+    assert not literals, f"E-posta sablonunda elle yazilmis renk: {literals}. tokens.LIGHT'tan oku."
 
 
 def test_the_token_file_actually_contains_colours() -> None:
@@ -194,9 +185,7 @@ UI_PAIRS = (
 
 @pytest.mark.parametrize("theme_name", ["light", "dark"])
 @pytest.mark.parametrize("foreground,background", TEXT_PAIRS)
-def test_text_contrast_meets_wcag_aa(
-    theme_name: str, foreground: str, background: str
-) -> None:
+def test_text_contrast_meets_wcag_aa(theme_name: str, foreground: str, background: str) -> None:
     palette = LIGHT if theme_name == "light" else DARK
     ratio = contrast_ratio(palette[foreground], palette[background])
     assert ratio >= 4.5, (
@@ -208,9 +197,7 @@ def test_text_contrast_meets_wcag_aa(
 
 @pytest.mark.parametrize("theme_name", ["light", "dark"])
 @pytest.mark.parametrize("foreground,background", UI_PAIRS)
-def test_ui_contrast_meets_wcag_aa(
-    theme_name: str, foreground: str, background: str
-) -> None:
+def test_ui_contrast_meets_wcag_aa(theme_name: str, foreground: str, background: str) -> None:
     palette = LIGHT if theme_name == "light" else DARK
     ratio = contrast_ratio(palette[foreground], palette[background])
     assert ratio >= 3.0, (
@@ -327,7 +314,7 @@ def test_no_css_uppercase_transform() -> None:
 # bunların dışında kalır.
 EMOJI_RANGES = (
     (0x1F300, 0x1FAFF),  # emoji, sembol ve piktogramlar
-    (0x2600, 0x27BF),    # çeşitli semboller + dingbat
+    (0x2600, 0x27BF),  # çeşitli semboller + dingbat
     (0x1F000, 0x1F2FF),  # ek semboller
 )
 
@@ -379,7 +366,8 @@ def test_ui_layer_uses_no_emoji_as_icons() -> None:
         if found:
             offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()}: {found[:5]}")
     assert not offenders, (
-        "Arayuzde emoji bulundu:\n  " + "\n  ".join(offenders)
+        "Arayuzde emoji bulundu:\n  "
+        + "\n  ".join(offenders)
         + "\n\nDESIGN.md Bolum 13.4: tek ikon seti — web/ui/icons.py."
     )
 
@@ -391,14 +379,10 @@ def test_every_registered_icon_is_used() -> None:
     ikon var mıydı?" sorusu yanıtlanamaz hâle gelir ve ekip yenisini ekler.
     """
     blob = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in _python_sources()
-        if path.name != "icons.py"
+        path.read_text(encoding="utf-8") for path in _python_sources() if path.name != "icons.py"
     )
     # `status_icon` beş `status-*` ikonunu dolaylı çağırır.
     unused = [
-        name
-        for name in icons.names()
-        if not name.startswith("status-") and f'"{name}"' not in blob
+        name for name in icons.names() if not name.startswith("status-") and f'"{name}"' not in blob
     ]
     assert not unused, f"Kullanilmayan ikon: {unused}. Ya kullan ya sil."

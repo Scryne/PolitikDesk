@@ -93,8 +93,7 @@ def bar_trend(
         if not ((value >= target) if higher_is_better else (value <= target))
     )
     label = (
-        f"{len(points)} günlük eğilim. "
-        f"{missed} gün hedef dışı, {len(points) - missed} gün hedefte."
+        f"{len(points)} günlük eğilim. {missed} gün hedef dışı, {len(points) - missed} gün hedefte."
     )
     return (
         f'<svg class="chart" role="img" aria-label="{esc(label)}" '
@@ -114,4 +113,3 @@ def bar_trend(
         f'stroke-dasharray="3 3"/>'
         f"{''.join(bars)}</svg>"
     )
-

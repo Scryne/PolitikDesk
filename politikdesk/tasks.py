@@ -97,7 +97,8 @@ def extract_entities_pending(self, limit: int = ENTITY_BATCH_SIZE) -> int:  # no
                 nlp_repo.upsert_entity(
                     e,
                     aliases=ner.INSTITUTIONS.get(e.canonical_name, ())
-                    if e.entity_type == "institution" else (),
+                    if e.entity_type == "institution"
+                    else (),
                 )
                 for e in found
             ]
@@ -161,12 +162,16 @@ def score_evidence(self, limit: int = EVIDENCE_BATCH_SIZE) -> dict[str, int]:  #
         raise self.retry(exc=exc, countdown=120) from exc
 
 
-@app.task(name="politikdesk.link_historical_context")
-def link_historical_context(limit: int = 50) -> dict[str, int]:
+@app.task(name="politikdesk.link_historical_context", bind=True, max_retries=1)
+def link_historical_context(self, limit: int = 50) -> dict[str, int]:  # noqa: ANN001
     """Tarihsel bağlam bağları (F2-17)."""
     from politikdesk.context.related import run
 
-    return run(limit)
+    try:
+        return run(limit)
+    except Exception as exc:  # noqa: BLE001
+        log.error("link_historical_context_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=120) from exc
 
 
 @app.task(
@@ -187,12 +192,16 @@ def link_political_relations(self, limit: int = 50) -> dict[str, int]:  # noqa: 
         raise self.retry(exc=exc, countdown=180) from exc
 
 
-@app.task(name="politikdesk.match_scheduled_events")
-def match_scheduled_events() -> dict[str, int]:
+@app.task(name="politikdesk.match_scheduled_events", bind=True, max_retries=1)
+def match_scheduled_events(self) -> dict[str, int]:  # noqa: ANN001
     """Beklenen gelişme -> gerçekleşen olay eşleştirmesi (F2-19)."""
     from politikdesk.context.scheduler_match import match_pending
 
-    return match_pending()
+    try:
+        return match_pending()
+    except Exception as exc:  # noqa: BLE001
+        log.error("match_scheduled_events_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=120) from exc
 
 
 @app.task(name="politikdesk.purge_expired_bodies")
@@ -217,8 +226,7 @@ def generate_briefing(self, slot: str = "morning") -> dict[str, object]:  # noqa
     try:
         result = generate(slot)  # type: ignore[arg-type]
     except Exception as exc:  # noqa: BLE001
-        log.error("briefing_failed", slot=slot, error=type(exc).__name__,
-                  detail=str(exc)[:300])
+        log.error("briefing_failed", slot=slot, error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=300) from exc
 
     outcome = send_briefing(int(result["briefing_id"]))
@@ -251,8 +259,11 @@ def check_source_health() -> list[str]:
 
     unhealthy = [r["slug"] for r in health_report() if r["status"] == "red"]
     if unhealthy:
-        log.error("sources_unhealthy", sources=unhealthy,
-                  hint="6 saattir veri yok veya hiç başarılı çekim olmadı")
+        log.error(
+            "sources_unhealthy",
+            sources=unhealthy,
+            hint="6 saattir veri yok veya hiç başarılı çekim olmadı",
+        )
     return unhealthy
 
 

@@ -49,7 +49,10 @@ STATUS_TITLES: Final[dict[str, str]] = {
 }
 
 KIND_LABELS: Final[dict[str, str]] = {
-    "official": "Resmî", "wire": "Ajans", "media": "Medya", "social": "Sosyal",
+    "official": "Resmî",
+    "wire": "Ajans",
+    "media": "Medya",
+    "social": "Sosyal",
 }
 
 
@@ -153,10 +156,7 @@ def _sentence(
                 f"{count} bağımsız kaynak var ama iddianın bazı unsurları yalnızca "
                 "tek kaynakta doğrulandı."
             )
-        return (
-            f"{count} bağımsız kaynak var ama birincil kaynak yok. Teyit gerçek, "
-            "kayıt değil."
-        )
+        return f"{count} bağımsız kaynak var ama birincil kaynak yok. Teyit gerçek, kayıt değil."
     if rule == "R5":
         return (
             "Yalnızca bir bağımsız kaynak bu iddiayı bildiriyor. Yanlış olduğu "
@@ -175,13 +175,9 @@ def _sentence(
     return f"{count} bağımsız teyit, {primary_text}."
 
 
-def explain_event_status(
-    independent_count: int, has_primary_source: bool, groups: int
-) -> str:
+def explain_event_status(independent_count: int, has_primary_source: bool, groups: int) -> str:
     """Olay başlığındaki kanıt bloğunun tek cümlelik özeti (Spec §14.3)."""
-    primary = (
-        "Birincil kaynak mevcut" if has_primary_source else "Birincil kaynak yok"
-    )
+    primary = "Birincil kaynak mevcut" if has_primary_source else "Birincil kaynak yok"
     diversity = (
         f"{groups} farklı yayın grubu"
         if groups >= 2

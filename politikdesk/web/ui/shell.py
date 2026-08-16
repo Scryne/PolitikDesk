@@ -119,13 +119,11 @@ def _sidebar(active: str) -> str:
     for title, items in NAV:
         links = "".join(
             f'<a class="nav-item" href="{esc(href)}"'
-            f'{" aria-current=\"page\"" if href == active else ""}>'
-            f'{icon(name, 16)}<span>{esc(label)}</span></a>'
+            f"{' aria-current="page"' if href == active else ''}>"
+            f"{icon(name, 16)}<span>{esc(label)}</span></a>"
             for href, label, name in items
         )
-        groups.append(
-            f'<div class="nav-group"><p class="eyebrow">{esc(title)}</p>{links}</div>'
-        )
+        groups.append(f'<div class="nav-group"><p class="eyebrow">{esc(title)}</p>{links}</div>')
 
     theme_button = (
         '<button class="btn ghost icon sm" id="pd-theme" type="button" '
@@ -165,7 +163,7 @@ def _topbar(crumbs: tuple[tuple[str, str | None], ...]) -> str:
             parts.append(f'<span class="here">{esc(label)}</span>')
     return (
         f'<header class="topbar"><nav class="crumbs" aria-label="Konum">'
-        f'{"".join(parts)}</nav></header>'
+        f"{''.join(parts)}</nav></header>"
     )
 
 
@@ -191,9 +189,7 @@ def page(
     scripts = "\n".join(part for part in (_THEME_JS, extra_js) if part)
     election = banner()
     election_html = (
-        f'<div style="margin-bottom:var(--space-6)">{election}</div>'
-        if election
-        else ""
+        f'<div style="margin-bottom:var(--space-6)">{election}</div>' if election else ""
     )
 
     return f"""<!doctype html>

@@ -386,6 +386,3 @@ def fetch_candidate_events_from_db(
         if selected:
             return selected
         return candidates_pool[:bounded_limit]
-
-
-

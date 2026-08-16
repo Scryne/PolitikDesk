@@ -101,8 +101,8 @@ teşhis etmiş ve ölü T1 kaynaklara (B-42, B-44) bağlamıştı.
 
 ```python
 deduped = dedupe_claims([c for c, _ in collected])
-kept    = {id(c) for c in deduped}
-final   = [(c, aid) for c, aid in collected if id(c) in kept]
+kept = {id(c) for c in deduped}
+final = [(c, aid) for c, aid in collected if id(c) in kept]
 ```
 
 İki bağımsız kaynak aynı iddiayı söylediğinde ikinci `(iddia, makale)`

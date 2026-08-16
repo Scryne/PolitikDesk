@@ -38,9 +38,7 @@ def _check_dims(a: list[float], b: list[float]) -> None:
         raise ValueError(f"Boyut uyuşmazlığı: {len(a)} != {len(b)}")
 
 
-def add_member(
-    centroid: list[float] | None, count: int, vector: list[float]
-) -> list[float]:
+def add_member(centroid: list[float] | None, count: int, vector: list[float]) -> list[float]:
     """Merkeze bir üye ekler ve yeni ortalamayı döndürür.
 
     `count` ekleme ÖNCESİNDEKİ üye sayısıdır. `centroid` None ise ilk üyedir.
@@ -54,9 +52,7 @@ def add_member(
     return [(c * n + v) / (n + 1.0) for c, v in zip(centroid, vector, strict=True)]
 
 
-def remove_member(
-    centroid: list[float], count: int, vector: list[float]
-) -> list[float] | None:
+def remove_member(centroid: list[float], count: int, vector: list[float]) -> list[float] | None:
     """Merkezden bir üyeyi çıkarır (F2-05 geri alma, F4-12 silme).
 
     `count` çıkarma ÖNCESİNDEKİ üye sayısıdır. Son üye çıkarılıyorsa merkez
@@ -109,9 +105,7 @@ def drift(incremental: list[float], recomputed: list[float]) -> float:
     alma da bozulur.
     """
     _check_dims(incremental, recomputed)
-    return max(
-        (abs(x - y) for x, y in zip(incremental, recomputed, strict=True)), default=0.0
-    )
+    return max((abs(x - y) for x, y in zip(incremental, recomputed, strict=True)), default=0.0)
 
 
 def is_recomputable(

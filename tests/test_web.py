@@ -27,24 +27,37 @@ WEB_DIR = REPO_ROOT / "politikdesk" / "web"
 # "siyasi" kelimesinin geçmesi (ör. yasağı açıklayan bir not) sorun
 # değildir. Bu yüzden kalıp "etiket olarak kullanım"a odaklanır.
 POLITICAL_LABELS = (
-    "yandaş", "yandas", "muhalif medya", "hükümet yanlısı", "hukumet yanlisi",
-    "sağcı", "sagci", "solcu", "iktidar medyası", "havuz medyası",
-    "pro-government", "opposition media", "left-leaning", "right-leaning",
+    "yandaş",
+    "yandas",
+    "muhalif medya",
+    "hükümet yanlısı",
+    "hukumet yanlisi",
+    "sağcı",
+    "sagci",
+    "solcu",
+    "iktidar medyası",
+    "havuz medyası",
+    "pro-government",
+    "opposition media",
+    "left-leaning",
+    "right-leaning",
 )
 
 # Spec §15 madde 6 / P5: insan onayı olmadan yayın yoktur.
 PUBLISH_CODE_PATHS = (
-    "api.twitter.com", "api.x.com", "statuses/update", "/2/tweets",
-    "tweepy", "twitter_api", "auto_publish", "autopublish",
+    "api.twitter.com",
+    "api.x.com",
+    "statuses/update",
+    "/2/tweets",
+    "tweepy",
+    "twitter_api",
+    "auto_publish",
+    "autopublish",
 )
 
 
 def _python_sources() -> list[Path]:
-    return [
-        p
-        for p in (REPO_ROOT / "politikdesk").rglob("*.py")
-        if "__pycache__" not in p.parts
-    ]
+    return [p for p in (REPO_ROOT / "politikdesk").rglob("*.py") if "__pycache__" not in p.parts]
 
 
 def _emittable_strings(path: Path) -> list[str]:
@@ -64,9 +77,7 @@ def _emittable_strings(path: Path) -> list[str]:
 
     docstrings: set[int] = set()
     for node in ast.walk(tree):
-        if isinstance(
-            node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef
-        ):
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef):
             first = next(iter(getattr(node, "body", [])), None)
             if (
                 isinstance(first, ast.Expr)
@@ -92,9 +103,7 @@ def test_ui_has_no_political_source_labels() -> None:
         if "__pycache__" in path.parts:
             continue
         blob = " ".join(_emittable_strings(path)).lower()
-        offenders += [
-            f"{path.name}: {label}" for label in POLITICAL_LABELS if label in blob
-        ]
+        offenders += [f"{path.name}: {label}" for label in POLITICAL_LABELS if label in blob]
     assert not offenders, (
         f"Arayüzde siyasi kaynak etiketi: {offenders}. "
         "Spec §8.5 framing dili kullanır, 'bias' değil."
@@ -136,9 +145,7 @@ def test_no_automatic_publish_code_path_anywhere() -> None:
 def test_publish_bridge_only_produces_a_web_intent_url() -> None:
     from politikdesk.editorial.service import publish_payload
 
-    source = (
-        REPO_ROOT / "politikdesk" / "editorial" / "service.py"
-    ).read_text(encoding="utf-8")
+    source = (REPO_ROOT / "politikdesk" / "editorial" / "service.py").read_text(encoding="utf-8")
     # Fonksiyon gövdesinde yalnızca adres kurulur; ağ çağrısı yoktur.
     body = source.split("def publish_payload", 1)[1]
     assert "x.com/intent/tweet" in body
@@ -198,8 +205,7 @@ def client():  # noqa: ANN201
 @pytest.mark.db
 @pytest.mark.parametrize(
     "path",
-    ["/feed", "/feed/cards", "/briefing", "/onboarding/profile",
-     "/admin/metrics", "/api/angles"],
+    ["/feed", "/feed/cards", "/briefing", "/onboarding/profile", "/admin/metrics", "/api/angles"],
 )
 def test_pages_render(client, path: str) -> None:  # noqa: ANN001
     response = client.get(path)
@@ -250,7 +256,9 @@ def test_unknown_event_returns_404(client) -> None:  # noqa: ANN001
     assert client.get("/event/999999999").status_code == 404
 
 
-def test_api_draft_action_and_publish_enforces_grounding(client, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: ANN001
+def test_api_draft_action_and_publish_enforces_grounding(
+    client, monkeypatch: pytest.MonkeyPatch
+) -> None:  # noqa: ANN001
     """D12: API seviyesinde grounding koruması (409 Conflict)."""
     from typing import Any
 
@@ -282,7 +290,9 @@ def test_api_draft_action_and_publish_enforces_grounding(client, monkeypatch: py
             return mock_grounded
         return None
 
-    def fake_record_action(draft_id: int, action: str, stored_body: str | None, distance: float | None) -> dict[str, Any]:
+    def fake_record_action(
+        draft_id: int, action: str, stored_body: str | None, distance: float | None
+    ) -> dict[str, Any]:
         return {"draft_id": draft_id, "action": action, "final_body": stored_body}
 
     monkeypatch.setattr(service.repository, "get_draft", fake_get_draft)

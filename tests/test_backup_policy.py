@@ -30,8 +30,15 @@ from politikdesk.backup_policy import (
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Geliştiricinin gerçek bulut değişkenleri testlere sızmasın."""
-    for var in ("OneDrive", "OneDriveCommercial", "OneDriveConsumer",
-                "Dropbox", "iCloudDrive", BACKUP_DIR_ENV, ALLOW_CLOUD_ENV):
+    for var in (
+        "OneDrive",
+        "OneDriveCommercial",
+        "OneDriveConsumer",
+        "Dropbox",
+        "iCloudDrive",
+        BACKUP_DIR_ENV,
+        ALLOW_CLOUD_ENV,
+    ):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -88,16 +95,12 @@ def test_escape_hatch_requires_explicit_opt_in(
     assert resolve_backup_dir(str(cloud)) == cloud
 
 
-def test_env_var_is_read_when_no_argument(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_env_var_is_read_when_no_argument(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv(BACKUP_DIR_ENV, str(tmp_path / "yedek"))
     assert resolve_backup_dir() == tmp_path / "yedek"
 
 
-def test_relative_path_becomes_absolute(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_relative_path_becomes_absolute(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Göreli yol çalışma dizinine göre çözülmeli.
 
     Çözülmezse kural, `cwd` neredeyse ona göre farklı karar verir —

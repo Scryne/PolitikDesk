@@ -140,8 +140,7 @@ def test_alias_resolution_unifies_institution_names() -> None:
     """DoD: 'Merkez Bankası' = 'TCMB' = tam ad -> tek varlık."""
     index = EntityIndex.build()
     canonical = "Türkiye Cumhuriyet Merkez Bankası"
-    for alias in ("TCMB", "Merkez Bankası", "merkez bankasi",
-                  "Türkiye Cumhuriyet Merkez Bankası"):
+    for alias in ("TCMB", "Merkez Bankası", "merkez bankasi", "Türkiye Cumhuriyet Merkez Bankası"):
         assert index.resolve(alias) == canonical
 
 
@@ -151,8 +150,7 @@ def test_alias_resolution_returns_none_for_unknown() -> None:
 
 def test_same_entity_mentioned_twice_yields_one_result() -> None:
     found = extract_institutions("TCMB açıkladı. Merkez Bankası kararı yineledi.")
-    assert len([e for e in found
-                if e.canonical_name == "Türkiye Cumhuriyet Merkez Bankası"]) == 1
+    assert len([e for e in found if e.canonical_name == "Türkiye Cumhuriyet Merkez Bankası"]) == 1
 
 
 def test_longer_alias_wins_over_shorter() -> None:
@@ -203,12 +201,7 @@ def test_no_short_ambiguous_aliases() -> None:
     sıradan Türkçe metinde yanlış-pozitif üretir. Sözlüğe yeni kurum eklerken
     bu sınırın gevşetilmesi bu testle engellenir.
     """
-    too_short = {
-        alias
-        for aliases in INSTITUTIONS.values()
-        for alias in aliases
-        if len(alias) < 3
-    }
+    too_short = {alias for aliases in INSTITUTIONS.values() for alias in aliases if len(alias) < 3}
     assert not too_short, f"3 karakterden kısa alias precision'ı düşürür: {too_short}"
 
 
@@ -219,14 +212,19 @@ def test_new_institutions_are_not_key_entities() -> None:
     (Spec §11.4) ve salience'ı besler. Sözlüğü genişletmek bu kümeyi
     büyütseydi false merge riski artardı — G2'nin pazarlıksız koşulu.
     """
-    assert frozenset({
-        "Türkiye Cumhuriyet Merkez Bankası",
-        "Türkiye İstatistik Kurumu",
-        "Hazine ve Maliye Bakanlığı",
-        "Resmî Gazete",
-        "Para Politikası Kurulu",
-        "Cumhurbaşkanlığı",
-    }) == KEY_ENTITIES
+    assert (
+        frozenset(
+            {
+                "Türkiye Cumhuriyet Merkez Bankası",
+                "Türkiye İstatistik Kurumu",
+                "Hazine ve Maliye Bakanlığı",
+                "Resmî Gazete",
+                "Para Politikası Kurulu",
+                "Cumhurbaşkanlığı",
+            }
+        )
+        == KEY_ENTITIES
+    )
 
 
 # --------------------------------------------- kümeleme kısıtı girdileri
@@ -251,9 +249,9 @@ def test_common_key_entity_check() -> None:
 
 def test_entity_set_helper() -> None:
     found = extract_institutions("TCMB ve TÜİK")
-    assert entity_set(found) == frozenset({
-        "Türkiye Cumhuriyet Merkez Bankası", "Türkiye İstatistik Kurumu"
-    })
+    assert entity_set(found) == frozenset(
+        {"Türkiye Cumhuriyet Merkez Bankası", "Türkiye İstatistik Kurumu"}
+    )
 
 
 # --------------------------------------------------------------------------
@@ -328,7 +326,11 @@ def test_b63_source_entity_signal() -> None:
     from politikdesk.nlp.entities import extract
 
     # Metinde TÜİK veya Merkez Bankası açıkça yazmasa bile source_slug ile yakalanır
-    res = extract("Temmuz Ayı Sanayi Üretim Endeksi Sonuçları", "Aylık değişim yüzde 0,1 oldu.", source_slug="tuik")
+    res = extract(
+        "Temmuz Ayı Sanayi Üretim Endeksi Sonuçları",
+        "Aylık değişim yüzde 0,1 oldu.",
+        source_slug="tuik",
+    )
     names = {e.canonical_name for e in res}
     assert "Türkiye İstatistik Kurumu" in names
     assert any(e.canonical_name == "Türkiye İstatistik Kurumu" and e.is_key_entity for e in res)

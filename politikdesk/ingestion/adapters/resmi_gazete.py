@@ -39,9 +39,7 @@ log = get_logger(__name__)
 
 # Bir KALEM adresi: .../eskiler/YYYY/MM/YYYYMMDD-<sira>.<uzanti>
 # Sıra numarasız olan (20260813.pdf) sayının TAMAMIDIR, tek kalem değil.
-_ITEM_HREF = re.compile(
-    r"/eskiler/\d{4}/\d{2}/\d{8}-\d+\.(?:htm|html|pdf)$", re.IGNORECASE
-)
+_ITEM_HREF = re.compile(r"/eskiler/\d{4}/\d{2}/\d{8}-\d+\.(?:htm|html|pdf)$", re.IGNORECASE)
 _ANCHOR = re.compile(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
 _TAGS = re.compile(r"<[^>]+>")
 
@@ -93,7 +91,6 @@ class ResmiGazeteAdapter(FailureRecorder):
         # boş olabilir. Bir gün geriye bakmak boş turu önler.
         self.days_back = days_back
 
-
     def fetch(self) -> list[RawItem]:
         items: list[RawItem] = []
         seen: set[str] = set()
@@ -107,8 +104,12 @@ class ResmiGazeteAdapter(FailureRecorder):
                 # Yutulan istisna KAYDEDİLİR; yoksa boş tur "başarılı"
                 # görünür ve sağlık panosu yanılır (B-80).
                 self.record_failure(url, exc)
-                log.warning("resmi_gazete_index_failed", url=url,
-                            error=type(exc).__name__, detail=str(exc)[:200])
+                log.warning(
+                    "resmi_gazete_index_failed",
+                    url=url,
+                    error=type(exc).__name__,
+                    detail=str(exc)[:200],
+                )
                 continue
 
             for item in self._parse(response.text, day):
@@ -143,7 +144,7 @@ class ResmiGazeteAdapter(FailureRecorder):
                     url=url,
                     title=title[:500],
                     published_at=published,
-                    summary=None,   # fihrist özet vermez; başlık kalemin kendisidir
+                    summary=None,  # fihrist özet vermez; başlık kalemin kendisidir
                     guid=url,
                 )
             )

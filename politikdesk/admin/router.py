@@ -49,10 +49,16 @@ def list_sources() -> list[dict[str, Any]]:
     """Kaynak listesi (F1-17)."""
     return [
         {
-            "slug": s.slug, "name": s.name, "tier": s.tier, "kind": s.kind,
-            "tos_status": s.tos_status, "is_active": s.is_active,
-            "access_method": s.access_method, "adapter": s.adapter,
-            "feed_url": s.feed_url, "independence_group": s.independence_group,
+            "slug": s.slug,
+            "name": s.name,
+            "tier": s.tier,
+            "kind": s.kind,
+            "tos_status": s.tos_status,
+            "is_active": s.is_active,
+            "access_method": s.access_method,
+            "adapter": s.adapter,
+            "feed_url": s.feed_url,
+            "independence_group": s.independence_group,
             "topics": s.topics,
         }
         for s in repository.list_sources(only_active=False)
@@ -115,6 +121,7 @@ def sync_sources() -> dict[str, int]:
 def list_articles(
     source: str | None = None,
     topic: str | None = None,
+    vertical: str | None = None,
     duplicates: str | None = Query(default=None, pattern="^(near|original)$"),
     limit: int = Query(default=50, le=200),
     offset: int = 0,
@@ -131,6 +138,9 @@ def list_articles(
     if topic:
         conditions.append("%s = ANY(a.topics)")
         params.append(topic)
+    if vertical:
+        conditions.append("a.vertical = %s")
+        params.append(vertical)
     if duplicates == "near":
         conditions.append("a.near_duplicate_of_id IS NOT NULL")
     elif duplicates == "original":
@@ -277,9 +287,7 @@ def dashboard() -> str:
     stages = ph.stage_report()
 
     coverage = counts["coverage"]
-    embedded_pct = (
-        coverage["embedded"] / coverage["total"] * 100 if coverage["total"] else 0
-    )
+    embedded_pct = coverage["embedded"] / coverage["total"] * 100 if coverage["total"] else 0
 
     broken = [s for s in stages if s.status == "red"]
     slow = [s for s in stages if s.status == "amber"]
@@ -300,8 +308,7 @@ def dashboard() -> str:
             tone="warn",
         )
     else:
-        verdict = notice("<p><b>Boru hattı akıyor.</b> Birikmiş aşama yok.</p>",
-                         tone="ok")
+        verdict = notice("<p><b>Boru hattı akıyor.</b> Birikmiş aşama yok.</p>", tone="ok")
 
     # Aşama sağlığı (B-78). Boru hattı SIRASIYLA gösterilir ki nerede
     # koptuğu okunsun.
@@ -314,19 +321,17 @@ def dashboard() -> str:
             + cell(f'<span class="badge {token}">{esc(label)}</span>', label="Durum")
             + cell(
                 esc(fmt.number(s.backlog)) if s.kind == "backlog" else fmt.EMPTY,
-                label="Bekleyen", cls="num",
+                label="Bekleyen",
+                cls="num",
             )
             + cell(
-                esc(fmt.number(s.oldest_hours, 1))
-                if s.oldest_hours is not None
-                else fmt.EMPTY,
-                label="En eski (sa)", cls="num",
+                esc(fmt.number(s.oldest_hours, 1)) if s.oldest_hours is not None else fmt.EMPTY,
+                label="En eski (sa)",
+                cls="num",
             )
             + cell(esc(fmt.number(s.threshold_hours)), label="Eşik (sa)", cls="num")
             + cell(
-                f'<span class="subtle">{esc(s.hint)}</span>'
-                if s.status != "green"
-                else "",
+                f'<span class="subtle">{esc(s.hint)}</span>' if s.status != "green" else "",
                 label="İpucu",
             )
             + "</tr>"
@@ -339,8 +344,7 @@ def dashboard() -> str:
         source_rows.append(
             "<tr>"
             + cell(
-                f'<b>{esc(h["name"])}</b>'
-                f'<div class="cell-sub mono">{esc(h["slug"])}</div>',
+                f'<b>{esc(h["name"])}</b><div class="cell-sub mono">{esc(h["slug"])}</div>',
                 label="Kaynak",
             )
             + cell(f'<span class="tier">T{h["tier"]}</span>', label="Katman")
@@ -351,7 +355,8 @@ def dashboard() -> str:
                 esc(fmt.number(h["hours_since_success"], 1))
                 if h["hours_since_success"] is not None
                 else fmt.EMPTY,
-                label="Son başarı (sa)", cls="num",
+                label="Son başarı (sa)",
+                cls="num",
             )
             + cell(f'<span class="mono">{esc(h["tos_status"])}</span>', label="ToS")
             + cell(
@@ -362,53 +367,72 @@ def dashboard() -> str:
         )
 
     body = f"""
-{page_head(
-    "Boru hattı",
-    lede="Kaynak tablosu boru hattının GİRİŞİNE bakar, aşama tablosu "
-         "İÇERİSİNE. İkisi ayrı sorular sorar ve ayrı arızaları yakalar.",
-    actions=button("Metrikler", href="/admin/metrics", icon_name="metrics"),
-)}
+{
+        page_head(
+            "Boru hattı",
+            lede="Kaynak tablosu boru hattının GİRİŞİNE bakar, aşama tablosu "
+            "İÇERİSİNE. İkisi ayrı sorular sorar ve ayrı arızaları yakalar.",
+            actions=button("Metrikler", href="/admin/metrics", icon_name="metrics"),
+        )
+    }
 <div class="stack">
   {verdict}
 
   <div class="kpis">
     {kpi("Toplam makale", fmt.number(counts["articles"]), icon_name="briefing")}
-    {kpi("Son 24 saat", fmt.number(counts["articles_24h"]), unit="makale",
-         icon_name="clock")}
-    {kpi("Yakın tekrar", fmt.number(counts["near_duplicates"]), unit="makale",
-         icon_name="copy")}
+    {kpi("Son 24 saat", fmt.number(counts["articles_24h"]), unit="makale", icon_name="clock")}
+    {kpi("Yakın tekrar", fmt.number(counts["near_duplicates"]), unit="makale", icon_name="copy")}
     {kpi("Embed edilmiş", fmt.percent(embedded_pct), icon_name="pipeline")}
   </div>
 
-  {card(
-    table(
-      (("Aşama", ""), ("Durum", ""), ("Bekleyen", "num"), ("En eski (sa)", "num"),
-       ("Eşik (sa)", "num"), ("İpucu", "")),
-      stage_rows,
-    ),
-    title="Boru hattı aşamaları",
-    actions='<span class="subtle" style="font-size:var(--text-xs)">'
-            'sırayla — ilk kırmızıdan başla</span>',
-  )}
+  {
+        card(
+            table(
+                (
+                    ("Aşama", ""),
+                    ("Durum", ""),
+                    ("Bekleyen", "num"),
+                    ("En eski (sa)", "num"),
+                    ("Eşik (sa)", "num"),
+                    ("İpucu", ""),
+                ),
+                stage_rows,
+            ),
+            title="Boru hattı aşamaları",
+            actions='<span class="subtle" style="font-size:var(--text-xs)">'
+            "sırayla — ilk kırmızıdan başla</span>",
+        )
+    }
 
-  {card(
-    table(
-      (("Kaynak", ""), ("Katman", ""), ("Durum", ""), ("24 saat", "num"),
-       ("Toplam", "num"), ("Son başarı (sa)", "num"), ("ToS", ""),
-       ("Son hata", "")),
-      source_rows,
-    ),
-    title=f"Kaynaklar · {len(health)}",
-    actions='<span class="subtle" style="font-size:var(--text-xs)">'
-            'katman siyasi konum değildir</span>',
-  )}
+  {
+        card(
+            table(
+                (
+                    ("Kaynak", ""),
+                    ("Katman", ""),
+                    ("Durum", ""),
+                    ("24 saat", "num"),
+                    ("Toplam", "num"),
+                    ("Son başarı (sa)", "num"),
+                    ("ToS", ""),
+                    ("Son hata", ""),
+                ),
+                source_rows,
+            ),
+            title=f"Kaynaklar · {len(health)}",
+            actions='<span class="subtle" style="font-size:var(--text-xs)">'
+            "katman siyasi konum değildir</span>",
+        )
+    }
 
-  {card(
-    '<p class="subtle mono" style="margin:0;font-size:var(--text-xs)">'
-    '/admin/sources · /admin/articles · /admin/health · '
-    '/admin/pipeline-health · /admin/stats</p>',
-    title="JSON uçları",
-  )}
+  {
+        card(
+            '<p class="subtle mono" style="margin:0;font-size:var(--text-xs)">'
+            "/admin/sources · /admin/articles · /admin/health · "
+            "/admin/pipeline-health · /admin/stats</p>",
+            title="JSON uçları",
+        )
+    }
 </div>
 """
     return page(

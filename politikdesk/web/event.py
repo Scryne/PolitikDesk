@@ -92,9 +92,7 @@ def _tldr(claims: list[dict[str, Any]]) -> str:
             "üretilmez.</p>",
             tone="warn",
         )
-    sentences = [
-        c["claim_text"].strip().rstrip(".") + "." for c in verified[:MAX_TLDR_CLAIMS]
-    ]
+    sentences = [c["claim_text"].strip().rstrip(".") + "." for c in verified[:MAX_TLDR_CLAIMS]]
     return card(
         f'<p class="prose" style="margin:0;font-size:var(--text-lg);'
         f'line-height:var(--text-lg-lh)">{" ".join(esc(s) for s in sentences)}</p>'
@@ -112,11 +110,11 @@ def _claim_row(claim: dict[str, Any]) -> str:
     """
     body = (
         f'<div class="claim-text" style="font-size:var(--text-sm)">'
-        f'{esc(claim["claim_text"])}</div>'
+        f"{esc(claim['claim_text'])}</div>"
         f'<div class="row tight subtle" style="margin-top:6px;'
         f'font-size:var(--text-xs)">{status_badge(claim["evidence_status"])}'
-        f'<span>· {esc(claim["claim_type"])}</span>'
-        f'<span>· {esc(fmt.plural_count(int(claim["evidence_count"] or 0), "kanıt bağı"))}'
+        f"<span>· {esc(claim['claim_type'])}</span>"
+        f"<span>· {esc(fmt.plural_count(int(claim['evidence_count'] or 0), 'kanıt bağı'))}"
         f"</span></div>"
     )
     return ruled(claim["evidence_status"], body, cls="stack-sm")
@@ -145,30 +143,27 @@ def _knowledge_columns(claims: list[dict[str, Any]]) -> str:
 
     return (
         '<div class="halves">'
-        + column("Ne biliyoruz", known, "Teyit edilmiş iddia yok.",
-                 "en az iki bağımsız kaynak")
-        + column("Ne bilmiyoruz", unknown, "Açık kalan iddia yok.",
-                 "teyit bekliyor veya çelişkili")
+        + column("Ne biliyoruz", known, "Teyit edilmiş iddia yok.", "en az iki bağımsız kaynak")
+        + column("Ne bilmiyoruz", unknown, "Açık kalan iddia yok.", "teyit bekliyor veya çelişkili")
         + "</div>"
     )
 
 
 def _why_panel(claim: dict[str, Any]) -> str:
-    """"Neden bu durum?" — `status_reason` insan diline çevrilir (F3-04).
+    """ "Neden bu durum?" — `status_reason` insan diline çevrilir (F3-04).
 
     Kural adı ve girdiler AÇIKÇA görünür: bir gerekçe, doğrulanabilir
     olmadıkça gerekçe değildir (P4).
     """
     detail = explain(claim["evidence_status"], claim.get("status_reason"))
     facts = "".join(
-        f"<tr><td>{esc(f['label'])}</td>"
-        f"<td class='num mono'>{esc(f['value'])}</td></tr>"
+        f"<tr><td>{esc(f['label'])}</td><td class='num mono'>{esc(f['value'])}</td></tr>"
         for f in detail["facts"]
     )
     summary = (
-        f'{status_badge(claim["evidence_status"])}'
+        f"{status_badge(claim['evidence_status'])}"
         f'<b style="font-size:var(--text-sm)">{esc(detail["rule"])}'
-        f' · {esc(detail["rule_title"])}</b>'
+        f" · {esc(detail['rule_title'])}</b>"
         f'<span class="subtle" style="overflow:hidden;text-overflow:ellipsis;'
         f'white-space:nowrap">{esc(claim["claim_text"][:70])}</span>'
     )
@@ -220,7 +215,7 @@ def _evidence_block(data: dict[str, Any]) -> str:
         f'<div style="margin-top:var(--space-6)">{panels}</div>',
         title="Kanıt",
         actions='<span class="subtle" style="font-size:var(--text-xs)">'
-                "her satır bir kural kararı</span>",
+        "her satır bir kural kararı</span>",
     )
 
 
@@ -248,8 +243,13 @@ def _sources_table(data: dict[str, Any]) -> str:
             else ""
         )
         link = (
-            button("", href=a["canonical_url"], icon_name="external", small=True,
-                   title=f"{a['source_name']} — kaynakta aç")
+            button(
+                "",
+                href=a["canonical_url"],
+                icon_name="external",
+                small=True,
+                title=f"{a['source_name']} — kaynakta aç",
+            )
             if a["canonical_url"]
             else '<span class="subtle">—</span>'
         )
@@ -257,12 +257,12 @@ def _sources_table(data: dict[str, Any]) -> str:
             "<tr>"
             + cell(
                 f'<div class="row tight"><b>{esc(a["source_name"])}</b>'
-                f'{tier_badge(a["tier"])}</div>'
+                f"{tier_badge(a['tier'])}</div>"
                 f'<div class="cell-sub">{esc(a["independence_group"] or a["source_slug"])}'
                 f"</div>",
                 label="Kaynak",
             )
-            + cell(f'{esc(a["title"])}{duplicate}', label="Başlık")
+            + cell(f"{esc(a['title'])}{duplicate}", label="Başlık")
             + cell(relative_time(a["published_at"] or a["first_seen_at"]), label="Saat")
             + cell(link, label="Bağlantı")
             + "</tr>"
@@ -270,10 +270,7 @@ def _sources_table(data: dict[str, Any]) -> str:
 
     groups = int(data["event"]["independence_groups"] or 0)
     note = (
-        notice(
-            f"<p>Bu olay <b>{fmt.number(groups)} farklı yayın grubundan</b> "
-            f"raporlanıyor.</p>"
-        )
+        notice(f"<p>Bu olay <b>{fmt.number(groups)} farklı yayın grubundan</b> raporlanıyor.</p>")
         if groups >= 2
         else notice(
             "<p><b>Bu olay tek bir yayın grubundan raporlanıyor.</b> Farklı bir "
@@ -292,8 +289,7 @@ def _sources_table(data: dict[str, Any]) -> str:
         )
         + f'<div style="margin-top:var(--space-4)">{note}</div>',
         title="Kaynaklar",
-        actions='<span class="subtle" style="font-size:var(--text-xs)">'
-                "çerçeve farkı</span>",
+        actions='<span class="subtle" style="font-size:var(--text-xs)">çerçeve farkı</span>',
         cls="",
     )
 
@@ -307,16 +303,15 @@ def _timeline_block(data: dict[str, Any]) -> str:
         (
             fmt.date_time(a["published_at"] or a["first_seen_at"]),
             f'<div class="row tight"><b style="font-size:var(--text-sm)">'
-            f'{esc(a["source_name"])}</b>{tier_badge(a["tier"])}</div>'
+            f"{esc(a['source_name'])}</b>{tier_badge(a['tier'])}</div>"
             f'<div class="muted" style="font-size:var(--text-sm);margin-top:2px">'
-            f'{esc((a["excerpt"] or a["title"])[:180])}</div>',
+            f"{esc((a['excerpt'] or a['title'])[:180])}</div>",
         )
         for a in articles
     )
     return card(
         panel(
-            f'{icon("clock", 14)}<span>{fmt.plural_count(len(articles), "adım")}'
-            f" — genişlet</span>",
+            f"{icon('clock', 14)}<span>{fmt.plural_count(len(articles), 'adım')} — genişlet</span>",
             timeline(items),
             open_=len(articles) <= 6,
         ),
@@ -333,7 +328,7 @@ def _related(data: dict[str, Any]) -> str:
         f'<li style="margin-bottom:10px">'
         f'<a href="/event/{r["id"]}">{esc(r["title"])}</a>'
         f'<div class="subtle" style="font-size:var(--text-xs)">'
-        f'{esc(fmt.full_date(r["first_reported_at"]))} · {esc(r["relation"])} · '
+        f"{esc(fmt.full_date(r['first_reported_at']))} · {esc(r['relation'])} · "
         f'benzerlik <span class="mono">{esc(fmt.number(float(r["similarity"] or 0) * 100, 1))}'
         f"</span></div></li>"
         for r in related
@@ -352,8 +347,8 @@ def _upcoming(data: dict[str, Any]) -> str:
     items = "".join(
         f'<li style="margin-bottom:10px">{esc(u["title"])}'
         f'<div class="subtle" style="font-size:var(--text-xs)">'
-        f'{esc(fmt.date_time(u["expected_at"]))}'
-        f'{" · " + esc(u["source_name"]) if u["source_name"] else ""}</div></li>'
+        f"{esc(fmt.date_time(u['expected_at']))}"
+        f"{' · ' + esc(u['source_name']) if u['source_name'] else ''}</div></li>"
         for u in upcoming
     )
     return card(
@@ -373,8 +368,7 @@ def _editorial_panel(event_id: int) -> str:
 
     if not gate["allowed"]:
         buttons = "".join(
-            button(label, disabled=True,
-                   title="Kanıtsız olayda üretim yapılmaz")
+            button(label, disabled=True, title="Kanıtsız olayda üretim yapılmaz")
             for label, _ in ANGLES.values()
         )
         reason = notice(f"<p>{esc(gate['message'])}</p>", tone="bad")
@@ -403,23 +397,23 @@ def _editorial_panel(event_id: int) -> str:
     return card(
         f'<div class="btn-row">{buttons}</div>'
         f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
-        f'{icon("check", 12)} Kanıta bağlı üretim · '
-        f'{esc(fmt.plural_count(gate["claim_count"], "iddia"))}, '
-        f'{esc(fmt.plural_count(gate["evidence_count"], "kanıt bağı"))}</p>'
+        f"{icon('check', 12)} Kanıta bağlı üretim · "
+        f"{esc(fmt.plural_count(gate['claim_count'], 'iddia'))}, "
+        f"{esc(fmt.plural_count(gate['evidence_count'], 'kanıt bağı'))}</p>"
         f'<div id="draft-out" style="margin-top:var(--space-4)"></div>',
         title="Editoryal fırsatlar",
     )
 
 
 def _feedback_panel(open_count: int) -> str:
-    """"Bu yanlış" geri bildirim butonu (F3-21)."""
+    """ "Bu yanlış" geri bildirim butonu (F3-21)."""
     note = (
         f'<p class="subtle" style="margin:10px 0 0;font-size:var(--text-xs)">'
-        f'{esc(fmt.plural_count(open_count, "açık işaret"))} var — denetim '
+        f"{esc(fmt.plural_count(open_count, 'açık işaret'))} var — denetim "
         f"kuyruğunda.</p>"
         if open_count
         else '<p class="subtle" style="margin:10px 0 0;font-size:var(--text-xs)">'
-             "İşaretlediğinde olay insan denetimi kuyruğuna düşer.</p>"
+        "İşaretlediğinde olay insan denetimi kuyruğuna düşer.</p>"
     )
     return card(
         button("Bu yanlış", icon_name="flag", onclick="pdFlag()") + note,
@@ -433,13 +427,13 @@ def _meta_line(event: dict[str, Any]) -> str:
         f'{event["personal_salience"]}">Önem '
         f'<b class="num">{esc(fmt.number(event["displayed_salience"]))}</b></span>'
         f'<span class="subtle">·</span>'
-        f'<span>İlk rapor {esc(fmt.date_time(event["first_reported_at"]))}</span>'
+        f"<span>İlk rapor {esc(fmt.date_time(event['first_reported_at']))}</span>"
         f'<span class="subtle">·</span>'
-        f'<span>Son güncelleme {esc(fmt.relative(event["last_update_at"]))}</span>'
+        f"<span>Son güncelleme {esc(fmt.relative(event['last_update_at']))}</span>"
         f'<span class="subtle">·</span>'
-        f'<span>{esc(fmt.plural_count(int(event["article_count"] or 0), "makale"))}</span>'
+        f"<span>{esc(fmt.plural_count(int(event['article_count'] or 0), 'makale'))}</span>"
         f'<span class="subtle">·</span>'
-        f'<span>{esc(fmt.plural_count(int(event["independent_count"] or 0), "bağımsız teyit"))}'
+        f"<span>{esc(fmt.plural_count(int(event['independent_count'] or 0), 'bağımsız teyit'))}"
         f"</span>"
     )
 
@@ -454,13 +448,19 @@ def _meta_line(event: dict[str, Any]) -> str:
 # Şekil `components.skeleton_rows()`'tan gelir, JS içinde elle yazılmaz:
 # skeleton'ın nabız süresi ve rengi token'a bağlı ve iki yerde tanımlanan
 # bir şey bir gün ayrışır.
-_SKELETON_JS = "var PD_SKELETON = " + json.dumps(
-    skeleton_rows(3, height=14)
-    + '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)" '
-      'aria-live="polite">Kanıt setinden üretiliyor…</p>'
-) + ";"
+_SKELETON_JS = (
+    "var PD_SKELETON = "
+    + json.dumps(
+        skeleton_rows(3, height=14)
+        + '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)" '
+        'aria-live="polite">Kanıt setinden üretiliyor…</p>'
+    )
+    + ";"
+)
 
-_EVENT_JS = _SKELETON_JS + """
+_EVENT_JS = (
+    _SKELETON_JS
+    + """
 function pdEventId(){ return document.body.dataset.eventId; }
 
 async function pdGenerate(angle){
@@ -512,6 +512,7 @@ function pdUnderstood(btn){
   btn.querySelector('span').textContent = 'Anlaşıldı olarak işaretlendi';
 }
 """
+)
 
 
 @router.get("/event/{event_id}", response_class=HTMLResponse)
@@ -533,12 +534,14 @@ def event_page(event_id: int) -> str:
     )
 
     body = f"""
-{page_head(
-    event["title"],
-    lede="",
-    badges=event_badge(event["status"]),
-    actions=button("Anladım", icon_name="check", onclick="pdUnderstood(this)"),
-)}
+{
+        page_head(
+            event["title"],
+            lede="",
+            badges=event_badge(event["status"]),
+            actions=button("Anladım", icon_name="check", onclick="pdUnderstood(this)"),
+        )
+    }
 <div class="row subtle" style="font-size:var(--text-xs);
      margin:-16px 0 var(--space-6)">{_meta_line(event)}</div>
 {f'<div style="margin-bottom:var(--space-6)">{review}</div>' if review else ""}

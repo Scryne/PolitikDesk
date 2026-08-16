@@ -81,6 +81,31 @@ def resolve_env_file_path(custom: str | Path | None = None) -> Path | None:
 
 _resolved_env_file = resolve_env_file_path()
 
+# D01 düzeltmesi: `.env` bulut eşitlemesi altındaysa uyar. API anahtarları
+# ve SMTP parolası bu dosyada tutulur; OneDrive/Dropbox altında olması
+# tüm sırları üçüncü tarafa kopyalar (bkz. backup_policy.py B-84 analizi).
+if _resolved_env_file is not None:
+    try:
+        from politikdesk.backup_policy import cloud_sync_reason as _cloud_check
+
+        _cloud_reason = _cloud_check(_resolved_env_file)
+        if _cloud_reason:
+            import warnings
+
+            warnings.warn(
+                f".env dosyası bulut eşitlemesi altında: {_resolved_env_file}\n"
+                f"  Sebep: {_cloud_reason}\n"
+                "  API anahtarları ve parolalar bulut sağlayıcısına kopyalanıyor.\n"
+                "  Çözüm: .env dosyasını bulut dışına taşıyın, örneğin:\n"
+                "    Windows: %LOCALAPPDATA%\\PolitikDesk\\.env\n"
+                "    Linux:   ~/.config/politikdesk/.env\n"
+                "  veya PD_ENV_FILE ortam değişkeniyle yol belirtin.",
+                UserWarning,
+                stacklevel=1,
+            )
+    except Exception:  # noqa: BLE001 — uyarı altyapısı açılışı kırmamalı
+        pass
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -226,9 +251,7 @@ class Settings(BaseSettings):
     def _json_mode_must_be_known(cls, v: str) -> str:
         mode = v.strip().lower()
         if mode not in JSON_MODES:
-            raise ValueError(
-                f"Bilinmeyen llm_json_mode: {v!r}. Seçenekler: {list(JSON_MODES)}"
-            )
+            raise ValueError(f"Bilinmeyen llm_json_mode: {v!r}. Seçenekler: {list(JSON_MODES)}")
         return mode
 
     @model_validator(mode="after")

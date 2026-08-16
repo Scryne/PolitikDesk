@@ -43,7 +43,9 @@ class _FakeHttp:
     calls: list[str] = field(default_factory=list)
     fail: bool = False
 
-    def get(self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = "") -> _FakeResponse:
+    def get(
+        self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = ""
+    ) -> _FakeResponse:
         self.calls.append(url)
         if self.fail:
             raise TimeoutError("TBMM bağlantı zaman aşımı")
@@ -106,7 +108,9 @@ def test_tbmm_empty_and_malformed_html() -> None:
     assert adapter_empty.fetch() == []
 
     # Bozuk HTML
-    adapter_malformed = TbmmAdapter(slug="tbmm", base_url=BASE, http=_FakeHttp(body="<unclosed <div><a>Kopuk"))  # type: ignore[arg-type]
+    adapter_malformed = TbmmAdapter(
+        slug="tbmm", base_url=BASE, http=_FakeHttp(body="<unclosed <div><a>Kopuk")
+    )  # type: ignore[arg-type]
     assert adapter_malformed.fetch() == []
 
 

@@ -39,7 +39,7 @@ def test_all_eight_product_metrics_have_targets() -> None:
 
 
 def test_every_target_declares_a_direction() -> None:
-    """"Yukarısı iyi" mi "aşağısı iyi" mi — panonun rozeti buna bakar."""
+    """ "Yukarısı iyi" mi "aşağısı iyi" mi — panonun rozeti buna bakar."""
     for name, meta in METRIC_TARGETS.items():
         assert meta["direction"] in ("lower", "higher"), name
         assert isinstance(meta["target"], int | float), name
@@ -74,10 +74,10 @@ def test_activity_kinds_are_closed_set() -> None:
 @pytest.mark.parametrize(
     ("name", "value", "expected"),
     [
-        ("edit_distance", 0.20, "ok"),      # düşük iyi, hedefin altında
-        ("edit_distance", 0.60, "off"),     # düşük iyi, hedefin üstünde
-        ("diversity_ratio", 3.0, "ok"),     # yüksek iyi, hedefin üstünde
-        ("diversity_ratio", 1.2, "off"),    # yüksek iyi, hedefin altında
+        ("edit_distance", 0.20, "ok"),  # düşük iyi, hedefin altında
+        ("edit_distance", 0.60, "off"),  # düşük iyi, hedefin üstünde
+        ("diversity_ratio", 3.0, "ok"),  # yüksek iyi, hedefin üstünde
+        ("diversity_ratio", 1.2, "off"),  # yüksek iyi, hedefin altında
         ("daily_active_minutes", 8.0, "ok"),
         ("daily_active_minutes", 90.0, "off"),
     ],

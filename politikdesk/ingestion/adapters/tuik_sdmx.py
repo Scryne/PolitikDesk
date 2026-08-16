@@ -48,8 +48,18 @@ SDMX_BASE = "https://nsiws.tuik.gov.tr/rest"
 GENERIC_NS = "{http://www.sdmx.org/resources/sdmxml/schemas/v2_1/data/generic}"
 
 _MONTHS_TR = (
-    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+    "Ocak",
+    "Şubat",
+    "Mart",
+    "Nisan",
+    "Mayıs",
+    "Haziran",
+    "Temmuz",
+    "Ağustos",
+    "Eylül",
+    "Ekim",
+    "Kasım",
+    "Aralık",
 )
 
 
@@ -60,7 +70,7 @@ class TrackedIndicator:
     dataflow: str
     version: str
     label: str
-    metric: str          # politikdesk/nlp/claims.py::VALID_METRICS
+    metric: str  # politikdesk/nlp/claims.py::VALID_METRICS
     unit: str
     dimensions: dict[str, str]
     qualifier: str = ""  # başlıkta görünen ayrım (ör. "mevsim etkisinden arındırılmış")
@@ -181,8 +191,7 @@ class TuikSdmxAdapter(FailureRecorder):
 
     def _data_url(self, indicator: TrackedIndicator) -> str:
         return (
-            f"{SDMX_BASE}/data/TR,{indicator.dataflow},{indicator.version}"
-            "/all?lastNObservations=1"
+            f"{SDMX_BASE}/data/TR,{indicator.dataflow},{indicator.version}/all?lastNObservations=1"
         )
 
     def _fetch_one(self, indicator: TrackedIndicator) -> RawItem | None:
@@ -230,7 +239,6 @@ class TuikSdmxAdapter(FailureRecorder):
             err_msg = f"TÜİK SDMX XML ayrıştırma hatası ({indicator.dataflow}): {exc}"
             raise ValueError(err_msg) from exc
 
-
         matches: list[tuple[str, str]] = []
         for series in root.findall(f".//{GENERIC_NS}Series"):
             key = {
@@ -249,8 +257,9 @@ class TuikSdmxAdapter(FailureRecorder):
             matches.append((dim.get("value", ""), val.get("value", "")))
 
         if not matches:
-            log.warning("tuik_series_not_found", dataflow=indicator.dataflow,
-                        metric=indicator.metric)
+            log.warning(
+                "tuik_series_not_found", dataflow=indicator.dataflow, metric=indicator.metric
+            )
             return None
 
         if len(matches) > 1:
@@ -272,8 +281,7 @@ class TuikSdmxAdapter(FailureRecorder):
         value = round(float(raw_value), 2)
         pretty_value = f"{value:.1f}".replace(".", ",")
         title = (
-            f"{indicator.label} ({indicator.qualifier}), "
-            f"{format_period(period)}: %{pretty_value}"
+            f"{indicator.label} ({indicator.qualifier}), {format_period(period)}: %{pretty_value}"
             if indicator.unit == "%"
             else f"{indicator.label}, {format_period(period)}: {pretty_value}"
         )

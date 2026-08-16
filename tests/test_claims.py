@@ -63,7 +63,7 @@ def _claim(**over: Any) -> dict[str, Any]:
         "claim_text": "TCMB politika faizini yüzde 37'de sabit tuttu.",
         "claim_type": "fact",
         "quote_span": "politika faizi olan bir hafta vadeli repo ihale faiz oranının "
-                      "yüzde 37’de sabit tutulmasına karar vermiştir",
+        "yüzde 37’de sabit tutulmasına karar vermiştir",
     }
     base.update(over)
     return base
@@ -91,8 +91,12 @@ def test_prompt_version_is_sent_to_the_model() -> None:
     """Prompt sürümlenir ve çıktıya işlenir (Spec §11.5)."""
     client = FakeClient({"claims": [_claim()]})
     result = extract_claims(
-        title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
-        published_at="2026-07-23", client=client,
+        title=TITLE,
+        excerpt=EXCERPT,
+        source_name="TCMB",
+        tier=1,
+        published_at="2026-07-23",
+        client=client,
     )
     # Sürüm sabite bağlanır: elle yazılan dize, sürüm artışında testi
     # kırar ama denetlenen davranış hakkında hiçbir şey söylemez.
@@ -104,8 +108,14 @@ def test_prompt_version_is_sent_to_the_model() -> None:
 def test_extraction_uses_the_cheap_model_task() -> None:
     """Risk R6 azaltımı: çıkarım ucuz modelde koşar."""
     client = FakeClient({"claims": []})
-    extract_claims(title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
-                   published_at="2026-07-23", client=client)
+    extract_claims(
+        title=TITLE,
+        excerpt=EXCERPT,
+        source_name="TCMB",
+        tier=1,
+        published_at="2026-07-23",
+        client=client,
+    )
     assert client.calls[0]["task"] == "extraction"
 
 
@@ -154,9 +164,15 @@ def test_number_claim_requires_normalized_value() -> None:
 
 def test_valid_number_claim_passes() -> None:
     result = validate_claim(
-        _claim(claim_type="number",
-               normalized_value={"metric": "policy_rate", "value": 37.0,
-                                 "unit": "%", "period": "2026-07"}),
+        _claim(
+            claim_type="number",
+            normalized_value={
+                "metric": "policy_rate",
+                "value": 37.0,
+                "unit": "%",
+                "period": "2026-07",
+            },
+        ),
         SOURCE_TEXT,
     )
     assert result.is_valid
@@ -168,8 +184,14 @@ def test_valid_number_claim_passes() -> None:
         ({"metric": "faiz", "value": 37, "unit": "%", "period": "2026-07"}, "gecersiz metric"),
         ({"metric": "policy_rate", "value": "37", "unit": "%", "period": "2026-07"}, "sayi olmali"),
         ({"metric": "policy_rate", "value": 37, "unit": "", "period": "2026-07"}, "unit bos"),
-        ({"metric": "policy_rate", "value": 37, "unit": "%", "period": "Temmuz"}, "gecersiz period"),
-        ({"metric": "policy_rate", "value": 37, "unit": "%", "period": "2026-13"}, "gecersiz period"),
+        (
+            {"metric": "policy_rate", "value": 37, "unit": "%", "period": "Temmuz"},
+            "gecersiz period",
+        ),
+        (
+            {"metric": "policy_rate", "value": 37, "unit": "%", "period": "2026-13"},
+            "gecersiz period",
+        ),
     ],
 )
 def test_normalized_value_is_validated(value: dict, expected_problem: str) -> None:
@@ -181,9 +203,15 @@ def test_normalized_value_is_validated(value: dict, expected_problem: str) -> No
 @pytest.mark.parametrize("period", ["2026", "2026-07", "2026-Q1"])
 def test_accepted_period_formats(period: str) -> None:
     result = validate_claim(
-        _claim(claim_type="number",
-               normalized_value={"metric": "tufe_monthly", "value": 1.78,
-                                 "unit": "%", "period": period}),
+        _claim(
+            claim_type="number",
+            normalized_value={
+                "metric": "tufe_monthly",
+                "value": 1.78,
+                "unit": "%",
+                "period": period,
+            },
+        ),
         SOURCE_TEXT,
     )
     assert result.is_valid
@@ -191,9 +219,15 @@ def test_accepted_period_formats(period: str) -> None:
 
 def test_non_number_claim_must_not_carry_a_value() -> None:
     result = validate_claim(
-        _claim(claim_type="fact",
-               normalized_value={"metric": "policy_rate", "value": 37,
-                                 "unit": "%", "period": "2026-07"}),
+        _claim(
+            claim_type="fact",
+            normalized_value={
+                "metric": "policy_rate",
+                "value": 37,
+                "unit": "%",
+                "period": "2026-07",
+            },
+        ),
         SOURCE_TEXT,
     )
     assert not result.is_valid
@@ -209,16 +243,29 @@ def test_invalid_claim_type_is_rejected() -> None:
 def test_same_number_claim_in_different_words_is_deduped() -> None:
     """Sözcük tabanlı imza bunları ayrı sayardı."""
     a = validate_claim(
-        _claim(claim_text="TÜFE aylık yüzde 1,78 arttı.", claim_type="number",
-               normalized_value={"metric": "tufe_monthly", "value": 1.78,
-                                 "unit": "%", "period": "2026-07"}),
+        _claim(
+            claim_text="TÜFE aylık yüzde 1,78 arttı.",
+            claim_type="number",
+            normalized_value={
+                "metric": "tufe_monthly",
+                "value": 1.78,
+                "unit": "%",
+                "period": "2026-07",
+            },
+        ),
         SOURCE_TEXT,
     )
     b = validate_claim(
-        _claim(claim_text="Aylık enflasyon yüzde 1,78 olarak gerçekleşti.",
-               claim_type="number",
-               normalized_value={"metric": "tufe_monthly", "value": 1.78,
-                                 "unit": "%", "period": "2026-07"}),
+        _claim(
+            claim_text="Aylık enflasyon yüzde 1,78 olarak gerçekleşti.",
+            claim_type="number",
+            normalized_value={
+                "metric": "tufe_monthly",
+                "value": 1.78,
+                "unit": "%",
+                "period": "2026-07",
+            },
+        ),
         SOURCE_TEXT,
     )
     assert len(dedupe_claims([a, b])) == 1
@@ -227,9 +274,15 @@ def test_same_number_claim_in_different_words_is_deduped() -> None:
 def test_different_periods_are_not_deduped() -> None:
     def make(period: str):  # noqa: ANN202
         return validate_claim(
-            _claim(claim_type="number",
-                   normalized_value={"metric": "tufe_monthly", "value": 1.78,
-                                     "unit": "%", "period": period}),
+            _claim(
+                claim_type="number",
+                normalized_value={
+                    "metric": "tufe_monthly",
+                    "value": 1.78,
+                    "unit": "%",
+                    "period": period,
+                },
+            ),
             SOURCE_TEXT,
         )
 
@@ -254,16 +307,22 @@ def test_different_types_are_not_deduped() -> None:
 # Uçtan uca (sahte istemci)
 # ==========================================================================
 def test_extraction_separates_accepted_and_rejected() -> None:
-    client = FakeClient({
-        "claims": [
-            _claim(),
-            _claim(quote_span="bu cumle metinde yok"),          # uydurma alıntı
-            _claim(claim_type="number"),                        # değer eksik
-        ]
-    })
+    client = FakeClient(
+        {
+            "claims": [
+                _claim(),
+                _claim(quote_span="bu cumle metinde yok"),  # uydurma alıntı
+                _claim(claim_type="number"),  # değer eksik
+            ]
+        }
+    )
     result = extract_claims(
-        title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
-        published_at="2026-07-23", client=client,
+        title=TITLE,
+        excerpt=EXCERPT,
+        source_name="TCMB",
+        tier=1,
+        published_at="2026-07-23",
+        client=client,
     )
     assert len(result.claims) == 1
     assert len(result.rejected) == 2
@@ -272,8 +331,12 @@ def test_extraction_separates_accepted_and_rejected() -> None:
 def test_extraction_dedupes_within_one_article() -> None:
     client = FakeClient({"claims": [_claim(), _claim()]})
     result = extract_claims(
-        title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
-        published_at="2026-07-23", client=client,
+        title=TITLE,
+        excerpt=EXCERPT,
+        source_name="TCMB",
+        tier=1,
+        published_at="2026-07-23",
+        client=client,
     )
     assert len(result.claims) == 1
 
@@ -281,8 +344,12 @@ def test_extraction_dedupes_within_one_article() -> None:
 def test_empty_model_output_is_not_an_error() -> None:
     client = FakeClient({"claims": []})
     result = extract_claims(
-        title=TITLE, excerpt=EXCERPT, source_name="TCMB", tier=1,
-        published_at="2026-07-23", client=client,
+        title=TITLE,
+        excerpt=EXCERPT,
+        source_name="TCMB",
+        tier=1,
+        published_at="2026-07-23",
+        client=client,
     )
     assert result.claims == [] and result.rejected == []
 

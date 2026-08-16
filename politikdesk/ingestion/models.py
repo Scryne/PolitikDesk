@@ -54,6 +54,7 @@ class NormalizedArticle:
     lang: str
     raw_purge_at: datetime
     topics: tuple[str, ...] = ()
+    vertical: str = "macro_economy"
     official_value: dict[str, Any] | None = None
     """Kaynağın KENDİ makine okunur yayınından gelen sayı (F5-19).
 

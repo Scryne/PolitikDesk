@@ -108,12 +108,14 @@ def test_partial_failure_keeps_the_round_successful(monkeypatch) -> None:
 
     monkeypatch.setattr(pipeline_mod.repository, "record_fetch", _fake_record_fetch)
     monkeypatch.setattr(
-        pipeline_mod, "build_adapter",
+        pipeline_mod,
+        "build_adapter",
         lambda source, http: _SwallowingAdapter(fail=1, yield_items=3),
     )
     # Saklama adımı DB ister; bu testin konusu değil.
     monkeypatch.setattr(
-        pipeline_mod.Pipeline, "_store_items",
+        pipeline_mod.Pipeline,
+        "_store_items",
         lambda self, items, source, decision, stats: stats,
     )
 
@@ -127,10 +129,21 @@ def _source_row():
     from politikdesk.ingestion.repository import SourceRow
 
     return SourceRow(
-        id=1, name="Test", slug="test", tier=1, kind="official",
-        independence_group=None, access_method="rss", tos_status="allowed",
-        base_url="https://ornek", feed_url="https://ornek/rss", is_active=True,
-        adapter="rss", extra_feeds=[], keyword_filter=[], topics=[],
+        id=1,
+        name="Test",
+        slug="test",
+        tier=1,
+        kind="official",
+        independence_group=None,
+        access_method="rss",
+        tos_status="allowed",
+        base_url="https://ornek",
+        feed_url="https://ornek/rss",
+        is_active=True,
+        adapter="rss",
+        extra_feeds=[],
+        keyword_filter=[],
+        topics=[],
         is_wire_reference=False,
     )
 
@@ -174,9 +187,9 @@ def test_health_monitor_uses_same_predicate_as_the_worker() -> None:
 @pytest.mark.parametrize(
     ("age", "threshold", "expected"),
     [
-        (None, 2.0, "green"),   # bekleyen yok
+        (None, 2.0, "green"),  # bekleyen yok
         (0.1, 2.0, "green"),
-        (1.0, 2.0, "amber"),    # eşiğin yarısı
+        (1.0, 2.0, "amber"),  # eşiğin yarısı
         (2.0, 2.0, "red"),
         (99.0, 2.0, "red"),
     ],
@@ -243,8 +256,16 @@ def test_stage_report_runs_against_live_schema(db_conn) -> None:  # noqa: ANN001
     report = stage_report()
     keys = {r.key for r in report}
 
-    assert {"ingest", "embed", "entities", "cluster", "claims",
-            "evidence", "briefing", "metrics"} <= keys
+    assert {
+        "ingest",
+        "embed",
+        "entities",
+        "cluster",
+        "claims",
+        "evidence",
+        "briefing",
+        "metrics",
+    } <= keys
     for row in report:
         assert row.status in {"green", "amber", "red"}
 
@@ -289,12 +310,15 @@ def test_unknown_audit_action_is_rejected() -> None:
 def test_f4_16_required_actions_are_covered() -> None:
     """Yol Haritası F4-16 DoD'sinin saydığı eylemler."""
     required = {
-        "source_updated",       # kaynak değişikliği
-        "sources_synced",       # kaynak listesi değişikliği
-        "merge_events", "undo_merge", "split_event", "undo_split",
-        "draft_generated",      # taslak üretimi
+        "source_updated",  # kaynak değişikliği
+        "sources_synced",  # kaynak listesi değişikliği
+        "merge_events",
+        "undo_merge",
+        "split_event",
+        "undo_split",
+        "draft_generated",  # taslak üretimi
         "purge_lead_paragraph",  # purge
-        "llm_budget_alert",     # F4-07
+        "llm_budget_alert",  # F4-07
     }
     missing = required - set(audit.ACTIONS)
     assert not missing, f"F4-16 kapsamında eksik eylem(ler): {sorted(missing)}"
@@ -459,7 +483,9 @@ def test_ingestion_does_not_stop_at_budget_cap() -> None:
 
 
 # ==================================================================== D9
-def test_anthropic_backend_passes_timeout_and_max_retries_to_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_anthropic_backend_passes_timeout_and_max_retries_to_sdk(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """D9: _AnthropicBackend llm_max_retries ve llm_timeout_seconds'ı Anthropic SDK'ya iletmeli."""
     import sys
     from typing import Any
@@ -488,7 +514,9 @@ def test_anthropic_backend_passes_timeout_and_max_retries_to_sdk(monkeypatch: py
 
 
 # ==================================================================== D10
-def test_http_client_acquires_rate_limiter_on_every_retry_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_http_client_acquires_rate_limiter_on_every_retry_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """D10: HttpClient her gerçek HTTP isteği/denemesi öncesinde rate limiter acquire etmeli."""
     from typing import Any
     from unittest.mock import MagicMock
@@ -520,7 +548,9 @@ def test_http_client_acquires_rate_limiter_on_every_retry_attempt(monkeypatch: p
     assert mock_limiter.acquire.call_count == 4
 
 
-def test_http_client_429_scenario_acquires_limiter_per_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_http_client_429_scenario_acquires_limiter_per_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """D10: 429 yanıtı alındığında da her retry için limiter slot'u ayrılmalı."""
     from typing import Any
     from unittest.mock import MagicMock

@@ -35,7 +35,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-GLOBAL_MAX = 90       # migrations/0003: events_salience_global_range
+GLOBAL_MAX = 90  # migrations/0003: events_salience_global_range
 PERSONAL_MAX = 10
 
 # Spec §8.4 ağırlıkları (ilk beş bileşen — toplam 90)
@@ -45,8 +45,8 @@ W_VELOCITY = 20
 W_TIER = 15
 W_ENTITY = 10
 
-NORM_INDEPENDENT_MAX = 8    # norm(bagimsiz_kaynak_sayisi, 0, 8)
-NORM_VELOCITY_MAX = 10      # ilk 60 dk içindeki makale sayısı
+NORM_INDEPENDENT_MAX = 8  # norm(bagimsiz_kaynak_sayisi, 0, 8)
+NORM_VELOCITY_MAX = 10  # ilk 60 dk içindeki makale sayısı
 
 TIER_WEIGHTS = {1: 1.0, 2: 0.8, 3: 0.5, 4: 0.2}
 
@@ -73,7 +73,7 @@ class EventSignals:
     independent_count: int
     has_primary_source: bool
     articles_in_first_hour: int
-    best_tier: int                      # en yüksek katman: 1 en güçlü
+    best_tier: int  # en yüksek katman: 1 en güçlü
     has_key_entity: bool
     evidence_status: str
     first_reported_at: datetime
@@ -106,13 +106,10 @@ class SalienceBreakdown:
 def global_salience(signals: EventSignals) -> SalienceBreakdown:
     """Spec §8.4/A — 0–90, deterministik, kullanıcıdan bağımsız."""
     components = {
-        "independent_sources": W_INDEPENDENT * _norm(
-            signals.independent_count, 0, NORM_INDEPENDENT_MAX
-        ),
+        "independent_sources": W_INDEPENDENT
+        * _norm(signals.independent_count, 0, NORM_INDEPENDENT_MAX),
         "primary_source": float(W_PRIMARY if signals.has_primary_source else 0),
-        "velocity": W_VELOCITY * _norm(
-            signals.articles_in_first_hour, 0, NORM_VELOCITY_MAX
-        ),
+        "velocity": W_VELOCITY * _norm(signals.articles_in_first_hour, 0, NORM_VELOCITY_MAX),
         "tier_weight": W_TIER * TIER_WEIGHTS.get(signals.best_tier, 0.0),
         "key_entity": float(W_ENTITY if signals.has_key_entity else 0),
     }

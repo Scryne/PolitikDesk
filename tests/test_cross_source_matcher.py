@@ -23,13 +23,23 @@ def test_number_claims_match_exact_normalized_values() -> None:
         claim_text="TUFE aylik yuzde 1,78 artti.",
         claim_type="number",
         quote_span="aylik %1,78 artti",
-        normalized_value={"metric": "tufe_monthly", "value": 1.78, "unit": "%", "period": "2026-07"},
+        normalized_value={
+            "metric": "tufe_monthly",
+            "value": 1.78,
+            "unit": "%",
+            "period": "2026-07",
+        },
     )
     c2 = ExtractedClaim(
         claim_text="Tuketici enflasyonu temmuzda yuzde 1,78 olarak gerceklesti.",
         claim_type="number",
         quote_span="yuzde 1,78 olarak gerceklesti",
-        normalized_value={"metric": "tufe_monthly", "value": 1.78, "unit": "%", "period": "2026-07"},
+        normalized_value={
+            "metric": "tufe_monthly",
+            "value": 1.78,
+            "unit": "%",
+            "period": "2026-07",
+        },
     )
     assert are_claims_equivalent(c1, c2) is True
 
@@ -39,7 +49,12 @@ def test_number_claims_do_not_match_different_metrics() -> None:
         claim_text="TUFE aylik yuzde 1,78 artti.",
         claim_type="number",
         quote_span="aylik %1,78 artti",
-        normalized_value={"metric": "tufe_monthly", "value": 1.78, "unit": "%", "period": "2026-07"},
+        normalized_value={
+            "metric": "tufe_monthly",
+            "value": 1.78,
+            "unit": "%",
+            "period": "2026-07",
+        },
     )
     c2 = ExtractedClaim(
         claim_text="YI-UFE aylik yuzde 1,78 artti.",

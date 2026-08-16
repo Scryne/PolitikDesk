@@ -75,13 +75,9 @@ def test_recommended_thresholds_favour_precision() -> None:
 def _pairs(same: int, diff: int, hard: int = 10) -> list[Pair]:
     out: list[Pair] = []
     for i in range(same):
-        out.append(
-            Pair(f"s{i}", "a", "b", True, "hard" if i < hard // 2 else "easy")
-        )
+        out.append(Pair(f"s{i}", "a", "b", True, "hard" if i < hard // 2 else "easy"))
     for i in range(diff):
-        out.append(
-            Pair(f"d{i}", "a", "b", False, "hard" if i < hard // 2 else "easy")
-        )
+        out.append(Pair(f"d{i}", "a", "b", False, "hard" if i < hard // 2 else "easy"))
     return out
 
 
@@ -161,8 +157,12 @@ def _claim(**over: object) -> dict:
         "claim_text": "Mayis TUFE aylik %3 artti.",
         "claim_type": "number",
         "expected_status": "strongly_corroborated",
-        "normalized_value": {"metric": "tufe_monthly", "value": 3.0,
-                             "unit": "%", "period": "2026-05"},
+        "normalized_value": {
+            "metric": "tufe_monthly",
+            "value": 3.0,
+            "unit": "%",
+            "period": "2026-05",
+        },
     }
     base.update(over)  # type: ignore[arg-type]
     return base

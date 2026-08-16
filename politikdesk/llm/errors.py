@@ -51,9 +51,7 @@ class BudgetExceeded(LLMError):
         self.period = period
         self.spent_usd = spent_usd
         self.cap_usd = cap_usd
-        super().__init__(
-            f"{period} LLM bütçesi aşıldı: {spent_usd:.4f} $ / tavan {cap_usd:.2f} $"
-        )
+        super().__init__(f"{period} LLM bütçesi aşıldı: {spent_usd:.4f} $ / tavan {cap_usd:.2f} $")
 
 
 class LLMRefusal(LLMError):

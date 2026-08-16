@@ -61,11 +61,14 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
     yield {"events": event_ids, "source_id": source_id, "now": now}
 
     with db_conn.cursor() as cur:
-        cur.execute("DELETE FROM event_relations WHERE from_event_id = ANY(%s) "
-                    "OR to_event_id = ANY(%s)", (event_ids, event_ids))
+        cur.execute(
+            "DELETE FROM event_relations WHERE from_event_id = ANY(%s) OR to_event_id = ANY(%s)",
+            (event_ids, event_ids),
+        )
         cur.execute("DELETE FROM scheduled_events WHERE source_id = %s", (source_id,))
-        cur.execute("DELETE FROM audit_log WHERE target = ANY(%s)",
-                    ([f"events/{e}" for e in event_ids],))
+        cur.execute(
+            "DELETE FROM audit_log WHERE target = ANY(%s)", ([f"events/{e}" for e in event_ids],)
+        )
         cur.execute("DELETE FROM articles WHERE source_id = %s", (source_id,))
         cur.execute("DELETE FROM events WHERE id = ANY(%s)", (event_ids,))
         cur.execute("DELETE FROM sources WHERE id = %s", (source_id,))
@@ -186,9 +189,7 @@ def test_event_from_another_source_is_not_matched(db_conn, fixtures) -> None:  #
     match_pending()
 
     with db_conn.cursor() as cur:
-        cur.execute(
-            "SELECT linked_event_id FROM scheduled_events WHERE id = %s", (scheduled_id,)
-        )
+        cur.execute("SELECT linked_event_id FROM scheduled_events WHERE id = %s", (scheduled_id,))
         linked = cur.fetchone()["linked_event_id"]
         cur.execute("DELETE FROM scheduled_events WHERE id = %s", (scheduled_id,))
     db_conn.commit()

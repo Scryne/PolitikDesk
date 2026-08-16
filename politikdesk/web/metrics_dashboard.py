@@ -82,9 +82,7 @@ def _metric_card(data: dict, history: list[dict]) -> str:
     arrow = "düşük iyi" if data["direction"] == "lower" else "yüksek iyi"
 
     value, unit = _value_and_unit(data["value"], data["unit"])
-    target_value, target_unit = _value_and_unit(
-        float(data["target"]), data["unit"]
-    )
+    target_value, target_unit = _value_and_unit(float(data["target"]), data["unit"])
     unit_html = f'<span class="kpi-unit">{esc(unit)}</span>' if unit else ""
 
     window = history[-30:]
@@ -99,12 +97,12 @@ def _metric_card(data: dict, history: list[dict]) -> str:
     trend_block = (
         f'<div style="margin-top:var(--space-4)">{trend}</div>'
         f'<p class="subtle" style="margin:6px 0 0;font-size:11px">'
-        f'{esc(fmt.plural_count(len(window), "günlük eğilim"))} · '
+        f"{esc(fmt.plural_count(len(window), 'günlük eğilim'))} · "
         f"kesikli çizgi hedef · amber çubuklar hedefin dışında kalan günler</p>"
         if window
         else '<p class="subtle" style="margin:var(--space-4) 0 0;'
-             'font-size:var(--text-xs)">Günlük geçmiş henüz yok — '
-             "aşağıdan geçmiş günleri toplayabilirsin.</p>"
+        'font-size:var(--text-xs)">Günlük geçmiş henüz yok — '
+        "aşağıdan geçmiş günleri toplayabilirsin.</p>"
     )
 
     return card(
@@ -147,41 +145,52 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
     )
 
     body = f"""
-{page_head(
-    "Ürün metrikleri",
-    lede=lede,
-    actions=button("Şimdi topla", icon_name="refresh", onclick="pdRollup()")
+{
+        page_head(
+            "Ürün metrikleri",
+            lede=lede,
+            actions=button("Şimdi topla", icon_name="refresh", onclick="pdRollup()")
             + '<span id="rollup-status" class="subtle" aria-live="polite" '
-              'style="font-size:var(--text-xs)"></span>',
-)}
+            'style="font-size:var(--text-xs)"></span>',
+        )
+    }
 <div class="stack">
   <div class="kpis">
-    {kpi("Hedefte", fmt.number(on_target), unit=f"/ {len(current)} metrik",
-         icon_name="check")}
+    {kpi("Hedefte", fmt.number(on_target), unit=f"/ {len(current)} metrik", icon_name="check")}
     {kpi("Hedef dışı", fmt.number(off_target), unit="metrik", icon_name="warning")}
     {kpi("Veri yok", fmt.number(no_data), unit="metrik", icon_name="clock")}
-    {kpi("Günlük geçmişi olan", fmt.number(with_history),
-         unit=f"/ {len(current)} metrik", icon_name="metrics")}
+    {
+        kpi(
+            "Günlük geçmişi olan",
+            fmt.number(with_history),
+            unit=f"/ {len(current)} metrik",
+            icon_name="metrics",
+        )
+    }
   </div>
 
-  {notice(
-    "<p><b>Daily active minutes'ın düşük olması hedeftir.</b></p>"
-    "<p>Ürünün vaadi zaman tasarrufudur, etkileşim değil; bu metriği yukarı "
-    "çekmeye çalışan hiçbir özellik kabul edilmez (Spec §13.3).</p>"
-  )}
+  {
+        notice(
+            "<p><b>Daily active minutes'ın düşük olması hedeftir.</b></p>"
+            "<p>Ürünün vaadi zaman tasarrufudur, etkileşim değil; bu metriği yukarı "
+            "çekmeye çalışan hiçbir özellik kabul edilmez (Spec §13.3).</p>"
+        )
+    }
 
   <div class="halves">{cards}</div>
 
-  {card(
-    '<p style="margin:0">Toplama her gece 23:50\'de koşar '
-    '(<span class="mono">metrics_rollup</span>). Pano ilk açıldığında eğilim '
-    'boş kalmasın diye geçmiş günler toplanabilir.</p>'
-    '<div class="btn-row" style="margin-top:var(--space-4)">'
-    + button("Son 7 günü topla", onclick="pdBackfill(7)")
-    + button("Son 30 günü topla", onclick="pdBackfill(30)")
-    + '</div>',
-    title="Günlük toplama",
-  )}
+  {
+        card(
+            '<p style="margin:0">Toplama her gece 23:50\'de koşar '
+            '(<span class="mono">metrics_rollup</span>). Pano ilk açıldığında eğilim '
+            "boş kalmasın diye geçmiş günler toplanabilir.</p>"
+            '<div class="btn-row" style="margin-top:var(--space-4)">'
+            + button("Son 7 günü topla", onclick="pdBackfill(7)")
+            + button("Son 30 günü topla", onclick="pdBackfill(30)")
+            + "</div>",
+            title="Günlük toplama",
+        )
+    }
 </div>
 """
     js = """

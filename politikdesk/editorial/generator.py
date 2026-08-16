@@ -62,9 +62,18 @@ ANGLES: Final[dict[str, tuple[str, str]]] = {
 # Modelin ÜRETMESİ YASAK alanlar (Spec §8.1). Şemada yoklar; ikinci
 # savunma hattı olarak çıktıda da aranır — `nlp/claims.py` ile aynı deyim.
 FORBIDDEN_FIELDS: Final[tuple[str, ...]] = (
-    "evidence_status", "status", "confidence", "confidence_score",
-    "truth", "is_true", "accuracy", "bias", "sentiment", "political",
-    "source_bias", "political_leaning",
+    "evidence_status",
+    "status",
+    "confidence",
+    "confidence_score",
+    "truth",
+    "is_true",
+    "accuracy",
+    "bias",
+    "sentiment",
+    "political",
+    "source_bias",
+    "political_leaning",
 )
 
 MAX_CITED_CLAIMS: Final[int] = 12
@@ -268,8 +277,9 @@ def _format_claim(claim: ClaimForGeneration) -> str:
     if claim.evidence:
         lines.append("  Kanıt:")
         for item in claim.evidence:
-            stance = {"supports": "destekler", "contradicts": "çelişir",
-                      "partial": "kısmen"}.get(str(item.get("stance")), "—")
+            stance = {"supports": "destekler", "contradicts": "çelişir", "partial": "kısmen"}.get(
+                str(item.get("stance")), "—"
+            )
             quote = str(item.get("quote_span") or "").strip()
             source = item.get("source_name") or item.get("source_slug") or "kaynak"
             lines.append(
@@ -425,8 +435,10 @@ def generate_draft(
 
     body = str(data.get("body") or "").strip()[:max_chars]
     cited = tuple(
-        sorted({int(i) for i in (data.get("cited_claim_ids") or []) if isinstance(i, int)}
-               & allowed_ids)
+        sorted(
+            {int(i) for i in (data.get("cited_claim_ids") or []) if isinstance(i, int)}
+            & allowed_ids
+        )
     )
 
     # Grounding evreni, modele GERÇEKTEN verilen kanıt setidir.
@@ -435,16 +447,8 @@ def generate_draft(
         build_context(
             [
                 *(c.claim_text for c in claims),
-                *(
-                    str(e.get("quote_span") or "")
-                    for c in claims
-                    for e in c.evidence
-                ),
-                *(
-                    str(e.get("source_name") or "")
-                    for c in claims
-                    for e in c.evidence
-                ),
+                *(str(e.get("quote_span") or "") for c in claims for e in c.evidence),
+                *(str(e.get("source_name") or "") for c in claims for e in c.evidence),
             ],
             normalized_values=[c.normalized_value for c in claims if c.normalized_value],
         ),

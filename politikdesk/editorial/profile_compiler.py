@@ -106,12 +106,8 @@ _CITATION_TR: Final[dict[str, str]] = {
         "Her zaman — İddia ve haber içeren içeriklerde kaynak bağlantısı / atfı açıkça "
         "gösterilmelidir."
     ),
-    "necessary": (
-        "Gerektiğinde — Önemli veya doğrulanması gereken iddialarda kaynak göster."
-    ),
-    "sometimes": (
-        "Gerektiğinde — Önemli veya doğrulanması gereken iddialarda kaynak göster."
-    ),
+    "necessary": ("Gerektiğinde — Önemli veya doğrulanması gereken iddialarda kaynak göster."),
+    "sometimes": ("Gerektiğinde — Önemli veya doğrulanması gereken iddialarda kaynak göster."),
     "inline_short": (
         "Kısa format — Kaynağı metin içinde belirt; bağlantıyı yalnızca gerektiğinde ekle."
     ),
@@ -134,9 +130,7 @@ _UNCERTAINTY_TR: Final[dict[str, str]] = {
         "Açıkça belirt — kesinleşmemiş veya tek kaynaklı bilgide 'iddia edildi', "
         "'ilk bilgilere göre', 'doğrulanmadı' gibi açık ifadeler kullan."
     ),
-    "essential_only": (
-        "Yalnızca önemli durumlarda — kritik ve riskli iddialarda açıkça belirt."
-    ),
+    "essential_only": ("Yalnızca önemli durumlarda — kritik ve riskli iddialarda açıkça belirt."),
     "natural_concise": (
         "Kısa ve doğal — metin akışını bozmadan ölçülü ve doğal ifadelerle belirt."
     ),
@@ -430,9 +424,7 @@ def load_profile(user_id: int) -> dict[str, Any] | None:
     from politikdesk.db import connection
 
     with connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM editorial_profiles WHERE user_id = %s", (user_id,)
-        )
+        cur.execute("SELECT * FROM editorial_profiles WHERE user_id = %s", (user_id,))
         row = cur.fetchone()
     return dict(row) if row else None
 

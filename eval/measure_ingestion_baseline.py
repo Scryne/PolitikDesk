@@ -5,10 +5,10 @@ conn_str = "postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk"
 with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
     cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
     tables = [r[0] for r in cur.fetchall()]
-    
+
     # Check source logs / health report tables
     print("Existing tables:", sorted(tables))
-    
+
     for table in ["source_fetch_log", "sources", "audit_log", "articles"]:
         if table in tables:
             cur.execute(
@@ -42,7 +42,7 @@ with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
             f"AvgDuration={row[3]:.1f}ms, MaxDuration={row[4]}ms"
         )
         if row[0] > 0:
-            print(f"Failure Rate: {row[2]/row[0]*100:.2f}%")
+            print(f"Failure Rate: {row[2] / row[0] * 100:.2f}%")
 
         cur.execute("""
             SELECT 
@@ -95,5 +95,3 @@ with psycopg.connect(conn_str) as conn, conn.cursor() as cur:
                 f"consecutive_errors={r[6]} | last_fetch={r[4]} | "
                 f"last_success={r[5]} | last_error={r[7]}"
             )
-
-

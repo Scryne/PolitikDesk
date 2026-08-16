@@ -175,4 +175,3 @@ def test_briefing_delivery_with_since_parameter() -> None:
     assert res.status == GateStatus.PASS
     assert res.passed
     assert res.measured == "14/14 gönderildi"
-

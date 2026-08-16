@@ -33,18 +33,30 @@ from typing import Final
 # metinde farklı değer alırsa bu bir çelişkidir.
 METRIC_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
     "policy_rate": (
-        "politika faizi", "bir hafta vadeli repo", "haftalik repo",
-        "repo ihale faiz", "politika faizini", "politika faizinin",
+        "politika faizi",
+        "bir hafta vadeli repo",
+        "haftalik repo",
+        "repo ihale faiz",
+        "politika faizini",
+        "politika faizinin",
     ),
     "overnight_lending_rate": ("gecelik vadede borc verme", "gecelik borc verme"),
     "overnight_borrowing_rate": ("gecelik vadede borclanma", "gecelik borclanma"),
     "cpi_annual": (
-        "yillik enflasyon", "yillik tufe", "tufe yillik", "enflasyon yillik",
-        "tuketici enflasyonu yillik", "yillik bazda enflasyon",
+        "yillik enflasyon",
+        "yillik tufe",
+        "tufe yillik",
+        "enflasyon yillik",
+        "tuketici enflasyonu yillik",
+        "yillik bazda enflasyon",
     ),
     "cpi_monthly": (
-        "aylik enflasyon", "aylik tufe", "tufe aylik", "enflasyon aylik",
-        "tuketici enflasyonu aylik", "aylik bazda enflasyon",
+        "aylik enflasyon",
+        "aylik tufe",
+        "tufe aylik",
+        "enflasyon aylik",
+        "tuketici enflasyonu aylik",
+        "aylik bazda enflasyon",
     ),
     "ppi_annual": ("yi-ufe", "yi ufe", "uretici fiyat", "ufe yillik", "yillik ufe"),
     "unemployment_rate": ("issizlik orani", "issizlik oranindaki", "issizlik"),
@@ -56,9 +68,7 @@ METRIC_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
 
 # Sayı + yüzde biçimleri: "%37", "yüzde 37", "yüzde 35,5", "%1,78"
 _NUM = r"(\d{1,3}(?:\.\d{3})*(?:,\d+)?|\d+(?:\.\d+)?)"
-_PERCENT_RE: Final[re.Pattern[str]] = re.compile(
-    rf"(?:%\s*{_NUM}|yuzde\s+{_NUM})", re.IGNORECASE
-)
+_PERCENT_RE: Final[re.Pattern[str]] = re.compile(rf"(?:%\s*{_NUM}|yuzde\s+{_NUM})", re.IGNORECASE)
 
 # Bir yüzdenin hangi metriğe ait olduğunu ararken bakılacak pencere.
 # Türkçede niteleyen ifade genellikle sayıdan ÖNCE gelir ("politika faizi ...
@@ -110,10 +120,7 @@ class NumericConflict:
     unit: str
 
     def describe(self) -> str:
-        return (
-            f"{self.metric}: {self.left:g}{self.unit} ile "
-            f"{self.right:g}{self.unit} çelişiyor"
-        )
+        return f"{self.metric}: {self.left:g}{self.unit} ile {self.right:g}{self.unit} çelişiyor"
 
 
 def _metric_at(folded: str, start: int, end: int) -> str | None:
@@ -123,8 +130,8 @@ def _metric_at(folded: str, start: int, end: int) -> str | None:
     "politika faizi ... gecelik borç verme faizi yüzde 40" cümlesinde ilk
     metrik tüm sayıları yutardı.
     """
-    before = folded[max(0, start - CONTEXT_BEFORE):start]
-    after = folded[end:end + CONTEXT_AFTER]
+    before = folded[max(0, start - CONTEXT_BEFORE) : start]
+    after = folded[end : end + CONTEXT_AFTER]
 
     best: tuple[int, str] | None = None
     for metric, patterns in METRIC_PATTERNS.items():
@@ -167,9 +174,7 @@ def extract_numbers(text: str) -> list[NumericMention]:
     return out
 
 
-def find_conflicts(
-    left_text: str, right_text: str
-) -> list[NumericConflict]:
+def find_conflicts(left_text: str, right_text: str) -> list[NumericConflict]:
     """İki metin arasındaki sayısal çelişkileri bulur.
 
     Çelişki tanımı: **aynı metrik**, iki metinde de geçiyor ve değerler
@@ -186,9 +191,7 @@ def find_conflicts(
     conflicts: list[NumericConflict] = []
     for metric in sorted(left.keys() & right.keys()):
         lvals, rvals = left[metric], right[metric]
-        if any(
-            abs(a - b) <= TOLERANCE for a in lvals for b in rvals
-        ):
+        if any(abs(a - b) <= TOLERANCE for a in lvals for b in rvals):
             continue  # ortak değer var -> çelişki yok
         conflicts.append(
             NumericConflict(

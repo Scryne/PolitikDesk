@@ -98,13 +98,16 @@ class BriefingEvent:
 
     def as_dict(self) -> dict[str, Any]:
         return {
-            "event_id": self.event_id, "title": self.title,
-            "salience": self.salience, "status": self.status,
+            "event_id": self.event_id,
+            "title": self.title,
+            "salience": self.salience,
+            "status": self.status,
             "article_count": self.article_count,
             "independent_count": self.independent_count,
             "independence_groups": self.independence_groups,
             "has_primary_source": self.has_primary_source,
-            "top_claim": self.top_claim, "top_claim_status": self.top_claim_status,
+            "top_claim": self.top_claim,
+            "top_claim_status": self.top_claim_status,
             "diversity_note": self.diversity_note,
         }
 
@@ -215,11 +218,10 @@ def _select_upcoming(cur: Any, hours: int = 48) -> list[dict[str, Any]]:
     )
     return [
         {
-            "id": r["id"], "title": r["title"],
+            "id": r["id"],
+            "title": r["title"],
             "expected_at": r["expected_at"].isoformat() if r["expected_at"] else None,
-            "expected_label": (
-                f"{r['expected_at']:%d %b %H:%M}" if r["expected_at"] else "—"
-            ),
+            "expected_label": (f"{r['expected_at']:%d %b %H:%M}" if r["expected_at"] else "—"),
             "source_name": r["source_name"],
         }
         for r in cur.fetchall()
@@ -252,9 +254,12 @@ def _select_unverified(cur: Any, event_ids: list[int]) -> list[dict[str, Any]]:
     )
     return [
         {
-            "claim_id": r["id"], "event_id": r["event_id"],
-            "event_title": r["event_title"], "claim_text": r["claim_text"],
-            "claim_type": r["claim_type"], "evidence_status": r["evidence_status"],
+            "claim_id": r["id"],
+            "event_id": r["event_id"],
+            "event_title": r["event_title"],
+            "claim_text": r["claim_text"],
+            "claim_type": r["claim_type"],
+            "evidence_status": r["evidence_status"],
             "status": r["evidence_status"],
             "status_text": STATUS_TEXT.get(r["evidence_status"], r["evidence_status"]),
             "rule": r["rule"],
@@ -279,16 +284,18 @@ def build_content(
         # brifing göndermek, brifing göndermemekten kötüdür (açılma
         # oranını düşürür ve güveni aşındırır).
         if len(events) < settings.briefing_min_events:
-            events = _select_events(
-                cur, now - timedelta(hours=72), settings.briefing_max_events
-            )
+            events = _select_events(cur, now - timedelta(hours=72), settings.briefing_max_events)
 
         upcoming = _select_upcoming(cur)
         unverified = _select_unverified(cur, [e.event_id for e in events])
 
     return BriefingContent(
-        briefing_date=on, slot=slot, events=events,
-        upcoming=upcoming, unverified=unverified, window_start=since,
+        briefing_date=on,
+        slot=slot,
+        events=events,
+        upcoming=upcoming,
+        unverified=unverified,
+        window_start=since,
     )
 
 
@@ -337,9 +344,13 @@ def generate(
             RETURNING id, open_token
             """,
             (
-                user_id, content.briefing_date, slot,
+                user_id,
+                content.briefing_date,
+                slot,
                 [e.event_id for e in content.events],
-                html_body, text_body, token,
+                html_body,
+                text_body,
+                token,
             ),
         )
         row = fetch_one(cur)
@@ -347,8 +358,11 @@ def generate(
 
     log.info(
         "briefing_generated",
-        briefing_id=row["id"], slot=slot, date=str(content.briefing_date),
-        events=len(content.events), upcoming=len(content.upcoming),
+        briefing_id=row["id"],
+        slot=slot,
+        date=str(content.briefing_date),
+        events=len(content.events),
+        upcoming=len(content.upcoming),
         unverified=len(content.unverified),
     )
     return {
@@ -415,7 +429,9 @@ def mark_opened(open_token: str) -> bool:
     from politikdesk import metrics
 
     metrics.record(
-        "briefing_open", 1.0, user_id=row["user_id"],
+        "briefing_open",
+        1.0,
+        user_id=row["user_id"],
         dimensions={"briefing_id": row["id"]},
     )
     return True

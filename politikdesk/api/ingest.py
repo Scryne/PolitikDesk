@@ -58,14 +58,14 @@ def import_link(payload: ImportRequest) -> dict[str, Any]:
             status_code=422,
             detail={
                 "message": "İçerik MVP konu kapsamı dışında görünüyor "
-                           "(makro ekonomi). Yine de eklemek için force=true.",
+                "(makro ekonomi). Yine de eklemek için force=true.",
                 "title": item.title,
                 "detected_topics": [],
             },
         )
 
     source = _ensure_manual_source(item.source_slug)
-    article = normalize(item, topics=matched_topics)
+    article = normalize(item, topics=matched_topics, vertical=source.vertical)
 
     article_id = repository.insert_article(
         article,
@@ -77,12 +77,19 @@ def import_link(payload: ImportRequest) -> dict[str, Any]:
     if article_id is None:
         raise HTTPException(
             status_code=409,
-            detail={"message": "Bu bağlantı zaten içe aktarılmış",
-                    "canonical_url": article.canonical_url},
+            detail={
+                "message": "Bu bağlantı zaten içe aktarılmış",
+                "canonical_url": article.canonical_url,
+            },
         )
 
-    log.info("manual_import_ok", url=url, article_id=article_id,
-             source=source.slug, topics=list(matched_topics))
+    log.info(
+        "manual_import_ok",
+        url=url,
+        article_id=article_id,
+        source=source.slug,
+        topics=list(matched_topics),
+    )
 
     return {
         "article_id": article_id,
@@ -94,7 +101,8 @@ def import_link(payload: ImportRequest) -> dict[str, Any]:
         "note": (
             "Tier 4 (sosyal) kaynak: bu içerikten türeyen iddialar "
             "R7 gereği en fazla 'tek kaynak' olabilir."
-            if is_social(url) else None
+            if is_social(url)
+            else None
         ),
     }
 

@@ -24,9 +24,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-def get_correction_stats(
-    cur: Any, since: datetime | None = None
-) -> dict[str, Any]:
+def get_correction_stats(cur: Any, since: datetime | None = None) -> dict[str, Any]:
     """İncelenen olayları ve geri bildirimleri sorgular."""
     query = """
         WITH opened AS (
@@ -85,12 +83,8 @@ def get_correction_stats(
             )
 
     total_opened = len(opened_events)
-    events_with_feedback = sum(
-        1 for e in opened_events.values() if len(e["feedbacks"]) > 0
-    )
-    correction_rate = (
-        (events_with_feedback * 100.0 / total_opened) if total_opened > 0 else 0.0
-    )
+    events_with_feedback = sum(1 for e in opened_events.values() if len(e["feedbacks"]) > 0)
+    correction_rate = (events_with_feedback * 100.0 / total_opened) if total_opened > 0 else 0.0
 
     return {
         "total_opened": total_opened,
@@ -100,9 +94,7 @@ def get_correction_stats(
     }
 
 
-def print_report(
-    stats: dict[str, Any], target_sample: int = 34, target_rate: float = 3.0
-) -> None:
+def print_report(stats: dict[str, Any], target_sample: int = 34, target_rate: float = 3.0) -> None:
     total_opened = stats["total_opened"]
     events_with_feedback = stats["events_with_feedback"]
     rate = stats["correction_rate"]

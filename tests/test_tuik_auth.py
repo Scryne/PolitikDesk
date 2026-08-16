@@ -42,13 +42,17 @@ class _FakeClient:
     calls: list[dict[str, Any]] = field(default_factory=list)
     token_value: str = "tok-1"
 
-    def post(self, url: str, *, data: dict[str, str] | None = None,
-             headers: dict[str, str] | None = None,
-             source_slug: str = "") -> _FakeResponse:
+    def post(
+        self,
+        url: str,
+        *,
+        data: dict[str, str] | None = None,
+        headers: dict[str, str] | None = None,
+        source_slug: str = "",
+    ) -> _FakeResponse:
         self.calls.append({"url": url, "data": data or {}})
         return _FakeResponse(
-            {"access_token": f"{self.token_value}-{len(self.calls)}",
-             "expires_in": self.ttl}
+            {"access_token": f"{self.token_value}-{len(self.calls)}", "expires_in": self.ttl}
         )
 
     def close(self) -> None:  # pragma: no cover — sahte istemci

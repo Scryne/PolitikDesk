@@ -101,7 +101,9 @@ class CohereEmbedder:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         response = self.client.embed(
-            texts=texts, model=self.model, input_type="search_document",
+            texts=texts,
+            model=self.model,
+            input_type="search_document",
             embedding_types=["float"],
         )
         return response.embeddings.float_
@@ -119,9 +121,7 @@ class OpenAIEmbedder:
         self.dim = dim
 
     def embed(self, texts: list[str]) -> list[list[float]]:
-        response = self.client.embeddings.create(
-            input=texts, model=self.model, dimensions=self.dim
-        )
+        response = self.client.embeddings.create(input=texts, model=self.model, dimensions=self.dim)
         return [d.embedding for d in response.data]
 
 
@@ -176,8 +176,8 @@ def build_backend(settings: Settings | None = None) -> EmbeddingBackend:
         log.warning(
             "embedding_backend_not_production",
             hint="PD_EMBEDDING_PROVIDER ayarlı değil; yerel hashing embedder "
-                 "kullanılıyor. Kümeleme kalitesi için D16 kararı gerekir "
-                 "(docs/embedding-benchmark.md).",
+            "kullanılıyor. Kümeleme kalitesi için D16 kararı gerekir "
+            "(docs/embedding-benchmark.md).",
         )
         return HashingEmbedder(settings.embedding_dim)
 

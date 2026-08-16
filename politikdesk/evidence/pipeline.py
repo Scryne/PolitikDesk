@@ -234,11 +234,21 @@ def _event_signals(cur: Any, event_id: int) -> EventSignals | None:
                (SELECT bool_or(s.tier = 1) FROM articles a
                  JOIN sources s ON s.id = a.source_id WHERE a.event_id = e.id)
                  AS has_primary,
-               (SELECT count(DISTINCT COALESCE(a.independence_key, s.slug))
-                 FROM articles a JOIN sources s ON s.id = a.source_id
-                 WHERE a.event_id = e.id) AS independent_count,
-               (SELECT min(c.evidence_status) FROM claims c WHERE c.event_id = e.id)
-                 AS weakest_status
+                (SELECT count(DISTINCT COALESCE(a.independence_key, s.slug))
+                  FROM articles a JOIN sources s ON s.id = a.source_id
+                  WHERE a.event_id = e.id) AS independent_count,
+                (SELECT c.evidence_status FROM claims c WHERE c.event_id = e.id
+                  ORDER BY
+                    CASE c.evidence_status
+                      WHEN 'unverified' THEN 0
+                      WHEN 'single_source' THEN 1
+                      WHEN 'contradicted' THEN 2
+                      WHEN 'partially_corroborated' THEN 3
+                      WHEN 'attribution_verified' THEN 4
+                      WHEN 'strongly_corroborated' THEN 5
+                      ELSE 6
+                    END ASC, c.id ASC
+                  LIMIT 1) AS weakest_status
         FROM events e WHERE e.id = %s
         """,
         (VELOCITY_WINDOW_MINUTES, event_id),

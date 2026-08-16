@@ -130,8 +130,9 @@ class FakeAdapter:
     Boru hattının tamamı ağ olmadan koşturulabilsin diye vardır.
     """
 
-    def __init__(self, slug: str, items: list[RawItem] | None = None,
-                 error: Exception | None = None) -> None:
+    def __init__(
+        self, slug: str, items: list[RawItem] | None = None, error: Exception | None = None
+    ) -> None:
         self.slug = slug
         self._items = items or []
         self._error = error

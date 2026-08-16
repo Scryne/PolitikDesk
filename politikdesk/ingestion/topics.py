@@ -22,57 +22,141 @@ from politikdesk.verticals import get_vertical
 # eval/golden_set_tools.py::VALID_TOPICS ile aynı 10 slug
 TOPIC_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
     "enflasyon": (
-        "enflasyon", "tüfe", "tufe", "üfe", "ufe", "yi-üfe", "fiyat endeksi",
-        "çekirdek enflasyon", "cekirdek enflasyon", "hayat pahalılığı",
+        "enflasyon",
+        "tüfe",
+        "tufe",
+        "üfe",
+        "ufe",
+        "yi-üfe",
+        "fiyat endeksi",
+        "çekirdek enflasyon",
+        "cekirdek enflasyon",
+        "hayat pahalılığı",
     ),
     "politika_faizi": (
-        "politika faizi", "ppk", "para politikası kurulu", "faiz kararı",
-        "faiz oranı", "faiz indirimi", "faiz artırımı", "merkez bankası faiz",
+        "politika faizi",
+        "ppk",
+        "para politikası kurulu",
+        "faiz kararı",
+        "faiz oranı",
+        "faiz indirimi",
+        "faiz artırımı",
+        "merkez bankası faiz",
         "faiz koridoru",
     ),
     "kur_ve_rezervler": (
-        "rezerv", "döviz kuru", "doviz kuru", "swap", "net rezerv",
-        "brüt rezerv", "dolar kuru", "euro kuru", "kur politikası",
+        "rezerv",
+        "döviz kuru",
+        "doviz kuru",
+        "swap",
+        "net rezerv",
+        "brüt rezerv",
+        "dolar kuru",
+        "euro kuru",
+        "kur politikası",
     ),
     "butce_ve_hazine": (
-        "bütçe", "butce", "bütçe açığı", "nakit dengesi", "bütçe gerçekleşme",
-        "merkezi yönetim bütçe", "orta vadeli program", "ovp", "faiz dışı fazla",
+        "bütçe",
+        "butce",
+        "bütçe açığı",
+        "nakit dengesi",
+        "bütçe gerçekleşme",
+        "merkezi yönetim bütçe",
+        "orta vadeli program",
+        "ovp",
+        "faiz dışı fazla",
     ),
     "issizlik_ve_istihdam": (
-        "işsizlik", "issizlik", "istihdam", "işgücü", "isgucu", "atıl işgücü",
-        "genç işsizlik", "işsizlik oranı",
+        "işsizlik",
+        "issizlik",
+        "istihdam",
+        "işgücü",
+        "isgucu",
+        "atıl işgücü",
+        "genç işsizlik",
+        "işsizlik oranı",
     ),
     "buyume": (
-        "büyüme", "buyume", "gsyh", "gayri safi yurt içi", "milli gelir",
-        "ekonomik büyüme", "çeyrek büyüme", "resesyon",
+        "büyüme",
+        "buyume",
+        "gsyh",
+        "gayri safi yurt içi",
+        "milli gelir",
+        "ekonomik büyüme",
+        "çeyrek büyüme",
+        "resesyon",
     ),
     "asgari_ucret_ve_zamlar": (
-        "asgari ücret", "asgari ucret", "memur maaş", "emekli maaş", "emekli zam",
-        "memur zam", "toplu sözleşme", "refah payı", "maaş katsayı",
+        "asgari ücret",
+        "asgari ucret",
+        "memur maaş",
+        "emekli maaş",
+        "emekli zam",
+        "memur zam",
+        "toplu sözleşme",
+        "refah payı",
+        "maaş katsayı",
     ),
     "vergi_ve_harclar": (
         # "harc" (diyakritiksiz) BİLİNÇLİ OLARAK YOK: "harcandı", "harcama"
         # gibi sözcükleri vergi konusuna sokuyordu (canlı veride ölçüldü).
-        "vergi", "ötv", "kdv", "harç", "yeniden değerleme",
-        "vergi affı", "yapılandırma", "gümrük vergisi", "damga vergisi",
-        "stopaj", "matrah",
+        "vergi",
+        "ötv",
+        "kdv",
+        "harç",
+        "yeniden değerleme",
+        "vergi affı",
+        "yapılandırma",
+        "gümrük vergisi",
+        "damga vergisi",
+        "stopaj",
+        "matrah",
     ),
     "kamu_borclanmasi": (
-        "borçlanma", "borclanma", "iç borç", "dış borç", "eurobond", "tahvil ihale",
-        "hazine ihale", "borç stoku", "borç servisi",
+        "borçlanma",
+        "borclanma",
+        "iç borç",
+        "dış borç",
+        "eurobond",
+        "tahvil ihale",
+        "hazine ihale",
+        "borç stoku",
+        "borç servisi",
     ),
     "derecelendirme": (
-        "kredi notu", "derecelendirme", "moody", "fitch", "standard & poor",
-        "s&p", "not artırım", "not indirim", "görünüm revize",
+        "kredi notu",
+        "derecelendirme",
+        "moody",
+        "fitch",
+        "standard & poor",
+        "s&p",
+        "not artırım",
+        "not indirim",
+        "görünüm revize",
     ),
 }
 
 # Kapsam dışı sinyaller: bunlardan biri varsa ve hiçbir konu eşleşmiyorsa
 # makale erken elenir (maliyet tasarrufu).
 OUT_OF_SCOPE_HINTS: Final[tuple[str, ...]] = (
-    "maç", "gol", "transfer", "şampiyonlar ligi", "süper lig", "futbol",
-    "basketbol", "dizi", "sinema", "film", "konser", "festival", "burç",
-    "sağlık", "hava durumu", "deprem", "trafik kazası", "magazin",
+    "maç",
+    "gol",
+    "transfer",
+    "şampiyonlar ligi",
+    "süper lig",
+    "futbol",
+    "basketbol",
+    "dizi",
+    "sinema",
+    "film",
+    "konser",
+    "festival",
+    "burç",
+    "sağlık",
+    "hava durumu",
+    "deprem",
+    "trafik kazası",
+    "magazin",
 )
 
 # --------------------------------------------------------------------------
@@ -95,18 +179,55 @@ OUT_OF_SCOPE_HINTS: Final[tuple[str, ...]] = (
 # `has_turkey_context` zaten "yabancı sinyal yoksa kapsam içi" kuralına
 # düşer; yani "Merkez Bankası faiz kararı" yine de kapsamda kalır.
 TURKEY_SIGNALS: Final[tuple[str, ...]] = (
-    "türkiye", "turkiye", "türk lirası", "tcmb", "tüik", "tuik", "hazine",
-    "resmî gazete", "resmi gazete", "ankara", "istanbul",
-    "bddk", "spk", "sgk", "tbmm", "bist", "borsa istanbul", "lira",
-    "asgari ücret", "cumhurbaşkanı", "ppk",
+    "türkiye",
+    "turkiye",
+    "türk lirası",
+    "tcmb",
+    "tüik",
+    "tuik",
+    "hazine",
+    "resmî gazete",
+    "resmi gazete",
+    "ankara",
+    "istanbul",
+    "bddk",
+    "spk",
+    "sgk",
+    "tbmm",
+    "bist",
+    "borsa istanbul",
+    "lira",
+    "asgari ücret",
+    "cumhurbaşkanı",
+    "ppk",
 )
 
 FOREIGN_SIGNALS: Final[tuple[str, ...]] = (
-    "abd", "amerika", "almanya", "rusya", "çin", "japonya", "ingiltere",
-    "fransa", "i̇talya", "hindistan", "brezilya", "avrupa birliği",
-    "euro bölgesi", "fed", "federal rezerv", "ecb", "avrupa merkez bankası",
-    "boj", "küresel", "dünya genelinde", "uluslararası piyasalar",
-    "wall street", "nasdaq", "s&p 500", "dow jones",
+    "abd",
+    "amerika",
+    "almanya",
+    "rusya",
+    "çin",
+    "japonya",
+    "ingiltere",
+    "fransa",
+    "i̇talya",
+    "hindistan",
+    "brezilya",
+    "avrupa birliği",
+    "euro bölgesi",
+    "fed",
+    "federal rezerv",
+    "ecb",
+    "avrupa merkez bankası",
+    "boj",
+    "küresel",
+    "dünya genelinde",
+    "uluslararası piyasalar",
+    "wall street",
+    "nasdaq",
+    "s&p 500",
+    "dow jones",
 )
 
 
@@ -198,6 +319,19 @@ def is_non_event(
     return False
 
 
+@lru_cache(maxsize=32)
+def _get_vertical_patterns(vertical_slug: str | None) -> dict[str, re.Pattern[str]]:
+    """Dikey için konu kalıplarını derler ve önbelleğe alır (IMP-03)."""
+    if not vertical_slug:
+        return _TOPIC_PATTERNS
+    v_spec = get_vertical(vertical_slug)
+    if not v_spec or v_spec.slug == "macro_economy":
+        return _TOPIC_PATTERNS
+    return {
+        topic: _compile_keywords(keywords) for topic, keywords in v_spec.topic_keywords.items()
+    }
+
+
 def match_topics(
     title: str,
     summary: str | None = None,
@@ -206,16 +340,8 @@ def match_topics(
 ) -> tuple[str, ...]:
     """Ülke bağlamına bakmadan yalnızca konu eşleşmesi (teşhis için)."""
     haystack = _fold(f"{title} {summary or ''}")
-    v_spec = get_vertical(vertical) if vertical else None
-    patterns = _TOPIC_PATTERNS
-    if v_spec and v_spec.slug != "macro_economy":
-        patterns = {
-            topic: _compile_keywords(keywords)
-            for topic, keywords in v_spec.topic_keywords.items()
-        }
-    return tuple(
-        topic for topic, pattern in patterns.items() if pattern.search(haystack)
-    )
+    patterns = _get_vertical_patterns(vertical)
+    return tuple(topic for topic, pattern in patterns.items() if pattern.search(haystack))
 
 
 def classify(

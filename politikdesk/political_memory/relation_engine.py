@@ -151,18 +151,66 @@ def _stem_token(w: str) -> str:
     }
     w = w.translate(char_map)
     suffixes = (
-        "larindan", "lerinden", "larinda", "lerinde",
-        "larinin", "lerinin", "larina", "lerine",
-        "larini", "lerini", "larin", "lerin",
-        "sindan", "sinden", "sinda", "sinde",
-        "sinin", "sine", "sina", "sini",
-        "indan", "inden", "inda", "inde",
-        "indan", "inden", "unun", "unun",
-        "lerin", "larin", "lere", "lara", "leri", "lari",
-        "dan", "den", "tan", "ten", "nin", "nun",
-        "nda", "nde", "na", "ne", "ya", "ye", "yi", "yu",
-        "da", "de", "ta", "te", "in", "un",
-        "ler", "lar", "lik", "luk", "ci", "cu",
+        "larindan",
+        "lerinden",
+        "larinda",
+        "lerinde",
+        "larinin",
+        "lerinin",
+        "larina",
+        "lerine",
+        "larini",
+        "lerini",
+        "larin",
+        "lerin",
+        "sindan",
+        "sinden",
+        "sinda",
+        "sinde",
+        "sinin",
+        "sine",
+        "sina",
+        "sini",
+        "indan",
+        "inden",
+        "inda",
+        "inde",
+        "indan",
+        "inden",
+        "unun",
+        "unun",
+        "lerin",
+        "larin",
+        "lere",
+        "lara",
+        "leri",
+        "lari",
+        "dan",
+        "den",
+        "tan",
+        "ten",
+        "nin",
+        "nun",
+        "nda",
+        "nde",
+        "na",
+        "ne",
+        "ya",
+        "ye",
+        "yi",
+        "yu",
+        "da",
+        "de",
+        "ta",
+        "te",
+        "in",
+        "un",
+        "ler",
+        "lar",
+        "lik",
+        "luk",
+        "ci",
+        "cu",
     )
     for sfx in suffixes:
         if len(w) >= len(sfx) + 4 and w.endswith(sfx):
@@ -234,7 +282,6 @@ def _extract_fallback_keywords(
             keys.add(cleaned)
             keys.add(_stem_token(cleaned))
     return frozenset(keys)
-
 
 
 def _match_actor(s_act: str | None, t_act: str | None, all_target_entities: frozenset[str]) -> bool:
@@ -318,16 +365,89 @@ GENERIC_INST_TERMS = frozenset(
         "ajansi",
         "ajans",
         # Şehir / ilçe isimleri (kurum benzerliği için tekil şehir çakışmasını engelle)
-        "adana", "adiyaman", "afyon", "agri", "amasya", "ankara", "antalya", "artvin", "aydin",
-        "balikesir", "bilecik", "bingol", "bitlis", "bolu", "burdur", "bursa", "canakkale",
-        "cankiri", "corum", "denizli", "diyarbakir", "edirne", "elazig", "erzincan", "erzurum",
-        "eskisehir", "gaziantep", "giresun", "gumushane", "hakkari", "hatay", "isparta", "mersin",
-        "istanbul", "izmir", "kars", "kastamonu", "kayseri", "kirklareli", "kirsehir", "kocaeli",
-        "konya", "kutahya", "malatya", "manisa", "kahramanmaras", "mardin", "mugla", "mus",
-        "nevsehir", "nigde", "ordu", "rize", "sakarya", "samsun", "siirt", "sinop", "sivas",
-        "tekirdag", "tokat", "trabzon", "tunceli", "sanliurfa", "usak", "van", "yozgat",
-        "zonguldak", "aksaray", "bayburt", "karaman", "kirikkale", "batman", "sirnak", "bartin",
-        "ardahan", "igdir", "yalova", "karabuk", "kilis", "osmaniye", "duzce", "ilce", "il"
+        "adana",
+        "adiyaman",
+        "afyon",
+        "agri",
+        "amasya",
+        "ankara",
+        "antalya",
+        "artvin",
+        "aydin",
+        "balikesir",
+        "bilecik",
+        "bingol",
+        "bitlis",
+        "bolu",
+        "burdur",
+        "bursa",
+        "canakkale",
+        "cankiri",
+        "corum",
+        "denizli",
+        "diyarbakir",
+        "edirne",
+        "elazig",
+        "erzincan",
+        "erzurum",
+        "eskisehir",
+        "gaziantep",
+        "giresun",
+        "gumushane",
+        "hakkari",
+        "hatay",
+        "isparta",
+        "mersin",
+        "istanbul",
+        "izmir",
+        "kars",
+        "kastamonu",
+        "kayseri",
+        "kirklareli",
+        "kirsehir",
+        "kocaeli",
+        "konya",
+        "kutahya",
+        "malatya",
+        "manisa",
+        "kahramanmaras",
+        "mardin",
+        "mugla",
+        "mus",
+        "nevsehir",
+        "nigde",
+        "ordu",
+        "rize",
+        "sakarya",
+        "samsun",
+        "siirt",
+        "sinop",
+        "sivas",
+        "tekirdag",
+        "tokat",
+        "trabzon",
+        "tunceli",
+        "sanliurfa",
+        "usak",
+        "van",
+        "yozgat",
+        "zonguldak",
+        "aksaray",
+        "bayburt",
+        "karaman",
+        "kirikkale",
+        "batman",
+        "sirnak",
+        "bartin",
+        "ardahan",
+        "igdir",
+        "yalova",
+        "karabuk",
+        "kilis",
+        "osmaniye",
+        "duzce",
+        "ilce",
+        "il",
     }
 )
 
@@ -382,8 +502,20 @@ def evaluate_relation(
         t_parts = {p for p in t_inst_norm.split() if len(p) >= 3 and p not in GENERIC_INST_TERMS}
 
         gov_inst_keywords = (
-            "tbmm", "resmi gazete", "epdk", "bddk", "spk", "resmi",
-            "osym", "afad", "tcdd", "dhmi", "dsi", "toki", "sgk", "botas",
+            "tbmm",
+            "resmi gazete",
+            "epdk",
+            "bddk",
+            "spk",
+            "resmi",
+            "osym",
+            "afad",
+            "tcdd",
+            "dhmi",
+            "dsi",
+            "toki",
+            "sgk",
+            "botas",
         )
         if (
             source.institution.casefold() == target.institution.casefold()
@@ -406,7 +538,6 @@ def evaluate_relation(
         source.institution.casefold() in e.casefold() for e in all_target_entities
     ):
         institution_match = True
-
 
     institution_score = (
         1.0
@@ -483,8 +614,6 @@ def evaluate_relation(
             ),
         )
 
-
-
     # Kurum çelişkisi (Farklı iki idari yapının veya farklı belediyelerin alakasız bulguları)
     if (
         source.institution
@@ -520,18 +649,51 @@ def evaluate_relation(
     has_promise_keywords = any(
         k in s_text
         for k in (
-            "vaat", "taahhut", "sozu verildi", "planlaniyor", "kaldirilacak",
-            "yatirilacak", "genisletilecek", "guncellenecek", "acilacak",
-            "odenecek", "hayata gecirilecek", "uygulanacak", "yapilacak",
-            "verilecek", "artirilacak", "azaltilacak", "dusurulecek",
-            "indirecek", "indirilecek", "baslayacak", "saglanacak",
-            "tahsis edilecek", "dondurulacak", "sabit tutulacak",
-            "sifirlanacak", "muaf tutulacak", "bitirilecek", "tamamlanacak",
-            "teslim edilecek", "ongoruluyor", "hedefleniyor", "kesilecek",
-            "yapilmayacak", "verilmeyecek", "artirilmayacak", "azaltilmayacak",
-            "zam yapilmayacak", "kesinti yapilmayacak", "izin verilmeyecek",
-            "kaldirilmayacak", "devam etmeyecek", "dondurulacak", "sabit kalacak",
-            "dusecek", "artacak"
+            "vaat",
+            "taahhut",
+            "sozu verildi",
+            "planlaniyor",
+            "kaldirilacak",
+            "yatirilacak",
+            "genisletilecek",
+            "guncellenecek",
+            "acilacak",
+            "odenecek",
+            "hayata gecirilecek",
+            "uygulanacak",
+            "yapilacak",
+            "verilecek",
+            "artirilacak",
+            "azaltilacak",
+            "dusurulecek",
+            "indirecek",
+            "indirilecek",
+            "baslayacak",
+            "saglanacak",
+            "tahsis edilecek",
+            "dondurulacak",
+            "sabit tutulacak",
+            "sifirlanacak",
+            "muaf tutulacak",
+            "bitirilecek",
+            "tamamlanacak",
+            "teslim edilecek",
+            "ongoruluyor",
+            "hedefleniyor",
+            "kesilecek",
+            "yapilmayacak",
+            "verilmeyecek",
+            "artirilmayacak",
+            "azaltilmayacak",
+            "zam yapilmayacak",
+            "kesinti yapilmayacak",
+            "izin verilmeyecek",
+            "kaldirilmayacak",
+            "devam etmeyecek",
+            "dondurulacak",
+            "sabit kalacak",
+            "dusecek",
+            "artacak",
         )
     )
     has_promise = has_explicit_promise_claim or has_promise_keywords
@@ -542,19 +704,30 @@ def evaluate_relation(
         or (source.institution and "sayistay" in _normalize_turkish_text(source.institution))
         or "kamu zarari" in s_text
     )
-    
+
     target_has_audit = (
         "sayistay" in t_text
         or (target.institution and "sayistay" in _normalize_turkish_text(target.institution))
         or any(
             k in t_text
             for k in (
-                "kamu zarari", "usulsuz", "butce asimi", "odenek asimi",
-                "mevzuata aykiri", "haksiz kazanc", "haksiz odeme",
-                "haksiz menfaat", "haksiz fiyat farki", "haksiz harcama",
-                "sartnameye aykiri", "ihale bolme", "tavan asimi",
-                "teminatsiz avans", "cezai sart uygulanmamasi", "usulsuzlugu",
-                "gecikmeler ve yukleniciye cezai sart uygulanmamasi"
+                "kamu zarari",
+                "usulsuz",
+                "butce asimi",
+                "odenek asimi",
+                "mevzuata aykiri",
+                "haksiz kazanc",
+                "haksiz odeme",
+                "haksiz menfaat",
+                "haksiz fiyat farki",
+                "haksiz harcama",
+                "sartnameye aykiri",
+                "ihale bolme",
+                "tavan asimi",
+                "teminatsiz avans",
+                "cezai sart uygulanmamasi",
+                "usulsuzlugu",
+                "gecikmeler ve yukleniciye cezai sart uygulanmamasi",
             )
         )
     )
@@ -588,21 +761,33 @@ def evaluate_relation(
 
     # Polar Çelişki Tespiti (Vaat vs Zıt İcraat / Olumsuzlama)
     s_promises_no_discount = (
-        "indirim yapilmayacak" in s_text
-        or "fiyat indirimi yapilmayacak" in s_text
+        "indirim yapilmayacak" in s_text or "fiyat indirimi yapilmayacak" in s_text
     )
     discount_keywords = (
-        "indirim", "dusurulecek", "indirilecek", "azaltilacak",
-        "sifirlanacak", "dusecek", "tek haneye", "noter harclari indirilecek",
+        "indirim",
+        "dusurulecek",
+        "indirilecek",
+        "azaltilacak",
+        "sifirlanacak",
+        "dusecek",
+        "tek haneye",
+        "noter harclari indirilecek",
     )
-    s_promises_discount = (
-        not s_promises_no_discount
-        and any(k in s_text for k in discount_keywords)
-    )
+    s_promises_discount = not s_promises_no_discount and any(k in s_text for k in discount_keywords)
     increase_keywords = (
-        "artiril", "artis", "zam", "yukseltil", "cift tarife", "yuzde 42",
-        "yuzde 11", "artis gosterdi", "yukseldi", "fiyat artisi",
-        "yuzde 35 artirildi", "yuzde 20 artirildi", "yuzde 30 artirildi",
+        "artiril",
+        "artis",
+        "zam",
+        "yukseltil",
+        "cift tarife",
+        "yuzde 42",
+        "yuzde 11",
+        "artis gosterdi",
+        "yukseldi",
+        "fiyat artisi",
+        "yuzde 35 artirildi",
+        "yuzde 20 artirildi",
+        "yuzde 30 artirildi",
         "yuzde 40 artirildi",
     )
     t_has_increase = any(k in t_text for k in increase_keywords)
@@ -614,35 +799,68 @@ def evaluate_relation(
     t_has_no_increase = any(
         k in t_text
         for k in (
-            "artirilmayacak", "artis yapilmayacak", "zam yapilmayacak",
-            "mevcut tutar korunacak", "artmayacak", "sabit kalacak",
-            "degismeyecek", "dustu", "azaldi",
+            "artirilmayacak",
+            "artis yapilmayacak",
+            "zam yapilmayacak",
+            "mevcut tutar korunacak",
+            "artmayacak",
+            "sabit kalacak",
+            "degismeyecek",
+            "dustu",
+            "azaldi",
         )
     )
 
     s_promises_no_hike = any(
         k in s_text
         for k in (
-            "zam yapilmayacak", "artirilmayacak", "sabit tutulacak",
-            "dondurulacak", "degismeyecek", "artis olmayacak", "artmayacak",
-            "zam verilmeyecek", "artis dusunulmuyor", "planlanmiyor", "gundemde degil",
+            "zam yapilmayacak",
+            "artirilmayacak",
+            "sabit tutulacak",
+            "dondurulacak",
+            "degismeyecek",
+            "artis olmayacak",
+            "artmayacak",
+            "zam verilmeyecek",
+            "artis dusunulmuyor",
+            "planlanmiyor",
+            "gundemde degil",
         )
     )
     hike_keywords = (
-        "zam yapildi", "artirildi", "yukseltildi", "yuzde 30 artirildi",
-        "yuzde 40 artirildi", "yuzde 25 artirildi", "yuzde 35 artirildi",
-        "yuzde 20 artirildi", "1 tl olarak", "ucretli hale", "fiyat artisi",
-        "fiyat artisi yapildi", "artis yapildi", "cift tarife",
+        "zam yapildi",
+        "artirildi",
+        "yukseltildi",
+        "yuzde 30 artirildi",
+        "yuzde 40 artirildi",
+        "yuzde 25 artirildi",
+        "yuzde 35 artirildi",
+        "yuzde 20 artirildi",
+        "1 tl olarak",
+        "ucretli hale",
+        "fiyat artisi",
+        "fiyat artisi yapildi",
+        "artis yapildi",
+        "cift tarife",
     )
     t_has_hike = any(k in t_text for k in hike_keywords)
 
     fee_keywords = (
-        "ucretli", "zam", "tarife", "cift tarife",
-        "saatlik 50 tl", "ucretli hale getirildi",
+        "ucretli",
+        "zam",
+        "tarife",
+        "cift tarife",
+        "saatlik 50 tl",
+        "ucretli hale getirildi",
     )
     mandatory_keywords = (
-        "zorunlu", "kaldirilmayacak", "devam edecek", "sinif tekrari zorunlu",
-        "kota sinirlandirilmasi devam edecek", "zorunlu kilindi", "zorunlu hale",
+        "zorunlu",
+        "kaldirilmayacak",
+        "devam edecek",
+        "sinif tekrari zorunlu",
+        "kota sinirlandirilmasi devam edecek",
+        "zorunlu kilindi",
+        "zorunlu hale",
     )
     rejection_exceptions = (
         "gercegi yansitmadigi aciklandi uygulama suruyor" in t_text
@@ -668,21 +886,51 @@ def evaluate_relation(
         or (has_promise and target_has_rejection_or_negation and not rejection_exceptions)
     )
 
-
-
     # Hedefte Yasama / İcraat / Tamamlanma Tespiti (Law Action & Fulfilment)
     target_has_law_action = not target_has_rejection_or_negation and any(
         k in t_text
         for k in (
-            "kabul edildi", "yasallasti", "yasalas", "yayimlandi", "kanunlasti",
-            "yururluge girdi", "resmi gazete", "tamamlandi", "hizmete girdi",
-            "basladi", "artirildi", "belirlendi", "cikarildi", "faaliyete",
-            "toplanmadi", "kaldirildi", "odendi", "yururlukte", "onaylandi",
-            "sunuldu", "genelgesi", "tebligi", "karari", "hibe", "destek",
-            "yapildi", "verildi", "uygulandi", "hayata gecirildi", "tahsis edildi",
-            "acilisi yapildi", "acildi", "teslim edildi", "karara baglandi",
-            "sabit kaldi", "degismedi", "dusuruldu", "indirildi", "yatirildi",
-            "rekor kirdi", "odendi"
+            "kabul edildi",
+            "yasallasti",
+            "yasalas",
+            "yayimlandi",
+            "kanunlasti",
+            "yururluge girdi",
+            "resmi gazete",
+            "tamamlandi",
+            "hizmete girdi",
+            "basladi",
+            "artirildi",
+            "belirlendi",
+            "cikarildi",
+            "faaliyete",
+            "toplanmadi",
+            "kaldirildi",
+            "odendi",
+            "yururlukte",
+            "onaylandi",
+            "sunuldu",
+            "genelgesi",
+            "tebligi",
+            "karari",
+            "hibe",
+            "destek",
+            "yapildi",
+            "verildi",
+            "uygulandi",
+            "hayata gecirildi",
+            "tahsis edildi",
+            "acilisi yapildi",
+            "acildi",
+            "teslim edildi",
+            "karara baglandi",
+            "sabit kaldi",
+            "degismedi",
+            "dusuruldu",
+            "indirildi",
+            "yatirildi",
+            "rekor kirdi",
+            "odendi",
         )
     )
 
@@ -696,10 +944,20 @@ def evaluate_relation(
                 or any(
                     k in t_text
                     for k in (
-                        "kamu zarari", "usulsuz", "butce asimi", "odenek asimi",
-                        "aykiri", "ihlal", "haksiz kazanc", "haksiz odeme",
-                        "haksiz menfaat", "sartnameye aykiri", "ihale bolme",
-                        "tavan asimi", "teminatsiz avans", "cezai sart uygulanmamasi"
+                        "kamu zarari",
+                        "usulsuz",
+                        "butce asimi",
+                        "odenek asimi",
+                        "aykiri",
+                        "ihlal",
+                        "haksiz kazanc",
+                        "haksiz odeme",
+                        "haksiz menfaat",
+                        "sartnameye aykiri",
+                        "ihale bolme",
+                        "tavan asimi",
+                        "teminatsiz avans",
+                        "cezai sart uygulanmamasi",
                     )
                 )
             )
@@ -783,4 +1041,3 @@ def _generate_explanation(
         f"'{source.title[:60]}...' ile '{target.title[:60]}...' arasında %{round(score * 100)} "
         f"güven seviyesinde {relation_tr} bağı tespit edildi ({status_tr})."
     )
-

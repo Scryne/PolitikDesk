@@ -78,9 +78,7 @@ def accountability_page() -> HTMLResponse:
             payload = item.get("evidence_payload") or {}
             breakdown = payload.get("score_breakdown") or {}
             target_inst_or_actor = (
-                payload.get("target_institution")
-                or payload.get("target_actor")
-                or "Genel"
+                payload.get("target_institution") or payload.get("target_actor") or "Genel"
             )
 
             details_style = (
@@ -91,7 +89,7 @@ def accountability_page() -> HTMLResponse:
                 "margin-top: 0.5rem; display: grid; "
                 "grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.8rem;"
             )
-            target_title_esc = esc(payload.get('target_title', 'Belirtilmedi'))
+            target_title_esc = esc(payload.get("target_title", "Belirtilmedi"))
 
             drawer_html = f"""
             <details style="{details_style}">
@@ -101,24 +99,22 @@ def accountability_page() -> HTMLResponse:
                 <div style="{grid_style}">
                     <div><strong>Hedef Olay:</strong> {target_title_esc}</div>
                     <div><strong>Hedef Kurum/Aktör:</strong> {esc(target_inst_or_actor)}</div>
-                    <div><strong>Kurum:</strong> {breakdown.get('institution_score', '-')}</div>
-                    <div><strong>Konu:</strong> {breakdown.get('topic_score', '-')}</div>
-                    <div><strong>Zaman:</strong> {breakdown.get('temporal_score', '-')}</div>
-                    <div><strong>Varlık:</strong> {breakdown.get('entity_score', '-')}</div>
+                    <div><strong>Kurum:</strong> {breakdown.get("institution_score", "-")}</div>
+                    <div><strong>Konu:</strong> {breakdown.get("topic_score", "-")}</div>
+                    <div><strong>Zaman:</strong> {breakdown.get("temporal_score", "-")}</div>
+                    <div><strong>Varlık:</strong> {breakdown.get("entity_score", "-")}</div>
                 </div>
 
             </details>
             """
 
-            card_panel_style = (
-                "border-left: 4px solid var(--pd-color-accent); padding: 1.25rem;"
-            )
-            reported_date = esc(item['reported_at'][:10])
-            speaker_esc = esc(item['speaker'])
-            event_title_esc = esc(item['event_title'])
-            promise_text_esc = esc(item['promise_text'])
-            rel_str = esc(item.get('relation', 'fulfils'))
-            ev_str = esc(item['evidence_status'])
+            card_panel_style = "border-left: 4px solid var(--pd-color-accent); padding: 1.25rem;"
+            reported_date = esc(item["reported_at"][:10])
+            speaker_esc = esc(item["speaker"])
+            event_title_esc = esc(item["event_title"])
+            promise_text_esc = esc(item["promise_text"])
+            rel_str = esc(item.get("relation", "fulfils"))
+            ev_str = esc(item["evidence_status"])
             badge_label_esc = esc(badge_label)
             cards.append(f"""
                 <div class="pd-panel pd-stack" style="{card_panel_style}">
@@ -145,16 +141,13 @@ def accountability_page() -> HTMLResponse:
                 </div>
             """)
 
-
-
-
     content = f"""
     <div class="pd-stack pd-stack--lg">
         {head}
         {disclaimer_html}
 
         <div class="pd-stack">
-            {''.join(cards)}
+            {"".join(cards)}
         </div>
     </div>
     """

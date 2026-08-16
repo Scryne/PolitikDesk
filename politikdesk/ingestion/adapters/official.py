@@ -72,9 +72,23 @@ def harvest_links(html: str, base_url: str) -> list[tuple[str, str]]:
 _TUIK_BULLETIN_RE = re.compile(r"/Bulten/Index\?p=(?P<slug>[\w%\-]+?)-(?P<id>\d+)$")
 
 _TR_MONTHS = {
-    "ocak": 1, "şubat": 2, "subat": 2, "mart": 3, "nisan": 4, "mayıs": 5,
-    "mayis": 5, "haziran": 6, "temmuz": 7, "ağustos": 8, "agustos": 8,
-    "eylül": 9, "eylul": 9, "ekim": 10, "kasım": 11, "kasim": 11, "aralık": 12,
+    "ocak": 1,
+    "şubat": 2,
+    "subat": 2,
+    "mart": 3,
+    "nisan": 4,
+    "mayıs": 5,
+    "mayis": 5,
+    "haziran": 6,
+    "temmuz": 7,
+    "ağustos": 8,
+    "agustos": 8,
+    "eylül": 9,
+    "eylul": 9,
+    "ekim": 10,
+    "kasım": 11,
+    "kasim": 11,
+    "aralık": 12,
     "aralik": 12,
 }
 
@@ -116,8 +130,12 @@ class TuikAdapter(FailureRecorder):
                 response = self.http.get(index_url, source_slug=self.slug)
             except Exception as exc:  # noqa: BLE001
                 self.record_failure(index_url, exc)
-                log.warning("tuik_index_failed", url=index_url,
-                            error=type(exc).__name__, detail=str(exc)[:200])
+                log.warning(
+                    "tuik_index_failed",
+                    url=index_url,
+                    error=type(exc).__name__,
+                    detail=str(exc)[:200],
+                )
                 continue
 
             items = self.parse(response.text, base_url=index_url)
@@ -128,7 +146,7 @@ class TuikAdapter(FailureRecorder):
                 "tuik_index_empty",
                 url=index_url,
                 hint="Liste JavaScript ile yükleniyor olabilir. "
-                     "`python -m scripts.discover_feeds tuik` ile JSON ucunu arayın.",
+                "`python -m scripts.discover_feeds tuik` ile JSON ucunu arayın.",
             )
         return []
 
@@ -193,8 +211,13 @@ class GenericHtmlAdapter(FailureRecorder):
                 response = self.http.get(index_url, source_slug=self.slug)
             except Exception as exc:  # noqa: BLE001
                 self.record_failure(index_url, exc)
-                log.warning("html_index_failed", source=self.slug, url=index_url,
-                            error=type(exc).__name__, detail=str(exc)[:200])
+                log.warning(
+                    "html_index_failed",
+                    source=self.slug,
+                    url=index_url,
+                    error=type(exc).__name__,
+                    detail=str(exc)[:200],
+                )
                 continue
             items.extend(self.parse(response.text, base_url=index_url))
 
@@ -203,8 +226,11 @@ class GenericHtmlAdapter(FailureRecorder):
                 f"{self.slug}: {len(self.index_urls)} liste sayfasının hiçbirinde "
                 "duyuru bağlantısı bulunamadı"
             )
-            log.warning("html_index_empty", source=self.slug,
-                        hint="`python -m scripts.discover_feeds` ile uç arayın.")
+            log.warning(
+                "html_index_empty",
+                source=self.slug,
+                hint="`python -m scripts.discover_feeds` ile uç arayın.",
+            )
         return items
 
     def parse(self, html: str, *, base_url: str) -> list[RawItem]:
@@ -288,15 +314,24 @@ class WordPressRestAdapter(FailureRecorder):
             response = self.http.get(url, source_slug=self.slug)
         except Exception as exc:  # noqa: BLE001
             self.record_failure(url, exc)
-            log.warning("wp_rest_failed", source=self.slug, url=url,
-                        error=type(exc).__name__, detail=str(exc)[:200])
+            log.warning(
+                "wp_rest_failed",
+                source=self.slug,
+                url=url,
+                error=type(exc).__name__,
+                detail=str(exc)[:200],
+            )
             return []
 
         items = self.parse(response.text)
         if not items:
             self.note_failure(f"{url}: HTTP 200 ama kullanılabilir kayıt yok")
-            log.warning("wp_rest_empty", source=self.slug, url=url,
-                        hint="Uç JSON dizisi dönmedi ya da tüm kayıtlar eksik alanlı.")
+            log.warning(
+                "wp_rest_empty",
+                source=self.slug,
+                url=url,
+                hint="Uç JSON dizisi dönmedi ya da tüm kayıtlar eksik alanlı.",
+            )
         return items
 
     def parse(self, payload: str) -> list[RawItem]:

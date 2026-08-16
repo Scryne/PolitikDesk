@@ -299,4 +299,3 @@ def list_tracked_actors(limit: int = 50) -> list[dict[str, Any]]:
             (limit,),
         )
         return [dict(r) for r in cur.fetchall()]
-

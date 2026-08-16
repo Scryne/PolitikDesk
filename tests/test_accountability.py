@@ -135,4 +135,3 @@ def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
             cur.execute("DELETE FROM event_relations WHERE from_event_id = %s;", (e1,))
             cur.execute("DELETE FROM events WHERE id IN (%s, %s);", (e1, e2))
             db_conn.commit()
-

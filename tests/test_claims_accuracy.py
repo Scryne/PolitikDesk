@@ -88,7 +88,12 @@ def test_b52_different_periods_do_not_contradict() -> None:
         claim_id=1,
         claim_text="2026 ilk çeyrek büyümesi yüzde 4,2 oldu.",
         claim_type="number",
-        normalized_value={"metric": "gdp_growth_quarterly", "value": 4.2, "period": "2026-Q1", "unit": "percent"},
+        normalized_value={
+            "metric": "gdp_growth_quarterly",
+            "value": 4.2,
+            "period": "2026-Q1",
+            "unit": "percent",
+        },
     )
     ev1 = Evidence(
         article=EvidenceArticle(
@@ -111,7 +116,12 @@ def test_b52_different_metrics_do_not_contradict() -> None:
         claim_id=2,
         claim_text="TÜFE yıllık yüzde 28,4 olarak açıklandı.",
         claim_type="number",
-        normalized_value={"metric": "tufe_annual", "value": 28.4, "period": "2026-07", "unit": "percent"},
+        normalized_value={
+            "metric": "tufe_annual",
+            "value": 28.4,
+            "period": "2026-07",
+            "unit": "percent",
+        },
     )
     ev_core = Evidence(
         article=EvidenceArticle(
@@ -134,7 +144,12 @@ def test_b52_same_metric_and_period_different_value_contradicts() -> None:
         claim_id=3,
         claim_text="Temmuz işsizlik oranı yüzde 8,8 oldu.",
         claim_type="number",
-        normalized_value={"metric": "unemployment_rate", "value": 8.8, "period": "2026-07", "unit": "percent"},
+        normalized_value={
+            "metric": "unemployment_rate",
+            "value": 8.8,
+            "period": "2026-07",
+            "unit": "percent",
+        },
     )
     ev_support = Evidence(
         article=EvidenceArticle(

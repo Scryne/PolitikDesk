@@ -14,10 +14,19 @@ from typing import Final
 from politikdesk.nlp.claims import fold_text
 
 _OPINION_COLUMN_HINTS_RAW: Final[tuple[str, ...]] = (
-    "köşe yazısı", "yazarlar", "köşe yazarları",
-    "günün yazısı", "başyazı", "yorum", "analiz-yorum",
-    "kulis", "kulis bilgisi", "başkent kulisi", "meclis kulisi",
-    "gözlem", "değerlendirme",
+    "köşe yazısı",
+    "yazarlar",
+    "köşe yazarları",
+    "günün yazısı",
+    "başyazı",
+    "yorum",
+    "analiz-yorum",
+    "kulis",
+    "kulis bilgisi",
+    "başkent kulisi",
+    "meclis kulisi",
+    "gözlem",
+    "değerlendirme",
 )
 _OPINION_COLUMN_HINTS: Final[tuple[str, ...]] = tuple(
     dict.fromkeys(fold_text(h) for h in _OPINION_COLUMN_HINTS_RAW)
@@ -29,8 +38,15 @@ _OPINION_TITLE_PATTERNS: Final[tuple[re.Pattern[str], ...]] = (
 )
 
 _FIRST_PERSON_MARKERS_RAW: Final[tuple[str, ...]] = (
-    "bence", "bana göre", "kanımca", "benim gördüğüm", "şahsen",
-    "yazımda", "köşemde", "düşünüyorum", "inanıyorum",
+    "bence",
+    "bana göre",
+    "kanımca",
+    "benim gördüğüm",
+    "şahsen",
+    "yazımda",
+    "köşemde",
+    "düşünüyorum",
+    "inanıyorum",
 )
 _FIRST_PERSON_MARKERS: Final[tuple[str, ...]] = tuple(
     dict.fromkeys(fold_text(m) for m in _FIRST_PERSON_MARKERS_RAW)

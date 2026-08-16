@@ -55,9 +55,9 @@ def _parse_vector(literal: str | None) -> list[float]:
     return [float(x) for x in literal.strip("[]").split(",") if x]
 
 
-def _entity_sets(cur: Any, table: str, id_column: str, owner_id: int) -> tuple[
-    frozenset[str], frozenset[str]
-]:
+def _entity_sets(
+    cur: Any, table: str, id_column: str, owner_id: int
+) -> tuple[frozenset[str], frozenset[str]]:
     cur.execute(
         f"""
         SELECT e.canonical_name, e.is_key_entity
@@ -77,9 +77,7 @@ def _entity_sets(cur: Any, table: str, id_column: str, owner_id: int) -> tuple[
 def load_features(row: dict[str, Any]) -> ArticleFeatures:
     """Bir makale satırını kümeleme özelliklerine çevirir."""
     with connection() as conn, conn.cursor() as cur:
-        entities, key_entities = _entity_sets(
-            cur, "article_entities", "article_id", row["id"]
-        )
+        entities, key_entities = _entity_sets(cur, "article_entities", "article_id", row["id"])
     return ArticleFeatures(
         article_id=row["id"],
         embedding=_parse_vector(row["embedding"]),
@@ -120,9 +118,7 @@ def candidate_events(
 
         candidates: list[EventCandidate] = []
         for r in rows:
-            entities, key_entities = _entity_sets(
-                cur, "event_entities", "event_id", r["id"]
-            )
+            entities, key_entities = _entity_sets(cur, "event_entities", "event_id", r["id"])
             candidates.append(
                 EventCandidate(
                     event_id=r["id"],
@@ -291,9 +287,7 @@ def assign_article(article: ArticleFeatures, decision: Assignment) -> bool:
                             "article_id": article.article_id,
                             "similarity": decision.similarity,
                             "reason": decision.review_reason,
-                            "numeric_conflicts": [
-                                c.describe() for c in decision.numeric_conflicts
-                            ],
+                            "numeric_conflicts": [c.describe() for c in decision.numeric_conflicts],
                         },
                         ensure_ascii=False,
                     ),

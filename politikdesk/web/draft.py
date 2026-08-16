@@ -123,7 +123,7 @@ def _grounding_panel(grounding: dict[str, Any] | None, is_grounded: bool) -> str
             "contradicted",
             f'<div class="mono">{esc(i["token"])}</div>'
             f'<div class="subtle" style="font-size:var(--text-xs)">'
-            f'kanıt setinde yok · {esc(i["kind"])}</div>',
+            f"kanıt setinde yok · {esc(i['kind'])}</div>",
         )
         for i in grounding.get("issues", [])
     )
@@ -164,12 +164,14 @@ def _check_panel(check: dict[str, Any] | None) -> str:
     if check.get("is_blocking"):
         blocking = f"""
 <div style="margin-top:var(--space-4)">
-{notice(
-    "<p><b>Engelleyici:</b> kanıta bağlanamayan sayısal iddia var. Devam "
-    "etmek için aşağıdaki kutuyu işaretlemen gerekir — bu, TCK m. 217/A "
-    "riskinin arayüz karşılığıdır (Spec §12.1, §14.4).</p>",
-    tone="bad",
-)}
+{
+            notice(
+                "<p><b>Engelleyici:</b> kanıta bağlanamayan sayısal iddia var. Devam "
+                "etmek için aşağıdaki kutuyu işaretlemen gerekir — bu, TCK m. 217/A "
+                "riskinin arayüz karşılığıdır (Spec §12.1, §14.4).</p>",
+                tone="bad",
+            )
+        }
 </div>
 <label class="opt" style="margin-top:var(--space-3)">
   <input type="checkbox" id="override"
@@ -181,7 +183,7 @@ def _check_panel(check: dict[str, Any] | None) -> str:
         f'<div class="stack-sm">{rows}</div>{blocking}',
         title="Yayın öncesi kontrol",
         actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
-                f'{fmt.plural_count(len(check["items"]), "kontrol")}</span>',
+        f"{fmt.plural_count(len(check['items']), 'kontrol')}</span>",
     )
 
 
@@ -200,7 +202,7 @@ def draft_page(draft_id: int) -> str:
     if action:
         distance = (
             f' · düzenleme mesafesi <span class="num">'
-            f'{fmt.number(float(draft["edit_distance"]), 3)}</span>'
+            f"{fmt.number(float(draft['edit_distance']), 3)}</span>"
             if draft.get("edit_distance") is not None
             else ""
         )
@@ -213,18 +215,17 @@ def draft_page(draft_id: int) -> str:
 
     cited = ", ".join(str(i) for i in (draft["cited_claim_ids"] or [])) or "—"
     disabled_note = (
-        ' title="Grounding düştüğü için metin düzenlemeye kapalı"'
-        if not is_grounded
-        else ""
+        ' title="Grounding düştüğü için metin düzenlemeye kapalı"' if not is_grounded else ""
     )
 
     body = f"""
-{page_head(
-    f"{angle_label} taslağı",
-    lede=esc(draft["event_title"]),
-    actions=button("Olaya dön", href=f"/event/{draft['event_id']}",
-                   icon_name="arrow-left"),
-)}
+{
+        page_head(
+            f"{angle_label} taslağı",
+            lede=esc(draft["event_title"]),
+            actions=button("Olaya dön", href=f"/event/{draft['event_id']}", icon_name="arrow-left"),
+        )
+    }
 <div class="row subtle" style="font-size:var(--text-xs);
      margin:-16px 0 var(--space-6)">
   {action_note}
@@ -242,35 +243,44 @@ def draft_page(draft_id: int) -> str:
     {_check_panel(draft.get("check_result"))}
   </div>
 
-  {card(
-    f'<textarea id="body"{"" if is_grounded else " disabled"}{disabled_note}'
-    f' aria-label="Taslak metni">{esc(body_text)}</textarea>'
-    f'<div class="row" style="margin-top:12px">'
-    f'<span class="subtle" style="font-size:var(--text-xs)">'
-    f'<span id="len" class="num">{len(body_text)}</span> karakter · '
-    f'düzenlersen mesafe otomatik hesaplanır</span></div>'
-    f'<div class="btn-row" style="margin-top:var(--space-4)">'
-    + button("Kabul et", variant="primary", icon_name="check",
-             onclick="pdAct('accepted')", disabled=not is_grounded, id_="go")
-    + button("Düzenlemeyi kaydet", onclick="pdAct('edited')",
-             disabled=not is_grounded)
-    + button("Yeniden üret", icon_name="refresh", onclick="pdAct('regenerated')")
-    + button("Reddet", onclick="pdAct('rejected')")
-    + '</div>',
-    title="Taslak",
-  )}
+  {
+        card(
+            f'<textarea id="body"{"" if is_grounded else " disabled"}{disabled_note}'
+            f' aria-label="Taslak metni">{esc(body_text)}</textarea>'
+            f'<div class="row" style="margin-top:12px">'
+            f'<span class="subtle" style="font-size:var(--text-xs)">'
+            f'<span id="len" class="num">{len(body_text)}</span> karakter · '
+            f"düzenlersen mesafe otomatik hesaplanır</span></div>"
+            f'<div class="btn-row" style="margin-top:var(--space-4)">'
+            + button(
+                "Kabul et",
+                variant="primary",
+                icon_name="check",
+                onclick="pdAct('accepted')",
+                disabled=not is_grounded,
+                id_="go",
+            )
+            + button("Düzenlemeyi kaydet", onclick="pdAct('edited')", disabled=not is_grounded)
+            + button("Yeniden üret", icon_name="refresh", onclick="pdAct('regenerated')")
+            + button("Reddet", onclick="pdAct('rejected')")
+            + "</div>",
+            title="Taslak",
+        )
+    }
 
-  {card(
-    '<div class="btn-row">'
-    + button("Panoya kopyala", icon_name="copy", onclick="pdCopy()")
-    + button("X'te aç", href="#", icon_name="external", id_="intent")
-    + '</div>'
-    '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
-    'Yeni sekmede X açılır ve metin hazır gelir; <b>gönder tuşuna sen '
-    'basarsın.</b> Ürün otomatik yayın yapmaz ve böyle bir kod yolu '
-    'bulunmaz (Spec §15 madde 6).</p>',
-    title="Yayın köprüsü",
-  )}
+  {
+        card(
+            '<div class="btn-row">'
+            + button("Panoya kopyala", icon_name="copy", onclick="pdCopy()")
+            + button("X'te aç", href="#", icon_name="external", id_="intent")
+            + "</div>"
+            '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
+            "Yeni sekmede X açılır ve metin hazır gelir; <b>gönder tuşuna sen "
+            "basarsın.</b> Ürün otomatik yayın yapmaz ve böyle bir kod yolu "
+            "bulunmaz (Spec §15 madde 6).</p>",
+            title="Yayın köprüsü",
+        )
+    }
 </div>
 """
 

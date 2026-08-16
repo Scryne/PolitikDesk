@@ -145,7 +145,9 @@ def test_crontab_is_due_evaluates_in_europe_istanbul() -> None:
     dt_early = datetime.datetime(2026, 8, 14, 4, 59, tzinfo=datetime.UTC).astimezone(tz_ist)
     dt_later = datetime.datetime(2026, 8, 14, 8, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
 
-    last_run_yesterday = datetime.datetime(2026, 8, 13, 5, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
+    last_run_yesterday = datetime.datetime(2026, 8, 13, 5, 0, tzinfo=datetime.UTC).astimezone(
+        tz_ist
+    )
     last_run_today = datetime.datetime(2026, 8, 14, 5, 0, tzinfo=datetime.UTC).astimezone(tz_ist)
 
     # 1. 08:00 TSİ (05:00 UTC) anında: tetiklenmeli (is_due == True)
@@ -181,7 +183,9 @@ def test_all_16_beat_schedule_tasks_registered_and_executable() -> None:
     assert len(schedule) == 16, f"Beklenen 16 zamanlanmış görev, bulunan: {len(schedule)}"
     for name, entry in schedule.items():
         task_name = entry["task"]
-        assert task_name in app.tasks, f"Schedule '{name}' için görev '{task_name}' app.tasks'ta kayıtlı değil."
+        assert task_name in app.tasks, (
+            f"Schedule '{name}' için görev '{task_name}' app.tasks'ta kayıtlı değil."
+        )
         task_fn = app.tasks[task_name]
         assert callable(task_fn), f"Görev '{task_name}' çağrılabilir bir fonksiyon değil."
 
@@ -229,5 +233,3 @@ def test_beat_schedule_persists_on_fresh_app_instance() -> None:
     assert "political-relations-every-15-minutes" in reloaded_schedule
     assert "briefing-morning" in reloaded_schedule
     assert "briefing-evening" in reloaded_schedule
-
-

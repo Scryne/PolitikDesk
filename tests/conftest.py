@@ -45,7 +45,9 @@ def db_conn():
     dsn = _get_test_dsn()
     if not dsn:
         if os.environ.get("PD_CI_REQUIRE_DB") == "1":
-            pytest.fail("PD_CI_REQUIRE_DB=1 fakat PD_DATABASE_URL/PD_TEST_DATABASE_URL ayarlı değil — DB testleri zorunludur (B-89)!")
+            pytest.fail(
+                "PD_CI_REQUIRE_DB=1 fakat PD_DATABASE_URL/PD_TEST_DATABASE_URL ayarlı değil — DB testleri zorunludur (B-89)!"
+            )
         pytest.skip("PD_DATABASE_URL ayarlı değil — veritabanı testleri atlandı.")
 
     psycopg = pytest.importorskip("psycopg")
@@ -108,7 +110,9 @@ def isolate_database_state() -> Generator[None, None, None]:
                 if t in max_ids:
                     cur.execute(f"DELETE FROM {t} WHERE id > %s", (max_ids[t],))
             # Test adları veya özel test slug'ları taşıyan artıkları da temizle
-            cur.execute("DELETE FROM event_feedback WHERE note LIKE 'Geri bildirim%' OR note LIKE 'Açılmamış%'")
+            cur.execute(
+                "DELETE FROM event_feedback WHERE note LIKE 'Geri bildirim%' OR note LIKE 'Açılmamış%'"
+            )
             cur.execute("DELETE FROM events WHERE title LIKE 'L6 Test%' OR title LIKE 'pytest%'")
             cur.execute("DELETE FROM sources WHERE slug LIKE 'pytest%'")
             conn.commit()
@@ -121,4 +125,6 @@ def pytest_sessionfinish(session, exitstatus):  # noqa: ANN001
     import sys
 
     if not _get_test_dsn() and os.environ.get("PD_CI_REQUIRE_DB") != "1":
-        sys.stderr.write("\n[UYARI] PD_DATABASE_URL tanimsiz — veritabani testleri ATLANDI (B-89).\n")
+        sys.stderr.write(
+            "\n[UYARI] PD_DATABASE_URL tanimsiz — veritabani testleri ATLANDI (B-89).\n"
+        )

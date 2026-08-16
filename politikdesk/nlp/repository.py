@@ -76,8 +76,7 @@ def reset_derived_state() -> dict[str, int]:
         cur.execute("DELETE FROM events")
 
         cur.execute(
-            "INSERT INTO audit_log (actor, action, target, payload) "
-            "VALUES (%s, %s, %s, %s::jsonb)",
+            "INSERT INTO audit_log (actor, action, target, payload) VALUES (%s, %s, %s, %s::jsonb)",
             (
                 "system:reembed",
                 "reset_derived_state",
@@ -123,8 +122,7 @@ def upsert_entity(entity: ExtractedEntity, aliases: tuple[str, ...] = ()) -> int
                   is_key_entity = entities.is_key_entity OR EXCLUDED.is_key_entity
             RETURNING id
             """,
-            (entity.canonical_name, entity.entity_type, list(aliases),
-             entity.is_key_entity),
+            (entity.canonical_name, entity.entity_type, list(aliases), entity.is_key_entity),
         )
         entity_id = fetch_one(cur)["id"]
         conn.commit()

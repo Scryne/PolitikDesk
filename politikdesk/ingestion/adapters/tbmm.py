@@ -119,7 +119,6 @@ class TbmmAdapter(FailureRecorder):
             law_keywords = ("kanun", "teklif", "değişiklik", "kanunu", "taslak")
             if any(k in title.casefold() for k in law_keywords):
                 if not self._passes_filter(title):
-
                     continue
                 url = href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
                 out.append(

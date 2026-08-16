@@ -81,8 +81,8 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
 
     with db_conn.cursor() as cur:
         cur.execute(
-            "DELETE FROM evidence WHERE claim_id IN "
-            "(SELECT id FROM claims WHERE event_id = %s)", (event_id,),
+            "DELETE FROM evidence WHERE claim_id IN (SELECT id FROM claims WHERE event_id = %s)",
+            (event_id,),
         )
         cur.execute("DELETE FROM claims WHERE event_id = %s", (event_id,))
         cur.execute("DELETE FROM articles WHERE source_id = %s", (source_id,))
@@ -101,8 +101,7 @@ def _claim_with_evidence(db_conn, fixtures, normalized: dict | None) -> int:  # 
                     '{"rule": "pending"}'::jsonb)
             RETURNING id
             """,
-            (fixtures["event"],
-             json.dumps(normalized) if normalized is not None else None),
+            (fixtures["event"], json.dumps(normalized) if normalized is not None else None),
         )
         claim_id = cur.fetchone()["id"]
         cur.execute(
@@ -140,9 +139,9 @@ def test_float_noise_still_verifies(db_conn, fixtures) -> None:  # noqa: ANN001
 @pytest.mark.parametrize(
     ("bozulan", "deger"),
     [
-        ("value", 8.4),                    # farklı sayı
-        ("period", "2026-05"),             # farklı dönem
-        ("metric", "employment_rate"),     # farklı gösterge
+        ("value", 8.4),  # farklı sayı
+        ("period", "2026-05"),  # farklı dönem
+        ("metric", "employment_rate"),  # farklı gösterge
     ],
 )
 def test_partial_match_does_not_verify(db_conn, fixtures, bozulan, deger) -> None:  # noqa: ANN001

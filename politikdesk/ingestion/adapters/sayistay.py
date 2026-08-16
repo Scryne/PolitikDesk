@@ -85,11 +85,15 @@ class SayistayAdapter(FailureRecorder):
                 continue
 
             keywords = (
-                "rapor", "denetim", "bulgu", "düzenlilik",
-                "kamu zararı", "sayıştay", "duyuru",
+                "rapor",
+                "denetim",
+                "bulgu",
+                "düzenlilik",
+                "kamu zararı",
+                "sayıştay",
+                "duyuru",
             )
             if any(k in title.casefold() for k in keywords):
-
                 url = href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
                 out.append(
                     RawItem(
@@ -127,6 +131,79 @@ class SayistayAdapter(FailureRecorder):
         return out
 
 
+def classify_tccb_item(title: str, href: str = "") -> tuple[str, str]:
+    """Cumhurbaşkanlığı duyuru ve açıklamalarını deterministik olarak sınıflandırır.
+
+    Dönen değer: (category, vertical)
+    Kategoriler:
+      - 'atama_ve_kadro': Atama kararları, görevden alma, rektör/vali/bürokrat atamaları
+      - 'kararname': Cumhurbaşkanlığı kararnameleri, yönetmelikler, genelgeler
+      - 'diplomasi': Dış politika, devlet başkanları görüşmeleri, büyükelçi kabulleri, zirveler
+      - 'basin_aciklamasi': Genel basın toplantısı, ulusa sesleniş (güvenli varsayılan)
+    """
+    text = f"{title} {href}".lower()
+
+    # 1. Atama & Kadro (öncelikli spesifik idari işlemler)
+    if any(
+        k in text
+        for k in (
+            "atama",
+            "atanma",
+            "gorevden alma",
+            "görevden alma",
+            "kadro",
+            "rektor",
+            "rektör",
+        )
+    ):
+        return "atama_ve_kadro", "legislation"
+
+    # 2. Kararname & Yönetmelik & Genelge
+    if any(
+        k in text
+        for k in (
+            "kararname",
+            "karari",
+            "kararı",
+            "genelge",
+            "yonetmelik",
+            "yönetmelik",
+            "resmi gazete",
+        )
+    ):
+        return "kararname", "legislation"
+
+    # 3. Diplomasi & Dış Politika
+    if any(
+        k in text
+        for k in (
+            "diplomasi",
+            "devlet baskani",
+            "devlet başkanı",
+            "cumhurbaskani",
+            "cumhurbaşkanı",
+            "ziyaret",
+            "zirve",
+            "gorusme",
+            "görüşme",
+            "buyukelci",
+            "büyükelçi",
+            "nato",
+            "birlesmis milletler",
+            "birleşmiş milletler",
+            "dis politika",
+            "dış politika",
+            "ikili iliski",
+            "ikili ilişki",
+            "liderler zirvesi",
+        )
+    ):
+        return "diplomasi", "legislation"
+
+    # 4. Varsayılan: Genel Basın Açıklaması
+    return "basin_aciklamasi", "legislation"
+
+
 class CumhurbaskanligiAdapter(FailureRecorder):
     """Cumhurbaşkanlığı Kararnameleri ve Resmi Duyuruları."""
 
@@ -160,10 +237,9 @@ class CumhurbaskanligiAdapter(FailureRecorder):
                 title = clean_text(label)
                 if title and len(title) > 20:
                     full_url = (
-                        href
-                        if href.startswith("http")
-                        else f"{self.base_url}/{href.lstrip('/')}"
+                        href if href.startswith("http") else f"{self.base_url}/{href.lstrip('/')}"
                     )
+                    category, vertical = classify_tccb_item(title, href)
                     items.append(
                         RawItem(
                             source_slug=self.slug,
@@ -172,7 +248,7 @@ class CumhurbaskanligiAdapter(FailureRecorder):
                             published_at=now,
                             summary=f"Cumhurbaşkanlığı Açıklaması: {title}",
                             guid=full_url,
-                            extra={"category": "atama_ve_kadro", "vertical": "legislation"},
+                            extra={"category": category, "vertical": vertical},
                         )
                     )
 

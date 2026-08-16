@@ -85,8 +85,12 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
 
         article_ids: list[int] = []
         for i, (event_id, source_id) in enumerate(
-            [(event_ids[0], source_ids[0]), (event_ids[0], source_ids[1]),
-             (event_ids[1], source_ids[0]), (event_ids[2], source_ids[0])]
+            [
+                (event_ids[0], source_ids[0]),
+                (event_ids[0], source_ids[1]),
+                (event_ids[1], source_ids[0]),
+                (event_ids[2], source_ids[0]),
+            ]
         ):
             cur.execute(
                 """
@@ -95,9 +99,14 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
                 VALUES (%s, %s, %s, %s, %s::vector, %s, now())
                 RETURNING id
                 """,
-                (source_id, f"https://pytest.test/reextract/{i}",
-                 f"pytest reextract makale {i}", f"hash-reextract-{i}",
-                 _vec(0.2 * (i + 1)), event_id),
+                (
+                    source_id,
+                    f"https://pytest.test/reextract/{i}",
+                    f"pytest reextract makale {i}",
+                    f"hash-reextract-{i}",
+                    _vec(0.2 * (i + 1)),
+                    event_id,
+                ),
             )
             article_ids.append(cur.fetchone()["id"])
     db_conn.commit()
@@ -134,8 +143,14 @@ def _add_claim(db_conn, event_id: int) -> int:  # noqa: ANN001
     return claim_id
 
 
-def _stamp(db_conn, event_id: int, *, attempted_ago: str, updated_ago: str,  # noqa: ANN001
-           attempts: int = 1) -> None:
+def _stamp(
+    db_conn,
+    event_id: int,
+    *,
+    attempted_ago: str,
+    updated_ago: str,  # noqa: ANN001
+    attempts: int = 1,
+) -> None:
     """Deneme ve güncelleme damgalarını göreli olarak kurar."""
     with db_conn.cursor() as cur:
         cur.execute(
@@ -186,8 +201,13 @@ def test_empty_event_stops_retrying_at_attempt_cap(db_conn, fixtures):  # noqa: 
     gönderilmişti. F5-16 o korumayı gevşetmemelidir.
     """
     event_id = fixtures["events"][2]  # iddiası YOK
-    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours",
-           attempts=MAX_CLAIM_ATTEMPTS)
+    _stamp(
+        db_conn,
+        event_id,
+        attempted_ago="1 hour",
+        updated_ago="2 hours",
+        attempts=MAX_CLAIM_ATTEMPTS,
+    )
 
     assert event_id not in pending_events(limit=500)
 
@@ -215,7 +235,8 @@ def test_reextraction_adds_evidence_link_without_duplicating_claim(db_conn, fixt
         # 2. tur: olaya ikinci bağımsız kaynak katıldı, çıkarım YENİDEN koşar
         # ve aynı iddiayı bu kez İKİ makaleyle üretir.
         _persist(
-            cur, event_id,
+            cur,
+            event_id,
             [(claim, [(first_article, "ilk alinti"), (second_article, "ikinci alinti")])],
             "test+claims.v2",
         )
@@ -276,7 +297,8 @@ def test_new_evidence_link_retriggers_scoring(db_conn, fixtures):  # noqa: ANN00
 
         # İkinci BAĞIMSIZ kaynak aynı iddiayı doğruluyor.
         _persist(
-            cur, event_id,
+            cur,
+            event_id,
             [(claim, [(first_article, "ilk alinti"), (second_article, "ikinci alinti")])],
             "test+claims.v2",
         )

@@ -150,6 +150,7 @@ def simulate_concurrent_evaluation() -> dict[str, Any]:
 
 def main() -> None:
     import sys
+
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     if hasattr(sys.stderr, "reconfigure"):
@@ -164,17 +165,23 @@ def main() -> None:
     print("| Havuz Büyüklüğü (N) | Süre (ms) | Seçilen Aday | Tavan Kısıtı (<=50) |")
     print("|---|---|---|---|")
     for n, d in perf["candidate_scaling"].items():
-        print(f"| {n:5d} | {d['elapsed_ms']:7.3f} ms | {d['selected_count']:2d} | {'✅ PASS' if d['hard_ceiling_enforced'] else '❌ FAIL'} |")
+        print(
+            f"| {n:5d} | {d['elapsed_ms']:7.3f} ms | {d['selected_count']:2d} | {'✅ PASS' if d['hard_ceiling_enforced'] else '❌ FAIL'} |"
+        )
 
     throughput = benchmark_relation_evaluation_throughput()
     print("\n2. Relation Engine CPU Throughput:")
-    print(f"- {throughput['iterations']} değerlendirme süresi: {throughput['total_time_seconds']:.3f} s")
+    print(
+        f"- {throughput['iterations']} değerlendirme süresi: {throughput['total_time_seconds']:.3f} s"
+    )
     print(f"- Throughput: {throughput['evaluations_per_second']:.1f} eval/s")
     print(f"- Ortalama tekil gecikme: {throughput['avg_latency_microseconds']:.2f} µs")
 
     concurrency = simulate_concurrent_evaluation()
     print("\n3. Concurrency & Determinism:")
-    print(f"- 10 eşzamanlı thread sonucu: {'✅ %100 DETERMINISTIC' if concurrency['deterministic_identity'] else '❌ NON-DETERMINISTIC'}")
+    print(
+        f"- 10 eşzamanlı thread sonucu: {'✅ %100 DETERMINISTIC' if concurrency['deterministic_identity'] else '❌ NON-DETERMINISTIC'}"
+    )
     print(f"- Karar: {concurrency['relation']} (Güven: {concurrency['confidence']})")
 
 

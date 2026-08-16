@@ -68,8 +68,14 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
                 VALUES (%s, %s, %s, %s, %s::vector, %s, now())
                 RETURNING id
                 """,
-                (source_id, f"https://pytest.test/merger/{i}", f"pytest makale {i}",
-                 f"hash-merger-{i}", _vec(0.1 * (i + 1)), event_id),
+                (
+                    source_id,
+                    f"https://pytest.test/merger/{i}",
+                    f"pytest makale {i}",
+                    f"hash-merger-{i}",
+                    _vec(0.1 * (i + 1)),
+                    event_id,
+                ),
             )
             article_ids.append(cur.fetchone()["id"])
 
@@ -95,12 +101,12 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
     yield {"events": event_ids, "articles": article_ids}
 
     with db_conn.cursor() as cur:
-        cur.execute("DELETE FROM audit_log WHERE target = ANY(%s)",
-                    ([f"events/{e}" for e in event_ids],))
+        cur.execute(
+            "DELETE FROM audit_log WHERE target = ANY(%s)", ([f"events/{e}" for e in event_ids],)
+        )
         cur.execute("DELETE FROM articles WHERE source_id = %s", (source_id,))
         cur.execute("DELETE FROM event_entities WHERE event_id = ANY(%s)", (event_ids,))
-        cur.execute("UPDATE events SET merged_into_id = NULL WHERE id = ANY(%s)",
-                    (event_ids,))
+        cur.execute("UPDATE events SET merged_into_id = NULL WHERE id = ANY(%s)", (event_ids,))
         cur.execute("DELETE FROM events WHERE merged_into_id = ANY(%s)", (event_ids,))
         cur.execute("DELETE FROM events WHERE id = ANY(%s)", (event_ids,))
         cur.execute("DELETE FROM sources WHERE id = %s", (source_id,))
@@ -125,8 +131,7 @@ def _state(db_conn, event_ids: list[int]) -> dict:  # noqa: ANN001
             """,
             (event_ids,),
         )
-        events = {r["id"]: (r["article_count"], r["merged_into_id"])
-                  for r in cur.fetchall()}
+        events = {r["id"]: (r["article_count"], r["merged_into_id"]) for r in cur.fetchall()}
         cur.execute(
             "SELECT id, event_id FROM articles WHERE event_id = ANY(%s) ORDER BY id",
             (event_ids,),
@@ -149,9 +154,7 @@ def _assert_centroids_match_members(db_conn, event_ids: list[int]) -> None:  # n
                 "WHERE event_id = %s AND embedding IS NOT NULL",
                 (event_id,),
             )
-            members = [
-                [float(x) for x in r["e"].strip("[]").split(",")] for r in cur.fetchall()
-            ]
+            members = [[float(x) for x in r["e"].strip("[]").split(",")] for r in cur.fetchall()]
             expected = recompute(members)
             if expected is None:
                 assert stored is None, f"olay {event_id}: üyesiz merkez NULL olmalı"
@@ -249,8 +252,7 @@ def test_review_queue_and_resolution(db_conn, fixtures) -> None:  # noqa: ANN001
     """F2-04 DoD: belirsiz atamalar kuyrukta görünüyor, karar verilebiliyor."""
     event_id = fixtures["events"][0]
     with db_conn.cursor() as cur:
-        cur.execute("UPDATE events SET review_flag = 'needs_review' WHERE id = %s",
-                    (event_id,))
+        cur.execute("UPDATE events SET review_flag = 'needs_review' WHERE id = %s", (event_id,))
     db_conn.commit()
 
     assert event_id in {r["id"] for r in review_queue(200)}
@@ -261,8 +263,7 @@ def test_review_queue_and_resolution(db_conn, fixtures) -> None:  # noqa: ANN001
 
     with db_conn.cursor() as cur:
         cur.execute(
-            "SELECT count(*) AS n FROM audit_log "
-            "WHERE action = 'resolve_review' AND target = %s",
+            "SELECT count(*) AS n FROM audit_log WHERE action = 'resolve_review' AND target = %s",
             (f"events/{event_id}",),
         )
         assert cur.fetchone()["n"] == 1

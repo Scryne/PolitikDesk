@@ -62,17 +62,23 @@ def content() -> BriefingContent:
         ],
         upcoming=[
             {
-                "id": 1, "title": "TÜİK enflasyon verisi",
+                "id": 1,
+                "title": "TÜİK enflasyon verisi",
                 "expected_at": "2026-09-03T10:00:00+03:00",
-                "expected_label": "03 Eyl 10:00", "source_name": "TÜİK",
+                "expected_label": "03 Eyl 10:00",
+                "source_name": "TÜİK",
             }
         ],
         unverified=[
             {
-                "claim_id": 9, "event_id": 42, "event_title": "TCMB",
+                "claim_id": 9,
+                "event_id": 42,
+                "event_title": "TCMB",
                 "claim_text": "Piyasa beklentisi yüzde 36 idi.",
-                "claim_type": "number", "evidence_status": "single_source",
-                "status_text": "tek kaynaklı", "rule": "R5",
+                "claim_type": "number",
+                "evidence_status": "single_source",
+                "status_text": "tek kaynaklı",
+                "rule": "R5",
             }
         ],
     )
@@ -174,9 +180,7 @@ def test_open_tracking_pixel_is_embedded_when_token_given(
 def test_smtp_is_optional() -> None:
     """SMTP yoksa brifing yine üretilir; gönderim atlanır."""
     assert not is_configured(Settings(env="test"))
-    assert is_configured(
-        Settings(env="test", smtp_host="smtp.example", smtp_from="a@b.c")
-    )
+    assert is_configured(Settings(env="test", smtp_host="smtp.example", smtp_from="a@b.c"))
 
 
 def test_message_is_multipart_with_text_first() -> None:
@@ -208,9 +212,14 @@ def test_html_escapes_hostile_titles() -> None:
         slot="morning",
         events=[
             BriefingEvent(
-                event_id=1, title='<script>alert("x")</script>', salience=10,
-                status="developing", article_count=1, independent_count=1,
-                independence_groups=1, has_primary_source=False,
+                event_id=1,
+                title='<script>alert("x")</script>',
+                salience=10,
+                status="developing",
+                article_count=1,
+                independent_count=1,
+                independence_groups=1,
+                has_primary_source=False,
             )
         ],
     )

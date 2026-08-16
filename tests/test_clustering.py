@@ -72,10 +72,13 @@ def test_same_value_written_differently_is_not_a_conflict() -> None:
 
 def test_missing_metric_on_one_side_is_not_a_conflict() -> None:
     """Eksik bilgi ≠ çelişkili bilgi."""
-    assert find_conflicts(
-        "Politika faizi yüzde 37 olarak açıklandı.",
-        "Merkez Bankası kararını açıkladı.",
-    ) == []
+    assert (
+        find_conflicts(
+            "Politika faizi yüzde 37 olarak açıklandı.",
+            "Merkez Bankası kararını açıkladı.",
+        )
+        == []
+    )
 
 
 def test_real_world_industrial_production_contradiction() -> None:
@@ -93,10 +96,13 @@ def test_real_world_industrial_production_contradiction() -> None:
 
 def test_multiple_values_for_same_metric_do_not_conflict_if_they_overlap() -> None:
     """Bir haber hem eski hem yeni faizi verebilir; kesişim varsa çelişki yok."""
-    assert find_conflicts(
-        "Politika faizi yüzde 39,5'ten yüzde 38'e indirildi.",
-        "Politika faizi yüzde 38 olarak belirlendi.",
-    ) == []
+    assert (
+        find_conflicts(
+            "Politika faizi yüzde 39,5'ten yüzde 38'e indirildi.",
+            "Politika faizi yüzde 38 olarak belirlendi.",
+        )
+        == []
+    )
 
 
 def test_distinct_rates_in_one_sentence_are_not_confused() -> None:
@@ -257,11 +263,13 @@ def test_time_window_rejects_an_otherwise_perfect_match() -> None:
 def test_entity_constraint_rejects_unrelated_event_with_high_similarity() -> None:
     result = decide(
         _article(),
-        [_candidate(
-            similarity=0.95,
-            entities=frozenset({"Borsa İstanbul"}),
-            key_entities=frozenset(),
-        )],
+        [
+            _candidate(
+                similarity=0.95,
+                entities=frozenset({"Borsa İstanbul"}),
+                key_entities=frozenset(),
+            )
+        ],
     )
     assert result.action == "create"
     assert result.trace[0].outcome == "entity_reject"
@@ -272,13 +280,20 @@ def test_shared_key_entity_rescues_a_low_jaccard_pair() -> None:
     """Kısa resmî duyuru ile uzun haber: Jaccard düşük, ortak anahtar varlık var."""
     result = decide(
         _article(entities=frozenset({"Türkiye Cumhuriyet Merkez Bankası"})),
-        [_candidate(
-            similarity=0.90,
-            entities=frozenset({
-                "Türkiye Cumhuriyet Merkez Bankası", "Borsa İstanbul",
-                "Hazine ve Maliye Bakanlığı", "Fitch Ratings", "Moody's",
-            }),
-        )],
+        [
+            _candidate(
+                similarity=0.90,
+                entities=frozenset(
+                    {
+                        "Türkiye Cumhuriyet Merkez Bankası",
+                        "Borsa İstanbul",
+                        "Hazine ve Maliye Bakanlığı",
+                        "Fitch Ratings",
+                        "Moody's",
+                    }
+                ),
+            )
+        ],
     )
     assert result.action == "assign"
     assert result.trace[0].entity_jaccard < 0.25
@@ -289,10 +304,12 @@ def test_numeric_conflict_keeps_assignment_but_flags_review() -> None:
     """F2-03 DoD: aynı olaya atanır, ama `needs_review` işaretlenir."""
     result = decide(
         _article(text="Merkez Bankası politika faizini yüzde 40'a çekti."),
-        [_candidate(
-            similarity=0.95,
-            text_sample="Merkez Bankası politika faizini yüzde 42'ye çekti.",
-        )],
+        [
+            _candidate(
+                similarity=0.95,
+                text_sample="Merkez Bankası politika faizini yüzde 42'ye çekti.",
+            )
+        ],
     )
     assert result.action == "review"
     assert result.event_id == 10
@@ -358,10 +375,19 @@ def test_two_entityless_articles_can_still_cluster() -> None:
     Boş küme çelişki kanıtı değil, kanıt yokluğudur.
     """
     result = decide(
-        _article(entities=frozenset(), key_entities=frozenset(),
-                 text="Ulaştırma yatırımlarına 6 ayda 41,5 milyar lira harcandı."),
-        [_candidate(similarity=0.9997, entities=frozenset(), key_entities=frozenset(),
-                    text_sample="Ulaştırma yatırımlarına 6 ayda 41,5 milyar harcandı.")],
+        _article(
+            entities=frozenset(),
+            key_entities=frozenset(),
+            text="Ulaştırma yatırımlarına 6 ayda 41,5 milyar lira harcandı.",
+        ),
+        [
+            _candidate(
+                similarity=0.9997,
+                entities=frozenset(),
+                key_entities=frozenset(),
+                text_sample="Ulaştırma yatırımlarına 6 ayda 41,5 milyar harcandı.",
+            )
+        ],
     )
     assert result.action == "review"
     assert result.event_id == 10
@@ -392,10 +418,15 @@ def test_below_t_high_with_unverifiable_constraint_creates_new_event() -> None:
 def test_contradicting_entities_are_still_a_hard_reject() -> None:
     """İki taraf da doluysa ve örtüşmüyorsa kısıt hâlâ REDDEDER."""
     result = decide(
-        _article(entities=frozenset({"Türkiye İstatistik Kurumu"}),
-                 key_entities=frozenset({"Türkiye İstatistik Kurumu"})),
-        [_candidate(similarity=0.99, entities=frozenset({"Borsa İstanbul"}),
-                    key_entities=frozenset())],
+        _article(
+            entities=frozenset({"Türkiye İstatistik Kurumu"}),
+            key_entities=frozenset({"Türkiye İstatistik Kurumu"}),
+        ),
+        [
+            _candidate(
+                similarity=0.99, entities=frozenset({"Borsa İstanbul"}), key_entities=frozenset()
+            )
+        ],
     )
     assert result.action == "create"
     assert result.trace[0].outcome == "entity_reject"

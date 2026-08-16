@@ -49,6 +49,7 @@ echo   -- gunluk kullanim --
 echo   pd start            Tum yigini ayaga kaldir
 echo   pd stop             Yigini durdur
 echo   pd restart          Yeniden KURARAK baslat (kod degistiyse)
+echo   pd update           Tum dikey kaynaklarini senkronize et ve verileri isle
 echo   pd status           Konteyner durumu
 echo   pd open             Feed'i tarayicida ac
 echo.
@@ -56,6 +57,8 @@ echo   -- saglik --
 echo   pd watchdog         Disaridan saglik nobeti
 echo   pd pipeline-health  Hangi asamada birikme var?
 echo   pd health           Kaynak saglik raporu
+echo   pd verify-feeds     Tum canli RSS ve feed akislarini dogrula
+echo   pd actor-freshness  Siyasi aktor katalogunun tazeligini denetle
 echo   pd correction       Correction rate ve 34 olay inceleme takibi
 echo   pd deploy-check     Konteynerler depodaki kodu mu tasiyor?
 echo   pd logs [servis]    Konteyner loglari
@@ -205,14 +208,25 @@ goto :eof
 :cmd_briefing
 "%PY%" -m scripts.ingest briefing --slot morning --send
 goto :eof
-:cmd_metrics
-"%PY%" -m scripts.ingest metrics
+:cmd_update
+"%PY%" -m scripts.ingest sync || goto :fail
+"%PY%" -m scripts.ingest run || goto :fail
+"%PY%" -m scripts.ingest embed || goto :fail
+"%PY%" -m scripts.ingest entities || goto :fail
+"%PY%" -m scripts.ingest cluster || goto :fail
+"%PY%" -m scripts.ingest claims || goto :fail
+"%PY%" -m scripts.ingest evidence || goto :fail
+"%PY%" -m scripts.ingest context || goto :fail
+goto :eof
+:cmd_verify-feeds
+"%PY%" -m scripts.verify_feeds
+goto :eof
+:cmd_actor-freshness
+"%PY%" -m scripts.validate_actor_freshness
 goto :eof
 :cmd_eval
 "%PY%" -m eval.run
 goto :eof
-
-REM -------------------------------------------------------------- gelistirme
 :cmd_setup
 "%PY%" -m pip install -e ".[dev]"
 goto :eof

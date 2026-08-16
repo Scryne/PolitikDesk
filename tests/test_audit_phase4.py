@@ -128,7 +128,10 @@ def test_manual_import_adapter_blocks_redirect_to_internal_ip() -> None:
 
     adapter = ManualImportAdapter(http=mock_http)
     with (
-        patch("politikdesk.ingestion.adapters.manual.validate_url", side_effect=[initial_url, UnsafeUrlError("Özel IP")]),
+        patch(
+            "politikdesk.ingestion.adapters.manual.validate_url",
+            side_effect=[initial_url, UnsafeUrlError("Özel IP")],
+        ),
         pytest.raises(UnsafeUrlError),
     ):
         adapter.fetch_one(initial_url)

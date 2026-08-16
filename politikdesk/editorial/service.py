@@ -60,8 +60,8 @@ def levenshtein(a: str, b: str) -> int:
         for j, ch_b in enumerate(b, start=1):
             current.append(
                 min(
-                    previous[j] + 1,          # silme
-                    current[j - 1] + 1,       # ekleme
+                    previous[j] + 1,  # silme
+                    current[j - 1] + 1,  # ekleme
                     previous[j - 1] + (ch_a != ch_b),  # değiştirme
                 )
             )
@@ -243,17 +243,20 @@ def generate_all_angles(
         except Exception as exc:  # noqa: BLE001 — bir açı diğerlerini düşürmez
             log.warning(
                 "angle_generation_failed",
-                event_id=event_id, angle=angle, error=type(exc).__name__,
+                event_id=event_id,
+                angle=angle,
+                error=type(exc).__name__,
             )
-            results[angle] = {"angle": angle, "error": type(exc).__name__,
-                              "message": str(exc)[:200]}
+            results[angle] = {
+                "angle": angle,
+                "error": type(exc).__name__,
+                "message": str(exc)[:200],
+            }
     return {"event_id": event_id, "drafts": results}
 
 
 # ----------------------------------------------------------------- aksiyon
-def apply_action(
-    *, draft_id: int, action: str, final_body: str | None = None
-) -> dict[str, Any]:
+def apply_action(*, draft_id: int, action: str, final_body: str | None = None) -> dict[str, Any]:
     """Kullanıcı aksiyonunu kaydeder ve `edit_distance`'ı hesaplar (F3-14).
 
     `edit_distance` yalnızca `edited` aksiyonunda anlamlıdır. `accepted`
@@ -294,6 +297,7 @@ def apply_action(
     if action in ("accepted", "edited"):
         try:
             from politikdesk.editorial.archive import persist_draft_archive
+
             persist_draft_archive(draft_id, stored_body)
         except Exception as exc:  # noqa: BLE001
             log.warning("draft_archive_persist_failed", draft_id=draft_id, error=str(exc))
@@ -304,7 +308,8 @@ def apply_action(
 
     if distance is not None:
         metrics.record(
-            "edit_distance", distance,
+            "edit_distance",
+            distance,
             user_id=draft["user_id"],
             dimensions={"draft_id": draft_id, "action": action, "angle": draft["angle"]},
         )

@@ -33,8 +33,7 @@ VALUES = (
     {"metric": "tufe_monthly", "value": 1.78, "unit": "%", "period": "2026-08"},
     {"metric": "tufe_annual", "value": 41.2, "unit": "%", "period": "2026-08"},
     {"metric": "policy_rate", "value": 37, "unit": "%", "period": "2026-08"},
-    {"metric": "current_account_balance", "value": 3.5, "unit": "USD",
-     "period": "2026-Q1"},
+    {"metric": "current_account_balance", "value": 3.5, "unit": "USD", "period": "2026-Q1"},
 )
 
 

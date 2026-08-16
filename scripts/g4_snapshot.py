@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import urllib.request
 from dataclasses import dataclass
@@ -285,6 +286,11 @@ def main() -> int:
         help="Yazılacak markdown dosyası",
     )
     parser.add_argument("--no-write", action="store_true", help="Dosyaya yazma, sadece stdout")
+    parser.add_argument(
+        "--git-commit",
+        action="store_true",
+        help="Snapshot kaydedildikten sonra git'e commit at",
+    )
     args = parser.parse_args()
 
     since_dt = datetime.fromisoformat(args.since.replace("Z", "+00:00"))
@@ -323,6 +329,24 @@ def main() -> int:
     if not args.no_write:
         append_snapshot_to_file(snap, args.output_file)
         print(f"Snapshot başarıyla kaydedildi: {args.output_file}")
+        if args.git_commit:
+            try:
+                subprocess.run(
+                    ["git", "add", str(args.output_file)],
+                    check=True,
+                    capture_output=True,
+                )
+                msg = (
+                    f"chore(g4): record Day {snap.day_number} snapshot ({snap.timestamp:%Y-%m-%d})"
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", msg],
+                    check=True,
+                    capture_output=True,
+                )
+                print(f"[OK] Snapshot git'e commit edildi: {msg}")
+            except Exception as e:
+                print(f"[UYARI] Git commit atılamadı: {e}", file=sys.stderr)
 
     return 0
 

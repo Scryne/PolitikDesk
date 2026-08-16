@@ -83,10 +83,7 @@ def _vectors_of(cur: Any, event_id: int) -> list[list[float]]:
         """,
         (event_id,),
     )
-    return [
-        [float(x) for x in r["embedding"].strip("[]").split(",") if x]
-        for r in cur.fetchall()
-    ]
+    return [[float(x) for x in r["embedding"].strip("[]").split(",") if x] for r in cur.fetchall()]
 
 
 def _refresh_event(cur: Any, event_id: int) -> None:
@@ -170,9 +167,7 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
                 f"hedef={found[target_event_id]['vertical']!r}"
             )
 
-        cur.execute(
-            "SELECT id FROM articles WHERE event_id = %s ORDER BY id", (source_event_id,)
-        )
+        cur.execute("SELECT id FROM articles WHERE event_id = %s ORDER BY id", (source_event_id,))
         moved = tuple(r["id"] for r in cur.fetchall())
 
         cur.execute(
@@ -187,8 +182,13 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
         _refresh_event(cur, source_event_id)
 
         result = MergeResult(source_event_id, target_event_id, moved)
-        audit.write("merge_events", f"events/{target_event_id}",
-                    actor="user:admin", payload=result.as_dict(), cursor=cur)
+        audit.write(
+            "merge_events",
+            f"events/{target_event_id}",
+            actor="user:admin",
+            payload=result.as_dict(),
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("events_merged", **result.as_dict())
@@ -225,8 +225,7 @@ def undo_merge(source_event_id: int) -> MergeResult:
         record = cur.fetchone()
         if record is None:
             raise MergeError(
-                f"Birleştirme kaydı bulunamadı (events/{source_event_id}); "
-                "geri alma yapılamaz."
+                f"Birleştirme kaydı bulunamadı (events/{source_event_id}); geri alma yapılamaz."
             )
         moved = tuple(record["payload"]["moved_article_ids"])
 
@@ -235,15 +234,18 @@ def undo_merge(source_event_id: int) -> MergeResult:
                 "UPDATE articles SET event_id = %s WHERE id = ANY(%s)",
                 (source_event_id, list(moved)),
             )
-        cur.execute(
-            "UPDATE events SET merged_into_id = NULL WHERE id = %s", (source_event_id,)
-        )
+        cur.execute("UPDATE events SET merged_into_id = NULL WHERE id = %s", (source_event_id,))
         _refresh_event(cur, source_event_id)
         _refresh_event(cur, target_event_id)
 
         result = MergeResult(source_event_id, target_event_id, moved)
-        audit.write("undo_merge", f"events/{source_event_id}",
-                    actor="user:admin", payload=result.as_dict(), cursor=cur)
+        audit.write(
+            "undo_merge",
+            f"events/{source_event_id}",
+            actor="user:admin",
+            payload=result.as_dict(),
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("merge_undone", **result.as_dict())
@@ -280,16 +282,11 @@ def split_event(source_event_id: int, article_ids: list[int]) -> SplitResult:
         )
         rows = cur.fetchall()
         if len(rows) != len(set(article_ids)):
-            raise MergeError(
-                "Makalelerin bir kısmı bu olaya ait değil; bölme yapılmadı."
-            )
+            raise MergeError("Makalelerin bir kısmı bu olaya ait değil; bölme yapılmadı.")
 
-        cur.execute("SELECT count(*) AS n FROM articles WHERE event_id = %s",
-                    (source_event_id,))
+        cur.execute("SELECT count(*) AS n FROM articles WHERE event_id = %s", (source_event_id,))
         if fetch_one(cur)["n"] == len(rows):
-            raise MergeError(
-                "Bir olayın TÜM makaleleri bölünemez — sonuç boş bir olay olurdu."
-            )
+            raise MergeError("Bir olayın TÜM makaleleri bölünemez — sonuç boş bir olay olurdu.")
 
         seed = rows[0]
         cur.execute(
@@ -312,8 +309,13 @@ def split_event(source_event_id: int, article_ids: list[int]) -> SplitResult:
         _refresh_event(cur, source_event_id)
 
         result = SplitResult(source_event_id, new_event_id, moved)
-        audit.write("split_event", f"events/{source_event_id}",
-                    actor="user:admin", payload=result.as_dict(), cursor=cur)
+        audit.write(
+            "split_event",
+            f"events/{source_event_id}",
+            actor="user:admin",
+            payload=result.as_dict(),
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("event_split", **result.as_dict())
@@ -352,8 +354,13 @@ def undo_split(new_event_id: int) -> SplitResult:
         )
 
         result = SplitResult(source_event_id, new_event_id, moved)
-        audit.write("undo_split", f"events/{new_event_id}",
-                    actor="user:admin", payload=result.as_dict(), cursor=cur)
+        audit.write(
+            "undo_split",
+            f"events/{new_event_id}",
+            actor="user:admin",
+            payload=result.as_dict(),
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("split_undone", **result.as_dict())
@@ -394,8 +401,13 @@ def resolve_review(event_id: int, decision: str) -> dict[str, Any]:
         row = cur.fetchone()
         if row is None:
             raise MergeError(f"Olay bulunamadı: {event_id}")
-        audit.write("resolve_review", f"events/{event_id}",
-                    actor="user:admin", payload={"decision": decision}, cursor=cur)
+        audit.write(
+            "resolve_review",
+            f"events/{event_id}",
+            actor="user:admin",
+            payload={"decision": decision},
+            cursor=cur,
+        )
         conn.commit()
 
     log.info("review_resolved", event_id=event_id, decision=decision)

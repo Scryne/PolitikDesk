@@ -126,8 +126,10 @@ def event_detail(event_id: int) -> dict[str, Any]:
     payload = dict(event)
     payload.pop("centroid_embedding", None)  # 1024 sayı JSON'a basılmaz
     return {
-        "event": payload, "articles": articles,
-        "entities": entities, "history": history,
+        "event": payload,
+        "articles": articles,
+        "entities": entities,
+        "history": history,
     }
 
 
@@ -267,13 +269,11 @@ def review_dashboard() -> str:
                 label="Olay",
             )
             + cell(
-                f'<a class="plain" href="/event/{r["id"]}">'
-                f'{esc((r["title"] or "")[:110])}</a>',
+                f'<a class="plain" href="/event/{r["id"]}">{esc((r["title"] or "")[:110])}</a>',
                 label="Başlık",
             )
             + cell(esc(fmt.number(r["article_count"])), label="Makale", cls="num")
-            + cell(f'<span class="subtle">{esc(_reason_of(r))}</span>',
-                   label="Sebep")
+            + cell(f'<span class="subtle">{esc(_reason_of(r))}</span>', label="Sebep")
             + cell(
                 f'<span class="badge contra">{esc(conflict)}</span>'
                 if conflict
@@ -282,10 +282,18 @@ def review_dashboard() -> str:
             )
             + cell(
                 '<div class="btn-row">'
-                + button("Onayla", small=True, icon_name="check",
-                         onclick=f"pdDecide({r['id']},'verified',this)")
-                + button("Reddet", small=True, icon_name="close",
-                         onclick=f"pdDecide({r['id']},'rejected',this)")
+                + button(
+                    "Onayla",
+                    small=True,
+                    icon_name="check",
+                    onclick=f"pdDecide({r['id']},'verified',this)",
+                )
+                + button(
+                    "Reddet",
+                    small=True,
+                    icon_name="close",
+                    onclick=f"pdDecide({r['id']},'rejected',this)",
+                )
                 + "</div>",
                 label="Karar",
             )
@@ -295,13 +303,19 @@ def review_dashboard() -> str:
     if queue:
         queue_card = card(
             table(
-                (("Olay", ""), ("Başlık", ""), ("Makale", "num"), ("Sebep", ""),
-                 ("Sayısal çelişki", ""), ("Karar", "")),
+                (
+                    ("Olay", ""),
+                    ("Başlık", ""),
+                    ("Makale", "num"),
+                    ("Sebep", ""),
+                    ("Sayısal çelişki", ""),
+                    ("Karar", ""),
+                ),
                 rows,
             ),
             title=f"Bekleyen karar · {len(queue)}",
             actions='<span class="subtle" style="font-size:var(--text-xs)">'
-                    'onaylamak atamayı kalıcı kılar</span>',
+            "onaylamak atamayı kalıcı kılar</span>",
         )
     else:
         # Boş durum (10.1) — burada boş olmak İYİ bir haberdir; metin de
@@ -325,29 +339,28 @@ def review_dashboard() -> str:
             "{id}/undo-merge</span>).</p>"
         )
         + '<div class="row" style="margin-top:var(--space-4);'
-          'align-items:flex-end">'
-        + '<div class="field" style="max-width:120px">'
-          '<label for="src">Kaynak olay</label>'
-          '<input type="number" id="src" placeholder="örn. 412"></div>'
+        'align-items:flex-end">' + '<div class="field" style="max-width:120px">'
+        '<label for="src">Kaynak olay</label>'
+        '<input type="number" id="src" placeholder="örn. 412"></div>'
         + '<span class="subtle" style="padding-bottom:10px">→</span>'
         + '<div class="field" style="max-width:120px">'
-          '<label for="tgt">Hedef olay</label>'
-          '<input type="number" id="tgt" placeholder="örn. 398"></div>'
-        + button("Birleştir", variant="primary", icon_name="review",
-                 onclick="pdMerge()")
+        '<label for="tgt">Hedef olay</label>'
+        '<input type="number" id="tgt" placeholder="örn. 398"></div>'
+        + button("Birleştir", variant="primary", icon_name="review", onclick="pdMerge()")
         + '<span id="merge-status" class="subtle" aria-live="polite" '
-          'style="font-size:var(--text-xs);padding-bottom:10px"></span>'
-        + "</div>",
+        'style="font-size:var(--text-xs);padding-bottom:10px"></span>' + "</div>",
         title="Olay birleştir",
     )
 
     body = f"""
-{page_head(
-    "Denetim kuyruğu",
-    lede="Kümeleme kararı belirsiz kalan, varlık kısıtı doğrulanamayan veya "
-         "sayısal çelişki içeren olaylar.",
-    actions=button("Boru hattı", href="/admin/", icon_name="pipeline"),
-)}
+{
+        page_head(
+            "Denetim kuyruğu",
+            lede="Kümeleme kararı belirsiz kalan, varlık kısıtı doğrulanamayan veya "
+            "sayısal çelişki içeren olaylar.",
+            actions=button("Boru hattı", href="/admin/", icon_name="pipeline"),
+        )
+    }
 <div class="stack">{queue_card}{merge_card}</div>
 """
     return page(

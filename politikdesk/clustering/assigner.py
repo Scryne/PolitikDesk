@@ -62,7 +62,7 @@ class ArticleFeatures:
     entities: frozenset[str]
     key_entities: frozenset[str]
     published_at: datetime
-    text: str = ""            # sayısal çelişki kontrolü için (F2-03)
+    text: str = ""  # sayısal çelişki kontrolü için (F2-03)
     vertical: str = "macro_economy"
 
 
@@ -71,11 +71,11 @@ class EventCandidate:
     """ANN sorgusundan dönen aday olay."""
 
     event_id: int
-    similarity: float          # cosine(article.embedding, event.centroid)
+    similarity: float  # cosine(article.embedding, event.centroid)
     entities: frozenset[str]
     key_entities: frozenset[str]
     last_update_at: datetime
-    text_sample: str = ""      # olayın temsilci metni (sayısal kontrol için)
+    text_sample: str = ""  # olayın temsilci metni (sayısal kontrol için)
 
 
 @dataclass(frozen=True)
@@ -89,8 +89,13 @@ class CandidateTrace:
     entity_jaccard: float
     shared_key_entities: tuple[str, ...]
     outcome: Literal[
-        "accepted", "review", "below_t_low", "time_reject", "entity_reject",
-        "entity_unverified", "indicator_reject",
+        "accepted",
+        "review",
+        "below_t_low",
+        "time_reject",
+        "entity_reject",
+        "entity_unverified",
+        "indicator_reject",
     ]
     indicator_conflict: bool = False
 

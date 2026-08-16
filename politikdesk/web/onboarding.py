@@ -77,7 +77,7 @@ def _field(question: Question, current: dict[str, Any]) -> str:
             + "".join(
                 f'<label class="opt inline" style="margin:0">'
                 f'<input type="radio" name="{question.field}" value="{n}"'
-                f'{" checked" if value == n else ""}><span>{n}</span></label>'
+                f"{' checked' if value == n else ''}><span>{n}</span></label>"
                 for n in range(1, 6)
             )
             + '<span class="subtle" style="font-size:var(--text-xs)">5 · resmî</span>'
@@ -111,7 +111,7 @@ def profile_form() -> str:
     if compiled:
         preview = card(
             f'<pre class="mono" style="white-space:pre-wrap;margin:0;'
-            f'font-size:var(--text-xs);line-height:1.6;max-height:calc(100vh - 260px);'
+            f"font-size:var(--text-xs);line-height:1.6;max-height:calc(100vh - 260px);"
             f'overflow-y:auto;padding-right:var(--space-2)">{esc(compiled)}</pre>'
             f'<p class="subtle" style="margin:var(--space-4) 0 0;'
             f'font-size:var(--text-xs)">Derleyici sürümü '
@@ -125,28 +125,34 @@ def profile_form() -> str:
         # koymak kullanıcıyı zaten baktığı yere yönlendirmek olurdu.
         preview = card(
             f'<div class="empty" style="padding:var(--space-8) var(--space-4)">'
-            f'{icon("identity", 28)}<h3>Henüz derlenmedi</h3>'
+            f"{icon('identity', 28)}<h3>Henüz derlenmedi</h3>"
             f"<p>Soruları yanıtlayıp <b>Kaydet ve derle</b> dediğinde, "
             f"yanıtların burada kapsamlı bir editoryal sistem promptu bloğuna dönüşecek.</p></div>",
             title="Derlenmiş prompt bloğu",
         )
 
     body = f"""
-{page_head(
-    "Editoryal Kimlik Kartı",
-    lede="10 soru. Yanıtlar kapsamlı bir editoryal sistem promptu bloğuna derlenir ve her taslak "
-         "üretiminde olduğu gibi kullanılır.",
-)}
+{
+        page_head(
+            "Editoryal Kimlik Kartı",
+            lede=(
+                "10 soru. Yanıtlar kapsamlı bir editoryal sistem promptu bloğuna derlenir "
+                "ve her taslak üretiminde olduğu gibi kullanılır."
+            ),
+        )
+    }
 <div class="split">
   <div class="stack">
-    {notice(
-        "<p><b>Burada ideolojik soru yoktur ve olmayacaktır.</b></p>"
-        "<p>Siyasi düşünce KVKK m.6 uyarınca özel nitelikli kişisel veridir; "
-        "sistemde onu kodlayacak bir alan bulunmaz (Spec §10.1, P6). Toplanan "
-        "her şey <b>editoryal ve biçimseldir</b>: ton, cümle yapısı, biçimsellik, "
-        "kaynak politikası, alıntı ve belirsizlik yönetimi. Sen ne düşündüğünü değil, "
-        "nasıl yazdığını ve bilgiyi nasıl sunduğunu anlatıyorsun.</p>"
-    )}
+    {
+        notice(
+            "<p><b>Burada ideolojik soru yoktur ve olmayacaktır.</b></p>"
+            "<p>Siyasi düşünce KVKK m.6 uyarınca özel nitelikli kişisel veridir; "
+            "sistemde onu kodlayacak bir alan bulunmaz (Spec §10.1, P6). Toplanan "
+            "her şey <b>editoryal ve biçimseldir</b>: ton, cümle yapısı, biçimsellik, "
+            "kaynak politikası, alıntı ve belirsizlik yönetimi. Sen ne düşündüğünü değil, "
+            "nasıl yazdığını ve bilgiyi nasıl sunduğunu anlatıyorsun.</p>"
+        )
+    }
     <form id="form" class="stack">
       {fields}
       <div class="row" style="margin-top:var(--space-2)">

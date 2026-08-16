@@ -82,15 +82,11 @@ def write(
     """
     if action not in ACTIONS:
         raise UnknownAuditAction(
-            f"Bilinmeyen denetim eylemi: {action!r}. "
-            f"politikdesk/audit.py::ACTIONS içine ekleyin."
+            f"Bilinmeyen denetim eylemi: {action!r}. politikdesk/audit.py::ACTIONS içine ekleyin."
         )
 
     params = (actor, action, target, json.dumps(payload or {}, ensure_ascii=False))
-    sql = (
-        "INSERT INTO audit_log (actor, action, target, payload) "
-        "VALUES (%s,%s,%s,%s::jsonb)"
-    )
+    sql = "INSERT INTO audit_log (actor, action, target, payload) VALUES (%s,%s,%s,%s::jsonb)"
 
     if cursor is not None:
         cursor.execute(sql, params)

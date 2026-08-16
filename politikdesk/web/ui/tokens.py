@@ -45,32 +45,32 @@ from typing import Final
 
 LIGHT: Final[dict[str, str]] = {
     # ── Yüzeyler (3 seviye) ──
-    "color-bg": "#FBFAF8",              # kağıt — sıcak nötr, krem DEĞİL
-    "color-surface": "#FFFFFF",         # kart, panel
+    "color-bg": "#FBFAF8",  # kağıt — sıcak nötr, krem DEĞİL
+    "color-surface": "#FFFFFF",  # kart, panel
     "color-surface-sunken": "#F3F1ED",  # fihrist: tablo başlığı, input arkası
-    "color-overlay": "#FFFFFF",         # modal, popover
+    "color-overlay": "#FFFFFF",  # modal, popover
     # ── Kenarlıklar (2 seviye) ──
-    "color-border": "#E3E0DA",          # dekoratif: kart, ayırıcı, satır
-    "color-border-strong": "#94908A",   # ETKİLEŞİMLİ: input, checkbox — ≥3:1
+    "color-border": "#E3E0DA",  # dekoratif: kart, ayırıcı, satır
+    "color-border-strong": "#94908A",  # ETKİLEŞİMLİ: input, checkbox — ≥3:1
     # ── Metin (4 seviye) ──
-    "color-fg": "#16181D",              # mürekkep            · 17,0:1
-    "color-fg-muted": "#52565E",        # arşiv grisi         ·  7,1:1
-    "color-fg-subtle": "#676B72",       # etiket, placeholder ·  5,1:1
+    "color-fg": "#16181D",  # mürekkep            · 17,0:1
+    "color-fg-muted": "#52565E",  # arşiv grisi         ·  7,1:1
+    "color-fg-subtle": "#676B72",  # etiket, placeholder ·  5,1:1
     "color-fg-on-accent": "#FFFFFF",
     # ── Aksan (TEK renk) ──
-    "color-accent": "#1E3A5F",          # mürekkep mavisi     · 11,0:1
+    "color-accent": "#1E3A5F",  # mürekkep mavisi     · 11,0:1
     "color-accent-hover": "#162C48",
-    "color-accent-subtle": "#EBF0F6",   # düz renk — alpha DEĞİL (üst üste binme)
+    "color-accent-subtle": "#EBF0F6",  # düz renk — alpha DEĞİL (üst üste binme)
     # ── Kanıt skalası (Spec §8.1) ──
     # İsimler durum adlarıdır, renk adları değil: `evidence_status` beş
     # değerlidir ve bileşenler o beş değeri arar.
-    "color-strong": "#15803D",          # güçlü teyitli
+    "color-strong": "#15803D",  # güçlü teyitli
     "color-strong-subtle": "#F0F7F1",
-    "color-partial": "#A16207",         # kısmen teyitli
+    "color-partial": "#A16207",  # kısmen teyitli
     "color-partial-subtle": "#FCF6E9",
-    "color-single": "#C2410C",          # tek kaynaklı
+    "color-single": "#C2410C",  # tek kaynaklı
     "color-single-subtle": "#FDF1EA",
-    "color-contra": "#B91C1C",          # çelişkili
+    "color-contra": "#B91C1C",  # çelişkili
     "color-contra-subtle": "#FBECEC",
     # `unverified` kasıtlı olarak RENKSİZDİR — doğrulanmamış bir iddiaya
     # renk vermek ona olmadığı bir ağırlık yükler.
@@ -93,13 +93,13 @@ LIGHT: Final[dict[str, str]] = {
 #   · derinliği gölge değil YÜZEY AÇIKLIĞI verir
 #   · aksan light'takinden ~%10 daha açık ve daha az doygun
 DARK: Final[dict[str, str]] = {
-    "color-bg": "#0E1013",              # gece mürekkebi
+    "color-bg": "#0E1013",  # gece mürekkebi
     "color-surface": "#16181C",
     "color-surface-sunken": "#1C1F24",
     "color-overlay": "#1C1F24",
     "color-border": "#282B31",
     "color-border-strong": "#6E7279",
-    "color-fg": "#F4F2EE",              # sıcak beyaz — kağıdın hatırası
+    "color-fg": "#F4F2EE",  # sıcak beyaz — kağıdın hatırası
     "color-fg-muted": "#A9ACB2",
     "color-fg-subtle": "#8A8E95",
     "color-fg-on-accent": "#0E1013",
@@ -139,22 +139,22 @@ STATUS_TOKEN: Final[dict[str, str]] = {
 # 4px tabanlı, 7 değer. Ara değer (5, 10, 13, 18, 22px) YASAK — bir şey
 # "biraz kaymış" görünüyorsa çözüm ara değer değil, yapıyı düzeltmektir.
 SPACE: Final[dict[str, str]] = {
-    "space-1": "4px",    # ikon-metin arası
-    "space-2": "8px",    # kart içi sıkı gruplar
-    "space-3": "12px",   # form alanı içi
-    "space-4": "16px",   # yoğun kart padding, kart arası (yoğun)
-    "space-6": "24px",   # kart arası (standart), içerik dikey ritmi
-    "space-8": "32px",   # bölüm arası
+    "space-1": "4px",  # ikon-metin arası
+    "space-2": "8px",  # kart içi sıkı gruplar
+    "space-3": "12px",  # form alanı içi
+    "space-4": "16px",  # yoğun kart padding, kart arası (yoğun)
+    "space-6": "24px",  # kart arası (standart), içerik dikey ritmi
+    "space-8": "32px",  # bölüm arası
     "space-12": "48px",  # sayfa bölgeleri arası
 }
 
 # ═══════════════════════════════════════════════════════ 5.4 RADIUS
 # Karakter: 12px = modern, ölçülü. 4px teknik/keskin, 20px+ oyuncaklı olurdu.
 RADIUS: Final[dict[str, str]] = {
-    "radius-sm": "6px",       # rozet, tag, çip
-    "radius-md": "8px",       # input, buton, nav öğesi
-    "radius-lg": "12px",      # kart, panel  ← ana karakter
-    "radius-xl": "16px",      # modal
+    "radius-sm": "6px",  # rozet, tag, çip
+    "radius-md": "8px",  # input, buton, nav öğesi
+    "radius-lg": "12px",  # kart, panel  ← ana karakter
+    "radius-xl": "16px",  # modal
     "radius-full": "9999px",  # avatar, nokta
 }
 
@@ -190,14 +190,14 @@ FONT: Final[dict[str, str]] = {
 # 6.3 Ölçek — 7+1 adım. Kural: yazı büyüdükçe letter-spacing AZALIR.
 # (boyut, satır yüksekliği, letter-spacing)
 TEXT: Final[dict[str, tuple[str, str, str]]] = {
-    "text-xs": ("12px", "16px", ".01em"),      # etiket, tablo başlığı
-    "text-sm": ("13px", "20px", "0"),          # tablo hücresi, ikincil
-    "text-base": ("14px", "22px", "0"),        # UI varsayılanı
-    "text-lg": ("16px", "24px", "-.005em"),    # kart başlığı
-    "text-xl": ("20px", "28px", "-.01em"),     # bölüm başlığı
-    "text-2xl": ("25px", "32px", "-.015em"),   # sayfa başlığı (serif)
-    "text-3xl": ("30px", "36px", "-.02em"),    # KPI değeri
-    "text-4xl": ("40px", "44px", "-.025em"),   # yalnız boş/hata durumu ikonu
+    "text-xs": ("12px", "16px", ".01em"),  # etiket, tablo başlığı
+    "text-sm": ("13px", "20px", "0"),  # tablo hücresi, ikincil
+    "text-base": ("14px", "22px", "0"),  # UI varsayılanı
+    "text-lg": ("16px", "24px", "-.005em"),  # kart başlığı
+    "text-xl": ("20px", "28px", "-.01em"),  # bölüm başlığı
+    "text-2xl": ("25px", "32px", "-.015em"),  # sayfa başlığı (serif)
+    "text-3xl": ("30px", "36px", "-.02em"),  # KPI değeri
+    "text-4xl": ("40px", "44px", "-.025em"),  # yalnız boş/hata durumu ikonu
 }
 
 # 6.4 Sadece 3 ağırlık. 700+ yok (hero yok), 300 hiç yok (ekranda zayıf).
@@ -244,11 +244,7 @@ def relative_luminance(hex_color: str) -> float:
     """WCAG 2.x bağıl parlaklık. Girdi `#RRGGBB`."""
     raw = hex_color.lstrip("#")
     r, g, b = (int(raw[i : i + 2], 16) / 255 for i in (0, 2, 4))
-    return (
-        0.2126 * _srgb_to_linear(r)
-        + 0.7152 * _srgb_to_linear(g)
-        + 0.0722 * _srgb_to_linear(b)
-    )
+    return 0.2126 * _srgb_to_linear(r) + 0.7152 * _srgb_to_linear(g) + 0.0722 * _srgb_to_linear(b)
 
 
 def contrast_ratio(fg: str, bg: str) -> float:

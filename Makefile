@@ -1,4 +1,4 @@
-.PHONY: help setup up workers start stop restart down migrate test lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
+.PHONY: help setup up workers start stop restart update down migrate test lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
 
 export PD_GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null)
 export PD_GIT_BRANCH ?= $(shell git branch --show-current 2>/dev/null)
@@ -10,6 +10,7 @@ help:
 	@echo "  make start        TÜM yığını ayağa kaldır (günlük kullanım)"
 	@echo "  make stop         Yığını durdur"
 	@echo "  make restart      Yeniden kurup başlat (kod değiştiyse)"
+	@echo "  make update       Tüm dikey kaynaklarını güncelle ve boru hattını işlet"
 	@echo "  make up           Postgres + Redis + API ayağa kaldır"
 	@echo "  make workers      Worker + beat'i YENİDEN KURARAK ayağa kaldır"
 	@echo "  make migrate      Migration'ları uygula"
@@ -41,8 +42,9 @@ help:
 	@echo "  make metrics      8 ürün metriğini topla (F3-19)"
 	@echo "  make genbench     Üretim modeli kıyaslaması (B-71)"
 	@echo "  make embed        Bekleyen makaleleri embed et"
-	@echo "  make entities     Varlık çıkarımı"
 	@echo "  make health       Kaynak sağlık raporu"
+	@echo "  make verify-feeds Tüm canlı RSS ve feed akışlarını doğrula"
+	@echo "  make actor-freshness Siyasi aktör kataloğunun tazeliğini denetle"
 	@echo "  make feeds        Doğrulanmamış kaynakların akışını ara"
 	@echo "  make cost         Maliyet modelini yeniden hesapla (F0-06/F0-07)"
 	@echo "  make ci           CI'ın yerelde koştuğu her şey"
@@ -79,6 +81,8 @@ stop:
 # `restart` komutu imajı YENİDEN KURMAZ ve B-77'nin tam olarak
 # tekrarına yol açar.
 restart: stop start
+
+update: sync ingest embed entities cluster claims evidence context
 
 migrate:
 	docker compose run --rm migrate
@@ -156,6 +160,12 @@ genbench:
 
 health:
 	python -m scripts.ingest health
+
+verify-feeds:
+	python -m scripts.verify_feeds
+
+actor-freshness:
+	python -m scripts.validate_actor_freshness
 
 correction:
 	python -m scripts.correction_report

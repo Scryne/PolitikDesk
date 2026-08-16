@@ -63,9 +63,7 @@ class ElectionModeConfig:
     # Açıkken `single_source` da engeller: seçim döneminde tek kaynağa
     # dayanan bir iddiadan içerik üretmek, hatanın maliyetinin en yüksek
     # olduğu anda en zayıf dayanağı kullanmaktır.
-    blocked_statuses: frozenset[str] = field(
-        default_factory=lambda: frozenset({"unverified"})
-    )
+    blocked_statuses: frozenset[str] = field(default_factory=lambda: frozenset({"unverified"}))
 
     # --- madde 3 ve 4 ---
     requires_source_link: bool = False

@@ -16,6 +16,7 @@ import hashlib
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 
 # Spec §8.2: simhash Hamming mesafesi <= 6 -> yakın tekrar / ajans kopyası
 SIMHASH_BITS = 64
@@ -25,11 +26,39 @@ _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 # Türkçe durak kelimeler: parmak izini içerikten çok dilbilgisinden
 # etkilenmekten korur.
-_STOPWORDS = frozenset({
-    "ve", "ile", "bir", "bu", "da", "de", "için", "olarak", "olan", "daha",
-    "en", "gibi", "ancak", "ise", "ki", "mi", "mu", "ya", "veya", "her",
-    "çok", "sonra", "önce", "kadar", "göre", "üzere", "the", "of", "in",
-})
+_STOPWORDS = frozenset(
+    {
+        "ve",
+        "ile",
+        "bir",
+        "bu",
+        "da",
+        "de",
+        "için",
+        "olarak",
+        "olan",
+        "daha",
+        "en",
+        "gibi",
+        "ancak",
+        "ise",
+        "ki",
+        "mi",
+        "mu",
+        "ya",
+        "veya",
+        "her",
+        "çok",
+        "sonra",
+        "önce",
+        "kadar",
+        "göre",
+        "üzere",
+        "the",
+        "of",
+        "in",
+    }
+)
 
 
 def tokenize(text: str) -> list[str]:
@@ -101,13 +130,12 @@ NGRAM_CONTAINMENT_THRESHOLD = 0.60
 MIN_TOKENS_FOR_NGRAM = 8
 
 
+@lru_cache(maxsize=8192)
 def ngram_set(text: str, size: int = NGRAM_SIZE) -> frozenset[str]:
     tokens = tokenize(text)
     if len(tokens) < size:
         return frozenset(tokens)
-    return frozenset(
-        " ".join(tokens[i : i + size]) for i in range(len(tokens) - size + 1)
-    )
+    return frozenset(" ".join(tokens[i : i + size]) for i in range(len(tokens) - size + 1))
 
 
 def containment(a: frozenset[str], b: frozenset[str]) -> float:
@@ -193,8 +221,7 @@ def classify(
                 best = (article_id, distance)
 
     if best is not None:
-        return DuplicateVerdict(kind="near", matched_article_id=best[0],
-                                distance=best[1])
+        return DuplicateVerdict(kind="near", matched_article_id=best[0], distance=best[1])
 
     # İkinci sinyal: n-gram içermesi (Spec §8.2). simhash kaçırdığında devreye
     # girer — kopyalayan site metne kendi cümlesini eklediğinde tipik durum.

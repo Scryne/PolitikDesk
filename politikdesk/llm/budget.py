@@ -67,9 +67,7 @@ class InMemoryLedger:
 
     def spent_this_month_usd(self) -> float:
         now = datetime.now(UTC)
-        return self._sum(
-            now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        )
+        return self._sum(now.replace(day=1, hour=0, minute=0, second=0, microsecond=0))
 
 
 class PostgresLedger:
@@ -147,13 +145,15 @@ class BudgetGuard:
         """
         daily = self.ledger.spent_today_usd()
         if daily + estimated_cost_usd > self.settings.llm_daily_budget_usd:
-            raise BudgetExceeded("Günlük", daily + estimated_cost_usd,
-                                 self.settings.llm_daily_budget_usd)
+            raise BudgetExceeded(
+                "Günlük", daily + estimated_cost_usd, self.settings.llm_daily_budget_usd
+            )
 
         monthly = self.ledger.spent_this_month_usd()
         if monthly + estimated_cost_usd > self.settings.llm_monthly_budget_usd:
-            raise BudgetExceeded("Aylık", monthly + estimated_cost_usd,
-                                 self.settings.llm_monthly_budget_usd)
+            raise BudgetExceeded(
+                "Aylık", monthly + estimated_cost_usd, self.settings.llm_monthly_budget_usd
+            )
 
         self._maybe_warn(daily, self.settings.llm_daily_budget_usd, "günlük")
         self._maybe_warn(monthly, self.settings.llm_monthly_budget_usd, "aylık")
@@ -241,14 +241,21 @@ class BudgetGuard:
             spent = float(snap[f"{key}_spent_usd"])
             cap = float(snap[f"{key}_cap_usd"])
             detail = {
-                "period": key, "level": level, "ratio": round(ratio, 3),
-                "spent_usd": round(spent, 4), "cap_usd": cap,
+                "period": key,
+                "level": level,
+                "ratio": round(ratio, 3),
+                "spent_usd": round(spent, 4),
+                "cap_usd": cap,
             }
             fired.append(detail)
 
             log.error(
-                "llm_budget_alert", period=key, level=level,
-                spent_usd=round(spent, 4), cap_usd=cap, ratio=round(ratio, 3),
+                "llm_budget_alert",
+                period=key,
+                level=level,
+                spent_usd=round(spent, 4),
+                cap_usd=cap,
+                ratio=round(ratio, 3),
             )
             audit.write("llm_budget_alert", target, payload=detail)
 

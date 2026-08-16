@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from politikdesk.editorial import repository as editorial_repo
@@ -87,9 +88,7 @@ def create_draft(event_id: int, payload: DraftRequest) -> dict[str, Any]:
     """Taslak üretir (F3-10) veya kapıya takılırsa 409 döner (F3-11)."""
     user_id = current_user_id()
     try:
-        return service.generate_for_event(
-            event_id=event_id, angle=payload.angle, user_id=user_id
-        )
+        return service.generate_for_event(event_id=event_id, angle=payload.angle, user_id=user_id)
     except GenerationBlocked as blocked:
         # 409 Conflict: istek geçerli ama kaynağın DURUMU üretime izin
         # vermiyor. 403 olurdu ki bu bir yetki sorunu değil.
@@ -103,8 +102,10 @@ def create_draft(event_id: int, payload: DraftRequest) -> dict[str, Any]:
     except LLMError as exc:
         raise HTTPException(
             status_code=502,
-            detail={"message": f"Model çağrısı başarısız: {type(exc).__name__}",
-                    "reason": "llm_error"},
+            detail={
+                "message": f"Model çağrısı başarısız: {type(exc).__name__}",
+                "reason": "llm_error",
+            },
         ) from exc
 
 
@@ -144,7 +145,7 @@ def publish(draft_id: int) -> dict[str, Any]:
 # --------------------------------------------------------------- geri bildirim
 @router.post("/events/{event_id}/feedback", status_code=201)
 def add_feedback(event_id: int, payload: FeedbackRequest) -> dict[str, Any]:
-    """"Bu yanlış" (F3-21) — olayı denetim kuyruğuna düşürür."""
+    """ "Bu yanlış" (F3-21) — olayı denetim kuyruğuna düşürür."""
     return repository.add_feedback(
         event_id=event_id,
         user_id=current_user_id(),
@@ -290,3 +291,27 @@ def get_archive(limit: int = 50) -> list[dict[str, Any]]:
     from politikdesk.editorial.archive import list_archived_publications
 
     return list_archived_publications(limit=limit)
+
+
+@router.get("/events/stream")
+def live_events_stream() -> StreamingResponse:
+    """Editoryal anlık bildirimler için Server-Sent Events (SSE) akışı (Spec v3.5 §14)."""
+    from politikdesk.feature_flags import is_live_notifications_enabled
+    from politikdesk.web.live_events import hub, sse_event_stream
+
+    if not is_live_notifications_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Canlı bildirim akışı yapılandırma tarafından devre dışı bırakıldı.",
+        )
+
+    q = hub.subscribe()
+    return StreamingResponse(
+        sse_event_stream(q, timeout=15.0),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

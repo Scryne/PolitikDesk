@@ -42,7 +42,9 @@ class _FakeHttp:
     calls: list[str] = field(default_factory=list)
     fail: bool = False
 
-    def get(self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = "") -> _FakeResponse:
+    def get(
+        self, url: str, *, headers: dict[str, str] | None = None, source_slug: str = ""
+    ) -> _FakeResponse:
         self.calls.append(url)
         if self.fail:
             raise TimeoutError("Sayıştay bağlantı hatası")
@@ -78,7 +80,9 @@ def test_sayistay_empty_and_malformed() -> None:
     adapter_empty = SayistayAdapter(slug="sayistay", base_url=BASE, http=_FakeHttp(body=""))  # type: ignore[arg-type]
     assert adapter_empty.fetch() == []
 
-    adapter_malformed = SayistayAdapter(slug="sayistay", base_url=BASE, http=_FakeHttp(body="<<<invalid html"))  # type: ignore[arg-type]
+    adapter_malformed = SayistayAdapter(
+        slug="sayistay", base_url=BASE, http=_FakeHttp(body="<<<invalid html")
+    )  # type: ignore[arg-type]
     assert adapter_malformed.fetch() == []
 
 

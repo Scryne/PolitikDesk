@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import secrets
 from contextlib import asynccontextmanager
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -132,9 +133,11 @@ class _TokenAuthMiddleware(BaseHTTPMiddleware):
         if provided is None:
             return JSONResponse(
                 status_code=401,
-                content={"detail": "Kimlik doğrulama gerekli. "
-                         "Authorization: Bearer <token> veya "
-                         "X-API-Token başlığı ekleyin."},
+                content={
+                    "detail": "Kimlik doğrulama gerekli. "
+                    "Authorization: Bearer <token> veya "
+                    "X-API-Token başlığı ekleyin."
+                },
             )
         if not secrets.compare_digest(provided, token):
             return JSONResponse(
@@ -145,23 +148,41 @@ class _TokenAuthMiddleware(BaseHTTPMiddleware):
 
 
 class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
-    """CSRF koruması (I06 — denetim düzeltmesi).
+    """CSRF koruması (I06 — denetim düzeltmesi, D02/D04 ile güçlendirildi).
 
     Tarayıcıdan gelen durum değiştiren (POST/PUT/DELETE/PATCH) isteklerde
     Origin/Referer başlığının sunucu adresiyle (Host) eşleştiğini doğrular.
     Farklı bir kaynaktan (cross-origin) gelen istekler 403 ile reddedilir.
+
+    D02 düzeltmesi: Web UI rotalarında Origin/Referer başlığı YOKSA istek
+    reddedilir. Programatik API rotalarında (`/api/`, `/ingest/`) ise
+    Origin başlığı yoksa (CLI/curl istemcileri) geçişe izin verilir,
+    ancak Origin başlığı VARSA Host ile mutlaka eşleşmelidir.
+
+    D04 düzeltmesi: `X-API-Token` veya `Authorization: Bearer` taşıyan
+    istekler muaf tutulur — bu istemciler kimliklerini açık bir sırdan
+    kanıtlamıştır ve CSRF'e açık değildir.
     """
 
     _SAFE_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
+    _NO_ORIGIN_ALLOWED_PREFIXES = ("/api/", "/ingest/", "/health/", "/static/")
 
     async def dispatch(self, request: Request, call_next):  # noqa: ANN201
         if request.method in self._SAFE_METHODS:
             return await call_next(request)
 
+        # D04: belirteç taşıyan istekler CSRF'e açık değildir — çerez
+        # tabanlı oturum yok, sır bizzat istekte taşınıyor.
+        if request.headers.get("x-api-token") or (
+            request.headers.get("authorization", "").startswith("Bearer ")
+        ):
+            return await call_next(request)
+
         origin = request.headers.get("origin")
         referer = request.headers.get("referer")
-
         source = origin or referer
+        path = request.url.path
+
         if source:
             source_netloc = urlparse(source).netloc
             host = request.headers.get("host", "")
@@ -170,11 +191,24 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
                     "csrf_origin_mismatch",
                     origin=source,
                     host=host,
-                    path=request.url.path,
+                    path=path,
                 )
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Cross-origin istek reddedildi (CSRF koruması)."},
+                )
+        else:
+            # D02: Origin/Referer yoksa HTML/Form arayüzü rotalarında (ör. /admin, /drafts)
+            # istek reddedilir; yalnızca programatik API rotalarına izin verilir.
+            if not any(path.startswith(prefix) for prefix in self._NO_ORIGIN_ALLOWED_PREFIXES):
+                log.warning(
+                    "csrf_no_origin",
+                    method=request.method,
+                    path=path,
+                )
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Origin veya Referer başlığı gerekli (CSRF koruması)."},
                 )
 
         return await call_next(request)
@@ -194,14 +228,17 @@ app.add_middleware(_TokenAuthMiddleware)
 # zaman JSON döner (JS uçları ona güvenir), gerisi HTML. Başlığa bakmak
 # `fetch()`'in gönderdiği `*/*` yüzünden JS'e de HTML döndürürdü.
 _ERROR_COPY: dict[int, tuple[str, str]] = {
-    403: ("Bu sayfa için yetkin yok",
-          "Erişim gerekiyorsa yönetici hesabından açılmalı."),
-    404: ("Aradığın kayıt yok",
-          "Adres yanlış olabilir ya da kayıt birleştirilmiş/silinmiş olabilir. "
-          "Gündemden yeniden başlayabilirsin."),
-    500: ("Bir şeyler ters gitti",
-          "Sunucu bu isteği tamamlayamadı. Birkaç saniye sonra tekrar dene; "
-          "sürerse boru hattı panosunda bir arıza görünüyor olabilir."),
+    403: ("Bu sayfa için yetkin yok", "Erişim gerekiyorsa yönetici hesabından açılmalı."),
+    404: (
+        "Aradığın kayıt yok",
+        "Adres yanlış olabilir ya da kayıt birleştirilmiş/silinmiş olabilir. "
+        "Gündemden yeniden başlayabilirsin.",
+    ),
+    500: (
+        "Bir şeyler ters gitti",
+        "Sunucu bu isteği tamamlayamadı. Birkaç saniye sonra tekrar dene; "
+        "sürerse boru hattı panosunda bir arıza görünüyor olabilir.",
+    ),
 }
 
 
@@ -226,17 +263,14 @@ def _wants_json(request: Request) -> bool:
 def _error_page(status: int, detail: str) -> HTMLResponse:
     from politikdesk.web.ui import button, error_state, page
 
-    title, body = _ERROR_COPY.get(
-        status, ("İstek tamamlanamadı", "Beklenmeyen bir durum oluştu.")
-    )
+    title, body = _ERROR_COPY.get(status, ("İstek tamamlanamadı", "Beklenmeyen bir durum oluştu."))
     html = page(
         title,
         error_state(
             title,
             body,
             # Bölüm 10.4: ne oldu → neden → NASIL ÇÖZÜLÜR. Aksiyon şart.
-            retry=button("Gündeme dön", href="/feed", variant="primary",
-                         icon_name="arrow-left"),
+            retry=button("Gündeme dön", href="/feed", variant="primary", icon_name="arrow-left"),
             # Teknik ayrıntı küçük ve altta.
             code=f"HTTP {status} · {detail}" if detail else f"HTTP {status}",
         ),
@@ -250,8 +284,7 @@ async def http_exception_handler(  # noqa: RUF029
     request: Request, exc: StarletteHTTPException
 ) -> Response:
     if _wants_json(request):
-        return JSONResponse(status_code=exc.status_code,
-                            content={"detail": exc.detail})
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     return _error_page(exc.status_code, str(exc.detail))
 
 
@@ -278,6 +311,21 @@ def live() -> dict[str, Any]:
     }
 
 
+# D05 düzeltmesi: Redis sağlık kontrolü her çağrıda yeni bağlantı
+# açıyordu. Tek bir önbelleğe alınmış istemci kullanılır — db.py'nin
+# `get_pool()` kalıbıyla tutarlı.
+@lru_cache(maxsize=1)
+def _redis_client():  # noqa: ANN202
+    import redis
+
+    return redis.from_url(get_settings().redis_url)
+
+
+def _redis_ping() -> bool:
+    """Önbelleğe alınmış Redis istemcisine ping atar."""
+    return bool(_redis_client().ping())
+
+
 @app.get("/health/ready", tags=["health"])
 def ready() -> JSONResponse:
     """Bağımlılıklar (Postgres, Redis) erişilebilir mi?"""
@@ -292,9 +340,7 @@ def ready() -> JSONResponse:
         checks["postgres"] = False
 
     try:
-        import redis
-
-        checks["redis"] = bool(redis.from_url(get_settings().redis_url).ping())
+        checks["redis"] = _redis_ping()
     except Exception:  # noqa: BLE001
         log.warning("healthcheck_redis_failed", exc_info=True)
         checks["redis"] = False

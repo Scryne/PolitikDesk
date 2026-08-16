@@ -47,7 +47,10 @@ CHECKER_VERSION: Final[str] = "prepublish-check@1.0.0"
 Severity = Literal["ok", "warn", "error", "info"]
 
 SEVERITY_MARK: Final[dict[str, str]] = {
-    "ok": "✓", "warn": "⚠", "error": "✗", "info": "ⓘ",
+    "ok": "✓",
+    "warn": "⚠",
+    "error": "✗",
+    "info": "ⓘ",
 }
 
 # Cümle sınırı: nokta/ünlem/soru + boşluk + büyük harf veya tırnak.
@@ -62,11 +65,49 @@ _SENTENCE_SPLIT_RE: Final[re.Pattern[str]] = re.compile(
 # kadar az içerik sözcüğü bırakabilir.
 _STOPWORDS: Final[frozenset[str]] = frozenset(
     {
-        "ve", "ile", "ama", "fakat", "ancak", "veya", "ya", "de", "da", "ki",
-        "bu", "şu", "o", "bir", "iki", "için", "gibi", "kadar", "daha", "en",
-        "olarak", "olan", "oldu", "olduğu", "sonra", "önce", "göre", "her",
-        "çok", "az", "yine", "ise", "hem", "tüm", "bütün", "kendi", "böyle",
-        "yani", "ayrıca", "yaklaşık", "bazı", "diğer", "üzere",
+        "ve",
+        "ile",
+        "ama",
+        "fakat",
+        "ancak",
+        "veya",
+        "ya",
+        "de",
+        "da",
+        "ki",
+        "bu",
+        "şu",
+        "o",
+        "bir",
+        "iki",
+        "için",
+        "gibi",
+        "kadar",
+        "daha",
+        "en",
+        "olarak",
+        "olan",
+        "oldu",
+        "olduğu",
+        "sonra",
+        "önce",
+        "göre",
+        "her",
+        "çok",
+        "az",
+        "yine",
+        "ise",
+        "hem",
+        "tüm",
+        "bütün",
+        "kendi",
+        "böyle",
+        "yani",
+        "ayrıca",
+        "yaklaşık",
+        "bazı",
+        "diğer",
+        "üzere",
     }
 )
 _MIN_TOKEN_LEN: Final[int] = 4
@@ -80,11 +121,31 @@ LINK_THRESHOLD: Final[float] = 0.4
 # Yorum sinyalleri — "bu cümle haber değil, değerlendirme" göstergeleri.
 # Liste bir yargı üretmez, yalnızca İŞARETLENMEMİŞ yorumu sorar.
 _OPINION_MARKERS: Final[tuple[str, ...]] = (
-    "bence", "kanımca", "görünüyor", "anlaşılıyor", "beklenebilir",
-    "olabilir", "gerekir", "gerekiyor", "malesef", "maalesef", "ne yazık",
-    "aslında", "muhtemelen", "büyük ihtimalle", "sürpriz değil",
-    "dikkat çekici", "endişe verici", "olumlu", "olumsuz", "başarısız",
-    "yetersiz", "riskli", "kritik", "önemli bir sinyal", "sorun",
+    "bence",
+    "kanımca",
+    "görünüyor",
+    "anlaşılıyor",
+    "beklenebilir",
+    "olabilir",
+    "gerekir",
+    "gerekiyor",
+    "malesef",
+    "maalesef",
+    "ne yazık",
+    "aslında",
+    "muhtemelen",
+    "büyük ihtimalle",
+    "sürpriz değil",
+    "dikkat çekici",
+    "endişe verici",
+    "olumlu",
+    "olumsuz",
+    "başarısız",
+    "yetersiz",
+    "riskli",
+    "kritik",
+    "önemli bir sinyal",
+    "sorun",
 )
 
 
@@ -124,7 +185,7 @@ class CheckReport:
 
     @property
     def is_blocking(self) -> bool:
-        """"Yine de devam et" onay kutusu gerektiriyor mu?"""
+        """ "Yine de devam et" onay kutusu gerektiriyor mu?"""
         return any(i.blocking for i in self.items)
 
     @property
@@ -172,8 +233,7 @@ def split_sentences(text: str) -> list[str]:
 def _content_tokens(text: str) -> list[str]:
     tokens = re.findall(r"\w+", fold_text(text))
     return [
-        t for t in tokens
-        if len(t) >= _MIN_TOKEN_LEN and t not in _STOPWORDS and not t.isdigit()
+        t for t in tokens if len(t) >= _MIN_TOKEN_LEN and t not in _STOPWORDS and not t.isdigit()
     ]
 
 
@@ -201,22 +261,13 @@ def _opinion_markers(sentence: str) -> list[str]:
 
 
 # ------------------------------------------------------------- kontroller
-def _check_source_link(
-    draft: GeneratedDraft, cited: Sequence[ClaimForGeneration]
-) -> CheckItem:
+def _check_source_link(draft: GeneratedDraft, cited: Sequence[ClaimForGeneration]) -> CheckItem:
     """1 — Kaynak linki mevcut."""
     urls = sorted(
-        {
-            str(e.get("canonical_url"))
-            for c in cited
-            for e in c.evidence
-            if e.get("canonical_url")
-        }
+        {str(e.get("canonical_url")) for c in cited for e in c.evidence if e.get("canonical_url")}
     )
     if urls:
-        return CheckItem(
-            "source_link", "Kaynak linki mevcut", "ok", f"({len(urls)} link)"
-        )
+        return CheckItem("source_link", "Kaynak linki mevcut", "ok", f"({len(urls)} link)")
     # Kanıt var ama URL yok: kaynak adları taşınıyorsa uyarı, hiç yoksa hata.
     named = [e.get("source_name") for c in cited for e in c.evidence if e.get("source_name")]
     if named:
@@ -227,7 +278,9 @@ def _check_source_link(
             f"({len(set(map(str, named)))} kaynak)",
         )
     return CheckItem(
-        "source_link", "Kaynak linki bulunamadı", "error",
+        "source_link",
+        "Kaynak linki bulunamadı",
+        "error",
         "(0 link)",
         ("Atıf yapılan iddiaların hiçbirinde kaynak bağlantısı yok.",),
     )
@@ -240,12 +293,12 @@ def _check_numeric_match(grounding: GroundingReport) -> CheckItem:
     matched = total - len(bad)
 
     if total == 0:
-        return CheckItem(
-            "numeric_match", "Metinde sayısal veri yok", "ok", "(0/0)"
-        )
+        return CheckItem("numeric_match", "Metinde sayısal veri yok", "ok", "(0/0)")
     if not bad:
         return CheckItem(
-            "numeric_match", "Tüm sayısal veriler kanıtla eşleşti", "ok",
+            "numeric_match",
+            "Tüm sayısal veriler kanıtla eşleşti",
+            "ok",
             f"({matched}/{total})",
         )
     return CheckItem(
@@ -280,23 +333,24 @@ def _check_news_opinion(draft: GeneratedDraft, sentences: Sequence[str]) -> Chec
         )
     if marked:
         return CheckItem(
-            "news_opinion", "Haber ile yorum ayrı işaretlendi", "ok",
+            "news_opinion",
+            "Haber ile yorum ayrı işaretlendi",
+            "ok",
             f"({len(marked)} yorum cümlesi)",
         )
-    return CheckItem(
-        "news_opinion", "Haber ile yorum ayrı işaretlendi", "ok", "(yorum yok)"
-    )
+    return CheckItem("news_opinion", "Haber ile yorum ayrı işaretlendi", "ok", "(yorum yok)")
 
 
 def _check_single_source(cited: Sequence[ClaimForGeneration]) -> CheckItem:
     """4 — Tek kaynaklı iddia kullanımı."""
     weak = [
-        c for c in cited
-        if c.evidence_status in ("single_source", "unverified", "contradicted")
+        c for c in cited if c.evidence_status in ("single_source", "unverified", "contradicted")
     ]
     if not weak:
         return CheckItem(
-            "single_source", "Kullanılan iddiaların hepsi teyitli", "ok",
+            "single_source",
+            "Kullanılan iddiaların hepsi teyitli",
+            "ok",
             f"({len(cited)} iddia)",
         )
 
@@ -310,15 +364,11 @@ def _check_single_source(cited: Sequence[ClaimForGeneration]) -> CheckItem:
         f"{len(weak)} iddia tam teyitli değil",
         "warn",
         f"({len(weak)}/{len(cited)})",
-        tuple(
-            f'"{c.claim_text[:90]}" — {labels[c.evidence_status]}' for c in weak[:4]
-        ),
+        tuple(f'"{c.claim_text[:90]}" — {labels[c.evidence_status]}' for c in weak[:4]),
     )
 
 
-def _check_unlinked(
-    draft: GeneratedDraft, sentences: Sequence[str], haystack: str
-) -> CheckItem:
+def _check_unlinked(draft: GeneratedDraft, sentences: Sequence[str], haystack: str) -> CheckItem:
     """5 — Hiçbir kanıta bağlanamayan cümle (sayı içeriyorsa ENGELLEYİCİ)."""
     marked = {fold_text(s) for s in draft.commentary_sentences}
     unlinked: list[str] = []
@@ -357,7 +407,9 @@ def _check_unlinked(
             tuple(f"{s}  (Tahmin/yorum olarak etiketle?)" for s in unlinked[:4]),
         )
     return CheckItem(
-        "unlinked", "Her cümle bir kanıta bağlanabiliyor", "ok",
+        "unlinked",
+        "Her cümle bir kanıta bağlanabiliyor",
+        "ok",
         f"({len(sentences)} cümle)",
     )
 
@@ -382,16 +434,17 @@ def _check_missing_context(
 
     if notes:
         return CheckItem(
-            "missing_context", "Eksik bağlam", "info", f"({len(notes)} not)",
+            "missing_context",
+            "Eksik bağlam",
+            "info",
+            f"({len(notes)} not)",
             tuple(notes[:4]),
         )
     return CheckItem("missing_context", "Bağlam yeterli", "ok")
 
 
 # ------------------------------------------------------------------ kamu API
-_EMOJI = re.compile(
-    "[\U0001f300-\U0001faff\U00002600-\U000027bf\U0001f900-\U0001f9ff⬀-⯿]"
-)
+_EMOJI = re.compile("[\U0001f300-\U0001faff\U00002600-\U000027bf\U0001f900-\U0001f9ff⬀-⯿]")
 _HASHTAG = re.compile(r"(?:^|\s)#\w+", re.UNICODE)
 
 # Profil değeri -> izin verilen azami adet. `frequent` sınırsızdır.
@@ -437,9 +490,7 @@ def _check_profile_form(draft: GeneratedDraft, profile: dict[str, Any] | None) -
             continue
         found = pattern.findall(draft.body)
         if len(found) > allowance:
-            problems.append(
-                f"{label}: {len(found)} adet (profil azami {allowance})"
-            )
+            problems.append(f"{label}: {len(found)} adet (profil azami {allowance})")
 
     if problems:
         return CheckItem(
@@ -453,16 +504,32 @@ def _check_profile_form(draft: GeneratedDraft, profile: dict[str, Any] | None) -
 
 
 _IMPUTATION_WORDS: Final[tuple[str, ...]] = (
-    "yolsuzluk yaptı", "rüşvet aldı", "rüşvet verdi", "zimmetine geçirdi",
-    "hırsızlık yaptı", "dolandırdı", "vurgun yaptı", "sahtecilik yaptı",
-    "suç işledi", "kamuyu zarara uğrattı",
+    "yolsuzluk yaptı",
+    "rüşvet aldı",
+    "rüşvet verdi",
+    "zimmetine geçirdi",
+    "hırsızlık yaptı",
+    "dolandırdı",
+    "vurgun yaptı",
+    "sahtecilik yaptı",
+    "suç işledi",
+    "kamuyu zarara uğrattı",
 )
 
 _ATTRIBUTION_HEDGES: Final[tuple[str, ...]] = (
-    "iddia edildi", "iddia ediliyor", "öne sürüldü", "öne sürülüyor",
-    "raporunda yer aldı", "tutanakta yer aldı", "belirtildi",
-    "soruşturma açıldı", "dava açıldı", "fezleke hazırlandı",
-    "sayıştay raporuna göre", "tutanaklara göre", "ifade edildi",
+    "iddia edildi",
+    "iddia ediliyor",
+    "öne sürüldü",
+    "öne sürülüyor",
+    "raporunda yer aldı",
+    "tutanakta yer aldı",
+    "belirtildi",
+    "soruşturma açıldı",
+    "dava açıldı",
+    "fezleke hazırlandı",
+    "sayıştay raporuna göre",
+    "tutanaklara göre",
+    "ifade edildi",
 )
 
 

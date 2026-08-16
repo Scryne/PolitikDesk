@@ -130,7 +130,6 @@ def check_pytest() -> bool:
     return res.returncode == 0
 
 
-
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -170,7 +169,6 @@ def main() -> int:
     status_ver = "PASS" if version_pass else "FAIL"
     print(f"6. Engine Versioning ({RELATION_ENGINE_VERSION}) -> {status_ver}")
 
-
     print("7. Mypy Typecheck...")
     mypy_pass = check_mypy()
     print(f"   Mypy -> {'PASS' if mypy_pass else 'FAIL'}")
@@ -199,4 +197,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

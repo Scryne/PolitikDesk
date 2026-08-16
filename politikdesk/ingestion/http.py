@@ -11,7 +11,9 @@ değil.
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import os
+import socket
 import ssl
 import threading
 import time
@@ -46,10 +48,90 @@ DEFAULT_WRITE_TIMEOUT = 10.0
 DEFAULT_POOL_TIMEOUT = 5.0
 DEFAULT_MAX_RETRIES = 4
 RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
+
+_ALLOWED_SCHEMES = frozenset({"http", "https"})
+_DISALLOWED_HOSTNAMES = frozenset({
+    "localhost",
+    "localhost.localdomain",
+    "0.0.0.0",
+    "127.0.0.1",
+    "::1",
+})
+_DISALLOWED_SUFFIXES = (
+    ".local",
+    ".internal",
+    ".corp",
+    ".lan",
+    ".home",
+    ".intranet",
+)
+
+
+class UnsafeUrlError(ValueError):
+    """URL güvenli değil (iç ağ, desteklenmeyen şema, çözülemeyen host, geçersiz format)."""
+
+
+def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    )
+
+
+def validate_url(url: str, *, resolve_dns: bool = True) -> str:
+    """SSRF koruması: yalnızca genel internet adreslerine izin verir."""
+    if not url or not isinstance(url, str):
+        raise UnsafeUrlError("Geçersiz veya boş URL")
+
+    url_str = url.strip()
+    try:
+        parsed = urlparse(url_str)
+    except Exception as exc:
+        raise UnsafeUrlError(f"Ayrıştırılamayan URL: {url_str}") from exc
+
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise UnsafeUrlError(f"Desteklenmeyen şema: {parsed.scheme!r}")
+    if not parsed.hostname:
+        raise UnsafeUrlError("URL'de host yok")
+
+    host = parsed.hostname.lower().strip("[]")
+    if (
+        host in _DISALLOWED_HOSTNAMES
+        or any(host.endswith(suffix) for suffix in _DISALLOWED_SUFFIXES)
+    ):
+        raise UnsafeUrlError(f"Yerel/özel adrese erişilemez: {host}")
+
+    # Doğrudan IP verilmişse (IPv4 veya IPv6)
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        ip = None
+
+    if ip is not None and _is_private(ip):
+        raise UnsafeUrlError(f"Özel/ayrılmış IP adresine erişilemez: {host}")
+
+    if resolve_dns and ip is None:
+        try:
+            infos = socket.getaddrinfo(host, None)
+        except socket.gaierror as exc:
+            raise UnsafeUrlError(f"Host çözümlenemedi: {host}") from exc
+        for info in infos:
+            resolved = ipaddress.ip_address(info[4][0])
+            if _is_private(resolved):
+                raise UnsafeUrlError(f"Host özel bir adrese çözümleniyor: {host} -> {resolved}")
+
+    return url_str
+
+
 NON_RETRYABLE_ERRORS = (
     httpx.UnsupportedProtocol,
     httpx.DecodingError,
     httpx.InvalidURL,
+    UnsafeUrlError,
 )
 
 
@@ -76,7 +158,6 @@ def calculate_backoff(
     return exp_delay
 
 
-
 # Sunucunun göndermeyi unuttuğu ARA sertifikalar (F5-20). Kök değildir;
 # güven sınırını genişletmez — gerekçe `certs/README.md`.
 CERTS_DIR = Path(__file__).resolve().parent.parent.parent / "certs"
@@ -84,25 +165,7 @@ CERTS_DIR = Path(__file__).resolve().parent.parent.parent / "certs"
 
 @lru_cache(maxsize=1)
 def ca_bundle_path() -> str:
-    """certifi demeti + `certs/` altındaki ara sertifikalar.
-
-    Bazı sunucular ara sertifikayı göndermez. Tarayıcılar eksik halkayı
-    AIA adresinden kendileri indirir (*AIA chasing*); Python'un `ssl`
-    modülü indirmez ve doğrulama düşer. Sonuç, teşhisi zor bir
-    asimetridir: **site tarayıcıda açılır, koddan açılmaz.**
-    (Ölçülen örnek: `resmigazete.gov.tr` — yaprak sertifika DigiCert
-    imzalı ve geçerli, ama `GeoTrust TLS RSA CA G1` halkası eksik.)
-
-    Doğrulamayı kapatmak yerine halkayı tamamlıyoruz: Tier 1 birincil
-    kaynaktan okuduğumuzu söylerken karşı tarafın gerçekten o kurum
-    olduğunu doğrulamamak, kanıt zincirinin kendisini çürütürdü.
-
-    Demet bir kez kurulur ve süreç boyunca yeniden kullanılır.
-
-    Dosya kullanıcıya özel bir dizine yazılır (D04 düzeltmesi): genel
-    temp dizini tahmin edilebilir ve çok kullanıcılı ortamda bir saldırgan
-    demeti kendi kök CA'sıyla değiştirebilirdi.
-    """
+    """certifi demeti + `certs/` altındaki ara sertifikalar."""
     extras = sorted(CERTS_DIR.glob("*.pem")) if CERTS_DIR.is_dir() else []
     if not extras:
         return certifi.where()
@@ -120,7 +183,7 @@ def ca_bundle_path() -> str:
     temp_bundle = cache_dir / "ca-bundle.pem.tmp"
     parts = [Path(certifi.where()).read_text(encoding="ascii")]
     parts.extend(p.read_text(encoding="ascii") for p in extras)
-    
+
     temp_bundle.write_text("\n".join(parts), encoding="ascii")
     with contextlib.suppress(OSError):
         os.chmod(temp_bundle, 0o600)
@@ -131,25 +194,68 @@ def ca_bundle_path() -> str:
 
 @lru_cache(maxsize=1)
 def ssl_context() -> ssl.SSLContext:
-    """Tamamlanmış demetle kurulmuş TLS bağlamı.
-
-    httpx `verify=<dosya yolu>` biçimini kaldırdı (DeprecationWarning) ve
-    bir `SSLContext` istiyor. Bağlam bir kez kurulup yeniden kullanılır —
-    her istemci için sertifika demetini yeniden ayrıştırmak pahalıdır.
-    """
+    """Tamamlanmış demetle kurulmuş TLS bağlamı."""
     return ssl.create_default_context(cafile=ca_bundle_path())
 
 
-class RateLimiter:
-    """Kaynak (host) başına dakikada azami istek sayısı."""
+def get_redis_client() -> Any | None:
+    """Redis istemcisini yapılandırır veya None döner."""
+    try:
+        from politikdesk.config import get_settings
 
-    def __init__(self, max_per_minute: int = 12) -> None:
+        settings = get_settings()
+        if not settings.redis_url:
+            return None
+        import redis
+
+        return redis.Redis.from_url(settings.redis_url, decode_responses=True, socket_timeout=2.0)
+    except Exception:
+        return None
+
+
+_REDIS_RATELIMIT_LUA = """
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+local member = ARGV[3]
+local window = tonumber(ARGV[4])
+local ttl = tonumber(ARGV[5])
+
+redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
+local count = redis.call('ZCARD', key)
+
+if count < limit then
+    redis.call('ZADD', key, now, member)
+    redis.call('EXPIRE', key, ttl)
+    return {1, 0}
+else
+    local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
+    local oldest_ts = now - window
+    if oldest and #oldest >= 2 then
+        oldest_ts = tonumber(oldest[2])
+    end
+    local wait_time = math.max(0.01, window - (now - oldest_ts) + 0.01)
+    return {0, wait_time}
+end
+"""
+
+
+class RateLimiter:
+    """Kaynak (host) başına dakikada azami istek sayısı (in-memory veya Redis koordineli)."""
+
+    def __init__(self, max_per_minute: int = 12, redis_client: Any | None = None) -> None:
         self.max_per_minute = max_per_minute
         self._hits: dict[str, deque[float]] = defaultdict(deque)
         self._lock = threading.Lock()
+        self._redis = redis_client
 
     def acquire(self, key: str) -> float:
         """Gerekirse bekler. Beklenen saniyeyi döndürür."""
+        if self._redis is not None:
+            return self._acquire_redis(key)
+        return self._acquire_memory(key)
+
+    def _acquire_memory(self, key: str) -> float:
         waited = 0.0
         while True:
             with self._lock:
@@ -164,16 +270,52 @@ class RateLimiter:
             time.sleep(sleep_for)
             waited += sleep_for
 
+    def _acquire_redis(self, key: str) -> float:
+        if self._redis is None:
+            return self._acquire_memory(key)
+        waited = 0.0
+        redis_key = f"pd:ratelimit:{key}"
+        while True:
+            try:
+                now = time.time()
+                member = f"{now}_{time.monotonic()}"
+                result = self._redis.eval(
+                    _REDIS_RATELIMIT_LUA,
+                    1,
+                    redis_key,
+                    str(now),
+                    str(self.max_per_minute),
+                    member,
+                    "60.0",
+                    "65",
+                )
+                allowed = int(result[0])
+                wait_time = float(result[1])
+
+                if allowed == 1:
+                    return waited
+
+                time.sleep(wait_time)
+                waited += wait_time
+            except Exception as exc:
+                log.warning("redis_ratelimit_failed_fallback_inmemory", error=str(exc)[:100])
+                return self._acquire_memory(key)
+
 
 class RobotsCache:
-    """`robots.txt` saygısı. Alınamazsa erişime izin verilir (kısıt beyan
-    edilmemiş sayılır), ancak bu durum loglanır."""
+    """`robots.txt` saygısı. In-memory veya Redis koordineli."""
 
-    def __init__(self, client: httpx.Client, ttl_seconds: float = 86400.0) -> None:
+    def __init__(
+        self,
+        client: httpx.Client,
+        ttl_seconds: float = 86400.0,
+        redis_client: Any | None = None,
+    ) -> None:
         self._client = client
         self._ttl = ttl_seconds
         self._cache: dict[str, tuple[float, RobotFileParser | None]] = {}
         self._lock = threading.Lock()
+        self._redis = redis_client
 
     def allowed(self, url: str, user_agent: str = USER_AGENT) -> bool:
         parsed = urlparse(url)
@@ -193,14 +335,31 @@ class RobotsCache:
         return parser.can_fetch(user_agent, url)
 
     def _load(self, origin: str) -> RobotFileParser | None:
+        if self._redis is not None:
+            try:
+                cached_text = self._redis.get(f"pd:robots:{origin}")
+                if cached_text is not None:
+                    if cached_text == "__NOT_FOUND__":
+                        return None
+                    parser = RobotFileParser()
+                    parser.parse(cached_text.splitlines())
+                    return parser
+            except Exception as exc:
+                log.debug("redis_robots_cache_get_failed", error=str(exc)[:100])
+
         try:
             response = self._client.get(f"{origin}/robots.txt", timeout=10.0)
             if response.status_code != 200:
-                log.info("robots_not_published", origin=origin,
-                         status=response.status_code)
+                log.info("robots_not_published", origin=origin, status=response.status_code)
+                if self._redis is not None:
+                    with contextlib.suppress(Exception):
+                        self._redis.setex(f"pd:robots:{origin}", int(self._ttl), "__NOT_FOUND__")
                 return None
             parser = RobotFileParser()
             parser.parse(response.text.splitlines())
+            if self._redis is not None:
+                with contextlib.suppress(Exception):
+                    self._redis.setex(f"pd:robots:{origin}", int(self._ttl), response.text)
             return parser
         except Exception:  # noqa: BLE001
             log.info("robots_fetch_failed", origin=origin)
@@ -209,7 +368,7 @@ class RobotsCache:
 
 @dataclass
 class HttpClient:
-    """Kibar HTTP istemcisi: UA, oran sınırı, robots, üstel geri çekilme."""
+    """Kibar HTTP istemcisi: UA, oran sınırı, robots, üstel geri çekilme, SSRF koruması."""
 
     max_per_minute: int = 12
     timeout: float | httpx.Timeout = DEFAULT_TIMEOUT
@@ -222,12 +381,13 @@ class HttpClient:
     user_agent: str = USER_AGENT
     custom_headers: dict[str, str] | None = None
     enable_jitter: bool = False
+    enforce_ssrf: bool = True
+    resolve_dns: bool = False
+    redis_client: Any | None = None
+    use_redis: bool = False
 
     def __post_init__(self) -> None:
-        accept_hdr = (
-            "application/rss+xml, application/xml, text/xml, "
-            "text/html;q=0.9, */*;q=0.8"
-        )
+        accept_hdr = "application/rss+xml, application/xml, text/xml, text/html;q=0.9, */*;q=0.8"
         base_headers = {
             "User-Agent": self.user_agent,
             "Accept": accept_hdr,
@@ -258,18 +418,27 @@ class HttpClient:
         else:
             client_timeout = httpx.Timeout(self.timeout)
 
+        effective_redis = (
+            self.redis_client if self.redis_client is not None
+            else (get_redis_client() if self.use_redis else None)
+        )
+
+        def _on_request(request: httpx.Request) -> None:
+            if self.enforce_ssrf:
+                validate_url(str(request.url), resolve_dns=self.resolve_dns)
 
         self._client = httpx.Client(
             headers=base_headers,
             timeout=client_timeout,
             follow_redirects=True,
             http2=False,
-            # Eksik ara sertifikaları tamamlanmış demet (F5-20).
-            # Doğrulama AÇIK kalır; `verify=False` kullanılmaz.
+            event_hooks={"request": [_on_request]},
             verify=ssl_context(),
         )
-        self._limiter = RateLimiter(self.max_per_minute)
-        self._robots = RobotsCache(self._client) if self.respect_robots else None
+        self._limiter = RateLimiter(self.max_per_minute, redis_client=effective_redis)
+        self._robots = (
+            RobotsCache(self._client, redis_client=effective_redis) if self.respect_robots else None
+        )
 
     def get(
         self,
@@ -345,9 +514,7 @@ class HttpClient:
                 req_kwargs: dict[str, Any] = {"data": data, "headers": headers}
                 if follow_redirects is not None:
                     req_kwargs["follow_redirects"] = follow_redirects
-                response = self._client.request(
-                    method, url, **req_kwargs
-                )
+                response = self._client.request(method, url, **req_kwargs)
             except NON_RETRYABLE_ERRORS as exc:
                 # Kurtarılamaz hata (ör. geçersiz URL, protokol): yeniden deneme yapma
                 raise exc
@@ -360,38 +527,46 @@ class HttpClient:
 
             if response.status_code in RETRYABLE_STATUS:
                 last_error = httpx.HTTPStatusError(
-                    f"HTTP {response.status_code}", request=response.request,
+                    f"HTTP {response.status_code}",
+                    request=response.request,
                     response=response,
                 )
                 if attempt < self.max_retries - 1:
                     retry_after = _parse_retry_after(response)
-                    self._backoff(attempt, url, reason=str(response.status_code),
-                                  override=retry_after)
+                    self._backoff(
+                        attempt, url, reason=str(response.status_code), override=retry_after
+                    )
                 continue
 
             response.raise_for_status()
-            log.debug("http_ok", url=url, source=source_slug,
-                      status=response.status_code, bytes=len(response.content))
+            log.debug(
+                "http_ok",
+                url=url,
+                source=source_slug,
+                status=response.status_code,
+                bytes=len(response.content),
+            )
             return response
 
         assert last_error is not None
         raise last_error
 
-    def _backoff(self, attempt: int, url: str, *, reason: str,
-                 override: float | None = None) -> float:
+    def _backoff(
+        self, attempt: int, url: str, *, reason: str, override: float | None = None
+    ) -> float:
         delay = calculate_backoff(
             attempt,
             jitter=self.enable_jitter,
             override=override,
         )
-        log.warning("http_backoff", url=url, attempt=attempt + 1,
-                    reason=reason, sleep_s=round(delay, 2))
+        log.warning(
+            "http_backoff", url=url, attempt=attempt + 1, reason=reason, sleep_s=round(delay, 2)
+        )
         time.sleep(delay)
         return delay
 
     def close(self) -> None:
         self._client.close()
-
 
     def __enter__(self) -> HttpClient:
         return self

@@ -113,15 +113,18 @@ def render_html(content: BriefingContent, *, open_token: str | None = None) -> s
 
     upcoming = "".join(
         f'<li style="margin:4px 0">{_esc(u["expected_label"])} — {_esc(u["title"])}'
-        + (f' <span style="color:{_MUTED}">({_esc(u["source_name"])})</span>'
-           if u.get("source_name") else "")
+        + (
+            f' <span style="color:{_MUTED}">({_esc(u["source_name"])})</span>'
+            if u.get("source_name")
+            else ""
+        )
         + "</li>"
         for u in content.upcoming
     )
 
     unverified = "".join(
         f'<li style="margin:6px 0">{_status_dot(u.get("status"))}'
-        f'<b>{_esc(u["status_text"])}</b> — {_esc(u["claim_text"])} '
+        f"<b>{_esc(u['status_text'])}</b> — {_esc(u['claim_text'])} "
         f'<a href="{event_url(u["event_id"])}" style="color:{_LINK}">→</a></li>'
         for u in content.unverified
     )
@@ -202,9 +205,7 @@ def render_text(content: BriefingContent) -> str:
                 f"{event.independent_count} bağımsız teyit)"
             )
             if event.top_claim:
-                badge = STATUS_TEXT.get(
-                    event.top_claim_status or "", "doğrulanmamış"
-                )
+                badge = STATUS_TEXT.get(event.top_claim_status or "", "doğrulanmamış")
                 lines.append(f"   [{badge}] {event.top_claim}")
             lines.append(f"   {event.diversity_note}")
             lines.append(f"   {event_url(event.event_id)}")

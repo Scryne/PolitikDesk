@@ -121,53 +121,67 @@ def evaluate_and_record_relations_for_event(
     if candidates is None:
         candidates = fetch_candidate_events_from_db(source_event_id, limit=candidate_limit)
 
-    if not candidates:
-        return []
-
     results: list[RelationResult] = []
 
     # 3. Deterministik değerlendirme ve crash-safe per-candidate idempotent kayıt
-    for cand in candidates:
-        try:
-            res = evaluate_relation(source_data, cand)
-            if res.is_valid:
-                results.append(res)
-                # Per-candidate commit for crash-safety and partial result durability
-                with connection() as conn, conn.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO event_relations (
-                            from_event_id, to_event_id, relation, similarity, created_by,
-                            confidence, evidence_payload, status, engine_version, updated_at
+    if candidates:
+        for cand in candidates:
+            try:
+                res = evaluate_relation(source_data, cand)
+                if res.is_valid:
+                    results.append(res)
+                    # Per-candidate commit for crash-safety and partial result durability
+                    with connection() as conn, conn.cursor() as cur:
+                        cur.execute(
+                            """
+                            INSERT INTO event_relations (
+                                from_event_id, to_event_id, relation, similarity, created_by,
+                                confidence, evidence_payload, status, engine_version, updated_at
+                            )
+                            VALUES (%s, %s, %s, %s, 'system', %s, %s, %s, %s, now())
+                            ON CONFLICT (from_event_id, to_event_id, relation) DO UPDATE
+                            SET similarity = EXCLUDED.similarity,
+                                confidence = EXCLUDED.confidence,
+                                evidence_payload = EXCLUDED.evidence_payload,
+                                status = EXCLUDED.status,
+                                engine_version = EXCLUDED.engine_version,
+                                updated_at = now();
+                            """,
+                            (
+                                res.source_event_id,
+                                res.target_event_id,
+                                res.relation_type,
+                                res.confidence,
+                                res.confidence,
+                                json.dumps(res.evidence_payload),
+                                res.status,
+                                RELATION_ENGINE_VERSION,
+                            ),
                         )
-                        VALUES (%s, %s, %s, %s, 'system', %s, %s, %s, %s, now())
-                        ON CONFLICT (from_event_id, to_event_id, relation) DO UPDATE
-                        SET similarity = EXCLUDED.similarity,
-                            confidence = EXCLUDED.confidence,
-                            evidence_payload = EXCLUDED.evidence_payload,
-                            status = EXCLUDED.status,
-                            engine_version = EXCLUDED.engine_version,
-                            updated_at = now();
-                        """,
-                        (
-                            res.source_event_id,
-                            res.target_event_id,
-                            res.relation_type,
-                            res.confidence,
-                            res.confidence,
-                            json.dumps(res.evidence_payload),
-                            res.status,
-                            RELATION_ENGINE_VERSION,
-                        ),
-                    )
-                    conn.commit()
-        except Exception as exc:
-            log.error(
-                "relation_evaluation_candidate_failed",
-                source_event_id=source_event_id,
-                target_event_id=cand.event_id,
-                error=str(exc),
-            )
+                        conn.commit()
+            except Exception as exc:
+                log.error(
+                    "relation_evaluation_candidate_failed",
+                    source_event_id=source_event_id,
+                    target_event_id=cand.event_id,
+                    error=str(exc),
+                )
+
+    from politikdesk import audit
+
+    try:
+        audit.write(
+            "political_relations_evaluated",
+            f"events/{source_event_id}",
+            actor="system",
+            payload={
+                "candidates_count": len(candidates),
+                "relations_found": len(results),
+                "engine_version": RELATION_ENGINE_VERSION,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("audit_write_failed_relations_evaluated", error=str(exc))
 
     log.info(
         "political_relations_orchestrated",
@@ -183,11 +197,10 @@ def process_pending_political_relations(limit: int = 50) -> dict[str, int]:
     """Canlı boru hattında bekleyen siyasi olaylar için ilişki çıkarma turu."""
     with connection() as conn, conn.cursor() as cur:
         # Reprocessing guard: Halihazırda bu motor versiyonuyla taranmış ve
-        # son update'inden sonra değişmemiş olayları atla
+        # son update'inden sonra değişmemiş olayları atla (0 relation bulunsa dahi)
         cur.execute(
             """
             SELECT e.id
-
             FROM events e
             WHERE e.merged_into_id IS NULL
               AND (
@@ -203,10 +216,17 @@ def process_pending_political_relations(limit: int = 50) -> dict[str, int]:
                     AND r.engine_version = %s
                     AND r.updated_at >= e.last_update_at
               )
+              AND NOT EXISTS (
+                  SELECT 1 FROM audit_log a
+                  WHERE a.target = 'events/' || e.id
+                    AND a.action = 'political_relations_evaluated'
+                    AND a.payload->>'engine_version' = %s
+                    AND a.created_at >= e.last_update_at
+              )
             ORDER BY e.last_update_at DESC
             LIMIT %s;
             """,
-            (RELATION_ENGINE_VERSION, limit),
+            (RELATION_ENGINE_VERSION, RELATION_ENGINE_VERSION, limit),
         )
         rows = cur.fetchall()
 

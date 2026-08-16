@@ -90,8 +90,7 @@ def memory_directory_page() -> HTMLResponse:
             lbl_style = "font-size: 0.8rem; color: var(--pd-color-text-muted);"
             h3_style = "margin: 0; font-size: 1.1rem; color: var(--pd-color-accent);"
             p_style = (
-                "margin: 0.5rem 0 0 0; font-size: 0.85rem; "
-                "color: var(--pd-color-text-secondary);"
+                "margin: 0.5rem 0 0 0; font-size: 0.85rem; color: var(--pd-color-text-secondary);"
             )
             cards.append(f"""
                 <a href="/memory/{encoded_name}" class="pd-panel" style="{card_style}">
@@ -111,7 +110,7 @@ def memory_directory_page() -> HTMLResponse:
         )
         actors_html.append(f"""
             <div class="pd-grid" style="{grid_style}">
-                {''.join(cards)}
+                {"".join(cards)}
             </div>
         """)
 
@@ -119,7 +118,7 @@ def memory_directory_page() -> HTMLResponse:
     <div class="pd-stack pd-stack--lg">
         {head}
         {disclaimer_html}
-        {''.join(actors_html)}
+        {"".join(actors_html)}
     </div>
     """
 
@@ -135,18 +134,31 @@ def memory_directory_page() -> HTMLResponse:
 @router.get("/memory/{actor}", response_class=HTMLResponse)
 @router.get("/hafiza/{actor}", response_class=HTMLResponse)
 def actor_memory_page(actor: str) -> HTMLResponse:
-    """Aktör hafıza profili sayfası."""
+    """Aktör hafıza ve interaktif zaman tüneli sayfası."""
     user_id = current_user_id()
     touch_last_seen(user_id)
 
     decoded_actor = urllib.parse.unquote(actor)
     memory = mem_service.get_actor_memory(decoded_actor)
 
+    # Vaat gerçekleşme istatistikleri
+    p_count = len(memory.promises)
+    r_count = len(memory.relation_chains)
+
+    fulfilled_count = sum(
+        1 for p in memory.promises if p.relation_to_current in ("fulfils", "fulfilled")
+    )
+    contra_count = sum(
+        1 for p in memory.promises if p.relation_to_current in ("contradicts", "fails")
+    )
+    pending_count = p_count - (fulfilled_count + contra_count)
+    fulfil_rate = round(fulfilled_count / p_count * 100) if p_count > 0 else 0
+
     head = page_head(
-        f"Siyasi Hafıza: {decoded_actor}",
+        f"Siyasi Hafıza & Zaman Tüneli: {decoded_actor}",
         lede=(
-            f"Toplam {memory.total_claims} kayıtlı iddia, "
-            f"{len(memory.promises)} vaat, {len(memory.attributions)} beyan."
+            f"Toplam {memory.total_claims} kayıtlı iddia · {p_count} vaat "
+            f"· %{fulfil_rate} gerçekleşme oranı · {r_count} ilişki bağı."
         ),
     )
 
@@ -159,7 +171,7 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     disclaimer_text = (
         "Bu profil sayfasındaki kayıtlar, yalnızca resmî kaynaklarda ve "
         "haber kütüğünde yer alan beyan ve olay eşleşmelerini sunar; "
-        "kişisel kusur veya suçlama niteliği taşımaz."
+        "deterministik kanıt motoru tarafından şeffaf olarak arşivlenir."
     )
     disclaimer_html = f"""
     <div class="pd-panel" style="{disc_style}">
@@ -167,37 +179,114 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     </div>
     """
 
-    promises_html = []
-    for p in memory.promises:
-        promises_html.append(f"""
-            <li style="margin-bottom: 0.75rem;">
-                <strong>{esc(p.event_title)}</strong> ({esc(p.first_reported_at[:10])}):<br>
-                <em>"{esc(p.claim_text)}"</em>
-                <span class="pd-badge pd-badge--outline" style="margin-left: 0.5rem;">
-                    {esc(p.evidence_status)}
-                </span>
-            </li>
+    grid_style = (
+        "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;"
+    )
+    panel_style = "text-align: center; padding: 1.25rem;"
+
+    # Skor Kartı HTML
+    scorecard_html = f"""
+    <div class="pd-grid" style="{grid_style}">
+        <div class="pd-panel" style="{panel_style}">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--pd-color-accent);">
+                {p_count}
+            </div>
+            <div class="pd-text-muted" style="font-size: 0.85rem;">Toplam Vaat</div>
+        </div>
+        <div class="pd-panel" style="{panel_style}">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--pd-color-strong);">
+                {fulfilled_count}
+            </div>
+            <div class="pd-text-muted" style="font-size: 0.85rem;">Gerçekleşen / İcraat</div>
+        </div>
+        <div class="pd-panel" style="{panel_style}">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--pd-color-contra);">
+                {contra_count}
+            </div>
+            <div class="pd-text-muted" style="font-size: 0.85rem;">Çelişen / Gerçekleşmeyen</div>
+        </div>
+        <div class="pd-panel" style="{panel_style}">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--pd-color-single);">
+                {pending_count}
+            </div>
+            <div class="pd-text-muted" style="font-size: 0.85rem;">Takipte / Bekleyen</div>
+        </div>
+    </div>
+    """
+
+    # Kronolojik Zaman Tüneli
+    all_entries = sorted(
+        memory.promises + memory.attributions,
+        key=lambda e: e.first_reported_at,
+        reverse=True,
+    )
+
+    timeline_items = []
+    for entry in all_entries:
+        is_promise = entry.claim_type == "promise"
+        badge_class = "pd-badge--accent" if is_promise else "pd-badge--neutral"
+        type_label = "Siyasi Vaat" if is_promise else "Siyasi Beyan"
+
+        status_badge = (
+            f'<span class="pd-badge pd-badge--outline">{esc(entry.evidence_status)}</span>'
+        )
+        rel_label = ""
+        if entry.relation_to_current:
+            rel_label = (
+                f'<span class="pd-badge pd-badge--neutral" style="margin-left: 0.5rem;">'
+                f'{esc(entry.relation_to_current)}</span>'
+            )
+
+        date_str = esc(entry.first_reported_at[:10]) if entry.first_reported_at else "Tarihsiz"
+        encoded_title = urllib.parse.quote(entry.event_title)
+        item_style = "display: flex; gap: 1rem; margin-bottom: 1.5rem; position: relative;"
+        date_col_style = (
+            "min-width: 90px; font-weight: 600; font-size: 0.85rem; "
+            "color: var(--pd-color-text-secondary);"
+        )
+        body_col_style = (
+            "border-left: 2px solid var(--pd-color-border); padding-left: 1rem; flex: 1;"
+        )
+
+        header_style = "display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;"
+        title_style = "font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem;"
+        quote_style = (
+            "font-style: italic; color: var(--pd-color-text-secondary); font-size: 0.9rem;"
+        )
+        feed_link = f"/feed?q={encoded_title}"
+
+        timeline_items.append(f"""
+            <div class="timeline-item" style="{item_style}">
+                <div style="{date_col_style}">{date_str}</div>
+                <div style="{body_col_style}">
+                    <div style="{header_style}">
+                        <span class="pd-badge {badge_class}">{type_label}</span>
+                        {status_badge}
+                        {rel_label}
+                    </div>
+                    <div style="{title_style}">
+                        <a href="{feed_link}" style="color: inherit; text-decoration: none;">
+                            {esc(entry.event_title)}
+                        </a>
+                    </div>
+                    <div style="{quote_style}">
+                        "{esc(entry.claim_text)}"
+                    </div>
+                </div>
+            </div>
         """)
 
-    attributions_html = []
-    for a in memory.attributions:
-        attributions_html.append(f"""
-            <li style="margin-bottom: 0.75rem;">
-                <strong>{esc(a.event_title)}</strong> ({esc(a.first_reported_at[:10])}):<br>
-                <em>"{esc(a.claim_text)}"</em>
-                <span class="pd-badge pd-badge--outline" style="margin-left: 0.5rem;">
-                    {esc(a.evidence_status)}
-                </span>
-            </li>
-        """)
+    timeline_empty = '<div class="pd-text-muted">Kayıtlı olay veya beyan bulunmuyor.</div>'
+    timeline_html = "".join(timeline_items) if timeline_items else timeline_empty
 
+    # İlişki Ağacı HTML
     relations_html = []
     for r in memory.relation_chains:
-        rel_badge = f"<span class=\"pd-badge pd-badge--neutral\">{esc(r['relation'])}</span>"
-        from_t = esc(r['from_title'])
-        to_t = esc(r['to_title'])
+        rel_badge = f'<span class="pd-badge pd-badge--neutral">{esc(r["relation"])}</span>'
+        from_t = esc(r["from_title"])
+        to_t = esc(r["to_title"])
         relations_html.append(f"""
-            <li style="margin-bottom: 0.5rem;">
+            <li style="margin-bottom: 0.75rem; font-size: 0.9rem;">
                 <strong>{from_t}</strong> &rarr; {rel_badge} &rarr; <strong>{to_t}</strong>
             </li>
         """)
@@ -206,38 +295,27 @@ def actor_memory_page(actor: str) -> HTMLResponse:
         "margin-bottom: 1rem; border-bottom: 1px solid var(--pd-color-border); "
         "padding-bottom: 0.5rem;"
     )
-    p_empty = '<li class="pd-text-muted">Kayıtlı vaat bulunmuyor.</li>'
-    a_empty = '<li class="pd-text-muted">Kayıtlı beyan bulunmuyor.</li>'
     r_empty = '<li class="pd-text-muted">Kayıtlı olay ilişkisi bulunmuyor.</li>'
-
-    p_list = ''.join(promises_html) if promises_html else p_empty
-    a_list = ''.join(attributions_html) if attributions_html else a_empty
-    r_list = ''.join(relations_html) if relations_html else r_empty
-
-    p_count = len(memory.promises)
-    a_count = len(memory.attributions)
-    r_count = len(memory.relation_chains)
+    r_list = "".join(relations_html) if relations_html else r_empty
 
     content = f"""
     <div class="pd-stack pd-stack--lg">
         {head}
         {disclaimer_html}
+        {scorecard_html}
 
-        <div class="pd-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div class="pd-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
             <div class="pd-panel">
-                <h3 style="{header_border}">Kayıtlı Vaatler ({p_count})</h3>
-                <ul>{p_list}</ul>
+                <h3 style="{header_border}">Kronolojik Zaman Tüneli</h3>
+                <div class="timeline-container" style="margin-top: 1rem;">
+                    {timeline_html}
+                </div>
             </div>
 
             <div class="pd-panel">
-                <h3 style="{header_border}">Beyan ve Açıklamalar ({a_count})</h3>
-                <ul>{a_list}</ul>
+                <h3 style="{header_border}">İlişki ve Duruş Ağı ({r_count})</h3>
+                <ul style="padding-left: 1.25rem;">{r_list}</ul>
             </div>
-        </div>
-
-        <div class="pd-panel">
-            <h3 style="{header_border}">İlişki ve Çelişki Ağları ({r_count})</h3>
-            <ul>{r_list}</ul>
         </div>
     </div>
     """
