@@ -1,14 +1,21 @@
 {
-  "builds": [
+  "version": 2,
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  },
+  "rewrites": [
     {
-      "src": "api/index.py",
-      "use": "@vercel/python"
+      "source": "/(.*)",
+      "destination": "/api/index.py"
     }
   ],
-  "routes": [
+  "crons": [
     {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+      "path": "/admin/drain",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

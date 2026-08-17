@@ -63,10 +63,10 @@ def db_conn():
     try:
         yield conn
     finally:
-        try:
+        import contextlib
+
+        with contextlib.suppress(Exception):
             conn.close()
-        except Exception:
-            pass
 
 
 @pytest.fixture(autouse=True)
