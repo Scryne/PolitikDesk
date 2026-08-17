@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from scripts.check_deployment import ASSET_DIRS, expected_assets
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -222,4 +224,36 @@ def test_makefile_and_pd_cmd_commands_are_synced() -> None:
 
     assert not missing_in_make, f"Makefile içinde eksik temel komut(lar): {missing_in_make}"
     assert not missing_in_pd, f"pd.cmd içinde eksik temel komut(lar): {missing_in_pd}"
+
+
+@pytest.mark.asyncio
+async def test_vercel_serverless_entrypoint_path_resolution() -> None:
+    """Vercel rewrite isteklerinde /api/index.py kök yolunu asıl hedefe çözer."""
+    from api.index import app
+
+    sent = []
+
+    async def dummy_send(msg: dict) -> None:
+        sent.append(msg)
+
+    async def dummy_receive() -> dict:
+        return {"type": "http.request"}
+
+    # 1. Kök yol /
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/index.py",
+        "headers": [(b"x-forwarded-uri", b"/"), (b"host", b"politik-desk.vercel.app")],
+        "query_string": b"",
+    }
+    await app(scope, dummy_receive, dummy_send)
+    assert any(m.get("status") == 200 for m in sent if m.get("type") == "http.response.start")
+
+    # 2. /feed yolu
+    sent.clear()
+    scope["headers"] = [(b"x-forwarded-uri", b"/feed"), (b"host", b"politik-desk.vercel.app")]
+    await app(scope, dummy_receive, dummy_send)
+    assert any(m.get("status") == 200 for m in sent if m.get("type") == "http.response.start")
+
 
