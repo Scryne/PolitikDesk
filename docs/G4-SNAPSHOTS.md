@@ -13,3 +13,4 @@
 | Gün 0 | 2026-08-15 20:59 UTC | `a01a019b775d` | 16/16 aktif | 🟢 8/8 GREEN | %0.00 (0/1497) | 98 art / 59 evt | 1/7 | `0012_event_relations_reverse_idx` | Unclustered: 0, Pending Drafts: 0 |
 | Gün 0 | 2026-08-15 21:03 UTC | `a01a019b775d` | 16/16 aktif | 🟢 8/8 GREEN | %0.00 (0/1510) | 98 art / 59 evt | 1/7 | `0012_event_relations_reverse_idx` | Unclustered: 0, Pending Drafts: 0 |
 | Gün 1 | 2026-08-16 20:55 UTC | `af81e0d6da45` | 35/38 aktif | 🟡 3 kaynakta hata | %21.05 (884/4200) | 626 art / 335 evt | 3/9 | `0014_access_methods` | Unclustered: 0, Pending Drafts: 2 |
+| Gün 2 | 2026-08-17 20:55 UTC | `73b09b910aa2` | 77/88 aktif | 🟡 11 kaynakta hata | %14.58 (14/96) | 789 art / 474 evt | 0/0 | `0015_composite_indexes` | Unclustered: 0, Pending Drafts: 0 |
