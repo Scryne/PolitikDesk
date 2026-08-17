@@ -93,10 +93,12 @@ _ACTOR_TIMELINE_JS = """
 @router.get("/hafiza", response_class=HTMLResponse)
 def memory_directory_page() -> HTMLResponse:
     """Siyasi Hafıza Dizin ve Aktör Listesi ana sayfası."""
-    user_id = current_user_id()
-    touch_last_seen(user_id)
-
-    actors = mem_service.list_tracked_actors()
+    try:
+        user_id = current_user_id()
+        touch_last_seen(user_id)
+        actors = mem_service.list_tracked_actors()
+    except Exception:  # noqa: BLE001
+        actors = []
 
     total_actors = len(actors)
     key_actors = sum(1 for a in actors if a.get("is_key_entity"))

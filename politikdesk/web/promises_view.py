@@ -96,10 +96,12 @@ _PROMISES_JS = """
 @router.get("/vaatler", response_class=HTMLResponse)
 def promises_page() -> HTMLResponse:
     """Vaat Takibi ana ekranı."""
-    user_id = current_user_id()
-    touch_last_seen(user_id)
-
-    promises = mem_service.get_promise_tracker()
+    try:
+        user_id = current_user_id()
+        touch_last_seen(user_id)
+        promises = mem_service.get_promise_tracker()
+    except Exception:  # noqa: BLE001
+        promises = []
 
     total_count = len(promises)
     fulfilled_count = sum(1 for p in promises if p.get("outcome_relation") == "fulfils")

@@ -288,6 +288,19 @@ async def http_exception_handler(  # noqa: RUF029
     return _error_page(exc.status_code, str(exc.detail))
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(  # noqa: RUF029
+    request: Request, exc: Exception
+) -> Response:
+    log.error("unhandled_server_error", exc=str(exc), path=request.url.path, exc_info=True)
+    if _wants_json(request):
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Sunucu hatası oluştu.", "error": str(exc)},
+        )
+    return _error_page(500, str(exc))
+
+
 @app.get("/version", tags=["health"])
 @app.get("/health/version", tags=["health"])
 def version_endpoint() -> dict[str, Any]:

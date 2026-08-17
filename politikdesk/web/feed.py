@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse
 
 from politikdesk.editorial.generator import ANGLES
 from politikdesk.evidence.explain import KIND_LABELS
+from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web import repository
 from politikdesk.web.ui import (
@@ -37,6 +38,8 @@ from politikdesk.web.ui import (
     segment,
 )
 from politikdesk.web.ui import format as fmt
+
+log = get_logger(__name__)
 
 router = APIRouter(tags=["web"])
 
@@ -395,10 +398,15 @@ def feed_page(
     f: str = Query(default="all"),
 ) -> str:
     selected = f if f in dict(FILTERS) else "all"
-    user_id = current_user_id()
-    previous_visit = touch_last_seen(user_id)
-    summary = repository.since_last_visit(user_id, previous_visit)
-    rows = repository.feed(user_id, limit=limit)
+    try:
+        user_id = current_user_id()
+        previous_visit = touch_last_seen(user_id)
+        summary = repository.since_last_visit(user_id, previous_visit)
+        rows = repository.feed(user_id, limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("feed_db_unavailable", error=str(exc))
+        summary = {}
+        rows = []
 
     counts = {key: sum(1 for row in rows if _matches(row, key)) for key, _ in FILTERS}
     tabs = segment(
@@ -663,4 +671,9 @@ def feed_cards(
 ) -> str:
     """Sessiz yenilemenin çektiği parça."""
     selected = f if f in dict(FILTERS) else "all"
-    return _cards_html(repository.feed(current_user_id(), limit=limit), selected)
+    try:
+        rows = repository.feed(current_user_id(), limit=limit)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("feed_cards_db_unavailable", error=str(exc))
+        rows = []
+    return _cards_html(rows, selected)

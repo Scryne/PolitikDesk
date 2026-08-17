@@ -107,11 +107,12 @@ _ACCOUNTABILITY_JS = """
 @router.get("/accountability", response_class=HTMLResponse)
 @router.get("/hesap-sor", response_class=HTMLResponse)
 def accountability_page() -> HTMLResponse:
-    """Hesap Sor ana ekranı."""
-    user_id = current_user_id()
-    touch_last_seen(user_id)
-
-    digest = mem_service.get_accountability_digest()
+    try:
+        user_id = current_user_id()
+        touch_last_seen(user_id)
+        digest = mem_service.get_accountability_digest()
+    except Exception:  # noqa: BLE001
+        digest = []
 
     total_count = len(digest)
     verified_count = sum(1 for item in digest if item.get("status") == "verified")

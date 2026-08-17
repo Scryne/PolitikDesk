@@ -82,10 +82,12 @@ _ARCHIVE_JS = """
 @router.get("/arsiv", response_class=HTMLResponse)
 def archive_page() -> HTMLResponse:
     """Yayın Arşivi ana ekranı."""
-    user_id = current_user_id()
-    touch_last_seen(user_id)
-
-    records = list_archived_publications(limit=100)
+    try:
+        user_id = current_user_id()
+        touch_last_seen(user_id)
+        records = list_archived_publications(limit=100)
+    except Exception:  # noqa: BLE001
+        records = []
 
     total_records = len(records)
     grounded_count = sum(1 for r in records if r.get("is_grounded"))

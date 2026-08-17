@@ -23,31 +23,14 @@ def get_pool() -> ConnectionPool[DictConnection]:
     settings = get_settings()
     return ConnectionPool(
         conninfo=settings.database_url,
-        min_size=settings.db_pool_min,
+        min_size=min(settings.db_pool_min, 1),
         max_size=settings.db_pool_max,
-        open=True,
+        open=False,
         connection_class=DictConnection,
         kwargs={"row_factory": dict_row},
-        # --- F4-05: veritabanı yeniden başlarsa uygulama 500 dönmemeli ---
-        #
-        # Ölçülen arıza (13 Ağustos 2026): `pg_stat_statements` için
-        # `pd-db` yeniden kuruldu; API ayaktaydı ve havuzdaki bağlantılar
-        # koptu. Havuz onları KONTROL ETMEDEN dağıttı ve `/feed`
-        # `psycopg.errors.AdminShutdown: terminating connection due to
-        # administrator command` ile HTTP 500 verdi.
-        #
-        # `check` her ödünç vermeden önce bağlantıyı sınar; ölüyse havuz
-        # onu atar ve yenisini kurar. Maliyeti istek başına bir
-        # round-trip'tir — ölçüldü: feed p95 26 ms'den 33 ms'ye çıktı,
-        # 800 ms hedefinin hâlâ 24 katı altında. Sessiz bir 500'ün
-        # bedeli bundan yüksektir.
         check=ConnectionPool.check_connection,
-        # Uzun ömürlü bağlantılar sunucu tarafı zaman aşımlarına ve
-        # bellek şişmesine takılır; saatte bir tazelenir.
         max_lifetime=3600,
-        # Havuz boşsa sonsuza dek beklemektense hata ver: asılı kalan bir
-        # istek, hata veren bir istekten daha kötü teşhis edilir.
-        timeout=10,
+        timeout=5,
     )
 
 
