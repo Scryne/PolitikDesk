@@ -10,7 +10,7 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,10 +35,27 @@ EMBEDDING_PROVIDERS: Final[frozenset[str]] = frozenset(
 )
 
 # `.env` tuzağı: `KEY=` (boş değer) satırının sonuna yorum yazılırsa
-# python-dotenv yorumu DEĞER sanır ve `PD_EMBEDDING_PROVIDER` değeri
-# "# voyage | cohere | ..." olur. Sessizce yanlış yapılandırma yerine
-# temizleyip doğruluyoruz.
 _INLINE_COMMENT_RE = re.compile(r"\s*#.*$", re.DOTALL)
+
+_OPTIONAL_EMPTY_STRING_FIELDS: Final[frozenset[str]] = frozenset(
+    {
+        "git_sha",
+        "git_branch",
+        "build_timestamp",
+        "image_digest",
+        "deployed_at",
+        "api_token",
+        "llm_base_url",
+        "llm_api_key_env",
+        "embedding_provider",
+        "embedding_model",
+        "sentry_dsn",
+        "smtp_host",
+        "smtp_user",
+        "smtp_password",
+        "smtp_from",
+    }
+)
 
 
 def resolve_env_file_path(custom: str | Path | None = None) -> Path | None:
@@ -220,6 +237,28 @@ class Settings(BaseSettings):
     # 0,92 / 0,88 ile false merge %2,6'ya iniyor, recall %82,4'te kalıyor.
     cluster_t_high: float = Field(default=0.92, ge=0, le=1)
     cluster_t_low: float = Field(default=0.88, ge=0, le=1)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_empty_string_env_values(cls, data: Any) -> Any:
+        """Ortam değişkeni boşluk veya "" olarak verildiğinde varsayılan değere dön.
+
+        Vercel veya .env şablonlarında değişkenler boş bırakıldığında
+        (örn: `PD_LOG_FORMAT=` veya `PD_LLM_DAILY_BUDGET_USD=`) Pydantic'in
+        int/float/Literal alanlarda ValidationError fırlatmasını önler.
+        """
+        if isinstance(data, dict):
+            cleaned: dict[str, Any] = {}
+            for key, value in data.items():
+                if (
+                    isinstance(value, str)
+                    and value.strip() == ""
+                    and key not in _OPTIONAL_EMPTY_STRING_FIELDS
+                ):
+                    continue
+                cleaned[key] = value
+            return cleaned
+        return data
 
     @field_validator(
         "embedding_provider",

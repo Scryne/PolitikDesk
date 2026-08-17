@@ -152,3 +152,22 @@ def test_db_pool_min_max_ordering() -> None:
     assert s.db_pool_min == 2
     assert s.db_pool_max == 15
 
+
+def test_empty_env_variables_fallback_to_defaults() -> None:
+    """Vercel veya boş .env şablonlarından gelen boş string değerleri varsayılana dönmeli."""
+    s = Settings(
+        log_format="",  # type: ignore[arg-type]
+        llm_daily_budget_usd="",  # type: ignore[arg-type]
+        embedding_dim="",  # type: ignore[arg-type]
+        briefing_morning_hour="",  # type: ignore[arg-type]
+        smtp_port="",  # type: ignore[arg-type]
+        draft_max_chars="",  # type: ignore[arg-type]
+    )
+    assert s.log_format == "json"
+    assert s.llm_daily_budget_usd == 5.0
+    assert s.embedding_dim == 1024
+    assert s.briefing_morning_hour == 8
+    assert s.smtp_port == 587
+    assert s.draft_max_chars == 600
+
+
