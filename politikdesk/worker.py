@@ -37,3 +37,9 @@ app.conf.update(
 def ping() -> str:
     """Worker'ın ayakta olduğunu doğrulayan en küçük görev."""
     return "pong"
+
+
+# Celery Beat başlatıldığında `politikdesk.worker.app` üzerinden yüklendiği için
+# `tasks.py` içindeki görevler ve `app.conf.beat_schedule` burada zorunlu olarak yüklenir.
+import politikdesk.tasks as _tasks  # noqa: F401, E402
+

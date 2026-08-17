@@ -62,7 +62,7 @@ print(json.dumps(get_release_info(include_db_schema=False).to_dict()))
 # Beat zamanlama denetim betiği
 _SCHEDULE_SNIPPET = """
 import json
-from politikdesk.tasks import app
+from politikdesk.worker import app
 print(json.dumps(sorted(app.conf.beat_schedule)))
 """
 

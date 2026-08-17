@@ -233,3 +233,11 @@ def test_beat_schedule_persists_on_fresh_app_instance() -> None:
     assert "political-relations-every-15-minutes" in reloaded_schedule
     assert "briefing-morning" in reloaded_schedule
     assert "briefing-evening" in reloaded_schedule
+
+
+def test_worker_app_imports_and_contains_full_beat_schedule() -> None:
+    """Worker app doğrudan import edildiğinde de beat_schedule 16/16 dolu olmalıdır."""
+    from politikdesk.worker import app as worker_app
+
+    assert len(worker_app.conf.beat_schedule) == 16
+
