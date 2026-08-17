@@ -36,15 +36,19 @@ def is_db_configured() -> bool:
 @lru_cache(maxsize=1)
 def get_pool() -> ConnectionPool[DictConnection]:
     settings = get_settings()
+    is_serverless = bool(os.environ.get("VERCEL")) or settings.db_pool_min == 0
+    min_size = 0 if is_serverless else settings.db_pool_min
+    max_size = min(settings.db_pool_max, 5) if is_serverless else settings.db_pool_max
     return ConnectionPool(
         conninfo=settings.database_url,
-        min_size=settings.db_pool_min,
-        max_size=settings.db_pool_max,
+        min_size=min_size,
+        max_size=max_size,
         open=True,
         connection_class=DictConnection,
         kwargs={"row_factory": dict_row},
         check=ConnectionPool.check_connection,
         max_lifetime=3600,
+        max_idle=300 if is_serverless else 600,
         timeout=10,
     )
 

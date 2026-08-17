@@ -160,7 +160,7 @@ class Settings(BaseSettings):
     # `db:5432` / `redis:6379` verir.
     database_url: str = "postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk"
     redis_url: str = "redis://127.0.0.1:6379/0"
-    db_pool_min: int = Field(default=1, ge=1)
+    db_pool_min: int = Field(default=1, ge=0)
     db_pool_max: int = Field(default=10, ge=1, le=100)
 
     # --- LLM (Spec §11.1, §11.5) ---

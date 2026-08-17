@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -412,9 +412,115 @@ def get_event_blindspot(event_id: int) -> dict[str, Any]:
     return report.to_dict()
 
 
+def render_evidence_card_svg(
+    ev: dict[str, Any], claims: list[dict[str, Any]], articles: list[dict[str, Any]]
+) -> str:
+    """Olayın kanıt kartını görsel SVG olarak derler (DESIGN.md token sistemiyle tam uyumlu)."""
+    from html import escape
+
+    from politikdesk.web.ui.tokens import DARK
+
+    bg = DARK["color-bg"]
+    surface = DARK["color-surface"]
+    border = DARK["color-border"]
+    fg = DARK["color-fg"]
+    fg_muted = DARK["color-fg-muted"]
+    fg_subtle = DARK["color-fg-subtle"]
+    accent = DARK["color-accent"]
+
+    status_color_map = {
+        "strongly_corroborated": DARK["color-strong"],
+        "partially_corroborated": DARK["color-partial"],
+        "single_source": DARK["color-single"],
+        "contradicted": DARK["color-contra"],
+        "unverified": DARK["color-unverified"],
+        "attribution_verified": DARK["color-accent"],
+    }
+    status_label_map = {
+        "strongly_corroborated": "GÜÇLÜ TEYİTLİ",
+        "partially_corroborated": "KISMEN TEYİTLİ",
+        "single_source": "TEK KAYNAKLI",
+        "contradicted": "ÇELİŞKİLİ",
+        "unverified": "DOĞRULANMAMIŞ",
+        "attribution_verified": "BEYAN SABİT",
+    }
+
+    ev_title = escape(str(ev.get("title", "Olay")))
+    salience = ev.get("salience_score", 0)
+    top_status = claims[0].get("evidence_status", "unverified") if claims else "unverified"
+    badge_color = status_color_map.get(top_status, DARK["color-unverified"])
+    badge_text = status_label_map.get(top_status, "BELİRSİZ")
+
+    claim_svg_elements = []
+    y_pos = 175
+    for c in claims[:3]:
+        c_status = c.get("evidence_status", "unverified")
+        c_color = status_color_map.get(c_status, DARK["color-unverified"])
+        raw_text = str(c.get("claim_text", ""))
+        c_text = escape(raw_text[:95] + ("..." if len(raw_text) > 95 else ""))
+        c_tag = status_label_map.get(c_status, "BİLGİ")
+        claim_svg_elements.append(
+            f'<g transform="translate(40, {y_pos})">'
+            f'<circle cx="8" cy="8" r="5" fill="{c_color}" />'
+            f'<text x="24" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{c_color}">[{c_tag}]</text>'
+            f'<text x="135" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="{fg}">{c_text}</text>'
+            f'</g>'
+        )
+        y_pos += 40
+
+    src_names = [escape(str(a.get("source_name") or a.get("slug") or "Kaynak")) for a in articles[:4]]
+    src_str = " · ".join(src_names) if src_names else "Resmî ve Bağımsız Kaynaklar"
+    if len(articles) > 4:
+        src_str += f" (+{len(articles)-4} kaynak)"
+
+    card_height = max(420, y_pos + 85)
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 {card_height}" width="800" height="{card_height}">
+  <defs>
+    <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="{surface}" />
+      <stop offset="100%" stop-color="{bg}" />
+    </linearGradient>
+  </defs>
+  <rect width="800" height="{card_height}" rx="16" fill="url(#cardGrad)" stroke="{border}" stroke-width="1.5" />
+  <g transform="translate(40, 36)">
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="{accent}">POLİTİKDESK · KANIT VE İSTİHBARAT KARTI</text>
+    <rect x="580" y="-14" width="140" height="26" rx="6" fill="{badge_color}" fill-opacity="0.15" stroke="{badge_color}" stroke-width="1" />
+    <text x="650" y="3" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{badge_color}">{badge_text}</text>
+  </g>
+  <g transform="translate(40, 80)">
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="700" fill="{fg}">
+      <tspan x="0" dy="0">{ev_title[:75]}</tspan>
+      {"<tspan x='0' dy='24'>" + ev_title[75:150] + "</tspan>" if len(ev_title) > 75 else ""}
+    </text>
+    <text x="0" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="{fg_muted}">Gündem Skoru: {salience}/90 · Toplam {len(articles)} Kaynak · {len(claims)} Doğrulanmış İddia</text>
+  </g>
+  <line x1="40" y1="145" x2="760" y2="145" stroke="{border}" stroke-width="1" />
+  {"".join(claim_svg_elements)}
+  <g transform="translate(40, {card_height - 35})">
+    <line x1="0" y1="-15" x2="720" y2="-15" stroke="{border}" stroke-width="1" />
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="{fg_subtle}">Kaynaklar: {src_str}</text>
+    <text x="720" y="0" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="{accent}">politikdesk.com</text>
+  </g>
+</svg>"""
+    return svg
+
+
+@router.get("/events/{event_id}/evidence-card.svg")
+def get_event_evidence_card_svg(event_id: int) -> Response:
+    """Olayın kanıt kartını doğrudan SVG görsel olarak döndürür."""
+    user_id = current_user_id()
+    data = repository.event_page(event_id, user_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Olay bulunamadı.")
+
+    svg_content = render_evidence_card_svg(data["event"], data["claims"], data["articles"])
+    return Response(content=svg_content, media_type="image/svg+xml; charset=utf-8")
+
+
 @router.get("/events/{event_id}/export")
 def export_event_dossier(
-    event_id: int, format: Literal["markdown", "text", "factsheet", "json"] = "markdown"
+    event_id: int, format: Literal["markdown", "text", "factsheet", "json", "svg"] = "markdown"
 ) -> Any:
     """Olayı ve kanıt zincirini istenen formatta dışa aktarır."""
     from fastapi.responses import PlainTextResponse
@@ -427,6 +533,10 @@ def export_event_dossier(
     ev = data["event"]
     claims = data["claims"]
     articles = data["articles"]
+
+    if format == "svg":
+        svg_content = render_evidence_card_svg(ev, claims, articles)
+        return Response(content=svg_content, media_type="image/svg+xml; charset=utf-8")
 
     if format == "json":
         return {

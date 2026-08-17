@@ -47,8 +47,10 @@ class SayistayAdapter(FailureRecorder):
         self.http = http or HttpClient(
             respect_robots=False,
             user_agent=BROWSER_USER_AGENT,
-            timeout=30.0,
-            max_retries=4,
+            timeout=20.0,
+            connect_timeout=5.0,
+            read_timeout=15.0,
+            max_retries=2,
         )
         self.keyword_filter = [k.casefold() for k in (keyword_filter or [])]
 
@@ -222,8 +224,10 @@ class CumhurbaskanligiAdapter(FailureRecorder):
         self.http = http or HttpClient(
             respect_robots=False,
             user_agent=BROWSER_USER_AGENT,
-            timeout=30.0,
-            max_retries=4,
+            timeout=15.0,
+            connect_timeout=5.0,
+            read_timeout=10.0,
+            max_retries=2,
         )
 
     def fetch(self) -> list[RawItem]:

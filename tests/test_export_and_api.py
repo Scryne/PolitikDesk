@@ -123,3 +123,41 @@ def test_get_stance_shifts_api():
         data = res.json()
         assert len(data) == 1
         assert data[0]["actor_name"] == "Mehmet Şimşek"
+
+
+def test_export_event_svg_and_card_endpoint():
+    mock_data = {
+        "event": {
+            "id": 5,
+            "title": "TCMB Faiz Kararını Açıkladı",
+            "salience_score": 88,
+        },
+        "claims": [
+            {
+                "id": 50,
+                "claim_text": "Politika faizi yüzde 50 olarak teyit edildi",
+                "evidence_status": "strongly_corroborated",
+                "claim_type": "number",
+            }
+        ],
+        "articles": [
+            {"source_name": "TCMB", "tier": "T1", "kind": "official", "slug": "tcmb"}
+        ],
+    }
+
+    with patch("politikdesk.web.repository.event_page", return_value=mock_data):
+        # 1. /export?format=svg
+        res_export = client.get("/api/events/5/export?format=svg")
+        assert res_export.status_code == 200
+        assert "image/svg+xml" in res_export.headers["content-type"]
+        assert "<svg" in res_export.text
+        assert "POLİTİKDESK" in res_export.text
+        assert "GÜÇLÜ TEYİTLİ" in res_export.text
+
+        # 2. /evidence-card.svg
+        res_card = client.get("/api/events/5/evidence-card.svg")
+        assert res_card.status_code == 200
+        assert "image/svg+xml" in res_card.headers["content-type"]
+        assert "<svg" in res_card.text
+        assert "TCMB Faiz Kararını Açıkladı" in res_card.text
+

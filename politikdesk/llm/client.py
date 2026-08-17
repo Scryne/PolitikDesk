@@ -539,9 +539,21 @@ class LLMClient:
         try:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
-            raise SchemaValidationError(
-                f"Model çıktısı geçerli JSON değil (purpose={purpose}, model={model})."
-            ) from exc
+            # Yedek ayıklayıcı: metin içinde { ... } bloğu ara
+            # (açık modellerin çevre metinleri için)
+            first_brace = text.find("{")
+            last_brace = text.rfind("}")
+            if first_brace != -1 and last_brace > first_brace:
+                try:
+                    data = json.loads(text[first_brace : last_brace + 1])
+                except json.JSONDecodeError:
+                    raise SchemaValidationError(
+                        f"Model çıktısı geçerli JSON değil (purpose={purpose}, model={model})."
+                    ) from exc
+            else:
+                raise SchemaValidationError(
+                    f"Model çıktısı geçerli JSON değil (purpose={purpose}, model={model})."
+                ) from exc
 
         if not isinstance(data, dict):
             raise SchemaValidationError(
