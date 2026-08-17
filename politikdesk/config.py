@@ -257,6 +257,30 @@ class Settings(BaseSettings):
                 ):
                     continue
                 cleaned[key] = value
+
+            # Bulut veritabanı değişkenleri için otomatik geri dönüş (Neon, Vercel Postgres, Supabase vb.)
+            db_val = cleaned.get("database_url")
+            needs_fallback = (
+                not db_val
+                or (
+                    bool(os.environ.get("VERCEL"))
+                    and ("127.0.0.1" in str(db_val) or "localhost" in str(db_val))
+                )
+            )
+            if needs_fallback:
+                for fallback_key in (
+                    "PD_NEON_DATABASE_URL",
+                    "POSTGRES_URL",
+                    "POSTGRES_PRISMA_URL",
+                    "DATABASE_URL",
+                    "NEON_DATABASE_URL",
+                    "SUPABASE_DATABASE_URL",
+                ):
+                    candidate = os.environ.get(fallback_key)
+                    if candidate and candidate.strip():
+                        cleaned["database_url"] = candidate.strip()
+                        break
+
             return cleaned
         return data
 
