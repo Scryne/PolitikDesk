@@ -87,8 +87,17 @@ update: sync ingest embed entities cluster claims evidence context
 migrate:
 	docker compose run --rm migrate
 
-down:
-	docker compose --profile workers down
+serve:
+	uvicorn politikdesk.api.main:app --reload --host 127.0.0.1 --port 8000
+
+worker:
+	celery -A politikdesk.worker.app worker -l info --concurrency 2
+
+beat:
+	celery -A politikdesk.worker.app beat -l info
+
+seed:
+	python -m scripts.ingest sync
 
 test:
 	pytest -v

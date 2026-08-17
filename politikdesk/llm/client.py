@@ -227,10 +227,22 @@ class _OpenAICompatBackend:
       * `effort` parametresi yoktur; sıcaklığa çevrilir.
     """
 
-    def __init__(self, settings: Settings, http: Any = None) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        http: Any = None,
+        *,
+        base_url: str | None = None,
+        api_key_env: str | None = None,
+        json_mode: str | None = None,
+    ) -> None:
         self._settings = settings
         self._http = http
-        self._mode = settings.llm_json_mode
+        self._base_url = (base_url if base_url is not None else settings.llm_base_url) or ""
+        self._api_key_env = (
+            api_key_env if api_key_env is not None else settings.llm_api_key_env
+        ) or ""
+        self._mode = (json_mode if json_mode else settings.llm_json_mode) or "json_schema"
 
     # -- altyapı -------------------------------------------------------------
     @property
@@ -242,15 +254,27 @@ class _OpenAICompatBackend:
         return self._http
 
     def _api_key(self) -> str:
-        var = self._settings.llm_api_key_env
-        key = os.environ.get(var)
-        if not key:
+        var = self._api_key_env
+        key = os.environ.get(var) if var else None
+        if not key and var:
             from politikdesk.config import load_env_file
 
             load_env_file()
             key = os.environ.get(var)
         if not key:
-            raise LLMNotConfigured(var)
+            # Yerel uç noktalar (Ollama, LM Studio, yerel vLLM) API anahtarı gerektirmez
+            base_url = (self._base_url or "").lower()
+            local_hosts = (
+                "127.0.0.1",
+                "localhost",
+                "0.0.0.0",
+                "host.docker.internal",
+                ":11434",
+                ":1234",
+            )
+            if any(h in base_url for h in local_hosts):
+                return "ollama"
+            raise LLMNotConfigured(var or "PD_LLM_API_KEY_ENV")
         return key
 
     def _post_with_retry(self, url: str, headers: dict[str, str], payload: dict[str, Any]) -> Any:
@@ -375,7 +399,7 @@ class _OpenAICompatBackend:
         max_tokens: int,
     ) -> tuple[str, TokenUsage]:
         key = self._api_key()
-        url = self._settings.llm_base_url.rstrip("/") + "/chat/completions"
+        url = self._base_url.rstrip("/") + "/chat/completions"
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
         # Merdiven: yapılandırılmış mevcut moddan başlar, aşağı iner.
@@ -436,15 +460,31 @@ class _OpenAICompatBackend:
         raise last_error or LLMHTTPError(0, "bilinmeyen hata", url)
 
 
-def build_backend(settings: Settings) -> Backend:
+def build_backend(settings: Settings, task: Task | None = None) -> Backend:
     """Ayarlara göre arka ucu seçer (F0-17 adaptör deseni).
 
     Model kilidini kıran nokta burasıdır: sağlayıcı değişimi tek satırlık
     yapılandırma, kod değişikliği değil.
+    `hybrid` sağlayıcısında görev tipine göre yerel (extraction) veya bulut (generation)
+    arka ucu döner.
     """
-    if settings.llm_provider == "openai_compat":
-        return _OpenAICompatBackend(settings)
-    return _AnthropicBackend(settings)
+    if settings.llm_provider == "anthropic":
+        return _AnthropicBackend(settings)
+    if settings.llm_provider == "hybrid":
+        if task == "extraction":
+            return _OpenAICompatBackend(
+                settings,
+                base_url=settings.llm_extraction_base_url or settings.llm_base_url,
+                api_key_env=settings.llm_extraction_api_key_env or settings.llm_api_key_env,
+                json_mode=settings.llm_extraction_json_mode or settings.llm_json_mode,
+            )
+        return _OpenAICompatBackend(
+            settings,
+            base_url=settings.llm_generation_base_url or settings.llm_base_url,
+            api_key_env=settings.llm_generation_api_key_env or settings.llm_api_key_env,
+            json_mode=settings.llm_generation_json_mode or settings.llm_json_mode,
+        )
+    return _OpenAICompatBackend(settings)
 
 
 class LLMClient:
@@ -458,8 +498,37 @@ class LLMClient:
         settings: Settings | None = None,
     ) -> None:
         self.settings = settings or get_settings()
-        self.backend = backend or build_backend(self.settings)
+        self._custom_backend = backend
         self.guard = guard or BudgetGuard(settings=self.settings)
+
+        # Hibrit veya standart arka uçlar
+        if backend is not None:
+            self._extraction_backend = backend
+            self._generation_backend = backend
+        else:
+            self._extraction_backend = build_backend(self.settings, task="extraction")
+            self._generation_backend = build_backend(self.settings, task="generation")
+
+    @property
+    def backend(self) -> Backend:
+        """Geriye uyumluluk için varsayılan arka uç."""
+        return self._custom_backend or self._extraction_backend
+
+    def _backend_for(self, task: Task) -> Backend:
+        if self._custom_backend is not None:
+            return self._custom_backend
+        return self._extraction_backend if task == "extraction" else self._generation_backend
+
+    def _fallback_target_for(self, task: Task) -> tuple[Backend, str] | None:
+        """Hibrit modda birincil arka uç başarısız olursa geçilecek yedek hedef."""
+        if not self.settings.llm_fallback_enabled or self._custom_backend is not None:
+            return None
+        if self.settings.llm_provider != "hybrid":
+            return None
+
+        if task == "extraction":
+            return self._generation_backend, self.settings.llm_model_generation
+        return self._extraction_backend, self.settings.llm_model_extraction
 
     def _model_for(self, task: Task) -> str:
         return (
@@ -491,16 +560,19 @@ class LLMClient:
         """Yapılandırılmış JSON çıktı üretir; maliyeti kaydeder.
 
         Bütçe tavanı aşılırsa çağrı YAPILMAZ — `BudgetExceeded` fırlatılır.
+        Hibrit modda birincil arka uç hata verirse otomatik yedeğe düşer.
         """
-        model = model or self._model_for(task)
+        primary_model = model or self._model_for(task)
         effort = self._effort_for(task)
+        backend = self._backend_for(task)
 
         self.guard.check()
 
         started = time.perf_counter()
+        effective_model = primary_model
         try:
-            text, usage = self.backend.complete_json(
-                model=model,
+            text, usage = backend.complete_json(
+                model=primary_model,
                 system=system,
                 user=user,
                 schema=schema,
@@ -511,28 +583,63 @@ class LLMClient:
             # Çağrı hiç yapılmadı; harcama defterine başarısız çağrı yazmak
             # `llm_calls` tablosunu yanıltır.
             raise
-        except Exception as exc:
-            latency_ms = int((time.perf_counter() - started) * 1000)
-            self.guard.record(
-                CallRecord(
-                    purpose=purpose,
-                    model=model,
-                    prompt_version=prompt_version,
-                    latency_ms=latency_ms,
-                    user_id=user_id,
-                    succeeded=False,
-                    error_type=type(exc).__name__,
+        except Exception as primary_exc:
+            fallback = self._fallback_target_for(task)
+            if fallback is not None:
+                fallback_backend, fallback_model = fallback
+                log.warning(
+                    "llm_hybrid_fallback_triggered",
+                    task=task,
+                    primary_model=primary_model,
+                    fallback_model=fallback_model,
+                    error=str(primary_exc),
                 )
-            )
-            raise
+                try:
+                    text, usage = fallback_backend.complete_json(
+                        model=fallback_model,
+                        system=system,
+                        user=user,
+                        schema=schema,
+                        effort=effort,
+                        max_tokens=max_tokens,
+                    )
+                    effective_model = fallback_model
+                except Exception as fallback_exc:
+                    latency_ms = int((time.perf_counter() - started) * 1000)
+                    self.guard.record(
+                        CallRecord(
+                            purpose=purpose,
+                            model=primary_model,
+                            prompt_version=prompt_version,
+                            latency_ms=latency_ms,
+                            user_id=user_id,
+                            succeeded=False,
+                            error_type=type(fallback_exc).__name__,
+                        )
+                    )
+                    raise fallback_exc from primary_exc
+            else:
+                latency_ms = int((time.perf_counter() - started) * 1000)
+                self.guard.record(
+                    CallRecord(
+                        purpose=purpose,
+                        model=primary_model,
+                        prompt_version=prompt_version,
+                        latency_ms=latency_ms,
+                        user_id=user_id,
+                        succeeded=False,
+                        error_type=type(primary_exc).__name__,
+                    )
+                )
+                raise
 
         latency_ms = int((time.perf_counter() - started) * 1000)
-        cost = estimate_cost_usd(model, **usage)
+        cost = estimate_cost_usd(effective_model, **usage)
 
         self.guard.record(
             CallRecord(
                 purpose=purpose,
-                model=model,
+                model=effective_model,
                 prompt_version=prompt_version,
                 cost_usd=cost,
                 latency_ms=latency_ms,
@@ -553,11 +660,13 @@ class LLMClient:
                     data = json.loads(text[first_brace : last_brace + 1])
                 except json.JSONDecodeError:
                     raise SchemaValidationError(
-                        f"Model çıktısı geçerli JSON değil (purpose={purpose}, model={model})."
+                        "Model çıktısı geçerli JSON değil "
+                        f"(purpose={purpose}, model={effective_model})."
                     ) from exc
             else:
                 raise SchemaValidationError(
-                    f"Model çıktısı geçerli JSON değil (purpose={purpose}, model={model})."
+                    "Model çıktısı geçerli JSON değil "
+                    f"(purpose={purpose}, model={effective_model})."
                 ) from exc
 
         if not isinstance(data, dict):
@@ -568,7 +677,7 @@ class LLMClient:
         return LLMResult(
             data=data,
             raw_text=text,
-            model=model,
+            model=effective_model,
             prompt_version=prompt_version,
             input_tokens=usage["input_tokens"],
             output_tokens=usage["output_tokens"],

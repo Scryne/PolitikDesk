@@ -62,6 +62,13 @@ def test_unknown_model_raises_instead_of_silently_costing_zero() -> None:
         estimate_cost_usd("gpt-hayali-9", input_tokens=1000)
 
 
+def test_local_models_return_zero_cost() -> None:
+    """Yerel Ollama/vLLM modelleri $0.0 maliyetle FREE_TIER döner."""
+    assert estimate_cost_usd("llama3.2", input_tokens=100_000, output_tokens=50_000) == 0.0
+    assert estimate_cost_usd("ollama/qwen2.5:72b", input_tokens=500_000) == 0.0
+    assert estimate_cost_usd("local/deepseek-r1", input_tokens=200_000) == 0.0
+
+
 # ------------------------------------------------------------------- bütçe
 def test_guard_allows_calls_below_cap() -> None:
     guard = BudgetGuard(ledger=InMemoryLedger(), settings=_settings())

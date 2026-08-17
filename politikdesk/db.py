@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -20,35 +19,24 @@ DictConnection = psycopg.Connection[DictRow]
 
 
 def is_db_configured() -> bool:
-    """Veritabanının yapılandırılıp yapılandırılmadığını döner.
-
-    Vercel ortamında PD_DATABASE_URL tanımlanmamışsa (varsayılan 127.0.0.1 ise)
-    10 saniyelik TCP zaman aşımı beklemelerini önleyerek sayfaların milisaniyeler
-    içinde hızlı açılmasını sağlar.
-    """
+    """Veritabanının yapılandırılıp yapılandırılmadığını döner."""
     settings = get_settings()
-    return not (
-        os.environ.get("VERCEL")
-        and ("127.0.0.1" in settings.database_url or "localhost" in settings.database_url)
-    )
+    return bool(settings.database_url and settings.database_url.strip())
 
 
 @lru_cache(maxsize=1)
 def get_pool() -> ConnectionPool[DictConnection]:
     settings = get_settings()
-    is_serverless = bool(os.environ.get("VERCEL")) or settings.db_pool_min == 0
-    min_size = 0 if is_serverless else settings.db_pool_min
-    max_size = min(settings.db_pool_max, 5) if is_serverless else settings.db_pool_max
     return ConnectionPool(
         conninfo=settings.database_url,
-        min_size=min_size,
-        max_size=max_size,
+        min_size=settings.db_pool_min,
+        max_size=settings.db_pool_max,
         open=True,
         connection_class=DictConnection,
         kwargs={"row_factory": dict_row},
         check=ConnectionPool.check_connection,
         max_lifetime=3600,
-        max_idle=300 if is_serverless else 600,
+        max_idle=600,
         timeout=10,
     )
 
@@ -57,7 +45,7 @@ def get_pool() -> ConnectionPool[DictConnection]:
 def connection() -> Iterator[DictConnection]:
     """Havuzdan bir bağlantı ödünç alır."""
     if not is_db_configured():
-        raise psycopg.OperationalError("Veritabanı yapılandırılmamış (Vercel Vitrin Modu).")
+        raise psycopg.OperationalError("Veritabanı yapılandırılmamış veya erişilemiyor.")
     with get_pool().connection() as conn:
         yield conn
 

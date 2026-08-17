@@ -267,8 +267,7 @@ def review_dashboard() -> str:
             "Denetim kuyruğu",
             error_state(
                 "Veritabanı bağlantısı yok",
-                "Denetim kuyruğu çalışan bir veritabanı gerektirir. "
-                "Vercel vitrin modunda bu ekran kullanılamaz.",
+                "Denetim kuyruğu çalışan bir PostgreSQL veritabanı gerektirir (`pd start`).",
             ),
             active="/admin/",
             crumbs=(("Denetim", None), ("Kuyruk", None)),

@@ -46,11 +46,15 @@ REM ------------------------------------------------------------------ yardim
 echo PolitikDesk - komutlar
 echo.
 echo   -- gunluk kullanim --
-echo   pd start            Tum yigini ayaga kaldir
+echo   pd start            Tum yigini ayaga kaldir (Docker Compose)
 echo   pd stop             Yigini durdur
 echo   pd restart          Yeniden KURARAK baslat (kod degistiyse)
+echo   pd serve            Yerel web sunucusunu baslat (uvicorn 127.0.0.1:8000)
+echo   pd worker           Yerel Celery worker'i baslat (yerel embedding)
+echo   pd beat             Yerel Celery beat zamanlayiciyi baslat
+echo   pd seed             Kaynaklari ve baslangic verilerini DB'ye yukle
 echo   pd update           Tum dikey kaynaklarini senkronize et ve verileri isle
-echo   pd status           Konteyner durumu
+echo   pd status           Konteyner ve servis durumu
 echo   pd open             Feed'i tarayicida ac
 echo.
 echo   -- saglik --
@@ -134,6 +138,23 @@ goto :eof
 
 :cmd_open
 start "" "http://localhost:8000/feed"
+goto :eof
+
+:cmd_serve
+"%PY%" -m uvicorn politikdesk.api.main:app --reload --host 127.0.0.1 --port 8000
+goto :eof
+
+:cmd_worker
+"%PY%" -m celery -A politikdesk.worker.app worker -l info --concurrency 2
+goto :eof
+
+:cmd_beat
+"%PY%" -m celery -A politikdesk.worker.app beat -l info
+goto :eof
+
+:cmd_seed
+"%PY%" -m scripts.ingest sync || goto :fail
+echo [OK] Baslangic kaynaklari ve verileri yerel veritabanina aktarildi.
 goto :eof
 
 :cmd_logs

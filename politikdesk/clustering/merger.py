@@ -51,12 +51,14 @@ class MergeResult:
     source_event_id: int
     target_event_id: int
     moved_article_ids: tuple[int, ...]
+    moved_claim_ids: tuple[int, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "source_event_id": self.source_event_id,
             "target_event_id": self.target_event_id,
             "moved_article_ids": list(self.moved_article_ids),
+            "moved_claim_ids": list(self.moved_claim_ids),
         }
 
 
@@ -170,10 +172,18 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
         cur.execute("SELECT id FROM articles WHERE event_id = %s ORDER BY id", (source_event_id,))
         moved = tuple(r["id"] for r in cur.fetchall())
 
+        cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (source_event_id,))
+        moved_claims = tuple(r["id"] for r in cur.fetchall())
+
         cur.execute(
             "UPDATE articles SET event_id = %s WHERE event_id = %s",
             (target_event_id, source_event_id),
         )
+        if moved_claims:
+            cur.execute(
+                "UPDATE claims SET event_id = %s WHERE event_id = %s",
+                (target_event_id, source_event_id),
+            )
         cur.execute(
             "UPDATE events SET merged_into_id = %s, review_flag = 'verified' WHERE id = %s",
             (target_event_id, source_event_id),
@@ -181,7 +191,7 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
         _refresh_event(cur, target_event_id)
         _refresh_event(cur, source_event_id)
 
-        result = MergeResult(source_event_id, target_event_id, moved)
+        result = MergeResult(source_event_id, target_event_id, moved, moved_claim_ids=moved_claims)
         audit.write(
             "merge_events",
             f"events/{target_event_id}",
@@ -198,8 +208,8 @@ def merge_events(source_event_id: int, target_event_id: int) -> MergeResult:
 def undo_merge(source_event_id: int) -> MergeResult:
     """Birleştirmeyi geri alır (G2 koşul 8).
 
-    Hangi makalelerin taşındığı `audit_log`'dan okunur — bu yüzden merge
-    kaydı makale kimliklerini içermek zorundadır.
+    Hangi makalelerin ve iddiaların taşındığı `audit_log`'dan okunur — bu yüzden merge
+    kaydı makale ve iddia kimliklerini içermek zorundadır.
     """
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
@@ -227,18 +237,24 @@ def undo_merge(source_event_id: int) -> MergeResult:
             raise MergeError(
                 f"Birleştirme kaydı bulunamadı (events/{source_event_id}); geri alma yapılamaz."
             )
-        moved = tuple(record["payload"]["moved_article_ids"])
+        moved = tuple(record["payload"].get("moved_article_ids", []))
+        moved_claims = tuple(record["payload"].get("moved_claim_ids", []))
 
         if moved:
             cur.execute(
                 "UPDATE articles SET event_id = %s WHERE id = ANY(%s)",
                 (source_event_id, list(moved)),
             )
+        if moved_claims:
+            cur.execute(
+                "UPDATE claims SET event_id = %s WHERE id = ANY(%s)",
+                (source_event_id, list(moved_claims)),
+            )
         cur.execute("UPDATE events SET merged_into_id = NULL WHERE id = %s", (source_event_id,))
         _refresh_event(cur, source_event_id)
         _refresh_event(cur, target_event_id)
 
-        result = MergeResult(source_event_id, target_event_id, moved)
+        result = MergeResult(source_event_id, target_event_id, moved, moved_claim_ids=moved_claims)
         audit.write(
             "undo_merge",
             f"events/{source_event_id}",

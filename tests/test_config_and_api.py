@@ -154,7 +154,7 @@ def test_db_pool_min_max_ordering() -> None:
 
 
 def test_empty_env_variables_fallback_to_defaults() -> None:
-    """Vercel veya boş .env şablonlarından gelen boş string değerleri varsayılana dönmeli."""
+    """Boş .env şablonlarından gelen boş string değerleri varsayılana dönmeli."""
     s = Settings(
         log_format="",  # type: ignore[arg-type]
         llm_daily_budget_usd="",  # type: ignore[arg-type]
@@ -168,17 +168,7 @@ def test_empty_env_variables_fallback_to_defaults() -> None:
     assert s.embedding_dim == 1024
     assert s.briefing_morning_hour == 8
     assert s.smtp_port == 587
-
-
-def test_database_url_cloud_fallbacks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Vercel ortamında veya PD_DATABASE_URL boşken alternatif bulut URL'lerine düşmeli."""
-    neon_url = "postgresql://neon_user:pass@ep-xyz.neon.tech/neondb"
-    monkeypatch.setenv("VERCEL", "1")
-    monkeypatch.delenv("PD_DATABASE_URL", raising=False)
-    monkeypatch.setenv("PD_NEON_DATABASE_URL", neon_url)
-
-    s = Settings()
-    assert s.database_url == neon_url
     assert s.draft_max_chars == 600
+
 
 

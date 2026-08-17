@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+from politikdesk.political_memory import service as mem_service
 from politikdesk.political_memory.service import ActorMemory, MemoryEntry
 from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
 
@@ -122,3 +125,146 @@ def test_detect_numeric_divergence():
     d = s.to_dict()
     assert d["shift_type"] == "numeric_divergence"
     assert "Sayısal Gösterge" in d["topic_or_metric"]
+
+
+def test_list_all_stance_shifts_iterates_actors(monkeypatch) -> None:
+    """DEF-02 Regresyon Testi: list_all_stance_shifts, search_actors sözleşmesindeki 'actors' ve 'name' alanlarını işlemelidir."""
+    mock_search = MagicMock(
+        return_value={
+            "actors": [
+                {"id": 1, "name": "Ahmet Yılmaz", "entity_type": "person", "is_key_entity": True}
+            ],
+            "total": 1,
+            "limit": 20,
+            "offset": 0,
+            "has_more": False,
+        }
+    )
+    monkeypatch.setattr(mem_service, "search_actors", mock_search)
+
+    mock_mem = ActorMemory(
+        actor_name="Ahmet Yılmaz",
+        total_claims=2,
+        promises=[],
+        attributions=[
+            MemoryEntry(
+                event_id=10,
+                event_title="Faiz İndirimi",
+                claim_id=101,
+                claim_text="Faiz indirilmeli ve parasal gevşeme başlamalı",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2025-06-01T10:00:00Z",
+            ),
+            MemoryEntry(
+                event_id=11,
+                event_title="Faiz Artırımı",
+                claim_id=102,
+                claim_text="Faiz artırılmalı ve parasal sıkılaşma sürmeli",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2026-02-01T10:00:00Z",
+            ),
+        ],
+        facts_and_numbers=[],
+        relation_chains=[],
+    )
+    monkeypatch.setattr(mem_service, "get_actor_memory", MagicMock(return_value=mock_mem))
+
+    shifts = mem_service.list_all_stance_shifts(limit=10)
+    assert len(shifts) == 1
+    assert shifts[0]["actor_name"] == "Ahmet Yılmaz"
+    assert shifts[0]["shift_type"] == "reversal"
+
+
+def test_detect_reversal_with_turkish_diacritics_and_multiword_phrases() -> None:
+    """DEF-03 Regresyon Testi: Boşluklu ifadeler ve Türkçe diyakritikler (kırmızı çizgi, kabul edilemez vs.) eşleşmelidir."""
+    mem = ActorMemory(
+        actor_name="Parti Sözcüsü",
+        total_claims=4,
+        promises=[],
+        attributions=[
+            # Çift 1: Kırmızı çizgi vs Müzakere edilebilir
+            MemoryEntry(
+                event_id=30,
+                event_title="İlk Beyan",
+                claim_id=301,
+                claim_text="Bu teklif bizim için kırmızı çizgimizdir ve kesinlikle olmaz",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2025-05-01T10:00:00Z",
+            ),
+            MemoryEntry(
+                event_id=31,
+                event_title="İkinci Beyan",
+                claim_id=302,
+                claim_text="Şartlar olgunlaşırsa her madde müzakere edilebilir ve mutabakat sağlandı",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2026-01-01T10:00:00Z",
+            ),
+            # Çift 2: Yasaklanmalı vs Serbest olmalı
+            MemoryEntry(
+                event_id=32,
+                event_title="Üçüncü Beyan",
+                claim_id=303,
+                claim_text="Bu platformlar derhal yasaklanmalı ve kapatılmalıdır",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2025-06-01T10:00:00Z",
+            ),
+            MemoryEntry(
+                event_id=33,
+                event_title="Dördüncü Beyan",
+                claim_id=304,
+                claim_text="Bu platformların kullanımı serbest olmalı ve açılması desteklenmelidir",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2026-03-01T10:00:00Z",
+            ),
+        ],
+        facts_and_numbers=[],
+        relation_chains=[],
+    )
+
+    shifts = detect_stance_shifts_from_memory(mem)
+    assert len(shifts) == 2
+    shift_events = {(s.earlier_event_id, s.later_event_id) for s in shifts}
+    assert (30, 31) in shift_events
+    assert (32, 33) in shift_events
+
+
+def test_non_matching_unrelated_claims_do_not_produce_false_positives() -> None:
+    """DEF-03 Regresyon Testi: Zıtlık taşımayan veya alakasız iddialar yanlış pozitif üretmemelidir."""
+    mem = ActorMemory(
+        actor_name="Bakan",
+        total_claims=2,
+        promises=[],
+        attributions=[
+            MemoryEntry(
+                event_id=40,
+                event_title="Bütçe Sunumu",
+                claim_id=401,
+                claim_text="Bakanlığımızın 2026 yılı bütçe görüşmeleri komisyonda tamamlandı",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2025-11-01T10:00:00Z",
+            ),
+            MemoryEntry(
+                event_id=41,
+                event_title="Ziyaret Açıklaması",
+                claim_id=402,
+                claim_text="Heyetimiz bölgedeki sanayi tesislerini ziyaret etti ve bilgi aldı",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at="2026-02-01T10:00:00Z",
+            ),
+        ],
+        facts_and_numbers=[],
+        relation_chains=[],
+    )
+
+    shifts = detect_stance_shifts_from_memory(mem)
+    assert len(shifts) == 0
+
+

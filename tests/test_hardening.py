@@ -653,3 +653,18 @@ def test_http_client_retry_after_and_capped_sleep(monkeypatch: pytest.MonkeyPatc
     assert len(sleep_calls) == 2
     assert sleep_calls[0] == 5.0
     assert sleep_calls[1] == 60.0
+
+
+def test_production_mode_requires_api_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Üretim ortamında api_token boş olamaz (I01 güvenlik sertleştirme)."""
+    from pydantic import ValidationError
+
+    from politikdesk.config import Settings
+
+    monkeypatch.setenv("PD_ENV", "production")
+    monkeypatch.delenv("PD_API_TOKEN", raising=False)
+
+    with pytest.raises(ValidationError, match="PD_API_TOKEN zorunludur"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+

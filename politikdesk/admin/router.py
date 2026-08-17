@@ -303,8 +303,7 @@ def dashboard() -> str:
             "Boru hattı",
             error_state(
                 "Veritabanı bağlantısı yok",
-                "Denetim panosu çalışan bir veritabanı gerektirir. "
-                "Vercel vitrin modunda bu ekran kullanılamaz.",
+                "Denetim panosu çalışan bir PostgreSQL veritabanı gerektirir (`pd start`).",
             ),
             active="/admin/",
             crumbs=(("Denetim", None), ("Boru hattı", None)),

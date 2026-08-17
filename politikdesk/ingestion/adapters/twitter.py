@@ -85,14 +85,21 @@ def aggregate_threads(
         if threads:
             last_thread = threads[-1]
             last_tweet = last_thread[-1]
+            thread_tweet_ids = {t.tweet_id for t in last_thread}
+            is_new_thread_start = tweet.text.startswith(("1/", "(1/", "[1/", "1-", "1."))
             if (
-                last_tweet.author_handle.lower() == tweet.author_handle.lower()
+                not is_new_thread_start
+                and last_tweet.author_handle.lower() == tweet.author_handle.lower()
                 and (tweet.published_at - last_tweet.published_at).total_seconds()
                 <= max_thread_gap_hours * 3600
                 and (
-                    tweet.in_reply_to_tweet_id == last_tweet.tweet_id
-                    or tweet.in_reply_to_tweet_id is not None
-                    or tweet.text.startswith(("1/", "2/", "3/", "4/", "5/", "...", ">>"))
+                    tweet.in_reply_to_tweet_id in thread_tweet_ids
+                    or (
+                        tweet.in_reply_to_tweet_id is None
+                        and tweet.text.startswith(
+                            ("2/", "3/", "4/", "5/", "6/", "7/", "8/", "9/", "...", ">>")
+                        )
+                    )
                 )
             ):
                 last_thread.append(tweet)

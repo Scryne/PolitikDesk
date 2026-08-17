@@ -192,6 +192,7 @@ def test_merge_events_allows_same_vertical() -> None:
     mock_cur.fetchall.side_effect = [
         list(mock_events.values()),  # events query
         [{"id": 10}, {"id": 11}],  # articles query
+        [],  # claims query
         [],  # refresh vectors target
         [],  # refresh vectors source
     ]

@@ -102,7 +102,9 @@ window.pdToast = function(msg) {
     t.className = 'toast';
     document.body.appendChild(t);
   }
-  t.innerHTML = '<span>' + msg + '</span>';
+  var s = document.createElement('span');
+  s.textContent = msg;
+  t.replaceChildren(s);
   t.classList.add('show');
   clearTimeout(window._pdToastTimer);
   window._pdToastTimer = setTimeout(function(){ t.classList.remove('show'); }, 2600);

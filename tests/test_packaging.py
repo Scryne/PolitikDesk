@@ -22,8 +22,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from scripts.check_deployment import ASSET_DIRS, expected_assets
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -225,64 +223,6 @@ def test_makefile_and_pd_cmd_commands_are_synced() -> None:
     assert not missing_in_make, f"Makefile içinde eksik temel komut(lar): {missing_in_make}"
     assert not missing_in_pd, f"pd.cmd içinde eksik temel komut(lar): {missing_in_pd}"
 
-
-@pytest.mark.asyncio
-async def test_vercel_serverless_entrypoint_path_resolution() -> None:
-    """Vercel rewrite isteklerinde /api/index.py kök yolunu asıl hedefe çözer."""
-    from api.index import app
-
-    sent: list[dict] = []
-
-    async def dummy_send(msg: dict) -> None:
-        sent.append(msg)
-
-    async def dummy_receive() -> dict:
-        return {"type": "http.request"}
-
-    async def check_route(scope_input: dict, expected_status: int = 200) -> None:
-        sent.clear()
-        base_scope = {
-            "type": "http",
-            "method": "GET",
-            "headers": [(b"host", b"politik-desk.vercel.app")],
-            "query_string": b"",
-        }
-        base_scope.update(scope_input)
-        await app(base_scope, dummy_receive, dummy_send)
-        statuses = [m.get("status") for m in sent if m.get("type") == "http.response.start"]
-        assert expected_status in statuses, f"Scope {scope_input} failed: got statuses {statuses}"
-
-    # 1. Kök yol / ve varyasyonları
-    await check_route({"path": "/"})
-    await check_route({"path": "/api"})
-    await check_route({"path": "/api/"})
-    await check_route({"path": "/api/index"})
-    await check_route({"path": "/api/index/"})
-    await check_route({"path": "/api/index.py"})
-    await check_route({"path": "/api/index.py/"})
-
-    # 2. Web yolları (/feed, /version, /health/live)
-    await check_route({"path": "/feed"})
-    await check_route({"path": "/api/feed"})
-    await check_route({"path": "/api/index/feed"})
-    await check_route({"path": "/api/index.py/feed"})
-    await check_route({"path": "/version"})
-    await check_route({"path": "/api/version"})
-    await check_route({"path": "/health/live"})
-    await check_route({"path": "/api/health/live"})
-
-    # 3. Gerçek /api rotaları korunmalı
-    await check_route({"path": "/api/profile"})
-    await check_route({"path": "/api/index/api/profile"})
-    await check_route({"path": "/api/index.py/api/profile"})
-    await check_route({"path": "/api/angles"})
-
-    # 4. Proxy başlıkları (x-forwarded-uri, x-matched-path)
-    await check_route({"path": "/api/index.py", "headers": [(b"x-forwarded-uri", b"/feed")]})
-    await check_route({"path": "/api/index.py", "headers": [(b"x-matched-path", b"/feed")]})
-
-    # 5. Query string parametreleri taşınmalı
-    await check_route({"path": "/api/feed", "query_string": b"f=ready&limit=10"})
 
 
 

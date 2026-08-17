@@ -96,3 +96,52 @@ def test_security_headers_in_response() -> None:
     assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"
     assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
     assert "geolocation=()" in resp.headers.get("Permissions-Policy", "")
+
+
+def test_pd_toast_does_not_use_inner_html() -> None:
+    """IMP-01 Regresyon Testi: pdToast metinleri innerHTML ile basmamalı (DOM XSS savunması)."""
+    from politikdesk.web.ui.shell import _THEME_JS
+
+    assert "t.innerHTML" not in _THEME_JS
+    assert "textContent" in _THEME_JS
+    assert "replaceChildren" in _THEME_JS
+
+
+def test_security_headers_present_on_short_circuited_auth_and_csrf_rejections(
+    monkeypatch,
+) -> None:
+    """IMP-04 Regresyon Testi: _TokenAuthMiddleware ve _CSRFProtectionMiddleware erken 401/403 döndürdüğünde dahi güvenlik başlıkları eklenmelidir."""
+    from fastapi.testclient import TestClient
+
+    from politikdesk.api.main import app
+    from politikdesk.config import get_settings
+
+    client = TestClient(app)
+
+    # 1. 401 Kimlik Doğrulama Reddi
+    monkeypatch.setenv("PD_API_TOKEN", "secret-token-123")
+    get_settings.cache_clear()
+    resp_401 = client.get("/api/profile")
+    assert resp_401.status_code == 401
+    assert resp_401.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp_401.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert resp_401.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+    # 2. 403 Geçersiz Belirteç Reddi
+    resp_403_auth = client.get("/api/profile", headers={"X-API-Token": "wrong-token"})
+    assert resp_403_auth.status_code == 403
+    assert resp_403_auth.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp_403_auth.headers.get("X-Frame-Options") == "SAMEORIGIN"
+
+    # 3. 403 CSRF Reddi (Cross-origin POST)
+    monkeypatch.delenv("PD_API_TOKEN", raising=False)
+    get_settings.cache_clear()
+    resp_403_csrf = client.post(
+        "/feed",
+        headers={"Origin": "https://malicious-site.com", "Host": "politikdesk.local"},
+    )
+    assert resp_403_csrf.status_code == 403
+    assert resp_403_csrf.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp_403_csrf.headers.get("X-Frame-Options") == "SAMEORIGIN"
+
+

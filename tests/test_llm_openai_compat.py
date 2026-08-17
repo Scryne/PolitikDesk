@@ -92,11 +92,39 @@ def test_provider_setting_selects_the_backend() -> None:
 
 
 def test_openai_compat_requires_endpoint_and_key_variable() -> None:
-    """Eksik yapılandırma ilk çağrıda değil, Settings kurulurken görünsün."""
+    """Eksik yapılandırma ilk çağrıda değil, Settings kurulurken görünsün (DEF-04)."""
+    # 1. Boş base_url her durumda PD_LLM_BASE_URL hatası vermeli
     with pytest.raises(ValueError, match="PD_LLM_BASE_URL"):
         Settings(env="test", llm_provider="openai_compat", llm_base_url="", llm_api_key_env="X")
+    with pytest.raises(ValueError, match="PD_LLM_BASE_URL"):
+        Settings(env="test", llm_provider="openai_compat", llm_base_url="", llm_api_key_env="")
+
+    # 2. Yerel uç noktası (Ollama/vLLM) API key env olmadan geçerli olmalı
+    s_local = Settings(
+        env="test",
+        llm_provider="openai_compat",
+        llm_base_url="http://127.0.0.1:11434/v1",
+        llm_api_key_env="",
+    )
+    assert s_local.llm_base_url == "http://127.0.0.1:11434/v1"
+
+    # 3. Uzak uç noktası (OpenAI/NVIDIA) API key env olmadan hata vermeli
     with pytest.raises(ValueError, match="PD_LLM_API_KEY_ENV"):
-        Settings(env="test", llm_provider="openai_compat", llm_base_url="https://x/v1", llm_api_key_env="")
+        Settings(
+            env="test",
+            llm_provider="openai_compat",
+            llm_base_url="https://api.openai.com/v1",
+            llm_api_key_env="",
+        )
+
+    # 4. Uzak uç noktası API key env ile geçerli olmalı
+    s_remote = Settings(
+        env="test",
+        llm_provider="openai_compat",
+        llm_base_url="https://api.openai.com/v1",
+        llm_api_key_env="OPENAI_API_KEY",
+    )
+    assert s_remote.llm_api_key_env == "OPENAI_API_KEY"
 
 
 def test_missing_key_names_the_configured_variable(
@@ -401,3 +429,25 @@ def test_free_tier_costs_zero_but_tokens_are_still_recorded(
     assert result.cost_usd == 0.0
     assert ledger.calls[0].input_tokens == 1000
     assert ledger.calls[0].output_tokens == 200
+
+
+def test_local_endpoint_works_without_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Yerel uç nokta (Ollama/localhost) API anahtarı olmadan çalışabilir."""
+    monkeypatch.delenv("TEST_LLM_KEY", raising=False)
+    settings = _settings(llm_base_url="http://127.0.0.1:11434/v1", llm_api_key_env="")
+    backend, sent = _backend(_ok(), settings)
+    text, usage = backend.complete_json(
+        model="llama3.2",
+        system="s",
+        user="u",
+        schema=SCHEMA,
+        effort="low",
+        max_tokens=1000,
+    )
+    assert json.loads(text) == {"claims": []}
+    assert usage["input_tokens"] == 1000
+    assert sent[0]["model"] == "llama3.2"
+
+

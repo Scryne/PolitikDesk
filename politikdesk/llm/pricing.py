@@ -75,7 +75,34 @@ PRICES: Final[dict[str, ModelPrice]] = {
     "minimaxai/minimax-m3": FREE_TIER,
     "openai/gpt-oss-120b": FREE_TIER,
     "meta/llama-3.3-70b-instruct": FREE_TIER,
+    "meta/llama-3.1-70b-instruct": FREE_TIER,
+    "meta/llama-3.1-8b-instruct": FREE_TIER,
+    "qwen/qwen2.5-72b-instruct": FREE_TIER,
+    "qwen/qwen2.5-coder-32b-instruct": FREE_TIER,
+    "deepseek-ai/deepseek-r1": FREE_TIER,
+    "deepseek-ai/deepseek-v3": FREE_TIER,
     "mistralai/mistral-large-2-instruct": FREE_TIER,
+    "mistralai/mixtral-8x22b-instruct-v0.1": FREE_TIER,
+    # --- Yerel / Self-Hosted Modeller (Ollama, LM Studio, vLLM · maliyetsiz) ---
+    "local": FREE_TIER,
+    "ollama": FREE_TIER,
+    "llama3.3": FREE_TIER,
+    "llama3.2": FREE_TIER,
+    "llama3.1": FREE_TIER,
+    "llama3": FREE_TIER,
+    "qwen2.5": FREE_TIER,
+    "qwen2.5:7b": FREE_TIER,
+    "qwen2.5:7b-instruct": FREE_TIER,
+    "qwen2.5:7b-instruct-q5_K_M": FREE_TIER,
+    "qwen2.5:14b": FREE_TIER,
+    "qwen2.5:14b-instruct": FREE_TIER,
+    "qwen2.5:14b-instruct-q4_K_M": FREE_TIER,
+    "qwen2.5-coder": FREE_TIER,
+    "mistral": FREE_TIER,
+    "gemma2": FREE_TIER,
+    "phi4": FREE_TIER,
+    "phi3": FREE_TIER,
+    "deepseek-r1": FREE_TIER,
 }
 
 # Prompt cache çarpanları (girdi fiyatına göre)
@@ -101,13 +128,33 @@ def estimate_cost_usd(
 
     Bilinmeyen model sessizce 0 maliyet üretmez — bütçe tavanının
     farkında olmadan aşılmasını engellemek için hata fırlatır.
+    Yerel ve self-hosted modeller (Ollama/vLLM) ise doğrudan FREE_TIER ($0.0) döner.
     """
-    try:
-        price = PRICES[model]
-    except KeyError as exc:
-        raise UnknownModelError(
-            f"'{model}' fiyat tablosunda yok. politikdesk/llm/pricing.py güncellenmeli."
-        ) from exc
+    clean_model = model.strip()
+    price = PRICES.get(clean_model)
+    if price is None:
+        # Yerel/self-hosted model tespiti (ollama/..., local/..., localhost/...)
+        lower = clean_model.lower()
+        local_keywords = (
+            "llama",
+            "qwen",
+            "mistral",
+            "gemma",
+            "deepseek",
+            "phi",
+            "nemotron",
+        )
+        if (
+            lower.startswith(("local", "ollama", "lmstudio", "vllm"))
+            or ":latest" in lower
+            or "-instruct" in lower
+            or any(m in lower for m in local_keywords)
+        ):
+            price = FREE_TIER
+        else:
+            raise UnknownModelError(
+                f"'{model}' fiyat tablosunda yok. politikdesk/llm/pricing.py güncellenmeli."
+            )
 
     in_rate, out_rate = price.rates(on or date.today())
     per_token_in = in_rate / 1_000_000

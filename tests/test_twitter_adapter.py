@@ -555,3 +555,62 @@ def test_pipeline_skips_twitter_when_feature_flag_disabled(monkeypatch) -> None:
     assert stats.errors == 0
 
 
+def test_thread_aggregator_does_not_merge_unrelated_replies() -> None:
+    """DEF-01 Regresyon Testi: Başka tweetlere/kullanıcılara atılan yanıtlar zincire dahil edilmemelidir."""
+    t1 = TweetItem(
+        tweet_id="101",
+        author_handle="siyasetci",
+        text="Önemli bir açıklama yapıyorum:",
+        published_at=datetime(2026, 8, 16, 10, 0, tzinfo=UTC),
+        url="https://x.com/siyasetci/status/101",
+    )
+    # Thread içi devam tweeti (101'e yanıt)
+    t2 = TweetItem(
+        tweet_id="102",
+        author_handle="siyasetci",
+        text="Açıklamamın ikinci maddesi budur.",
+        published_at=datetime(2026, 8, 16, 10, 2, tzinfo=UTC),
+        url="https://x.com/siyasetci/status/102",
+        in_reply_to_tweet_id="101",
+    )
+    # Aynı yazarın 10 dakika sonra bambaşka bir kullanıcıya verdiği yanıt
+    t3_unrelated = TweetItem(
+        tweet_id="103",
+        author_handle="siyasetci",
+        text="Tebrik ederim, başarılar dilerim.",
+        published_at=datetime(2026, 8, 16, 10, 10, tzinfo=UTC),
+        url="https://x.com/siyasetci/status/103",
+        in_reply_to_tweet_id="999999",  # Harici bir tweet'e yanıt
+    )
+    # Başka bağımsız numaralandırılmış flood
+    t4_flood1 = TweetItem(
+        tweet_id="104",
+        author_handle="siyasetci",
+        text="1/ Yeni bir konuya geçiyoruz.",
+        published_at=datetime(2026, 8, 16, 11, 0, tzinfo=UTC),
+        url="https://x.com/siyasetci/status/104",
+    )
+    t5_flood2 = TweetItem(
+        tweet_id="105",
+        author_handle="siyasetci",
+        text="2/ Yeni konunun ikinci kısmı.",
+        published_at=datetime(2026, 8, 16, 11, 2, tzinfo=UTC),
+        url="https://x.com/siyasetci/status/105",
+    )
+
+    items = aggregate_threads([t1, t2, t3_unrelated, t4_flood1, t5_flood2])
+
+    assert len(items) == 3, f"Beklenen 3 ayrı grup (flood1, harici yanıt, flood2), fakat {len(items)} geldi"
+    # Grup 1: t1 + t2
+    assert items[0].extra["is_thread"] is True
+    assert items[0].extra["tweet_count"] == 2
+    # Grup 2: t3_unrelated (tekil)
+    assert items[1].extra["is_thread"] is False
+    assert items[1].extra["tweet_count"] == 1
+    assert "Tebrik ederim" in items[1].summary
+    # Grup 3: t4 + t5
+    assert items[2].extra["is_thread"] is True
+    assert items[2].extra["tweet_count"] == 2
+
+
+

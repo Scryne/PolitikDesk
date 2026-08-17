@@ -20,7 +20,7 @@ Environment = Literal["development", "test", "production"]
 # Geçerli LLM sağlayıcıları (F0-17 adaptör deseni). `anthropic` üretim
 # varsayılanıdır; `openai_compat` OpenAI uyumlu /chat/completions sunan her
 # sağlayıcıyı kapsar (NVIDIA NIM, Groq, Together, yerel vLLM/Ollama…).
-LLM_PROVIDERS: Final[frozenset[str]] = frozenset({"anthropic", "openai_compat"})
+LLM_PROVIDERS: Final[frozenset[str]] = frozenset({"anthropic", "openai_compat", "hybrid"})
 
 # OpenAI uyumlu sunucularda yapılandırılmış çıktının üç ayrı lehçesi var;
 # hangisinin desteklendiği modele ve sunucuya göre değişir. Sıra, düşüş
@@ -47,6 +47,12 @@ _OPTIONAL_EMPTY_STRING_FIELDS: Final[frozenset[str]] = frozenset(
         "api_token",
         "llm_base_url",
         "llm_api_key_env",
+        "llm_extraction_base_url",
+        "llm_extraction_api_key_env",
+        "llm_extraction_json_mode",
+        "llm_generation_base_url",
+        "llm_generation_api_key_env",
+        "llm_generation_json_mode",
         "embedding_provider",
         "embedding_model",
         "sentry_dsn",
@@ -169,11 +175,23 @@ class Settings(BaseSettings):
     llm_model_extraction: str = "claude-sonnet-5"
     llm_model_generation: str = "claude-opus-5"
 
-    # `openai_compat` için: uç nokta, anahtarın okunacağı ortam değişkeninin
+    # `openai_compat` ve `hybrid` için: uç nokta, anahtarın okunacağı ortam değişkeninin
     # ADI (anahtarın kendisi değil) ve yapılandırılmış çıktı lehçesi.
     llm_base_url: str = ""
     llm_api_key_env: str = ""
     llm_json_mode: str = "json_schema"
+
+    # Hibrit çift LLM mimarisi (Yerel Ollama + Bulut NVIDIA NIM vb.)
+    # Boş bırakıldığında genel `llm_base_url` / `llm_api_key_env` / `llm_json_mode`
+    # değerlerine düşer.
+    llm_extraction_base_url: str = ""
+    llm_extraction_api_key_env: str = ""
+    llm_extraction_json_mode: str = ""
+    llm_generation_base_url: str = ""
+    llm_generation_api_key_env: str = ""
+    llm_generation_json_mode: str = ""
+    llm_fallback_enabled: bool = True
+
     # Akıl yürüten (reasoning) açık modeller tek çağrıda dakikalar sürebilir.
     llm_timeout_seconds: float = Field(default=120.0, gt=0)
     # Geçici 429/503'te toplam deneme sayısı (ücretsiz katmanda gerekli).
@@ -243,9 +261,9 @@ class Settings(BaseSettings):
     def _ignore_empty_string_env_values(cls, data: Any) -> Any:
         """Ortam değişkeni boşluk veya "" olarak verildiğinde varsayılan değere dön.
 
-        Vercel veya .env şablonlarında değişkenler boş bırakıldığında
-        (örn: `PD_LOG_FORMAT=` veya `PD_LLM_DAILY_BUDGET_USD=`) Pydantic'in
-        int/float/Literal alanlarda ValidationError fırlatmasını önler.
+        .env şablonlarında değişkenler boş bırakıldığında (örn: `PD_LOG_FORMAT=`
+        veya `PD_LLM_DAILY_BUDGET_USD=`) Pydantic'in int/float/Literal alanlarda
+        ValidationError fırlatmasını önler.
         """
         if isinstance(data, dict):
             cleaned: dict[str, Any] = {}
@@ -258,30 +276,6 @@ class Settings(BaseSettings):
                     continue
                 cleaned[key] = value
 
-            # Bulut veritabanı değişkenleri için otomatik geri dönüş (Neon, Vercel vb.)
-            db_val: Any = cleaned.get("database_url")
-            needs_fallback: bool = (
-                not db_val
-                or (
-                    bool(os.environ.get("VERCEL"))
-                    and isinstance(db_val, str)
-                    and ("127.0.0.1" in db_val or "localhost" in db_val)
-                )
-            )
-            if needs_fallback:
-                for fallback_key in (
-                    "PD_NEON_DATABASE_URL",
-                    "POSTGRES_URL",
-                    "POSTGRES_PRISMA_URL",
-                    "DATABASE_URL",
-                    "NEON_DATABASE_URL",
-                    "SUPABASE_DATABASE_URL",
-                ):
-                    candidate: str | None = os.environ.get(fallback_key)
-                    if candidate and candidate.strip():
-                        cleaned["database_url"] = candidate.strip()
-                        break
-
             return cleaned
         return data
 
@@ -292,6 +286,12 @@ class Settings(BaseSettings):
         "llm_base_url",
         "llm_api_key_env",
         "llm_json_mode",
+        "llm_extraction_base_url",
+        "llm_extraction_api_key_env",
+        "llm_extraction_json_mode",
+        "llm_generation_base_url",
+        "llm_generation_api_key_env",
+        "llm_generation_json_mode",
         "llm_model_extraction",
         "llm_model_generation",
         mode="before",
@@ -312,10 +312,12 @@ class Settings(BaseSettings):
             )
         return provider
 
-    @field_validator("llm_json_mode")
+    @field_validator("llm_json_mode", "llm_extraction_json_mode", "llm_generation_json_mode")
     @classmethod
     def _json_mode_must_be_known(cls, v: str) -> str:
         mode = v.strip().lower()
+        if not mode:
+            return ""
         if mode not in JSON_MODES:
             raise ValueError(f"Bilinmeyen llm_json_mode: {v!r}. Seçenekler: {list(JSON_MODES)}")
         return mode
@@ -324,27 +326,68 @@ class Settings(BaseSettings):
     def _openai_compat_needs_endpoint_and_key(self) -> Settings:
         """Eksik yapılandırma ilk LLM çağrısında değil, açılışta görünsün.
 
-        `openai_compat` sağlayıcısında uç nokta ve anahtar değişkeni adı
-        zorunludur: varsayılan uydurmak, yanlış sağlayıcıya sessizce istek
-        göndermek demektir.
+        `openai_compat` veya `hybrid` sağlayıcısında uç nokta ve anahtar
+        değişkeni adı zorunludur: varsayılan uydurmak, yanlış sağlayıcıya sessizce
+        istek göndermek demektir.
         """
-        if self.llm_provider != "openai_compat":
+        if self.llm_provider not in ("openai_compat", "hybrid"):
             return self
 
-        missing = [
-            name
-            for name, value in (
-                ("PD_LLM_BASE_URL", self.llm_base_url),
-                ("PD_LLM_API_KEY_ENV", self.llm_api_key_env),
-            )
-            if not value
-        ]
-        if missing:
+        local_hosts = (
+            "127.0.0.1",
+            "localhost",
+            "0.0.0.0",
+            "host.docker.internal",
+            ":11434",
+            ":1234",
+        )
+
+        def _is_local(url: str) -> bool:
+            return any(h in (url or "").lower() for h in local_hosts)
+
+        if self.llm_provider == "openai_compat":
+            if not self.llm_base_url:
+                raise ValueError("llm_provider='openai_compat' için PD_LLM_BASE_URL zorunludur.")
+            if _is_local(self.llm_base_url):
+                return self
+
+            if not self.llm_api_key_env:
+                raise ValueError(
+                    "llm_provider='openai_compat' için PD_LLM_API_KEY_ENV zorunludur. "
+                    "Örnek (NVIDIA NIM): PD_LLM_BASE_URL=https://integrate.api.nvidia.com/v1, "
+                    "PD_LLM_API_KEY_ENV=NVIDIA_API_KEY"
+                )
+            return self
+
+        # hybrid sağlayıcı: extraction ve generation uç noktalarını ayrı ayrı denetle
+        ext_url = self.llm_extraction_base_url or self.llm_base_url
+        ext_key = self.llm_extraction_api_key_env or self.llm_api_key_env
+        gen_url = self.llm_generation_base_url or self.llm_base_url
+        gen_key = self.llm_generation_api_key_env or self.llm_api_key_env
+
+        if not ext_url:
             raise ValueError(
-                f"llm_provider='openai_compat' için {', '.join(missing)} zorunludur. "
-                "Örnek (NVIDIA NIM): PD_LLM_BASE_URL=https://integrate.api.nvidia.com/v1, "
-                "PD_LLM_API_KEY_ENV=NVIDIA_API_KEY"
+                "llm_provider='hybrid' için PD_LLM_EXTRACTION_BASE_URL veya "
+                "PD_LLM_BASE_URL zorunludur (örn: http://127.0.0.1:11434/v1)."
             )
+        if not _is_local(ext_url) and not ext_key:
+            raise ValueError(
+                "llm_provider='hybrid' iken yerel olmayan çıkarım uç noktası için "
+                "PD_LLM_EXTRACTION_API_KEY_ENV veya PD_LLM_API_KEY_ENV zorunludur."
+            )
+
+        if not gen_url:
+            raise ValueError(
+                "llm_provider='hybrid' için PD_LLM_GENERATION_BASE_URL veya "
+                "PD_LLM_BASE_URL zorunludur (örn: https://integrate.api.nvidia.com/v1)."
+            )
+        if not _is_local(gen_url) and not gen_key:
+            raise ValueError(
+                "llm_provider='hybrid' iken yerel olmayan üretim uç noktası için "
+                "PD_LLM_GENERATION_API_KEY_ENV veya PD_LLM_API_KEY_ENV zorunludur "
+                "(örn: NVIDIA_API_KEY)."
+            )
+
         return self
 
     @model_validator(mode="after")

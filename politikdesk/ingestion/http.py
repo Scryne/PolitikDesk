@@ -267,10 +267,21 @@ class RateLimiter:
                     window.popleft()
                 if len(window) < self.max_per_minute:
                     window.append(now)
+                    self._cleanup_expired(now, exclude_key=key)
                     return waited
                 sleep_for = 60.0 - (now - window[0]) + 0.01
             time.sleep(sleep_for)
             waited += sleep_for
+
+    def _cleanup_expired(self, now: float, exclude_key: str | None = None) -> None:
+        """Süresi dolmuş/boş pencereye sahip host anahtarlarını temizler (IMP-05)."""
+        expired_keys = [
+            k
+            for k, win in self._hits.items()
+            if k != exclude_key and (not win or now - win[-1] > 60.0)
+        ]
+        for k in expired_keys:
+            del self._hits[k]
 
     def _acquire_redis(self, key: str) -> float:
         if self._redis is None:
@@ -384,7 +395,7 @@ class HttpClient:
     custom_headers: dict[str, str] | None = None
     enable_jitter: bool = False
     enforce_ssrf: bool = True
-    resolve_dns: bool = False
+    resolve_dns: bool = True
     redis_client: Any | None = None
     use_redis: bool = False
 

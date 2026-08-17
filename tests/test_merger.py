@@ -274,3 +274,63 @@ def test_invalid_review_decision_is_rejected(db_conn, fixtures) -> None:  # noqa
     with pytest.raises(MergeError, match="verified"):
         resolve_review(fixtures["events"][0], "maybe")
     db_conn.commit()
+
+
+def test_merge_and_undo_reparents_claims(db_conn, fixtures) -> None:  # noqa: ANN001
+    """IMP-03 Regresyon Testi: merge_events kaynak olayın iddialarını hedefe taşımalı; undo_merge geri yüklemelidir."""
+    source, target = fixtures["events"]
+
+    with db_conn.cursor() as cur:
+        # Kaynak olay için iddia
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_text, claim_type, evidence_status, status_reason)
+            VALUES (%s, 'Kaynak olayın iddiası', 'fact', 'strongly_corroborated', '{"rule":"R0"}'::jsonb)
+            RETURNING id
+            """,
+            (source,),
+        )
+        src_claim_id = cur.fetchone()["id"]
+
+        # Hedef olay için iddia
+        cur.execute(
+            """
+            INSERT INTO claims (event_id, claim_text, claim_type, evidence_status, status_reason)
+            VALUES (%s, 'Hedef olayın orijinal iddiası', 'fact', 'strongly_corroborated', '{"rule":"R0"}'::jsonb)
+            RETURNING id
+            """,
+            (target,),
+        )
+        tgt_claim_id = cur.fetchone()["id"]
+    db_conn.commit()
+
+    # 1. Merge işlemi
+    result = merge_events(source, target)
+    db_conn.commit()
+
+    assert src_claim_id in result.moved_claim_ids
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (source,))
+        source_claims_after_merge = [r["id"] for r in cur.fetchall()]
+        cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (target,))
+        target_claims_after_merge = [r["id"] for r in cur.fetchall()]
+
+    assert source_claims_after_merge == [], "Kaynak olayın iddiaları hedefe taşınmış olmalı"
+    assert set(target_claims_after_merge) == {src_claim_id, tgt_claim_id}, "Hedef olay hem kendi hem taşınan iddialara sahip olmalı"
+
+    # 2. Undo işlemi
+    undo_result = undo_merge(source)
+    db_conn.commit()
+
+    assert src_claim_id in undo_result.moved_claim_ids
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (source,))
+        source_claims_after_undo = [r["id"] for r in cur.fetchall()]
+        cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (target,))
+        target_claims_after_undo = [r["id"] for r in cur.fetchall()]
+
+    assert source_claims_after_undo == [src_claim_id], "Geri alma sonrası kaynak iddia kaynağa dönmeli"
+    assert target_claims_after_undo == [tgt_claim_id], "Hedefin orijinal iddiası bozulmamalı"
+

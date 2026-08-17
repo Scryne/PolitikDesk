@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
@@ -271,6 +272,29 @@ def test_http_client_centralized_ssrf_enforcement() -> None:
             client.get(target)
 
 
+def test_http_client_default_resolve_dns_blocks_private_dns_targets(monkeypatch) -> None:  # noqa: ANN001
+    """IMP-02 Regresyon Testi: HttpClient varsayılan olarak DNS çözümlemesi yapar ve özel IP'ye çözümlenen hostları engeller."""
+    import socket
+
+    client = HttpClient(max_retries=1, respect_robots=False)
+    assert client.resolve_dns is True
+
+    # 1. Özel IP'ye çözümlenen sahte domain
+    def mock_getaddrinfo_private(host: str, port: Any) -> list[Any]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 80))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_private)
+    with pytest.raises(UnsafeUrlError, match="özel bir adrese çözümleniyor"):
+        validate_url("http://attacker-internal.com/data", resolve_dns=client.resolve_dns)
+
+    # 2. Genel IP'ye çözümlenen domain
+    def mock_getaddrinfo_public(host: str, port: Any) -> list[Any]:
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 80))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_public)
+    assert validate_url("http://example.com/feed", resolve_dns=client.resolve_dns) == "http://example.com/feed"
+
+
 def test_rate_limiter_redis_atomic_lua_coordination() -> None:
     """NEW-02 / IMP-01: RateLimiter Redis istemcisi varsa atomik Lua scripti kullanır."""
     from unittest.mock import MagicMock
@@ -291,6 +315,25 @@ def test_rate_limiter_redis_atomic_lua_coordination() -> None:
     assert "ZCARD" in args[0]
     assert "ZADD" in args[0]
     assert args[2] == "pd:ratelimit:api.tccb.gov.tr"
+
+
+def test_rate_limiter_memory_cleans_up_expired_host_keys() -> None:
+    """IMP-05 Regresyon Testi: Süresi dolan host anahtarları _hits sözlüğünden temizlenmeli, bellek büyümesi engellenmelidir."""
+    from collections import deque
+
+    from politikdesk.ingestion.http import RateLimiter
+
+    limiter = RateLimiter(max_per_minute=10)
+
+    # 1. Eski bir host kaydı (65 saniye önce)
+    limiter._hits["old-host.com"] = deque([100.0, 105.0])
+    limiter._hits["active-host.com"] = deque([160.0])
+
+    # now = 170.0 (old-host süresi dolmuş: 170 - 105 = 65 > 60)
+    limiter._cleanup_expired(now=170.0)
+
+    assert "old-host.com" not in limiter._hits
+    assert "active-host.com" in limiter._hits
 
 
 def test_rate_limiter_redis_error_falls_back_to_memory() -> None:

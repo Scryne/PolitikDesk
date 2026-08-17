@@ -436,8 +436,8 @@ def list_all_stance_shifts(limit: int = 50) -> list[dict[str, Any]]:
     actors_res = search_actors(query="", limit=20)
     all_shifts: list[dict[str, Any]] = []
 
-    for item in actors_res.get("items", []):
-        name = item.get("actor_name")
+    for item in actors_res.get("actors", []):
+        name = item.get("name")
         if name:
             mem = get_actor_memory(name)
             shifts = detect_stance_shifts_from_memory(mem)

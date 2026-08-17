@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Literal
 
+from politikdesk.nlp.claims import fold_text
 from politikdesk.political_memory.service import ActorMemory
 
 ShiftType = Literal[
@@ -23,24 +24,45 @@ ShiftType = Literal[
     "policy_pivot",        # Kurumsal/politik rota değişikliği
 ]
 
-# Zıtlık tespitinde kullanılan ikili kutup sözlükleri (Türkçe kökler)
-POLARITY_PAIRS: tuple[tuple[frozenset[str], frozenset[str]], ...] = (
+# Zıtlık tespitinde kullanılan ikili kutup sözlükleri (Türkçe kökler ve deyimler)
+_POLARITY_PAIRS_RAW: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
-        frozenset({"artirilmali", "artacak", "yukselecek", "artis", "sikilasma", "sıkı"}),
-        frozenset({"indirilmeli", "dusecek", "azalacak", "dusus", "gevseme", "faiz_indirim"}),
+        (
+            "artırılmalı",
+            "artacak",
+            "yükselecek",
+            "artış",
+            "sıkılaşma",
+            "sıkılaştırma",
+            "faiz artırımı",
+        ),
+        (
+            "indirilmeli",
+            "düşecek",
+            "azalacak",
+            "düşüş",
+            "gevşeme",
+            "faiz indirimi",
+            "parasal gevşeme",
+        ),
     ),
     (
-        frozenset({"destekliyoruz", "evet", "onayliyoruz", "yanindayiz", "kabul"}),
-        frozenset({"karsiyiz", "hayir", "reddediyoruz", "kabul_edilemez", "itiraz"}),
+        ("destekliyoruz", "onaylıyoruz", "yanındayız", "kabul ediyoruz"),
+        ("karşıyız", "reddediyoruz", "kabul edilemez", "itiraz ediyoruz"),
     ),
     (
-        frozenset({"yasaklanmali", "kapatilmali", "engellenmeli", "cezalandirilmali"}),
-        frozenset({"serbest_olmali", "acilmasi", "desteklenmeli", "tesvik"}),
+        ("yasaklanmalı", "kapatılmalı", "engellenmeli", "cezalandırılmalı"),
+        ("serbest olmalı", "açılmalı", "açılması", "desteklenmeli", "teşvik edilmeli"),
     ),
     (
-        frozenset({"asla", "kesinlikle_olmaz", "mumkun_degil", "kirmizi_cizgi"}),
-        frozenset({"olabilir", "muzakere_edilebilir", "anlasma_saglandi", "mutabakat"}),
+        ("asla olmaz", "kesinlikle olmaz", "mümkün değil", "kırmızı çizgi", "kırmızı çizgimiz"),
+        ("müzakere edilebilir", "anlaşma sağlandı", "mutabakat sağlandı", "mümkündür"),
     ),
+)
+
+POLARITY_PAIRS: tuple[tuple[frozenset[str], frozenset[str]], ...] = tuple(
+    (frozenset(fold_text(w) for w in pos), frozenset(fold_text(w) for w in neg))
+    for pos, neg in _POLARITY_PAIRS_RAW
 )
 
 
@@ -68,10 +90,12 @@ class StanceShift:
         return asdict(self)
 
 
-def _calc_days_between(date_str1: str, date_str2: str) -> int:
+def _calc_days_between(date_str1: str | None, date_str2: str | None) -> int:
+    if not date_str1 or not date_str2:
+        return 0
     try:
-        d1 = datetime.fromisoformat(date_str1.replace("Z", "+00:00")).date()
-        d2 = datetime.fromisoformat(date_str2.replace("Z", "+00:00")).date()
+        d1 = datetime.fromisoformat(str(date_str1).replace("Z", "+00:00")).date()
+        d2 = datetime.fromisoformat(str(date_str2).replace("Z", "+00:00")).date()
         return abs((d2 - d1).days)
     except Exception:
         return 0
@@ -136,7 +160,7 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
 
     for i in range(len(sorted_entries)):
         e1 = sorted_entries[i]
-        t1_lower = e1.claim_text.lower()
+        t1_folded = fold_text(e1.claim_text)
 
         for j in range(i + 1, len(sorted_entries)):
             e2 = sorted_entries[j]
@@ -147,15 +171,15 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
             if pair in seen_pairs:
                 continue
 
-            t2_lower = e2.claim_text.lower()
+            t2_folded = fold_text(e2.claim_text)
             days = _calc_days_between(e1.first_reported_at, e2.first_reported_at)
 
             matched_pair = False
             for pos_set, neg_set in POLARITY_PAIRS:
-                has_pos_1 = any(p in t1_lower for p in pos_set)
-                has_neg_1 = any(n in t1_lower for n in neg_set)
-                has_pos_2 = any(p in t2_lower for p in pos_set)
-                has_neg_2 = any(n in t2_lower for n in neg_set)
+                has_pos_1 = any(p in t1_folded for p in pos_set)
+                has_neg_1 = any(n in t1_folded for n in neg_set)
+                has_pos_2 = any(p in t2_folded for p in pos_set)
+                has_neg_2 = any(n in t2_folded for n in neg_set)
 
                 if (has_pos_1 and has_neg_2) or (has_neg_1 and has_pos_2):
                     shifts.append(
