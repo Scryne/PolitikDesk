@@ -28,6 +28,7 @@ from urllib.robotparser import RobotFileParser
 import certifi
 import httpx
 
+from politikdesk.ingestion.circuit import CircuitOpenError, get_circuit
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -132,6 +133,7 @@ NON_RETRYABLE_ERRORS = (
     httpx.DecodingError,
     httpx.InvalidURL,
     UnsafeUrlError,
+    CircuitOpenError,
 )
 
 
@@ -507,6 +509,9 @@ class HttpClient:
         ölü" diye karar vermek yanlış olurdu.
         """
         host = urlparse(url).netloc
+        circuit = get_circuit(host)
+        circuit.check_or_raise()
+
         last_error: Exception | None = None
         for attempt in range(self.max_retries):
             self._limiter.acquire(host)
@@ -516,6 +521,8 @@ class HttpClient:
                     req_kwargs["follow_redirects"] = follow_redirects
                 response = self._client.request(method, url, **req_kwargs)
             except NON_RETRYABLE_ERRORS as exc:
+                if not isinstance(exc, CircuitOpenError):
+                    circuit.record_failure(error=type(exc).__name__)
                 # Kurtarılamaz hata (ör. geçersiz URL, protokol): yeniden deneme yapma
                 raise exc
 
@@ -538,7 +545,13 @@ class HttpClient:
                     )
                 continue
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                circuit.record_failure(error=f"HTTP {response.status_code}")
+                raise exc
+
+            circuit.record_success()
             log.debug(
                 "http_ok",
                 url=url,
@@ -549,6 +562,7 @@ class HttpClient:
             return response
 
         assert last_error is not None
+        circuit.record_failure(error=type(last_error).__name__)
         raise last_error
 
     def _backoff(

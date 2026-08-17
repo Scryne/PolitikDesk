@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import pytest
 
 from politikdesk.political_memory.accountability import (
@@ -78,9 +76,11 @@ def test_build_accountability_case_data_integrity() -> None:
 
 
 @pytest.mark.db
-def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
+def test_record_relation_and_fetch_with_enhanced_fields() -> None:
     """Veritabanına confidence, evidence_payload ve status ile kayıt denetimi."""
-    with db_conn.cursor() as cur:
+    from politikdesk.db import connection
+
+    with connection() as conn, conn.cursor() as cur:
         # 2 geçici olay oluştur
         cur.execute(
             """
@@ -99,7 +99,7 @@ def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
             """
         )
         e2 = cur.fetchone()["id"]
-        db_conn.commit()
+        conn.commit()
 
     try:
         payload = {"matched_topics": ["kamu"], "score": 0.88}
@@ -114,7 +114,7 @@ def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
             status="supported",
         )
 
-        with db_conn.cursor() as cur:
+        with connection() as conn, conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT relation, similarity, confidence, status, evidence_payload
@@ -131,10 +131,11 @@ def test_record_relation_and_fetch_with_enhanced_fields(db_conn: Any) -> None:
             assert row["evidence_payload"]["matched_topics"] == ["kamu"]
 
     finally:
-        with db_conn.cursor() as cur:
+        with connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM event_relations WHERE from_event_id = %s;", (e1,))
             cur.execute("DELETE FROM events WHERE id IN (%s, %s);", (e1, e2))
-            db_conn.commit()
+            conn.commit()
+
 
 
 def test_sparkline_svg_rendering() -> None:

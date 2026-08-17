@@ -20,20 +20,58 @@ from politikdesk.web.ui.icons import icon, status_icon
 from politikdesk.web.ui.tokens import STATUS_TOKEN
 
 
-# ═══════════════════════════════════════════════════════ kaçış
+# ═══════════════════════════════════════════════════════ kaçış & güvenlik
+class SafeString(str):
+    """HTML olarak güvenli kabul edilen ve tekrar kaçırılmaması gereken dize."""
+
+    __slots__ = ()
+
+
+def mark_safe(value: object) -> SafeString:
+    """Bir dizeyi güvenli HTML olarak işaretler."""
+    if isinstance(value, SafeString):
+        return value
+    return SafeString(str(value if value is not None else ""))
+
+
 def esc(value: object) -> str:
-    """HTML kaçışı. Kaynaklardan ve kullanıcıdan gelen HER metin geçer."""
-    return html.escape(str(value if value is not None else ""))
+    """HTML kaçışı. Kaynaklardan ve kullanıcıdan gelen HER metin geçer.
+
+    `SafeString` nesneleri çift kaçış (double-escaping) olmaması için
+    olduğu gibi döner; diğer tüm nesneler `quote=True` ile kaçırılır.
+    """
+    if isinstance(value, SafeString):
+        return value
+    return html.escape(str(value if value is not None else ""), quote=True)
+
+
+def esc_attr(value: object) -> str:
+    """HTML özniteliği (attribute) için güvenli kaçış.
+
+    Tırnak işaretleri, ampersand ve XSS teşebbüslerini (`javascript:`, `data:` URI'ları)
+    öznitelik düzeyinde etkisizleştirir.
+    """
+    s = str(value if value is not None else "").strip()
+    # javascript: ve vbscript: protokol sahteciliğini engelle
+    lowered = s.lower().replace(" ", "").replace("\t", "").replace("\r", "").replace("\n", "")
+    if lowered.startswith(("javascript:", "vbscript:", "data:text/html")):
+        return "#"
+    return html.escape(s, quote=True)
 
 
 def _attrs(**kwargs: Any) -> str:
-    """`cls="x", title="y"` → ` class="x" title="y"`. `None` atlanır."""
+    """`cls="x", title="y"` → ` class="x" title="y"`. `None` ve `False` atlanır."""
     out = []
     for key, value in kwargs.items():
         if value is None or value is False:
             continue
         name = {"cls": "class", "for_": "for"}.get(key, key.replace("_", "-"))
-        out.append(name if value is True else f'{name}="{esc(value)}"')
+        if value is True:
+            out.append(name)
+        elif key in ("href", "action", "src"):
+            out.append(f'{name}="{esc_attr(value)}"')
+        else:
+            out.append(f'{name}="{esc_attr(value)}"')
     return (" " + " ".join(out)) if out else ""
 
 

@@ -460,3 +460,11 @@ def check_and_log() -> list[dict[str, Any]]:
     else:
         log.info("pipeline_stages_healthy")
     return [r.as_dict() for r in red]
+
+
+def circuit_status_report() -> list[dict[str, Any]]:
+    """Devre kesicilerin anlık durumunu döner (F5 / B-98)."""
+    from politikdesk.ingestion.circuit import get_all_circuit_metrics
+
+    return get_all_circuit_metrics()
+

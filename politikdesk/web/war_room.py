@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id
 from politikdesk.web import repository
+from politikdesk.web.ui.charts import economic_indicator_card
 from politikdesk.web.ui.components import (
     card,
     esc,
@@ -69,6 +70,16 @@ def war_room_page() -> str:
     strong_count = sum(1 for e in events if e.get("top_claim_status") == "strongly_corroborated")
     breaking_events = [e for e in events if (e.get("salience_score") or 0) >= 55]
 
+    # Makro Ekonomi Gösterge Kartları (Sparkline ile)
+    indicators_html = f"""
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-bottom:var(--space-6);">
+      {economic_indicator_card("TCMB Politika Faizi", "%45.00", "", [40.0, 42.5, 45.0, 45.0, 45.0], "Son Karar: Sabit", source_name="TCMB")}
+      {economic_indicator_card("TÜİK Yıllık TÜFE", "%58.2", "", [64.8, 61.8, 59.5, 58.2], "-1.3 puan düşüş", source_name="TÜİK SDMX")}
+      {economic_indicator_card("Hazine Nakit Dengesi", "-124.5", "Mlr ₺", [-90.2, -110.0, -145.0, -124.5], "+20.5 Mlr ₺ toparlanma", source_name="Hazine")}
+      {economic_indicator_card("BIST 100 Endeksi", "10,250", "", [9800.0, 9950.0, 10100.0, 10250.0], "+%1.48 Günlük", source_name="Piyasa")}
+    </div>
+    """
+
     # Breaking News Bar
     breaking_cards = []
     for ev in breaking_events[:3]:
@@ -123,7 +134,8 @@ def war_room_page() -> str:
         )
 
     table_html = (
-        '<table style="width:100%;border-collapse:collapse;font-size:var(--text-sm);">'
+        '<div class="responsive-table">'
+        '<table class="table-cards" style="width:100%;border-collapse:collapse;font-size:var(--text-sm);">'
         '<thead><tr style="border-bottom:2px solid var(--color-border);text-align:left;'
         'color:var(--color-fg-subtle);font-size:var(--text-xs);">'
         '<th style="padding:var(--space-2);text-align:center;">SKOR</th>'
@@ -133,7 +145,7 @@ def war_room_page() -> str:
         '<th style="padding:var(--space-2);text-align:right;">EYLEM</th>'
         '</tr></thead><tbody>'
         + "".join(event_rows)
-        + '</tbody></table>'
+        + '</tbody></table></div>'
     )
 
     kpis = (
@@ -157,6 +169,8 @@ def war_room_page() -> str:
     }
 
 {kpis}
+
+{indicators_html}
 
 <div class="split">
   <div class="stack" style="flex:2">

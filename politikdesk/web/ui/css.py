@@ -785,6 +785,26 @@ input[type=checkbox],input[type=radio]{{
 .graph-links line{{transition:stroke var(--dur-hover) var(--ease-out),stroke-width var(--dur-hover) var(--ease-out)}}
 .graph-links line:hover{{stroke:var(--color-accent);stroke-width:2.5;opacity:1}}
 
+/* ═══════════════════════════════════ mobil uyum & duyarlı kartlar */
+.responsive-table{{display:block;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}}
+.indicator-card{{transition:border-color var(--dur-hover) var(--ease-out),box-shadow var(--dur-hover) var(--ease-out)}}
+.indicator-card:hover{{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}}
+
+@media (max-width:640px){{
+  .content{{padding:var(--space-3) var(--space-2) !important}}
+  .grid{{grid-template-columns:1fr !important;gap:var(--space-3) !important}}
+  .btn{{min-height:44px;min-width:44px}}
+  .btn.sm{{min-height:38px}}
+  .table-cards thead{{display:none}}
+  .table-cards tbody{{display:flex;flex-direction:column;gap:var(--space-3)}}
+  .table-cards tr{{
+    display:flex;flex-direction:column;background:var(--color-surface);
+    border:1px solid var(--color-border);border-radius:var(--radius-md);
+    padding:var(--space-3);gap:var(--space-2);
+  }}
+  .table-cards td{{padding:0 !important;border:0 !important}}
+}}
+
 /* ═══════════════════════════════════ hareket · Bölüm 11.4 */
 @media (prefers-reduced-motion:reduce){{
   *,*::before,*::after{{

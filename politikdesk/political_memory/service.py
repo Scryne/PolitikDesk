@@ -219,26 +219,19 @@ def get_promise_tracker(limit: int = 50) -> list[dict[str, Any]]:
             SELECT c.id as claim_id, c.claim_text, c.evidence_status, c.event_id,
                    e.title as event_title, e.first_reported_at,
                    c.status_reason,
-                   (
-                       SELECT r.relation FROM event_relations r
-                       WHERE r.from_event_id = e.id
-                         AND r.relation IN ('fulfils', 'fails', 'contradicts')
-                       ORDER BY r.created_at DESC LIMIT 1
-                   ) as outcome_relation,
-                   (
-                       SELECT r.status FROM event_relations r
-                       WHERE r.from_event_id = e.id
-                         AND r.relation IN ('fulfils', 'fails', 'contradicts')
-                       ORDER BY r.created_at DESC LIMIT 1
-                   ) as relation_status,
-                   (
-                       SELECT r.evidence_payload FROM event_relations r
-                       WHERE r.from_event_id = e.id
-                         AND r.relation IN ('fulfils', 'fails', 'contradicts')
-                       ORDER BY r.created_at DESC LIMIT 1
-                   ) as evidence_payload
+                   rel.relation as outcome_relation,
+                   rel.status as relation_status,
+                   rel.evidence_payload
             FROM claims c
             JOIN events e ON e.id = c.event_id
+            LEFT JOIN LATERAL (
+                SELECT r.relation, r.status, r.evidence_payload
+                FROM event_relations r
+                WHERE r.from_event_id = e.id
+                  AND r.relation IN ('fulfils', 'fails', 'contradicts')
+                ORDER BY r.created_at DESC
+                LIMIT 1
+            ) rel ON TRUE
             WHERE c.claim_type = 'promise'
             ORDER BY e.first_reported_at DESC
             LIMIT %s;
