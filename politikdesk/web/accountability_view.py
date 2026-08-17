@@ -114,11 +114,6 @@ def accountability_page() -> HTMLResponse:
     except Exception:  # noqa: BLE001
         digest = []
 
-    is_demo = False
-    if not digest:
-        from politikdesk.web.demo_data import get_demo_accountability
-        digest = get_demo_accountability()
-        is_demo = True
 
     total_count = len(digest)
     verified_count = sum(1 for item in digest if item.get("status") == "verified")
@@ -141,10 +136,6 @@ def accountability_page() -> HTMLResponse:
         f"<p><b>Epistemik & Hukuki Çekince:</b> {esc(LEGAL_DISCLAIMER)}</p>"
     )
 
-    demo_banner = ""
-    if is_demo:
-        from politikdesk.web.demo_data import DEMO_BANNER_HTML
-        demo_banner = DEMO_BANNER_HTML
 
     if not digest:
         body = f"""
@@ -266,7 +257,7 @@ def accountability_page() -> HTMLResponse:
         lede="Geçmiş vaatler, TBMM oylama tutanakları ve Sayıştay kamu zararı bulguları arasındaki çapraz eşleme ve nedensellik kütüğü.",
         actions=search_input("acc-search", "Vaka, aktör veya kurum ara…", oninput="pdSearchAcc(this.value)"),
     )}
-    {demo_banner}
+
     {kpis_html}
     <div style="margin-bottom:var(--space-4)">{disclaimer_html}</div>
 

@@ -581,11 +581,6 @@ def event_page(event_id: int) -> str:
     except Exception:  # noqa: BLE001
         data = None
 
-    if data is None and event_id in (101, 102, 103, 104):
-        from politikdesk.web.demo_data import get_demo_event_page
-
-        data = get_demo_event_page(event_id)
-
     if data is None:
         raise HTTPException(status_code=404, detail=f"Olay yok: {event_id}")
 

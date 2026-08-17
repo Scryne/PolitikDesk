@@ -100,11 +100,6 @@ def promises_page() -> HTMLResponse:
     except Exception:  # noqa: BLE001
         promises = []
 
-    is_demo = False
-    if not promises:
-        from politikdesk.web.demo_data import get_demo_promises
-        promises = get_demo_promises()
-        is_demo = True
 
     total_count = len(promises)
     fulfilled_count = sum(1 for p in promises if p.get("outcome_relation") == "fulfils")
@@ -126,10 +121,7 @@ def promises_page() -> HTMLResponse:
         f"<p><b>Epistemik & Hukuki Çekince:</b> {esc(LEGAL_DISCLAIMER)}</p>"
     )
 
-    demo_banner = ""
-    if is_demo:
-        from politikdesk.web.demo_data import DEMO_BANNER_HTML
-        demo_banner = DEMO_BANNER_HTML
+
 
     rows_html = []
     for p in promises:
@@ -198,7 +190,7 @@ def promises_page() -> HTMLResponse:
         lede="Siyasi aktörlerin kamuoyuna verdikleri taahhütlerin, kanunlaşma süreçlerinin ve gerçekleşme kayıtlarının doğrulanmış kütüğü.",
         actions=search_input("promise-search", "Aktör veya vaat ara…", oninput="pdSearchPromises(this.value)"),
     )}
-    {demo_banner}
+
     {kpis_html}
     <div style="margin-bottom:var(--space-4)">{disclaimer_html}</div>
 

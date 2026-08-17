@@ -86,11 +86,6 @@ def archive_page() -> HTMLResponse:
     except Exception:  # noqa: BLE001
         records = []
 
-    is_demo = False
-    if not records:
-        from politikdesk.web.demo_data import get_demo_archive
-        records = get_demo_archive()
-        is_demo = True
 
     total_records = len(records)
     grounded_count = sum(1 for r in records if r.get("is_grounded"))
@@ -110,10 +105,7 @@ def archive_page() -> HTMLResponse:
     </div>
     """
 
-    demo_banner = ""
-    if is_demo:
-        from politikdesk.web.demo_data import DEMO_BANNER_HTML
-        demo_banner = DEMO_BANNER_HTML
+
 
     cards_html = []
     angles_present: set[str] = set()
@@ -199,7 +191,7 @@ def archive_page() -> HTMLResponse:
         lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü (Spec §14.4).",
         actions=search_input("archive-search", "Arşivde veya metinde ara…", oninput="pdSearchArchive(this.value)"),
     )}
-    {demo_banner}
+
     {kpis_html}
 
     <div style="margin-bottom:var(--space-4)">

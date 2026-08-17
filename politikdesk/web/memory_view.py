@@ -99,11 +99,6 @@ def memory_directory_page() -> HTMLResponse:
     except Exception:  # noqa: BLE001
         actors = []
 
-    is_demo = False
-    if not actors:
-        from politikdesk.web.demo_data import get_demo_memory_actors
-        actors = get_demo_memory_actors()
-        is_demo = True
 
     total_actors = len(actors)
     key_actors = sum(1 for a in actors if a.get("is_key_entity"))
@@ -128,10 +123,7 @@ def memory_directory_page() -> HTMLResponse:
         f"<p><b>Epistemik & Hukuki Çekince:</b> {esc(disclaimer_text)}</p>"
     )
 
-    demo_banner = ""
-    if is_demo:
-        from politikdesk.web.demo_data import DEMO_BANNER_HTML
-        demo_banner = DEMO_BANNER_HTML
+
 
     cards = []
     for a in actors:
@@ -180,7 +172,7 @@ def memory_directory_page() -> HTMLResponse:
         lede="Siyasi aktörlerin, bakanların ve parti sözcülerinin geçmiş beyanları, kamuoyu vaatleri ve teyit zincirleri.",
         actions=search_input("actor-search", "Aktör veya kurum ara…", oninput="pdSearchActors(this.value)"),
     )}
-    {demo_banner}
+
     {kpis_html}
     <div style="margin-bottom:var(--space-6)">{disclaimer_html}</div>
 
