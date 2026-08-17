@@ -291,9 +291,24 @@ def dashboard() -> str:
         format as fmt,
     )
 
-    health = repository.health_report()
-    counts = stats()
-    stages = ph.stage_report()
+    try:
+        health = repository.health_report()
+        counts = stats()
+        stages = ph.stage_report()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("admin_dashboard_db_unavailable", error=str(exc))
+        from politikdesk.web.ui import error_state, page
+
+        return page(
+            "Boru hattı",
+            error_state(
+                "Veritabanı bağlantısı yok",
+                "Denetim panosu çalışan bir veritabanı gerektirir. "
+                "Vercel vitrin modunda bu ekran kullanılamaz.",
+            ),
+            active="/admin/",
+            crumbs=(("Denetim", None), ("Boru hattı", None)),
+        )
 
     coverage = counts["coverage"]
     embedded_pct = coverage["embedded"] / coverage["total"] * 100 if coverage["total"] else 0

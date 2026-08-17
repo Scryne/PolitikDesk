@@ -257,7 +257,22 @@ def review_dashboard() -> str:
         format as fmt,
     )
 
-    queue = review_queue(100)
+    try:
+        queue = review_queue(100)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("review_dashboard_db_unavailable", error=str(exc))
+        from politikdesk.web.ui import error_state, page
+
+        return page(
+            "Denetim kuyruğu",
+            error_state(
+                "Veritabanı bağlantısı yok",
+                "Denetim kuyruğu çalışan bir veritabanı gerektirir. "
+                "Vercel vitrin modunda bu ekran kullanılamaz.",
+            ),
+            active="/admin/",
+            crumbs=(("Denetim", None), ("Kuyruk", None)),
+        )
 
     rows = []
     for r in queue:

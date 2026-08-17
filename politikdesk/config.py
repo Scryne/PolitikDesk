@@ -258,13 +258,14 @@ class Settings(BaseSettings):
                     continue
                 cleaned[key] = value
 
-            # Bulut veritabanı değişkenleri için otomatik geri dönüş (Neon, Vercel Postgres, Supabase vb.)
-            db_val = cleaned.get("database_url")
-            needs_fallback = (
+            # Bulut veritabanı değişkenleri için otomatik geri dönüş (Neon, Vercel vb.)
+            db_val: Any = cleaned.get("database_url")
+            needs_fallback: bool = (
                 not db_val
                 or (
                     bool(os.environ.get("VERCEL"))
-                    and ("127.0.0.1" in str(db_val) or "localhost" in str(db_val))
+                    and isinstance(db_val, str)
+                    and ("127.0.0.1" in db_val or "localhost" in db_val)
                 )
             )
             if needs_fallback:
@@ -276,7 +277,7 @@ class Settings(BaseSettings):
                     "NEON_DATABASE_URL",
                     "SUPABASE_DATABASE_URL",
                 ):
-                    candidate = os.environ.get(fallback_key)
+                    candidate: str | None = os.environ.get(fallback_key)
                     if candidate and candidate.strip():
                         cleaned["database_url"] = candidate.strip()
                         break
@@ -402,8 +403,8 @@ class Settings(BaseSettings):
 
     @field_validator("cluster_t_low")
     @classmethod
-    def _low_below_high(cls, v: float, info) -> float:  # noqa: ANN001
-        t_high = info.data.get("cluster_t_high")
+    def _low_below_high(cls, v: float, info: Any) -> float:
+        t_high = info.data.get("cluster_t_high") if hasattr(info, "data") else None
         if t_high is not None and v >= t_high:
             raise ValueError("cluster_t_low, cluster_t_high'tan küçük olmalı (Spec §11.4).")
         return v
