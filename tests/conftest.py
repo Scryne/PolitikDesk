@@ -39,9 +39,9 @@ def _get_test_dsn() -> str | None:
     return None
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def db_conn():
-    """Migration'ları uygulanmış bir veritabanına oturum düzeyinde bağlantı."""
+    """Migration'ları uygulanmış bir veritabanına bağlantı."""
     dsn = _get_test_dsn()
     if not dsn:
         if os.environ.get("PD_CI_REQUIRE_DB") == "1":
@@ -54,14 +54,19 @@ def db_conn():
     from psycopg.rows import dict_row
 
     try:
-        conn = psycopg.connect(dsn, row_factory=dict_row)
+        conn = psycopg.connect(dsn, row_factory=dict_row, autocommit=True)
     except Exception as exc:  # noqa: BLE001
         if os.environ.get("PD_CI_REQUIRE_DB") == "1":
             pytest.fail(f"PD_CI_REQUIRE_DB=1 fakat veritabanına bağlanılamadı: {exc}")
         pytest.skip(f"Veritabanına bağlanılamadı: {exc}")
 
-    with conn:
+    try:
         yield conn
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture(autouse=True)
