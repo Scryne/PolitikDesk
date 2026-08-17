@@ -115,16 +115,37 @@ def candidate_events(
             (literal, article.vertical, within_hours, literal, limit),
         )
         rows = list(cur.fetchall())
+        if not rows:
+            return []
+
+        event_ids = [r["id"] for r in rows]
+        cur.execute(
+            """
+            SELECT x.event_id, e.canonical_name, e.is_key_entity
+            FROM event_entities x
+            JOIN entities e ON e.id = x.entity_id
+            WHERE x.event_id = ANY(%s)
+            """,
+            (event_ids,),
+        )
+        ent_map: dict[int, set[str]] = {eid: set() for eid in event_ids}
+        key_ent_map: dict[int, set[str]] = {eid: set() for eid in event_ids}
+        for erow in cur.fetchall():
+            eid = erow["event_id"]
+            cname = erow["canonical_name"]
+            ent_map[eid].add(cname)
+            if erow["is_key_entity"]:
+                key_ent_map[eid].add(cname)
 
         candidates: list[EventCandidate] = []
         for r in rows:
-            entities, key_entities = _entity_sets(cur, "event_entities", "event_id", r["id"])
+            eid = r["id"]
             candidates.append(
                 EventCandidate(
-                    event_id=r["id"],
+                    event_id=eid,
                     similarity=float(r["similarity"]),
-                    entities=entities,
-                    key_entities=key_entities,
+                    entities=frozenset(ent_map[eid]),
+                    key_entities=frozenset(key_ent_map[eid]),
                     last_update_at=r["last_update_at"],
                     text_sample=" ".join(filter(None, (r["title"], r["summary"]))),
                 )

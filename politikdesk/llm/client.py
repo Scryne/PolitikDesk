@@ -245,6 +245,11 @@ class _OpenAICompatBackend:
         var = self._settings.llm_api_key_env
         key = os.environ.get(var)
         if not key:
+            from politikdesk.config import load_env_file
+
+            load_env_file()
+            key = os.environ.get(var)
+        if not key:
             raise LLMNotConfigured(var)
         return key
 

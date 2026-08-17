@@ -391,7 +391,9 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
+    load_env_file()
     return Settings()
+
 
 
 def load_env_file(path: str | Path | None = None) -> list[str]:

@@ -23,7 +23,7 @@ def test_relation_orchestrator_idempotent_execution() -> None:
         cur.execute(
             """
             INSERT INTO events (title, first_reported_at, last_update_at, vertical, topic_tags)
-            VALUES ('Cumhurbaşkanlığı Açıklaması: Kamuda Mülakat Uygulamasının Kaldırılması Planlanıyor', now(), now(), 'legislation', ARRAY['kamu_istihdami', 'yasama_sureci'])
+            VALUES ('Cumhurbaşkanlığı Açıklaması: Kamuda Mülakat Uygulamasının Kaldırılması Planlanıyor', now() - interval '1 day', now() - interval '1 day', 'legislation', ARRAY['kamu_istihdami', 'yasama_sureci'])
             RETURNING id;
             """
         )
@@ -108,7 +108,7 @@ def test_concurrent_orchestrator_execution() -> None:
         cur.execute(
             """
             INSERT INTO events (title, first_reported_at, last_update_at, vertical, topic_tags)
-            VALUES ('Cumhurbaşkanlığı Açıklaması: Kamuda Mülakat Uygulamasının Kaldırılması Planlanıyor', now(), now(), 'legislation', ARRAY['kamu_istihdami'])
+            VALUES ('Cumhurbaşkanlığı Açıklaması: Kamuda Mülakat Uygulamasının Kaldırılması Planlanıyor', now() - interval '1 day', now() - interval '1 day', 'legislation', ARRAY['kamu_istihdami'])
             RETURNING id;
             """
         )

@@ -222,6 +222,15 @@ def pipeline_health_endpoint() -> list[dict[str, Any]]:
     return [r.as_dict() for r in pipeline_health.stage_report()]
 
 
+@router.post("/drain")
+def pipeline_drain_endpoint() -> dict[str, Any]:
+    """Boru hattındaki tüm bekleyen aşamaları anında boşaltır (F4-05)."""
+    from scripts.drain_pipeline import drain_all
+
+    stats = drain_all()
+    return {"status": "ok", "stats": stats}
+
+
 @router.get("/stats")
 def stats() -> dict[str, Any]:
     """Boru hattı özeti."""
@@ -372,7 +381,16 @@ def dashboard() -> str:
             "Boru hattı",
             lede="Kaynak tablosu boru hattının GİRİŞİNE bakar, aşama tablosu "
             "İÇERİSİNE. İkisi ayrı sorular sorar ve ayrı arızaları yakalar.",
-            actions=button("Metrikler", href="/admin/metrics", icon_name="metrics"),
+            actions=(
+                button(
+                    "Boru Hattını Boşalt",
+                    onclick="this.disabled=true;this.innerText='İşleniyor...';fetch('/admin/drain',{method:'POST'}).then(()=>location.reload())",
+                    variant="primary",
+                    icon_name="pipeline",
+                )
+                + " "
+                + button("Metrikler", href="/admin/metrics", icon_name="metrics")
+            ),
         )
     }
 <div class="stack">

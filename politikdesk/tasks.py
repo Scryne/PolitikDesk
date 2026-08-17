@@ -58,6 +58,7 @@ def embed_pending(self, limit: int = EMBED_BATCH_SIZE) -> int:  # noqa: ANN001
     """Bekleyen makaleleri embed eder (F1-13).
 
     DoD: hata durumunda kuyruğa geri alınıyor — `self.retry` bunu sağlar.
+    Kuyrukta bekleyen varsa bir sonraki partiyi anında tetikler.
     """
     from politikdesk.nlp import repository as nlp_repo
     from politikdesk.nlp.embedder import build_backend, embedding_text
@@ -78,6 +79,10 @@ def embed_pending(self, limit: int = EMBED_BATCH_SIZE) -> int:  # noqa: ANN001
         {row["id"]: vector for row, vector in zip(rows, vectors, strict=True)}
     )
     log.info("embedding_batch_done", count=saved, backend=backend.name)
+
+    if saved >= limit and getattr(self.request, "id", None):
+        self.apply_async(args=[limit], countdown=1)
+
     return saved
 
 
@@ -111,6 +116,10 @@ def extract_entities_pending(self, limit: int = ENTITY_BATCH_SIZE) -> int:  # no
 
     nlp_repo.mark_entities_extracted(processed)
     log.info("entity_batch_done", count=len(processed))
+
+    if len(rows) >= limit and getattr(self.request, "id", None):
+        self.apply_async(args=[limit], countdown=1)
+
     return len(processed)
 
 
@@ -125,7 +134,10 @@ def cluster_pending(self, limit: int = CLUSTER_BATCH_SIZE) -> dict[str, int]:  #
     from politikdesk.clustering.pipeline import run
 
     try:
-        return run(limit).as_dict()
+        res = run(limit).as_dict()
+        if res.get("processed", 0) >= limit and getattr(self.request, "id", None):
+            self.apply_async(args=[limit], countdown=1)
+        return res
     except Exception as exc:  # noqa: BLE001
         log.error("cluster_pending_failed", error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=120) from exc
@@ -143,7 +155,14 @@ def extract_claims_pending(self, limit: int = CLAIM_BATCH_EVENTS) -> dict[str, i
     from politikdesk.nlp.claims_pipeline import run
 
     try:
-        return run(limit).as_dict()
+        res = run(limit).as_dict()
+        if (
+            res.get("events_processed", 0) >= limit
+            and not res.get("budget_exceeded")
+            and getattr(self.request, "id", None)
+        ):
+            self.apply_async(args=[limit], countdown=2)
+        return res
     except BudgetExceeded as exc:
         log.error("claim_extraction_budget_exceeded", detail=str(exc)[:200])
         return {"errors": 1, "budget_exceeded": 1}
@@ -158,7 +177,10 @@ def score_evidence(self, limit: int = EVIDENCE_BATCH_SIZE) -> dict[str, int]:  #
     from politikdesk.evidence.pipeline import run
 
     try:
-        return run(limit).as_dict()
+        res = run(limit).as_dict()
+        if res.get("claims_scored", 0) >= limit and getattr(self.request, "id", None):
+            self.apply_async(args=[limit], countdown=1)
+        return res
     except Exception as exc:  # noqa: BLE001
         log.error("score_evidence_failed", error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=120) from exc
@@ -170,7 +192,10 @@ def link_historical_context(self, limit: int = 50) -> dict[str, int]:  # noqa: A
     from politikdesk.context.related import run
 
     try:
-        return run(limit)
+        res = run(limit)
+        if res.get("events_processed", 0) >= limit and getattr(self.request, "id", None):
+            self.apply_async(args=[limit], countdown=1)
+        return res
     except Exception as exc:  # noqa: BLE001
         log.error("link_historical_context_failed", error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=120) from exc
@@ -188,7 +213,10 @@ def link_political_relations(self, limit: int = 50) -> dict[str, int]:  # noqa: 
     from politikdesk.political_memory.orchestrator import process_pending_political_relations
 
     try:
-        return process_pending_political_relations(limit)
+        res = process_pending_political_relations(limit)
+        if res.get("events_processed", 0) >= limit and getattr(self.request, "id", None):
+            self.apply_async(args=[limit], countdown=1)
+        return res
     except Exception as exc:  # noqa: BLE001
         log.error("political_relations_failed", error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=180) from exc

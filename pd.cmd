@@ -70,6 +70,7 @@ echo   pd backup-verify ^<dosya^>   Yedek okunabilir mi?
 echo   pd backup-restore ^<dosya^>  Ayri bir DB'ye geri yukle + dogrula
 echo.
 echo   -- boru hatti (elle) --
+echo   pd drain            Tum boru hattini kuyruklar sifirlanana kadar bosalt
 echo   pd ingest / embed / entities / cluster / claims / evidence / context
 echo   pd briefing         Sabah brifingi uret
 echo   pd metrics          Urun metriklerini topla
@@ -181,6 +182,9 @@ if "%~2"=="" (echo Kullanim: pd backup-restore ^<tam-yol^>.dump ^(yollari icin: 
 goto :eof
 
 REM -------------------------------------------------------------- boru hatti
+:cmd_drain
+"%PY%" -m scripts.drain_pipeline %2 %3 %4 %5
+goto :eof
 :cmd_sync
 "%PY%" -m scripts.ingest sync
 goto :eof
