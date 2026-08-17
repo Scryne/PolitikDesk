@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
@@ -101,18 +100,10 @@ def _resolve_request_path(scope: dict[str, Any]) -> str:
         stripped = raw_path[4:]
         return stripped or "/"
 
-    return raw_path
+# FastAPI örneği doğrudan Vercel Python runtime'ına sunulur.
+# İçerideki `_VercelPathMiddleware` tüm rewrite yollarını otomatik çözer.
+app = fastapi_app
+handler = fastapi_app
 
-
-async def app(scope: dict[str, Any], receive: Callable, send: Callable) -> None:
-    """Vercel ASGI wrapper resolving x-forwarded-uri, __path and rewrite paths."""
-    if scope.get("type") == "http":
-        resolved_path = _resolve_request_path(scope)
-        scope["path"] = resolved_path
-        scope["raw_path"] = resolved_path.encode("latin1")
-
-    await fastapi_app(scope, receive, send)
-
-
-__all__ = ["app"]
+__all__ = ["app", "fastapi_app", "handler"]
 

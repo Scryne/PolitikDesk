@@ -11,13 +11,14 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.routing import Match
 
 from politikdesk import __version__
 from politikdesk.admin.calendar import router as admin_calendar_router
@@ -238,9 +239,111 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class _VercelPathMiddleware:
+    """Vercel Serverless ve proxy ortamlarında rewrite yollarını normalize eder."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        if scope.get("type") == "http":
+            headers = dict(scope.get("headers", []))
+            raw_path = scope.get("path", "/")
+
+            # 1. Reverse proxy / test ortamlarından gelen x-forwarded-uri
+            if b"x-forwarded-uri" in headers:
+                forwarded_str = headers[b"x-forwarded-uri"].decode("latin1")
+                p = urlparse(forwarded_str).path
+                if p and p not in ("/api/index.py", "/api/index", "/api", "/api/"):
+                    resolved = p if p.startswith("/") else "/" + p
+                    scope["path"] = resolved
+                    scope["raw_path"] = resolved.encode("latin1")
+                    await self.app(scope, receive, send)
+                    return
+
+            # 2. Rewrite query param (__path)
+            raw_qs = scope.get("query_string", b"").decode("latin1")
+            if raw_qs:
+                qs_dict = parse_qs(raw_qs, keep_blank_values=True)
+                if "__path" in qs_dict:
+                    injected = qs_dict.pop("__path")[0]
+                    new_qs = urlencode([(k, v) for k, vs in qs_dict.items() for v in vs])
+                    scope["query_string"] = new_qs.encode("latin1")
+                    if injected:
+                        resolved = ("/" + injected.lstrip("/")) if injected != "/" else "/"
+                        scope["path"] = resolved
+                        scope["raw_path"] = resolved.encode("latin1")
+                        await self.app(scope, receive, send)
+                        return
+
+            # 3. Vercel Edge proxy başlığı (x-vercel-matched-path / x-matched-path)
+            matched_bytes = headers.get(b"x-vercel-matched-path") or headers.get(b"x-matched-path")
+            if matched_bytes:
+                matched = matched_bytes.decode("latin1")
+                p = urlparse(matched).path
+                if p and not p.startswith("/api/index") and p not in ("/api", "/api/"):
+                    resolved = p if p.startswith("/") else "/" + p
+                    scope["path"] = resolved
+                    scope["raw_path"] = resolved.encode("latin1")
+                    await self.app(scope, receive, send)
+                    return
+
+            # 4. Scope doğrudan path çözümleme
+            if not raw_path or raw_path in (
+                "/api/index.py",
+                "/api/index",
+                "/api",
+                "/api/",
+                "/api/index/",
+                "/api/index.py/",
+            ):
+                scope["path"] = "/"
+                scope["raw_path"] = b"/"
+            elif raw_path.startswith("/api/index.py/"):
+                cand = raw_path[len("/api/index.py") :] or "/"
+                scope["path"] = cand
+                scope["raw_path"] = cand.encode("latin1")
+            elif raw_path.startswith("/api/index/"):
+                cand = raw_path[len("/api/index") :] or "/"
+                scope["path"] = cand
+                scope["raw_path"] = cand.encode("latin1")
+            elif raw_path.startswith("/api/api/"):
+                cand = raw_path[4:]
+                scope["path"] = cand
+                scope["raw_path"] = cand.encode("latin1")
+            elif raw_path.startswith("/api/"):
+                method = scope.get("method", "GET")
+                test_scope = {"type": "http", "method": method, "path": raw_path}
+                matched_route = False
+                for r in app.router.routes:
+                    m, _ = r.matches(test_scope)
+                    if m in (Match.FULL, Match.PARTIAL):
+                        matched_route = True
+                        break
+                if not matched_route:
+                    cand = raw_path[4:] or "/"
+                    scope["path"] = cand
+                    scope["raw_path"] = cand.encode("latin1")
+
+        await self.app(scope, receive, send)
+
+
 app.add_middleware(_SecurityHeadersMiddleware)
 app.add_middleware(_CSRFProtectionMiddleware)
 app.add_middleware(_TokenAuthMiddleware)
+app.add_middleware(_VercelPathMiddleware)
+
+
+@app.get("/api/index.py", include_in_schema=False)
+@app.get("/api/index", include_in_schema=False)
+def vercel_entrypoint_fallback(
+    limit: int = 40,
+    f: str = "all",
+):  # noqa: ANN201
+    """Vercel /api/index.py isteklerini doğrudan ana feed sayfasına sunar."""
+    from politikdesk.web.feed import feed_page
+
+    return feed_page(limit=limit, f=f)
 
 
 # ─────────────────────────────────────────── hata sayfaları (Bölüm 10.4)
