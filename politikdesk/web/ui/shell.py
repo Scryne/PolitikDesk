@@ -178,7 +178,7 @@ def _sidebar(active: str) -> str:
         "</button>"
     )
 
-    return f"""<aside class="side">
+    return f"""<aside class="side" id="pd-sidebar">
   <div class="side-head">
     <a class="brand" href="/feed">
       <span class="brand-mark" aria-hidden="true">P</span>
@@ -206,6 +206,12 @@ def _topbar(crumbs: tuple[tuple[str, str | None], ...]) -> str:
         else:
             parts.append(f'<span class="here">{esc(label)}</span>')
 
+    menu_btn = (
+        f'<button class="btn ghost icon sm mobile-menu-btn" id="pd-menu-btn" type="button" '
+        f'aria-label="Menüyü Aç" aria-expanded="false" title="Menü">'
+        f'{icon("menu", 18)}</button>'
+    )
+
     cmd_trigger = (
         '<button class="btn ghost sm" id="pd-cmd-btn" type="button" '
         'style="margin-left:auto;gap:var(--space-2);color:var(--color-fg-muted);" '
@@ -216,7 +222,7 @@ def _topbar(crumbs: tuple[tuple[str, str | None], ...]) -> str:
     )
 
     return (
-        f'<header class="topbar"><nav class="crumbs" aria-label="Konum">'
+        f'<header class="topbar">{menu_btn}<nav class="crumbs" aria-label="Konum">'
         f"{''.join(parts)}</nav>{cmd_trigger}</header>"
     )
 
@@ -372,6 +378,35 @@ _CMD_JS = """
 """
 
 
+_DRAWER_JS: Final[str] = """
+(function(){
+  var menuBtn = document.getElementById('pd-menu-btn');
+  var side = document.getElementById('pd-sidebar');
+  var backdrop = document.getElementById('pd-side-backdrop');
+  if (!menuBtn || !side || !backdrop) return;
+
+  function openDrawer(){
+    side.classList.add('open');
+    backdrop.classList.add('open');
+    menuBtn.setAttribute('aria-expanded', 'true');
+  }
+  function closeDrawer(){
+    side.classList.remove('open');
+    backdrop.classList.remove('open');
+    menuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  menuBtn.addEventListener('click', function(){
+    side.classList.contains('open') ? closeDrawer() : openDrawer();
+  });
+  backdrop.addEventListener('click', closeDrawer);
+  window.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && side.classList.contains('open')) closeDrawer();
+  });
+})();
+"""
+
+
 def page(
     title: str,
     body: str,
@@ -389,7 +424,7 @@ def page(
     from config.election_mode import banner
 
     trail = crumbs or ((title, None),)
-    scripts = "\n".join(part for part in (_THEME_JS, _CMD_JS, extra_js) if part)
+    scripts = "\n".join(part for part in (_THEME_JS, _DRAWER_JS, _CMD_JS, extra_js) if part)
     election = banner()
     election_html = (
         f'<div style="margin-bottom:var(--space-6)">{election}</div>' if election else ""
@@ -406,6 +441,7 @@ def page(
 </head>
 <body{body_attrs}>
 <a class="sr" href="#main">İçeriğe atla</a>
+<div class="side-backdrop" id="pd-side-backdrop" aria-hidden="true"></div>
 <div class="app">
 {_sidebar(active)}
 <div class="main">

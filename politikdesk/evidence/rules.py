@@ -50,11 +50,20 @@ ClaimType = Literal["fact", "number", "attribution", "prediction", "promise"]
 Stance = Literal["supports", "contradicts", "partial"]
 
 # Spec §9.2 — R3'ün "kurumun kendi yayını" istisnası bu kaynaklarla sınırlı.
-OFFICIAL_STATISTICAL_SOURCES = frozenset({"tuik", "tcmb", "hazine", "resmi-gazete"})
+OFFICIAL_STATISTICAL_SOURCES = frozenset({"tuik", "tcmb", "hazine", "resmi-gazete", "resmigazete"})
 
 # R8: Beyan ve tutanak birincil kayıt kaynakları (Spec v3.4 §8.3 / B-92)
 OFFICIAL_RECORD_SOURCES = frozenset(
-    {"tbmm-tutanak", "tbmm-kanun", "resmi-gazete", "sayistay", "cb-kararname", "tuik", "tcmb"}
+    {
+        "tbmm-tutanak",
+        "tbmm-kanun",
+        "resmi-gazete",
+        "resmigazete",
+        "sayistay",
+        "cb-kararname",
+        "tuik",
+        "tcmb",
+    }
 )
 
 # Durumların güç sırası — R7 tavan kısıtı bunu kullanır.

@@ -252,7 +252,7 @@ def render_knowledge_graph(
 ) -> SafeString:
     """Siyasi hafıza ilişkileri için sunucu taraflı SVG bilgi grafı (S2)."""
     if not nodes:
-        return mark_safe('<div class="subtle">Grafik verisi yok.</div>')
+        return mark_safe("")
 
     import math
 
@@ -280,9 +280,10 @@ def render_knowledge_graph(
         if src and tgt:
             rel = lk.get("relation", "")
             stroke_color = "var(--color-contra)" if rel in ("contradicts", "fails") else "var(--color-accent)"
+            dash_attr = ' stroke-dasharray="4 2"' if rel in ("contradicts", "fails") else ""
             link_elements.append(
                 f'<line x1="{src[0]:.1f}" y1="{src[1]:.1f}" x2="{tgt[0]:.1f}" y2="{tgt[1]:.1f}" '
-                f'stroke="{stroke_color}" stroke-width="1.5" stroke-opacity="0.6"/>'
+                f'stroke="{stroke_color}" stroke-width="1.5" stroke-opacity="0.6"{dash_attr}/>'
             )
             mid_x = (src[0] + tgt[0]) / 2
             mid_y = (src[1] + tgt[1]) / 2

@@ -786,9 +786,29 @@ input[type=checkbox],input[type=radio]{{
 .graph-links line:hover{{stroke:var(--color-accent);stroke-width:2.5;opacity:1}}
 
 /* ═══════════════════════════════════ mobil uyum & duyarlı kartlar */
+.mobile-menu-btn{{display:none}}
+.side-backdrop{{display:none}}
 .responsive-table{{display:block;width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}}
 .indicator-card{{transition:border-color var(--dur-hover) var(--ease-out),box-shadow var(--dur-hover) var(--ease-out)}}
 .indicator-card:hover{{border-color:var(--color-accent);box-shadow:var(--shadow-sm)}}
+
+@media (max-width:768px){{
+  .app{{display:block}}
+  .side{{
+    position:fixed;left:0;top:0;bottom:0;width:260px;z-index:1500;
+    transform:translateX(-100%);transition:transform var(--dur-pop) var(--ease-out);
+    box-shadow:none;background:var(--color-surface);
+  }}
+  .side.open{{transform:translateX(0);box-shadow:var(--shadow-lg)}}
+  .side-backdrop{{
+    position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1400;
+    opacity:0;pointer-events:none;transition:opacity var(--dur-pop) var(--ease-out);
+    backdrop-filter:blur(2px);display:block;
+  }}
+  .side-backdrop.open{{opacity:1;pointer-events:auto}}
+  .mobile-menu-btn{{display:inline-flex !important;margin-right:var(--space-2)}}
+  .topbar{{padding:0 var(--space-3)}}
+}}
 
 @media (max-width:640px){{
   .content{{padding:var(--space-3) var(--space-2) !important}}

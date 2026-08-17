@@ -78,6 +78,21 @@ def test_economic_indicator_card_rendering() -> None:
 def test_responsive_mobile_css_in_stylesheet() -> None:
     css = stylesheet()
     assert "@media (max-width:640px)" in css
+    assert "@media (max-width:768px)" in css
     assert ".responsive-table" in css
     assert ".table-cards" in css
     assert "min-height:44px" in css
+
+
+def test_security_headers_in_response() -> None:
+    from fastapi.testclient import TestClient
+
+    from politikdesk.api.main import app
+
+    client = TestClient(app)
+    resp = client.get("/health/live")
+    assert resp.status_code == 200
+    assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"
+    assert resp.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+    assert "geolocation=()" in resp.headers.get("Permissions-Policy", "")

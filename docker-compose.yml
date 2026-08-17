@@ -33,6 +33,10 @@ x-db-env: &db-env
 x-redis-env: &redis-env
   PD_REDIS_PASSWORD: ${PD_REDIS_PASSWORD:-politikdesk}
 
+x-release-env: &release-env
+  PD_GIT_SHA: ${PD_GIT_SHA:-}
+  PD_GIT_BRANCH: ${PD_GIT_BRANCH:-}
+
 x-build-args: &build-args
   GIT_SHA: ${PD_GIT_SHA:-}
   BUILD_TIMESTAMP: ${PD_BUILD_TIMESTAMP:-}
@@ -91,7 +95,7 @@ services:
     container_name: pd-migrate
     command: ["python", "-m", "scripts.migrate", "up"]
     environment:
-      <<: [*db-env, *redis-env]
+      <<: [*db-env, *redis-env, *release-env]
       PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
     env_file:
       - path: .env
@@ -112,7 +116,7 @@ services:
     command:
       ["uvicorn", "politikdesk.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      <<: [*db-env, *redis-env]
+      <<: [*db-env, *redis-env, *release-env]
       PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
       PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       PD_TWITTER_BRIDGE_URL: http://rsshub:1200
@@ -151,7 +155,7 @@ services:
       ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
        "--concurrency", "2"]
     environment:
-      <<: [*db-env, *redis-env]
+      <<: [*db-env, *redis-env, *release-env]
       PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
       PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       # D16 kararı imajın içinde sabit: .env eksik olsa bile worker sessizce
@@ -186,7 +190,7 @@ services:
     command:
       ["celery", "-A", "politikdesk.worker.app", "beat", "-l", "info"]
     environment:
-      <<: [*db-env, *redis-env]
+      <<: [*db-env, *redis-env, *release-env]
       PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
       PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
       # Brifing saatleri `crontab` ile kurulur ve konteynerin saat

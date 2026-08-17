@@ -225,6 +225,20 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Güvenlik başlıkları middleware'i (OWASP standardı)."""
+
+    async def dispatch(self, request: Request, call_next):  # noqa: ANN201
+        response: Response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        return response
+
+
+app.add_middleware(_SecurityHeadersMiddleware)
 app.add_middleware(_CSRFProtectionMiddleware)
 app.add_middleware(_TokenAuthMiddleware)
 

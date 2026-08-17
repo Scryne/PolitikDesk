@@ -70,8 +70,12 @@ def db_conn():
 
 
 @pytest.fixture(autouse=True)
-def isolate_database_state() -> Generator[None, None, None]:
+def isolate_database_state(request: pytest.FixtureRequest) -> Generator[None, None, None]:
     """Her test öncesi ve sonrası tablo ID sınırlarını kaydeder ve test kirliliğini temizler."""
+    if not request.node.get_closest_marker("db") and "db_conn" not in request.fixturenames:
+        yield
+        return
+
     dsn = _get_test_dsn()
     if not dsn:
         yield
