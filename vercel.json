@@ -15,7 +15,7 @@
   "crons": [
     {
       "path": "/admin/drain",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 5 * * *"
     }
   ]
 }
