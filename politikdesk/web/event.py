@@ -568,6 +568,17 @@ function pdUnderstood(btn){
   btn.disabled = true;
   btn.querySelector('span').textContent = 'Anlaşıldı olarak işaretlendi';
 }
+
+async function pdCopyEventDossier(){
+  try {
+    var r = await fetch('/api/events/' + pdEventId() + '/export?format=text');
+    if (!r.ok) throw new Error(r.status);
+    var txt = await r.text();
+    window.pdCopy(txt, 'Kanıt Dosyası');
+  } catch (e) {
+    window.pdToast('Dosya kopyalanamadı: ' + e.message);
+  }
+}
 """
 )
 
@@ -595,13 +606,25 @@ def event_page(event_id: int) -> str:
         else ""
     )
 
+    actions_html = (
+        f'<div class="row tight">'
+        f'<button class="btn sm ghost" type="button" onclick="pdCopyEventDossier()" title="Kanıt dosyasını kopyala">'
+        f'{icon("copy", 13)}<span>Metin Kopyala</span></button>'
+        f'<a class="btn sm ghost" href="/api/events/{event_id}/evidence-card.svg" target="_blank" rel="noopener noreferrer" title="SVG Kanıt Kartını Gör / İndir">'
+        f'{icon("download", 13)}<span>SVG Kart</span></a>'
+        f'<a class="btn sm ghost" href="/api/events/{event_id}/export?format=markdown" target="_blank" rel="noopener noreferrer" title="Markdown Olarak İndir">'
+        f'{icon("external", 13)}<span>Markdown</span></a>'
+        f'{button("Anladım", icon_name="check", onclick="pdUnderstood(this)")}'
+        f'</div>'
+    )
+
     body = f"""
 {
         page_head(
             event["title"],
             lede="",
             badges=event_badge(event["status"]),
-            actions=button("Anladım", icon_name="check", onclick="pdUnderstood(this)"),
+            actions=actions_html,
         )
     }
 <div class="row subtle" style="font-size:var(--text-xs);

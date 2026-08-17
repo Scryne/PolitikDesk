@@ -37,6 +37,7 @@ from politikdesk.web.memory_view import router as memory_router
 from politikdesk.web.metrics_dashboard import router as metrics_router
 from politikdesk.web.onboarding import router as onboarding_router
 from politikdesk.web.promises_view import router as promises_router
+from politikdesk.web.war_room import router as war_room_router
 
 log = get_logger(__name__)
 
@@ -85,6 +86,7 @@ app.include_router(ingest_router)
 # Sıra önemlidir: `event_router` "/event/{id}" gibi somut yolları,
 # `feed_router` ise "/" kökünü tanımlar. FastAPI ilk eşleşeni kullanır.
 app.include_router(feed_router)
+app.include_router(war_room_router)
 app.include_router(event_router)
 app.include_router(draft_router)
 app.include_router(briefing_router)

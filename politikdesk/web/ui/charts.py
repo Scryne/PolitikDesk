@@ -179,17 +179,17 @@ def render_knowledge_graph(
     type_fills = {
         "actor": "var(--color-accent)",
         "institution": "var(--color-chart-1)",
-        "promise": "var(--color-verified)",
-        "event": "var(--color-surface-2)",
+        "promise": "var(--color-strong)",
+        "event": "var(--color-surface-sunken)",
         "law": "var(--color-chart-2)",
     }
     rel_strokes = {
-        "fulfils": "var(--color-verified)",
-        "fails": "var(--color-contradicted)",
-        "contradicts": "var(--color-contradicted)",
+        "fulfils": "var(--color-strong)",
+        "fails": "var(--color-contra)",
+        "contradicts": "var(--color-contra)",
         "updates": "var(--color-partial)",
         "same_thread": "var(--color-border-strong)",
-        "precedes": "var(--color-text-muted)",
+        "precedes": "var(--color-fg-muted)",
     }
 
     # Düğümleri konumlandır (Halka / Düzenli Grid Düzeni)
@@ -239,7 +239,7 @@ def render_knowledge_graph(
             continue
 
         nx, ny = node_coords[n_id]
-        fill = type_fills.get(n_type, "var(--color-surface-2)")
+        fill = type_fills.get(n_type, "var(--color-surface-sunken)")
         short_label = label if len(label) <= 18 else label[:16] + "…"
 
         svg_nodes.append(
@@ -247,7 +247,7 @@ def render_knowledge_graph(
             f'<circle r="14" fill="{fill}" stroke="var(--color-surface)" stroke-width="2">'
             f'<title>{esc(label)} ({esc(n_type)})</title></circle>'
             f'<text y="24" text-anchor="middle" font-size="11" '
-            f'fill="var(--color-text)" font-family="var(--font-sans)">{esc(short_label)}</text>'
+            f'fill="var(--color-fg)" font-family="var(--font-body)">{esc(short_label)}</text>'
             f'</g>'
         )
 

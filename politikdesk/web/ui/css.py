@@ -724,7 +724,7 @@ input[type=checkbox],input[type=radio]{{
   border-radius:var(--radius-lg);padding:var(--space-6);max-width:480px;width:100%;
   box-shadow:var(--shadow-lg);
 }}
-.shortcut-row{{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border-subtle)}}
+.shortcut-row{{display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}}
 .shortcut-key{{background:var(--color-surface-sunken);border:1px solid var(--color-border);border-radius:var(--radius-sm);padding:2px 6px;font-family:var(--font-mono);font-size:var(--text-xs);font-weight:var(--weight-semibold)}}
 
 /* ═══════════════════════════════════ komuta paleti (cmd+k) */
@@ -751,7 +751,7 @@ input[type=checkbox],input[type=radio]{{
 .cmd-header .ic{{color:var(--color-fg-subtle);flex:none}}
 .cmd-input{{
   flex:1;background:transparent;border:0;outline:none;font-size:var(--text-base);
-  color:var(--color-fg);font-family:var(--font-sans);
+  color:var(--color-fg);font-family:var(--font-body);
 }}
 .cmd-body{{
   max-height:360px;overflow-y:auto;padding:var(--space-2);display:flex;flex-direction:column;gap:2px;
@@ -772,9 +772,18 @@ input[type=checkbox],input[type=radio]{{
 .cmd-item-hint{{font-size:var(--text-xs);color:var(--color-fg-subtle)}}
 .cmd-footer{{
   display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-4);
-  border-top:1px solid var(--color-border-subtle);background:var(--color-surface-sunken);
+  border-top:1px solid var(--color-border);background:var(--color-surface-sunken);
   font-size:var(--text-xs);color:var(--color-fg-subtle);
 }}
+
+/* ═══════════════════════════════════ bilgi grafı (knowledge graph) */
+.knowledge-graph{{transition:all var(--dur-hover) var(--ease-out)}}
+.graph-node{{cursor:pointer;transition:transform var(--dur-hover) var(--ease-spring)}}
+.graph-node:hover{{transform:scale(1.12)}}
+.graph-node circle{{transition:stroke var(--dur-hover) var(--ease-out),filter var(--dur-hover) var(--ease-out)}}
+.graph-node:hover circle{{stroke:var(--color-accent);filter:drop-shadow(0 2px 6px rgba(0,0,0,0.15))}}
+.graph-links line{{transition:stroke var(--dur-hover) var(--ease-out),stroke-width var(--dur-hover) var(--ease-out)}}
+.graph-links line:hover{{stroke:var(--color-accent);stroke-width:2.5;opacity:1}}
 
 /* ═══════════════════════════════════ hareket · Bölüm 11.4 */
 @media (prefers-reduced-motion:reduce){{

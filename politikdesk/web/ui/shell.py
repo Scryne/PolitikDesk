@@ -36,6 +36,7 @@ NAV: Final[tuple[tuple[str, tuple[tuple[str, str, str], ...]], ...]] = (
         "Çalışma masası",
         (
             ("/feed", "Gündem", "feed"),
+            ("/war-room", "Kumanda Odası", "zap"),
             ("/briefing", "Brifingler", "briefing"),
             ("/promises", "Vaat Takibi", "promise"),
             ("/accountability", "Hesap Sor", "accountability"),
@@ -247,6 +248,7 @@ _CMD_JS = """
 
   var DEFAULT_ITEMS = [
     { title: 'Gündem', href: '/feed', group: 'Çalışma Masası' },
+    { title: 'Kumanda Odası', href: '/war-room', group: 'Çalışma Masası' },
     { title: 'Brifingler', href: '/briefing', group: 'Çalışma Masası' },
     { title: 'Vaat Takibi', href: '/promises', group: 'Çalışma Masası' },
     { title: 'Hesap Sor', href: '/accountability', group: 'Çalışma Masası' },

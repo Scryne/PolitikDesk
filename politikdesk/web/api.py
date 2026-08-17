@@ -520,10 +520,28 @@ def get_event_evidence_card_svg(event_id: int) -> Response:
 
 @router.get("/events/{event_id}/export")
 def export_event_dossier(
-    event_id: int, format: Literal["markdown", "text", "factsheet", "json", "svg"] = "markdown"
+    event_id: int,
+    format: Literal[
+        "markdown",
+        "text",
+        "factsheet",
+        "json",
+        "svg",
+        "x_thread",
+        "linkedin",
+        "instant",
+        "podcast",
+    ] = "markdown",
 ) -> Any:
     """Olayı ve kanıt zincirini istenen formatta dışa aktarır."""
     from fastapi.responses import PlainTextResponse
+
+    from politikdesk.web.export_formats import (
+        to_audio_script,
+        to_instant_dispatch,
+        to_linkedin_brief,
+        to_x_thread,
+    )
 
     user_id = current_user_id()
     data = repository.event_page(event_id, user_id)
@@ -544,6 +562,27 @@ def export_event_dossier(
             "claims": claims,
             "sources": articles,
         }
+
+    if format == "x_thread":
+        tweets = to_x_thread(ev, claims, articles)
+        return {
+            "event_id": ev["id"],
+            "tweet_count": len(tweets),
+            "tweets": tweets,
+            "formatted_text": "\n\n---\n\n".join(tweets),
+        }
+
+    if format == "linkedin":
+        li_text = to_linkedin_brief(ev, claims, articles)
+        return PlainTextResponse(li_text, media_type="text/plain; charset=utf-8")
+
+    if format == "instant":
+        inst_text = to_instant_dispatch(ev, claims, articles)
+        return PlainTextResponse(inst_text, media_type="text/plain; charset=utf-8")
+
+    if format == "podcast":
+        pod_text = to_audio_script(ev, claims, articles)
+        return PlainTextResponse(pod_text, media_type="text/plain; charset=utf-8")
 
     if format == "text":
         lines = [
