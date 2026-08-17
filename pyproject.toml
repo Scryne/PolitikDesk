@@ -94,3 +94,7 @@ python_version = "3.12"
 packages = ["politikdesk", "scripts", "config"]
 ignore_missing_imports = true
 warn_unused_ignores = true
+
+[tool.vercel]
+entrypoint = "politikdesk.api.main:app"
+
