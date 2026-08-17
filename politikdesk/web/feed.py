@@ -408,6 +408,12 @@ def feed_page(
         summary = {}
         rows = []
 
+    is_demo = False
+    if not rows:
+        from politikdesk.web.demo_data import get_demo_feed
+        rows = get_demo_feed()
+        is_demo = True
+
     counts = {key: sum(1 for row in rows if _matches(row, key)) for key, _ in FILTERS}
     tabs = segment(
         tuple(
@@ -429,6 +435,11 @@ def feed_page(
         + button("Yenile", icon_name="refresh", onclick="pdRefresh()")
     )
 
+    demo_banner = ""
+    if is_demo:
+        from politikdesk.web.demo_data import DEMO_BANNER_HTML
+        demo_banner = DEMO_BANNER_HTML
+
     body = f"""
 {
         page_head(
@@ -437,6 +448,7 @@ def feed_page(
             actions=actions_html,
         )
     }
+{demo_banner}
 <div class="stack">
   {_strip(summary)}
   {_summary_kpis(rows)}
@@ -676,4 +688,7 @@ def feed_cards(
     except Exception as exc:  # noqa: BLE001
         log.warning("feed_cards_db_unavailable", error=str(exc))
         rows = []
+    if not rows:
+        from politikdesk.web.demo_data import get_demo_feed
+        rows = get_demo_feed()
     return _cards_html(rows, selected)

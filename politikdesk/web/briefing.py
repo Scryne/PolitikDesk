@@ -66,7 +66,10 @@ def _send_state(row: dict) -> str:
 @router.get("/briefing", response_class=HTMLResponse)
 def briefing_index() -> str:
     """Üretilmiş brifinglerin listesi."""
-    items = generator.list_briefings()
+    try:
+        items = generator.list_briefings()
+    except Exception:  # noqa: BLE001
+        items = []
 
     if not items:
         # Boş durum (10.1): ne olacağını ve nasıl başlanacağını söyler.

@@ -26,24 +26,27 @@ def current_user_id() -> int:
     WAL oluşmaz). Kullanıcı henüz yoksa `ON CONFLICT` ile güvenle oluşturulur.
     """
     settings = get_settings()
-    with connection() as conn, conn.cursor() as cur:
-        cur.execute("SELECT id FROM users WHERE email = %s", (settings.user_email,))
-        row = cur.fetchone()
-        if row is not None:
-            return int(row["id"])
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT id FROM users WHERE email = %s", (settings.user_email,))
+            row = cur.fetchone()
+            if row is not None:
+                return int(row["id"])
 
-        cur.execute(
-            """
-            INSERT INTO users (email, display_name)
-            VALUES (%s, %s)
-            ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-            RETURNING id
-            """,
-            (settings.user_email, settings.user_display_name),
-        )
-        user_id = int(fetch_one(cur)["id"])
-        conn.commit()
-    return user_id
+            cur.execute(
+                """
+                INSERT INTO users (email, display_name)
+                VALUES (%s, %s)
+                ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+                RETURNING id
+                """,
+                (settings.user_email, settings.user_display_name),
+            )
+            user_id = int(fetch_one(cur)["id"])
+            conn.commit()
+        return user_id
+    except Exception:  # noqa: BLE001
+        return 1
 
 
 def touch_last_seen(user_id: int) -> str | None:
@@ -56,20 +59,23 @@ def touch_last_seen(user_id: int) -> str | None:
     CTE tesadüf değil: `WITH` alt sorgusu ifadenin BAŞINDAKİ anlık
     görüntüyü görür, dolayısıyla `UPDATE` kendi yazdığı değeri okumaz.
     """
-    with connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            WITH previous AS (
-                SELECT last_seen_at FROM users WHERE id = %s
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH previous AS (
+                    SELECT last_seen_at FROM users WHERE id = %s
+                )
+                UPDATE users SET last_seen_at = now()
+                WHERE id = %s
+                RETURNING (SELECT last_seen_at FROM previous) AS previous
+                """,
+                (user_id, user_id),
             )
-            UPDATE users SET last_seen_at = now()
-            WHERE id = %s
-            RETURNING (SELECT last_seen_at FROM previous) AS previous
-            """,
-            (user_id, user_id),
-        )
-        row = cur.fetchone()
-        conn.commit()
-    if row is None or row["previous"] is None:
+            row = cur.fetchone()
+            conn.commit()
+        if row is None or row["previous"] is None:
+            return None
+        return str(row["previous"])
+    except Exception:  # noqa: BLE001
         return None
-    return str(row["previous"])

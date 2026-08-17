@@ -16,9 +16,6 @@ from politikdesk.editorial.archive import list_archived_publications
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web.ui import (
     ACTIVITY_JS,
-    button,
-    card,
-    empty_state,
     esc,
     icon,
     kpi,
@@ -89,6 +86,12 @@ def archive_page() -> HTMLResponse:
     except Exception:  # noqa: BLE001
         records = []
 
+    is_demo = False
+    if not records:
+        from politikdesk.web.demo_data import get_demo_archive
+        records = get_demo_archive()
+        is_demo = True
+
     total_records = len(records)
     grounded_count = sum(1 for r in records if r.get("is_grounded"))
     grounded_rate = round(grounded_count / total_records * 100) if total_records > 0 else 100
@@ -107,27 +110,10 @@ def archive_page() -> HTMLResponse:
     </div>
     """
 
-    if not records:
-        body = f"""
-        {page_head("Editoryal Yayın ve Kanıt Arşivi", lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü (Spec §14.4).")}
-        <div style="margin-top:var(--space-6)">
-        {card(empty_state(
-            "Arşivde henüz yayınlanmış içerik bulunmuyor",
-            "Taslak stüdyosunda onaylanıp kabul edilen veya Web Intent ile paylaşılan metinler burada kanıt bağlarıyla kütüklenir.",
-            action=button("Gündeme dön", href="/feed", variant="primary"),
-            icon_name="archive",
-        ))}
-        </div>
-        """
-        return HTMLResponse(
-            page(
-                "Yayın Arşivi",
-                body,
-                active="/archive",
-                crumbs=(("Çalışma masası", None), ("Yayın Arşivi", None)),
-                extra_js=ACTIVITY_JS,
-            )
-        )
+    demo_banner = ""
+    if is_demo:
+        from politikdesk.web.demo_data import DEMO_BANNER_HTML
+        demo_banner = DEMO_BANNER_HTML
 
     cards_html = []
     angles_present: set[str] = set()
@@ -213,6 +199,7 @@ def archive_page() -> HTMLResponse:
         lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü (Spec §14.4).",
         actions=search_input("archive-search", "Arşivde veya metinde ara…", oninput="pdSearchArchive(this.value)"),
     )}
+    {demo_banner}
     {kpis_html}
 
     <div style="margin-bottom:var(--space-4)">

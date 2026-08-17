@@ -128,8 +128,12 @@ def _metric_card(data: dict, history: list[dict]) -> str:
 @router.get("/metrics", response_class=HTMLResponse)
 def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLResponse:
     today = date.today()
-    current = [metric.as_dict() for metric in metrics.compute_metrics(today)]
-    past = metrics.history(days)
+    try:
+        current = [metric.as_dict() for metric in metrics.compute_metrics(today)]
+        past = metrics.history(days)
+    except Exception:  # noqa: BLE001
+        current = []
+        past = {}
 
     on_target = sum(1 for d in current if d["status"] == "ok")
     off_target = sum(1 for d in current if d["status"] == "off")

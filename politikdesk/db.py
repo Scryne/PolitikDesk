@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -16,6 +17,20 @@ from politikdesk.config import get_settings
 # söyler. Aksi halde mypy her `cur.fetchone()` sonucunu tuple sanar ve
 # `row["id"]` erişimlerini hata olarak işaretler (B-40).
 DictConnection = psycopg.Connection[DictRow]
+
+
+def is_db_configured() -> bool:
+    """Veritabanının yapılandırılıp yapılandırılmadığını döner.
+
+    Vercel ortamında PD_DATABASE_URL tanımlanmamışsa (varsayılan 127.0.0.1 ise)
+    10 saniyelik TCP zaman aşımı beklemelerini önleyerek sayfaların milisaniyeler
+    içinde hızlı açılmasını sağlar.
+    """
+    settings = get_settings()
+    return not (
+        os.environ.get("VERCEL")
+        and ("127.0.0.1" in settings.database_url or "localhost" in settings.database_url)
+    )
 
 
 @lru_cache(maxsize=1)
@@ -37,6 +52,8 @@ def get_pool() -> ConnectionPool[DictConnection]:
 @contextmanager
 def connection() -> Iterator[DictConnection]:
     """Havuzdan bir bağlantı ödünç alır."""
+    if not is_db_configured():
+        raise psycopg.OperationalError("Veritabanı yapılandırılmamış (Vercel Vitrin Modu).")
     with get_pool().connection() as conn:
         yield conn
 
