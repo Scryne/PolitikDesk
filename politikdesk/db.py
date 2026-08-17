@@ -23,14 +23,14 @@ def get_pool() -> ConnectionPool[DictConnection]:
     settings = get_settings()
     return ConnectionPool(
         conninfo=settings.database_url,
-        min_size=min(settings.db_pool_min, 1),
+        min_size=settings.db_pool_min,
         max_size=settings.db_pool_max,
-        open=False,
+        open=True,
         connection_class=DictConnection,
         kwargs={"row_factory": dict_row},
         check=ConnectionPool.check_connection,
         max_lifetime=3600,
-        timeout=5,
+        timeout=10,
     )
 
 
