@@ -156,6 +156,15 @@ ACTIVITY_JS: Final[str] = """
 })();
 """
 
+# Vercel Speed Insights initialization.
+# Speed Insights tracks Core Web Vitals (LCP, FID, CLS, FCP, TTFB, INP)
+# for production performance monitoring. The script is injected by Vercel's
+# infrastructure when Speed Insights is enabled in the project dashboard.
+# This initialization code prepares the queue for the deferred script.
+SPEED_INSIGHTS_INIT: Final[str] = """
+window.si = window.si || function () { (window.siq = window.siq || []).push(arguments); };
+"""
+
 
 def _sidebar(active: str) -> str:
     groups = []
@@ -399,6 +408,7 @@ def page(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{esc(title)} · PolitikDesk</title>
+<script>{SPEED_INSIGHTS_INIT}</script>
 <script>{_THEME_BOOT}</script>
 <style>{stylesheet(STATIC_BASE)}</style>
 </head>
