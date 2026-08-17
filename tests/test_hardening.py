@@ -406,7 +406,7 @@ def _silence_alert_side_effects(monkeypatch) -> None:  # noqa: ANN001
 # ===========================================================================
 # F4-09 yan etkisi — loopback bağlama + `localhost` tuzağı
 # ===========================================================================
-def test_default_dsns_use_explicit_ipv4_loopback() -> None:
+def test_default_dsns_use_explicit_ipv4_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ana makine DSN'leri `localhost` DEĞİL `127.0.0.1` olmalı.
 
     F4-09'da yayımlanan portlar güvenlik gerekçesiyle loopback'e bağlandı
@@ -423,6 +423,8 @@ def test_default_dsns_use_explicit_ipv4_loopback() -> None:
     """
     from politikdesk.config import Settings
 
+    monkeypatch.delenv("PD_DATABASE_URL", raising=False)
+    monkeypatch.delenv("PD_REDIS_URL", raising=False)
     defaults = Settings(_env_file=None)  # type: ignore[call-arg]
     assert "localhost" not in defaults.database_url, (
         "Varsayılan DSN `localhost` kullanıyor; Windows'ta IPv6'ya çözümlenip "

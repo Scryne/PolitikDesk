@@ -9,8 +9,8 @@ on:
 env:
   PD_ENV: test
   PD_LOG_FORMAT: console
-  PD_DATABASE_URL: postgresql://politikdesk:politikdesk@localhost:5432/politikdesk
-  PD_REDIS_URL: redis://localhost:6379/0
+  PD_DATABASE_URL: postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk
+  PD_REDIS_URL: redis://127.0.0.1:6379/0
 
 jobs:
   quality:

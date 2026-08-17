@@ -186,6 +186,13 @@ def test_correction_rate_population_alignment(db_conn) -> None:  # noqa: ANN001
     now = datetime.now(UTC)
 
     with db_conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO users (id, email)
+            VALUES (1, 'test_user_metrics_l6@example.com')
+            ON CONFLICT (id) DO NOTHING
+            """
+        )
         # İki test olayı oluşturalım
         cur.execute(
             """
@@ -234,6 +241,7 @@ def test_correction_rate_population_alignment(db_conn) -> None:  # noqa: ANN001
             """,
             (e3_id, now),
         )
+    db_conn.commit()
 
     event_ids = [e1_id, e2_id, e3_id]
     try:
