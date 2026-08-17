@@ -97,6 +97,14 @@ app.include_router(archive_router)
 app.include_router(web_api_router)
 
 
+@app.get("/metrics", include_in_schema=False)
+def metrics_redirect():  # noqa: ANN201
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/admin/metrics", status_code=307)
+
+
+
 # ─────────────────────────── kimlik doğrulama (I01 — denetim düzeltmesi)
 #
 # `PD_API_TOKEN` ayarlıysa tüm istekler bu belirteci taşımalıdır.
@@ -184,8 +192,9 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         if source:
-            source_netloc = urlparse(source).netloc
-            host = request.headers.get("host", "")
+            source_netloc = urlparse(source).netloc.split(":")[0].lower()
+            forwarded_host = request.headers.get("x-forwarded-host", "")
+            host = (forwarded_host or request.headers.get("host", "")).split(":")[0].lower()
             if source_netloc and host and source_netloc != host:
                 log.warning(
                     "csrf_origin_mismatch",

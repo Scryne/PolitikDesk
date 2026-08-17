@@ -102,6 +102,7 @@ def _field(question: Question, current: dict[str, Any]) -> str:
 </fieldset>"""
 
 
+@router.get("/onboarding", response_class=HTMLResponse)
 @router.get("/onboarding/profile", response_class=HTMLResponse)
 def profile_form() -> str:
     current = load_profile(current_user_id()) or {}
