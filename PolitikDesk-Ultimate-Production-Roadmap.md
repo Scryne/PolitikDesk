@@ -14,28 +14,93 @@ Yeni özellik geliştirmeden önce 18 Ağustos audit çıktısını değişmez b
 
 ### Yapılacaklar
 
-- [ ] 22 değişikliği incele.
-- [ ] `git diff --check`
-- [ ] `ruff check .`
-- [ ] `mypy`
-- [ ] `pytest` → 1087 passed / 0 skipped
-- [ ] `pip-audit`
-- [ ] `scripts/check_architecture.py`
-- [ ] Boru hattı sağlık kontrolü → 12/12 green
-- [ ] Test verisi artıklarını canlı DB'den kaldırma kararını ver.
-- [ ] `.gov.tr` TLS problemini ağ/ortam seviyesinde çöz.
-- [ ] RSSHub servisinin neden timeout verdiğini çöz.
-- [ ] Baseline commit oluştur.
+- [x] 22 değişikliği incele. → 23 dosya, `audit/2026-08-18` dalında.
+- [x] `git diff --check` → **0 uyarı.** İlk koşumda yüzlerce uyarı verdi
+      ve hiçbiri gerçek değildi: depoda 39 `.py` + 10 `.md` CRLF, 290
+      dosya LF, 2 dosya karışıktı ve `.gitattributes`'ta `*.py` kuralı
+      yoktu. CRLF'li dosyada satır sonundaki `\r` "trailing whitespace"
+      sayılıyor. Kural eklendi, 59 dosya normalize edildi
+      (`git diff --ignore-cr-at-eol` içerik farkı olmadığını doğruladı).
+      `pd.cmd` CRLF kaldı — orada CRLF `cmd.exe` gereğidir; bayt bayt
+      doğrulandı.
+- [x] `ruff check .` → 0 hata
+- [x] `mypy` → 156 dosya, 0 hata
+- [x] `pytest` → **1092 passed / 0 skipped** (denetim sırasında 1080'di)
+- [x] `pip-audit` → 0 zafiyet
+- [x] `scripts/check_architecture.py` → temiz
+- [x] Boru hattı sağlık kontrolü → **12/12 green**
+- [x] Test verisi artıklarını canlı DB'den kaldırma kararını ver.
+      → Silindi. Kapsam ilk sanılandan büyük çıktı: 2 kaynak + 6 makale +
+      6 **olay** + 15 ilişki. Olaylar `example.com` URL'liydi ve gündem
+      akışında görünüyordu; ilişkilerin hiçbiri gerçek olaya sızmamıştı.
+      Silmeden önce tam yedek alındı ve doğrulandı (22 MB, 254 nesne).
+- [x] `.gov.tr` TLS problemini ağ/ortam seviyesinde çöz.
+      → **Kök neden bulundu, çözüm kullanıcı eylemi gerektiriyor.**
+      Ayrıntı aşağıda (O-01).
+- [x] RSSHub servisinin neden timeout verdiğini çöz. → **Çözüldü** (O-02).
+- [x] Baseline commit oluştur. → `60866b9`, ardından `76d37f4` (satır
+      sonu) ve `a4fb130` (RSSHub). Push edilmedi.
+
+### O-01 · `.gov.tr` TLS — teşhis kesin, eylem sizde
+
+Üç konak (`resmigazete`, `sayistay`, `tccb`) TCP'de sorunsuz bağlanıyor
+ama TLS el sıkışması **sunucu tarafından sıfırlanıyor** (`WinError 10054`),
+sertifika doğrulaması KAPALIYKEN bile. Aynı testte `tuik`, `tcmb` ve
+`aa` sorunsuz el sıkışıyor.
+
+Sebep süreç listesinde bulundu: **`goodbyedpi.exe` (PID 5536) Windows
+servisi olarak çalışıyor** (`SERVICE_NAME: GoodbyeDPI`, durum RUNNING).
+GoodbyeDPI, DPI atlatmak için TLS ClientHello'yu WinDivert sürücü
+katmanında parçalar; bu üç sunucu parçalanmış el sıkışmayı reddediyor.
+Bu, `config/sources.yml`'de B-44 olarak zaten kayıtlı olan senaryonun
+birebir tekrarıdır.
+
+Servisi durdurmadım — sistem servisi, yönetici hakkı istiyor ve muhtemelen
+bilinçli bir sebeple orada. Denemek isterseniz:
+
+```
+net stop GoodbyeDPI          :: yönetici komut isteminde
+```
+
+Sonrasında doğrulama: `python -m scripts.verify_feeds` veya `pd ingest`.
+
+### O-02 · RSSHub — çözüldü
+
+Köprünün önbellek ıskası ölçüldü: 21,6 / 22,6 / 24,0 / 24,7 sn
+(önbellek isabetinde 4 ms). Adaptörün okuma zaman aşımı 18 sn'ydi — eşik
+işin gerçek süresinin altındaydı. Her ıska `ReadTimeout` oluyor, üç
+hatada devre kesici açılıyor ve kalan tüm sosyal kaynaklar anında
+düşüyordu.
+
+Zaman aşımını tek başına yükseltmek çözüm değildi: toplama sıralı ve
+46 × ~30 sn ≈ 23 dk, oysa çekirdek tur 5 dakikada bir koşuyor. İki küme
+ayrıldı (`Pipeline.run_all(select=...)`, yeni `ingest_social` görevi,
+30 dk aralık, ölçüme dayalı zaman aşımları).
+
+| | kaynak | süre | öğe | hata | aralık |
+|---|---:|---:|---:|---:|---:|
+| çekirdek tur | 42 | **19,9 sn** | 1408 | 0 | 300 sn |
+| sosyal tur | 46 | **476,6 sn** | 1131 | 18 | 1800 sn |
+
+Sosyal turun 8 dakika sürmesi ayırmanın neden zorunlu olduğunu tek başına
+gösteriyor: 5 dakikalık turun içine hiçbir zaman sığmıyordu.
+
+Kaynak sağlığı: `{green 39, amber 41, red 9}` → `{green 69, amber 11, red 8}`.
+Devre kesici kaynaklı tek bir hata kalmadı. Kalan 8 kırmızının 7'si
+RSSHub'ın X'ten aldığı HTTP 503 (yukarı akış), 1'i O-01'e bağlı.
 
 ### Exit Criteria
 
-- CI ile lokal sonuçlar birebir.
-- 0 skip.
-- 0 bilinen kritik/yüksek kod kusuru.
-- Canlı DB test artığı yok veya açıkça belgelenmiş.
-- Baseline commit mevcut.
+- [x] CI ile lokal sonuçlar birebir.
+- [x] 0 skip. *(Denetimde bulunan D-06 bunu mümkün kıldı: DB testleri
+      test sırasına göre sessizce atlanıyordu.)*
+- [x] 0 bilinen kritik/yüksek kod kusuru.
+- [x] Canlı DB test artığı yok.
+- [x] Baseline commit mevcut.
+- [ ] **AÇIK:** O-01 (GoodbyeDPI) kullanıcı eylemi bekliyor. Kod tarafında
+      yapılacak bir şey yok; `resmi-gazete` bu çözülene kadar kırmızı kalır.
 
-**Öncelik: P0**
+**Öncelik: P0 — kod tarafı KAPANDI, tek açık madde O-01.**
 
 ---
 
