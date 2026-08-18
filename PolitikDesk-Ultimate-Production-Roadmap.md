@@ -202,21 +202,55 @@ sorusuna deterministik veri tabanlı cevap alabilmeli.
 
 ## 1.3 KAP
 
-**Öncelik: P1**
+**Öncelik: P1 — ERTELENDİ (19 Ağu 2026). Karar: `docs/ADR-007-KAP-ENTEGRASYONU.md`**
 
-KAP'ın resmi sitesinde Veri Yayın Servisi REST API entegrasyonu için ayrı bir servis duyurusu bulunuyor. Bu nedenle KAP, ekonomi-politika kesişiminde güçlü bir birincil kaynak adayıdır. citeturn0search12
+### Ölçüm önce yapıldı, adaptör yazılmadı
 
-### Kapsam
+Bu maddenin dayanağı "KAP'ın Veri Yayın Servisi REST API duyurusu"ydu.
+Ölçüm bu varsayımı doğrulamadı: **VYS, veri satıcılarına yönelik
+abonelikli bir yayın servisidir, açık bir REST API değildir.**
 
-- şirket açıklamaları
-- özel durum açıklamaları
-- finansal raporlar
-- önemli yönetim değişiklikleri
-- sermaye hareketleri
+`scripts/probe_kap.py` ile ölçülenler:
 
-### Exit Criteria
+| Ne | Sonuç |
+|---|---|
+| Site sayfaları | HTTP 200 (erişilebilir) |
+| `robots.txt` | **HTTP 666** — izin beyanı okunamıyor |
+| `/tr/api/disclosures` | **ReadTimeout** (tüm parametre ve User-Agent kombinasyonları) |
+| Diğer bildirim uçları | HTTP 404 |
+| Sayfanın sunucu yükü | Bildirim **içermiyor** (yalnızca endeks/şirket meta verisi) |
 
-KAP olayları ayrı `independence_group` ile sisteme girebilmeli.
+Tarayıcı ve bot User-Agent'ı **aynı** sonucu verdi — hedefli bot engeli
+değil, uç herkese kapalı.
+
+### Neden adaptör yazılmadı
+
+1. **Doğrulanmamış uca adaptör yazılmaz.** Aynı kural bu fazda EVDS seri
+   kodlarına da uygulandı (altı serinin altısı `verified=False`). Bu depo
+   doğrulanmamış kaynağın bedelini üç kez ödedi (B-42, B-43, EVDS'nin
+   anahtarsız HTML yanıtı): uç 200 döner, gövde beklenen şey değildir,
+   tur **sessizce başarılı** görünür.
+2. **İzin beyanı okunamıyor.** `robots.txt` alınamıyor; `HttpClient` bunu
+   "politika yok" sayıp izin veriyor — ama bu izin değil, izin yokluğunun
+   varsayılan davranışıdır.
+3. **Hacim/alaka oranı.** KAP günde yüzlerce kurumsal bildirim yayımlar,
+   çoğu bu ürünün dikeyiyle ilgisiz. Sert bir konu filtresi şart — ve o
+   filtre erişim çözülmeden tasarlanamaz.
+
+### Faz 1.2 bu maddenin bir bölümünü zaten karşıladı
+
+| Sinyal | Erişilebilir karşılığı | Durum |
+|---|---|---|
+| SPK düzenleme/yaptırım | Ulusal Veri Yayımlama Takvimi (515 kayıt) | ✅ |
+| BDDK bankacılık verileri | Aynı takvim (554 kayıt) | ✅ |
+| Özelleştirme, kamu bankası | Resmî Gazete + Hazine | ✅ |
+
+Açık kalan asıl katman **şirket düzeyinde özel durum açıklamalarıdır.**
+
+### Yeniden açılma koşulu
+
+`python -m scripts.probe_kap` çıkış kodu 0 döndürürse, ya da VYS
+aboneliği alınırsa. Ayrıntı ADR-007 §6'da.
 
 ---
 
