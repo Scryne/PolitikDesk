@@ -194,6 +194,7 @@ EXPECTED_SCHEDULE_ENTRIES = {
     "evidence-every-5-minutes",
     "context-every-30-minutes",
     "political-relations-every-15-minutes",
+    "official-calendar-twice-daily",
     "scheduler-match-hourly",
     "purge-daily",
     "health-check-hourly",

@@ -276,6 +276,24 @@ def link_political_relations(self, limit: int = 50) -> dict[str, int]:  # noqa: 
         raise self.retry(exc=exc, countdown=180) from exc
 
 
+@app.task(name="politikdesk.sync_official_calendar", bind=True, max_retries=1)
+def sync_official_calendar(self) -> dict[str, int]:  # noqa: ANN001
+    """Ulusal Veri Yayımlama Takvimini çeker (F2-18 · Roadmap 1.2).
+
+    Günde iki kez yeter ve fazlası zarar: takvim yıllık yayımlanır, gün
+    içinde değişen tek şey bir kaydın "bekleyen"den "yayımlandı"ya
+    geçmesidir. 06:10 sabah brifinginden önce günün beklentisini tazeler;
+    21:10 gün içinde yayımlananları işaretler.
+    """
+    from politikdesk.context.official_calendar import sync
+
+    try:
+        return sync()
+    except Exception as exc:  # noqa: BLE001
+        log.error("sync_official_calendar_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=1800) from exc
+
+
 @app.task(name="politikdesk.match_scheduled_events", bind=True, max_retries=1)
 def match_scheduled_events(self) -> dict[str, int]:  # noqa: ANN001
     """Beklenen gelişme -> gerçekleşen olay eşleştirmesi (F2-19)."""
@@ -423,6 +441,12 @@ app.conf.beat_schedule = {
     "political-relations-every-15-minutes": {
         "task": "politikdesk.link_political_relations",
         "schedule": 900.0,
+    },
+    # Resmî takvimin kendisi: yıllık yayımlanır, günde iki tur yeter.
+    # Sabah turu brifingten ÖNCE koşar ki "bugün ne bekleniyor" taze olsun.
+    "official-calendar-twice-daily": {
+        "task": "politikdesk.sync_official_calendar",
+        "schedule": crontab(hour="6,21", minute=10),
     },
     # Takvim eşleştirmesi: veri yayım saatleri bellidir, saatlik yeter.
     "scheduler-match-hourly": {

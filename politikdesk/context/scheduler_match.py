@@ -105,16 +105,23 @@ def add_scheduled(
 def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
     """Beklenen gelişmeleri gerçekleşen olaylarla eşleştirir (F2-19).
 
-    Yalnızca `status='pending'` kayıtlar denenir; eşleşen kayıt
-    `occurred` olur ve `linked_event_id` alır.
+    `pending` VE `published` kayıtlar denenir; eşleşen kayıt `occurred`
+    olur ve `linked_event_id` alır.
+
+    `published`'ın burada olması şart (Roadmap 1.2): Ulusal Veri Yayımlama
+    Takvimi, kurumun zaten yayımladığı kayıtları `published` olarak
+    getiriyor. Yalnızca `pending` taransaydı takvimden gelen bu kayıtlar
+    eşleştiriciyi hiç görmezdi — canlı ölçümde 286 yayımlanmış kaydın
+    hepsi `eslesen=0` ile duruyordu. Boru hattının en değerli sorusu
+    ("kurum açıkladı, biz gördük mü?") o hâliyle hiç sorulamıyordu.
     """
     matched = 0
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT se.id, se.expected_at, se.vertical, se.source_id
+            SELECT se.id, se.expected_at, se.vertical, se.source_id, se.status
             FROM scheduled_events se
-            WHERE se.status = 'pending'
+            WHERE se.status IN ('pending', 'published')
               AND se.linked_event_id IS NULL
               AND se.expected_at < now()
             ORDER BY se.expected_at
@@ -131,8 +138,16 @@ def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
                 WHERE e.merged_into_id IS NULL
                   AND e.vertical = %s
                   AND e.first_reported_at BETWEEN %s - %s AND %s + %s
+                  -- `::bigint` gerekli: takvimden gelen kayıtlarda
+                  -- `source_id` NULL'dır (Ulusal Veri Yayımlama
+                  -- Takvimi'ndeki 31 kurumun çoğu `sources` tablosunda
+                  -- yoktur ve olmamalıdır — onlardan haber toplamıyoruz).
+                  -- Tipsiz bir NULL parametresinde PostgreSQL
+                  -- `IndeterminateDatatype` fırlatır. Hata gizliydi
+                  -- çünkü o güne dek tüm kayıtlar elle girilmişti ve
+                  -- hepsinin kaynağı vardı.
                   AND (
-                    %s IS NULL
+                    %s::bigint IS NULL
                     OR EXISTS (
                       SELECT 1 FROM articles a
                       WHERE a.event_id = e.id AND a.source_id = %s
@@ -155,10 +170,22 @@ def match_pending(window: timedelta = MATCH_WINDOW) -> dict[str, int]:
             hit = cur.fetchone()
             if hit is None:
                 from datetime import UTC, datetime
+
                 expected = item["expected_at"]
                 if expected.tzinfo is None:
                     expected = expected.replace(tzinfo=UTC)
-                if datetime.now(UTC) - expected > timedelta(hours=48):
+
+                # ⛔ YALNIZCA `pending` iptal edilebilir.
+                #
+                # `cancelled` "beklenen şey hiç olmadı" demektir. Bir
+                # `published` kaydı için bu YANLIŞTIR: kurum yayımladı,
+                # BİZ görmedik. İkisi karıştırılırsa ürünün en değerli
+                # sinyali (`missed_report` — kaynak kadrosundaki kör
+                # nokta) 48 saat sonra sessizce silinir.
+                if (
+                    item["status"] == "pending"
+                    and datetime.now(UTC) - expected > timedelta(hours=48)
+                ):
                     cur.execute(
                         "UPDATE scheduled_events SET status = 'cancelled' WHERE id = %s",
                         (item["id"],),

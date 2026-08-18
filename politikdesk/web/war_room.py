@@ -125,6 +125,74 @@ def _indicator_strip() -> str:
     )
 
 
+def _expected_publications() -> str:
+    """BEKLENEN RESMÎ YAYINLAR (Spec §9.5 · Roadmap Faz 1.2).
+
+    Ürünün "gizli kozu": yalnızca olanı değil, **olacağı** da bilmek.
+    Kaynak Ulusal Veri Yayımlama Takvimi'dir — kurumların kendi ilan
+    ettiği program, tahmin değil.
+
+    Kaçırılan yayınlar ayrı gösterilir ve bu bilinçli: "kurum açıkladı
+    ama biz görmedik", kaynak kadrosundaki kör noktayı başka hiçbir
+    göstergenin söylemediği kadar doğrudan söyler.
+    """
+    from politikdesk.context import official_calendar as takvim
+
+    try:
+        bekleyen = takvim.upcoming(hours=48, limit=8)
+        kacirilan = takvim.missed_report(days=3, limit=3)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("war_room_calendar_failed", error=str(exc))
+        return ""
+
+    if not bekleyen and not kacirilan:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-xs)">'
+            "Önümüzdeki 48 saatte takvimde resmî yayın görünmüyor.</p>",
+            title="Beklenen resmî yayınlar",
+        )
+
+    satirlar = []
+    for r in bekleyen:
+        an = r["expected_at"].astimezone(takvim.CALENDAR_TZ)
+        donem = f" · {esc(r['reference_period'])}" if r.get("reference_period") else ""
+        satirlar.append(
+            f'<div style="padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)">'
+            f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
+            f'<span class="mono" style="font-size:var(--text-xs);color:var(--color-accent)">'
+            f"{fmt.day_month(an)} {an:%H:%M}</span>"
+            f'<span class="badge sm">{esc(r["institution"] or "")}</span></div>'
+            f'<div style="font-size:var(--text-sm);margin-top:2px">{esc(r["title"])}</div>'
+            f'<div class="subtle" style="font-size:var(--text-xs)">{donem.lstrip(" ·")}</div>'
+            f"</div>"
+        )
+
+    kacirilan_html = ""
+    if kacirilan:
+        maddeler = "".join(
+            f'<li style="margin-bottom:4px">{esc(r["institution"] or "")} — '
+            f'{esc(r["title"][:70])}</li>'
+            for r in kacirilan
+        )
+        kacirilan_html = (
+            f'<div style="margin-top:var(--space-4)">'
+            f'<p class="eyebrow" style="margin-bottom:var(--space-2);color:var(--color-contra)">'
+            f"Yayımlandı, biz görmedik</p>"
+            f'<ul style="margin:0;padding-left:18px;font-size:var(--text-xs);'
+            f'color:var(--color-fg-muted)">{maddeler}</ul>'
+            f'<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            f"Kurum yayımladı ama hiçbir kaynağımız haberleştirmedi — kaynak "
+            f"kadrosunda kör nokta olabilir.</p></div>"
+        )
+
+    return card(
+        "".join(satirlar) + kacirilan_html,
+        title="Beklenen resmî yayınlar",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(len(bekleyen), 'yayın')} · 48 saat</span>",
+    )
+
+
 @router.get("/war-room", response_class=HTMLResponse)
 @router.get("/radar", response_class=HTMLResponse, include_in_schema=False)
 def war_room_page() -> str:
@@ -240,6 +308,7 @@ def war_room_page() -> str:
   </div>
   <div class="stack" style="flex:1;position:sticky;top:calc(var(--topbar-h) + 24px)">
     {card(breaking_section, title="Kritik Kırılmalar")}
+    {_expected_publications()}
     {
         card(
             # Bu listede YALNIZCA bu sayfada gerçekten çalışan kısayollar
