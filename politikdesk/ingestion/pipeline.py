@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
+from typing import Final, Literal
 
 from politikdesk.feature_flags import is_twitter_ingestion_enabled
 from politikdesk.ingestion import guard, repository, topics
@@ -169,6 +170,21 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
     raise ValueError(f"{source.slug}: bilinmeyen adaptör {adapter_key!r}")
 
 
+# Köprü (RSSHub/Nitter) üzerinden gelen, yavaş ve dış servise bağımlı
+# adaptörler. Bunlar `ingest_all`'ın hızlı turundan AYRILIR.
+SOCIAL_ADAPTERS: Final[frozenset[str]] = frozenset({"twitter"})
+
+SourceSelector = Literal["all", "core", "social"]
+
+
+def _selects(select: SourceSelector, source: SourceRow) -> bool:
+    """Kaynak, istenen kümeye giriyor mu?"""
+    if select == "all":
+        return True
+    is_social = (source.adapter or "").strip().lower() in SOCIAL_ADAPTERS
+    return is_social if select == "social" else not is_social
+
+
 @dataclass
 class Pipeline:
     """Tek bir kaynağı veya tüm kaynakları işler."""
@@ -176,12 +192,38 @@ class Pipeline:
     http: HttpClient | None = None
     enforce_topic_scope: bool = True
 
-    def run_all(self) -> IngestionStats:
+    def run_all(self, select: SourceSelector = "all") -> IngestionStats:
+        """Kaynakları toplar. `select` hangi kümenin işleneceğini belirler.
+
+        **Neden bir seçici gerekti (18 Ağustos 2026 denetimi).**
+
+        Toplama SIRALIDIR ve tek bir yavaş kaynak turun tamamını geciktirir.
+        Sosyal kaynaklar (46 adet) RSSHub köprüsü üzerinden gelir ve
+        köprünün ÖNBELLEK ISKASI ölçülen 21–25 saniyedir — çünkü köprü X'i
+        canlı kazıyor. Geri kalan 42 kaynak ise saniyeler içinde döner.
+
+        İkisi aynı turda olduğunda iki kötü seçenekten birine sıkışılıyordu:
+
+          * Zaman aşımı kısa tutulur (eskiden 18 sn): her önbellek ıskası
+            `ReadTimeout` olur, üç hatada devre açılır ve **46 sosyal
+            kaynağın tamamı** birden çöker. 18 Ağustos'ta görülen buydu.
+          * Zaman aşımı uzatılır: 46 × ~30 sn ≈ 23 dakikalık tur, oysa
+            beat 5 dakikada bir tetikleniyor — turlar üst üste biner.
+
+        Çözüm ikisini ayırmak: çekirdek kaynaklar 5 dakikada bir hızlı
+        turda, sosyal kaynaklar kendi seyrek turunda (`tasks.ingest_social`,
+        30 dakika) ve kendi cömert zaman aşımıyla koşar. Böylece yavaş bir
+        köprü, resmî kaynakların tazeliğini rehin alamaz.
+        """
+        sources = [s for s in repository.list_sources(only_active=True) if _selects(select, s)]
+
         total = IngestionStats()
-        for source in repository.list_sources(only_active=True):
+        for source in sources:
             total.merge(self.run_source(source))
         log.info(
             "ingestion_cycle_complete",
+            select=select,
+            sources=len(sources),
             fetched=total.fetched,
             stored=total.stored,
             exact_dupes=total.exact_duplicates,

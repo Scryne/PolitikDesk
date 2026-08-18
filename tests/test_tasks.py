@@ -177,10 +177,46 @@ def test_political_relations_task_scheduled_and_registered() -> None:
     )
 
 
-def test_all_16_beat_schedule_tasks_registered_and_executable() -> None:
-    """F3: Beat schedule içindeki 16/16 tüm görevler Celery'ye kayıtlı ve çağrılabilir olmalı."""
+# Beat zamanlamasının BEKLENEN girdileri, ad ad.
+#
+# Burada bir SAYI tutulmuyor ve bu bilinçli: eskiden `len(schedule) == 16`
+# yazıyordu. Sayı tutan bir muhafız, görev eklendiğinde "16'yı 17 yap"
+# refleksi doğurur; hangi girdinin eklendiğini veya yanlışlıkla
+# silindiğini söylemez. Ad listesi ikisini de söyler ve yeni bir zamanlama
+# eklemeyi bilinçli bir beyan hâline getirir.
+EXPECTED_SCHEDULE_ENTRIES = {
+    "ingest-every-5-minutes",
+    "ingest-social-every-30-minutes",
+    "embed-every-minute",
+    "entities-every-2-minutes",
+    "cluster-every-3-minutes",
+    "claims-every-10-minutes",
+    "evidence-every-5-minutes",
+    "context-every-30-minutes",
+    "political-relations-every-15-minutes",
+    "scheduler-match-hourly",
+    "purge-daily",
+    "health-check-hourly",
+    "pipeline-health-hourly",
+    "llm-budget-check",
+    "briefing-morning",
+    "briefing-evening",
+    "metrics-rollup-nightly",
+}
+
+
+def test_beat_schedule_contains_exactly_the_declared_entries() -> None:
+    """Zamanlama, beyan edilen girdi kümesiyle birebir örtüşmeli."""
+    actual = set(app.conf.beat_schedule)
+    assert actual == EXPECTED_SCHEDULE_ENTRIES, (
+        f"Beklenmeyen girdi: {sorted(actual - EXPECTED_SCHEDULE_ENTRIES)} · "
+        f"Eksik girdi: {sorted(EXPECTED_SCHEDULE_ENTRIES - actual)}"
+    )
+
+
+def test_all_beat_schedule_tasks_registered_and_executable() -> None:
+    """Beat schedule içindeki tüm görevler Celery'ye kayıtlı ve çağrılabilir olmalı."""
     schedule = app.conf.beat_schedule
-    assert len(schedule) == 16, f"Beklenen 16 zamanlanmış görev, bulunan: {len(schedule)}"
     for name, entry in schedule.items():
         task_name = entry["task"]
         assert task_name in app.tasks, (
@@ -222,22 +258,97 @@ def test_daily_rollup_uses_application_timezone_date(monkeypatch) -> None:
 
 
 def test_beat_schedule_persists_on_fresh_app_instance() -> None:
-    """F3: Beat yeniden başlatıldığında / tasks modülü yeniden yüklendiğinde schedule 16/16 korunur."""
+    """F3: Beat yeniden başlatıldığında / tasks modülü yeniden yüklendiğinde schedule korunur."""
     import importlib
 
     import politikdesk.tasks
 
     importlib.reload(politikdesk.tasks)
     reloaded_schedule = politikdesk.tasks.app.conf.beat_schedule
-    assert len(reloaded_schedule) == 16
-    assert "political-relations-every-15-minutes" in reloaded_schedule
-    assert "briefing-morning" in reloaded_schedule
-    assert "briefing-evening" in reloaded_schedule
+    assert set(reloaded_schedule) == EXPECTED_SCHEDULE_ENTRIES
 
 
 def test_worker_app_imports_and_contains_full_beat_schedule() -> None:
-    """Worker app doğrudan import edildiğinde de beat_schedule 16/16 dolu olmalıdır."""
+    """Worker app doğrudan import edildiğinde de beat_schedule tam olmalıdır."""
     from politikdesk.worker import app as worker_app
 
-    assert len(worker_app.conf.beat_schedule) == 16
+    assert set(worker_app.conf.beat_schedule) == EXPECTED_SCHEDULE_ENTRIES
 
+
+
+# ═════════════════════════ sosyal/çekirdek ayrımı (18 Ağustos 2026 denetimi)
+def test_core_ingestion_excludes_bridge_backed_social_sources() -> None:
+    """`ingest_all` sosyal kaynakları ÇEKMEMELİ.
+
+    **Bu ayrımın var olma sebebi bir ölçümdür.**
+
+    RSSHub köprüsünün önbellek ıskası 21–25 saniyedir (X'i canlı kazıyor;
+    önbellek isabetinde aynı istek 4 ms). Adaptörün okuma zaman aşımı ise
+    18 saniyeydi — yani eşik işin gerçek süresinin ALTINDA. Her ıska
+    `ReadTimeout` oluyor, üç hatada devre kesici açılıyor ve o turdaki
+    kalan sosyal kaynakların hepsi anında `CircuitOpenError` alıyordu:
+    sağlık panosunda 9 kırmızı, 41 amber.
+
+    Zaman aşımını tek başına yükseltmek çözüm değildi: toplama sıralıdır
+    ve 46 sosyal kaynak × ~30 sn ≈ 23 dakika sürerdi; oysa çekirdek tur
+    5 dakikada bir koşar. İki küme ayrıldı.
+    """
+    from politikdesk.ingestion.pipeline import SOCIAL_ADAPTERS, _selects
+    from politikdesk.ingestion.repository import SourceRow
+
+    def _row(slug: str, adapter: str) -> SourceRow:
+        return SourceRow(
+            id=1, slug=slug, name=slug, tier=1, kind="official",
+            independence_group=None, access_method="rss", tos_status="allowed",
+            adapter=adapter, base_url=None, feed_url=None, extra_feeds=None,
+            keyword_filter=None, topics=None, is_active=True,
+            is_wire_reference=False, vertical=None,
+        )
+
+    tcmb = _row("tcmb", "rss")
+    x_tbmm = _row("x-tbmm", "twitter")
+
+    assert _selects("core", tcmb) and not _selects("core", x_tbmm)
+    assert _selects("social", x_tbmm) and not _selects("social", tcmb)
+    assert _selects("all", tcmb) and _selects("all", x_tbmm)
+    assert "twitter" in SOCIAL_ADAPTERS
+
+
+def test_social_ingestion_is_scheduled_separately_and_less_often() -> None:
+    """Sosyal tur çekirdek turdan SEYREK olmalı, aksi hâlde ayırmanın anlamı yok."""
+    from politikdesk.tasks import (
+        INGESTION_INTERVAL_SECONDS,
+        SOCIAL_INGESTION_INTERVAL_SECONDS,
+    )
+
+    schedule = app.conf.beat_schedule
+    assert schedule["ingest-social-every-30-minutes"]["task"] == "politikdesk.ingest_social"
+    assert SOCIAL_INGESTION_INTERVAL_SECONDS > INGESTION_INTERVAL_SECONDS
+
+
+def test_social_task_time_limits_fit_inside_its_own_interval() -> None:
+    """Bir tur, bir sonraki tur başlamadan bitmeli — yoksa turlar üst üste biner."""
+    from politikdesk.tasks import (
+        SOCIAL_INGESTION_INTERVAL_SECONDS,
+        SOCIAL_SOFT_TIME_LIMIT,
+        SOCIAL_TIME_LIMIT,
+    )
+
+    assert SOCIAL_SOFT_TIME_LIMIT < SOCIAL_TIME_LIMIT < SOCIAL_INGESTION_INTERVAL_SECONDS
+
+
+def test_bridge_read_timeout_exceeds_measured_cold_path_latency() -> None:
+    """Okuma zaman aşımı, köprünün ölçülen en kötü gecikmesinin ÜSTÜNDE olmalı.
+
+    18 Ağustos 2026 ölçümü: önbellek ıskasında 21,6 sn / 22,6 sn / 24,0 sn
+    / 24,7 sn. Eşik bunun altında kalırsa her ıska hataya döner ve devre
+    kesici tüm sosyal kaynakları düşürür.
+    """
+    from politikdesk.ingestion.adapters.twitter import (
+        BRIDGE_READ_TIMEOUT,
+        BRIDGE_TOTAL_TIMEOUT,
+    )
+
+    OLCULEN_EN_KOTU = 25.0
+    assert BRIDGE_READ_TIMEOUT > OLCULEN_EN_KOTU
+    assert BRIDGE_TOTAL_TIMEOUT >= BRIDGE_READ_TIMEOUT

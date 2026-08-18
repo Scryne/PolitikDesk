@@ -30,6 +30,25 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
+# Köprü (RSSHub) zaman aşımları — TAHMİN DEĞİL, ÖLÇÜM.
+#
+# 18 Ağustos 2026 denetiminde okuma zaman aşımı 18 saniyeydi ve
+# 46 sosyal kaynağın tamamı çökmüştü. Sebep basitti: köprünün
+# ÖNBELLEK ISKASI ölçüldüğünde 21–25 saniye sürüyor (X'i canlı kazıyor;
+# önbellek isabetinde aynı istek 4 ms'de dönüyor). Yani eşik, işin
+# gerçek süresinin ALTINDAYDI — her ıska `ReadTimeout` oluyor, üç hatada
+# devre kesici açılıyor ve o turdaki geri kalan sosyal kaynakların hepsi
+# anında `CircuitOpenError` alıyordu. Sağlık panosunda 9 kırmızı,
+# 41 amber olarak görünen tablo buydu.
+#
+# Yeni değer ölçülen en kötü durumun (25 sn) üstünde tutuldu. Uzun bir
+# zaman aşımının turu geciktirmesi artık sorun değil: sosyal kaynaklar
+# `tasks.ingest_social` ile kendi seyrek turunda koşuyor
+# (bkz. `ingestion/pipeline.py::run_all` seçicisi).
+BRIDGE_CONNECT_TIMEOUT = 8.0
+BRIDGE_READ_TIMEOUT = 35.0
+BRIDGE_TOTAL_TIMEOUT = 45.0
+
 _DATE_PATTERNS = (
     "%a, %d %b %Y %H:%M:%S %z",
     "%a, %d %b %Y %H:%M:%S GMT",
@@ -186,9 +205,9 @@ class TwitterAdapter:
         self.http = http or HttpClient(
             respect_robots=False,
             enforce_ssrf=False,
-            timeout=25.0,
-            connect_timeout=8.0,
-            read_timeout=18.0,
+            timeout=BRIDGE_TOTAL_TIMEOUT,
+            connect_timeout=BRIDGE_CONNECT_TIMEOUT,
+            read_timeout=BRIDGE_READ_TIMEOUT,
             enable_jitter=True,
         )
         self.max_consecutive_failures = max_consecutive_failures

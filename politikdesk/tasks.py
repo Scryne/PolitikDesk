@@ -20,6 +20,19 @@ log = get_logger(__name__)
 
 INGESTION_INTERVAL_SECONDS = 300  # 5 dakika (Spec §11.3 adım 1)
 
+# Sosyal (köprü tabanlı) toplama kendi ritmindedir. 46 kaynak × ölçülen
+# 21–25 sn önbellek ıskası, en kötü durumda dakikalarca sürer; 5 dakikalık
+# çekirdek turun içine sığmaz ve sığdırılmaya çalışıldığında devre kesici
+# tüm sosyal kaynakları düşürüyordu (18 Ağustos 2026 denetimi).
+#
+# 30 dakika, X akışlarının haber değeriyle uyumlu: bir aktör beyanı
+# yarım saatlik gecikmeyle de teyit havuzuna girebilir. Zaten R7 gereği
+# sosyal kanıt tek başına 🟢 üretemez, dolayısıyla tazelik burada
+# çekirdek kaynaklardaki kadar kritik değildir.
+SOCIAL_INGESTION_INTERVAL_SECONDS = 1800  # 30 dakika
+SOCIAL_SOFT_TIME_LIMIT = 1500  # 25 dk — bir sonraki tur başlamadan biter
+SOCIAL_TIME_LIMIT = 1740  # 29 dk — sert kesme
+
 # Brifing saatleri yapılandırılabilir; beat zamanlaması modül yüklenirken
 # kurulduğu için değerler burada bir kez okunur.
 _settings = get_settings()
@@ -34,14 +47,55 @@ EVIDENCE_BATCH_SIZE = 200
 
 @app.task(name="politikdesk.ingest_all", bind=True, max_retries=2)
 def ingest_all(self) -> dict[str, int]:  # noqa: ANN001
-    """Tüm aktif kaynaklardan toplama turu."""
+    """Çekirdek kaynaklardan 5 dakikalık toplama turu.
+
+    Sosyal (köprü tabanlı) kaynaklar BURADA DEĞİL, `ingest_social`
+    görevindedir — gerekçesi `ingestion/pipeline.py::run_all` başlığında:
+    yavaş bir köprü resmî kaynakların tazeliğini rehin alamaz.
+    """
     from politikdesk.ingestion.pipeline import Pipeline
 
     try:
-        stats = Pipeline().run_all()
+        stats = Pipeline().run_all(select="core")
     except Exception as exc:  # noqa: BLE001
         log.error("ingest_all_failed", error=type(exc).__name__, detail=str(exc)[:300])
         raise self.retry(exc=exc, countdown=60) from exc
+
+    return {
+        "fetched": stats.fetched,
+        "stored": stats.stored,
+        "exact_duplicates": stats.exact_duplicates,
+        "near_duplicates": stats.near_duplicates,
+        "filtered_out": stats.filtered_out,
+        "errors": stats.errors,
+    }
+
+
+@app.task(
+    name="politikdesk.ingest_social",
+    bind=True,
+    max_retries=1,
+    soft_time_limit=SOCIAL_SOFT_TIME_LIMIT,
+    time_limit=SOCIAL_TIME_LIMIT,
+)
+def ingest_social(self) -> dict[str, int]:  # noqa: ANN001
+    """Köprü tabanlı sosyal kaynaklardan seyrek toplama turu.
+
+    Neden ayrı bir görev (18 Ağustos 2026 denetimi): RSSHub köprüsünün
+    önbellek ıskası ölçülen 21–25 saniyedir ve 46 sosyal kaynak vardır.
+    Bu tur en kötü durumda dakikalar sürebilir — o yüzden 5 dakikalık
+    çekirdek turdan ayrıldı ve kendi zaman sınırlarını taşır.
+
+    `max_retries=1`: köprü yavaşsa yeniden denemek onu hızlandırmaz,
+    yalnızca yükü artırır. Kaçan bir tur 30 dakika sonra zaten gelir.
+    """
+    from politikdesk.ingestion.pipeline import Pipeline
+
+    try:
+        stats = Pipeline().run_all(select="social")
+    except Exception as exc:  # noqa: BLE001
+        log.error("ingest_social_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=300) from exc
 
     return {
         "fetched": stats.fetched,
@@ -324,10 +378,16 @@ def check_llm_budget() -> dict[str, object]:
 
 
 app.conf.beat_schedule = {
-    # Spec §11.3: her 5 dakikada bir toplama
+    # Spec §11.3: her 5 dakikada bir toplama (çekirdek kaynaklar)
     "ingest-every-5-minutes": {
         "task": "politikdesk.ingest_all",
         "schedule": INGESTION_INTERVAL_SECONDS,
+    },
+    # Sosyal kaynaklar ayrı ve seyrek turda: yavaş köprü, resmî
+    # kaynakların tazeliğini geciktirmesin (bkz. SOCIAL_INGESTION_*).
+    "ingest-social-every-30-minutes": {
+        "task": "politikdesk.ingest_social",
+        "schedule": SOCIAL_INGESTION_INTERVAL_SECONDS,
     },
     # Toplamadan hemen sonra embed: "60 sn içinde embed" DoD'u için sık koşar
     "embed-every-minute": {
