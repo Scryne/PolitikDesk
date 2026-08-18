@@ -173,21 +173,37 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
     değil, kurumdan gelir. Veri yoksa bu fonksiyon **boş liste** döner ve
     arayüz dürüst bir boş durum gösterir — tahmin üretmez.
 
-    Dönen her kayıt: `metric`, `unit`, `latest_value`, `latest_period`,
-    `history` (eskiden yeniye sıralı değerler), `source_name`.
+    ⛔ GRUPLAMA `metric` DEĞİL, `series_code` İLEDİR (varsa).
+
+    `metric` tek başına bir seriyi tekilleştirmiyor: TCMB EVDS'de hem
+    USD/TRY hem EUR/TRY `exchange_rate` metriğini taşır. Metriğe göre
+    gruplansaydı gösterge şeridi iki farklı büyüklüğün değerlerini
+    **tek bir eğri** gibi çizerdi — yani ekranda var olmayan bir seri
+    gösterirdi. Bu, D-01'de kaldırılan uydurma gösterge kusurunun veri
+    tarafındaki karşılığı olurdu.
+
+    `series_code` taşımayan kayıtlar (TÜİK SDMX) `metric`e düşer; onlarda
+    metrik zaten seriyi tekilleştiriyor.
+
+    Dönen her kayıt: `metric`, `label`, `unit`, `latest_value`,
+    `latest_period`, `history` (eskiden yeniye sıralı), `source_name`.
     """
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT metric, unit, period, value, source_name
+            SELECT series_key, metric, label, unit, period, value, source_name
             FROM (
-                SELECT a.official_value->>'metric'            AS metric,
+                SELECT COALESCE(a.official_value->>'series_code',
+                                a.official_value->>'metric')  AS series_key,
+                       a.official_value->>'metric'            AS metric,
+                       a.official_value->>'series_label'      AS label,
                        a.official_value->>'unit'              AS unit,
                        a.official_value->>'period'            AS period,
                        (a.official_value->>'value')::float8   AS value,
                        s.name                                 AS source_name,
                        row_number() OVER (
-                           PARTITION BY a.official_value->>'metric'
+                           PARTITION BY COALESCE(a.official_value->>'series_code',
+                                                 a.official_value->>'metric')
                            ORDER BY a.official_value->>'period' DESC
                        ) AS rn
                 FROM articles a
@@ -198,7 +214,7 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
                   AND a.official_value ? 'period'
             ) ranked
             WHERE rn <= %s
-            ORDER BY metric ASC, period ASC
+            ORDER BY series_key ASC, period ASC
             """,
             (limit_per_metric,),
         )
@@ -206,11 +222,16 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:
-        metric = row["metric"]
+        key = row["series_key"]
         entry = grouped.setdefault(
-            metric,
+            key,
             {
-                "metric": metric,
+                "series_key": key,
+                "metric": row["metric"],
+                # Kaynağın kendi verdiği seri adı varsa o kullanılır
+                # (ör. "ABD doları alış kuru"); yoksa metrik etiketine
+                # düşülür ve çeviriyi sunum katmanı yapar.
+                "label": row["label"] or None,
                 "unit": row["unit"] or "",
                 "source_name": row["source_name"] or "",
                 "history": [],
@@ -227,7 +248,7 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
         entry["previous_value"] = entry["history"][-2] if len(entry["history"]) >= 2 else None
         out.append(entry)
 
-    out.sort(key=lambda e: str(e["metric"]))
+    out.sort(key=lambda e: str(e["series_key"]))
     return out
 
 

@@ -20,6 +20,7 @@ from politikdesk.feature_flags import is_twitter_ingestion_enabled
 from politikdesk.ingestion import guard, repository, topics
 from politikdesk.ingestion.adapters import base as adapter_base
 from politikdesk.ingestion.adapters.base import SourceAdapter
+from politikdesk.ingestion.adapters.evds import EvdsAdapter
 from politikdesk.ingestion.adapters.official import (
     GenericHtmlAdapter,
     TuikAdapter,
@@ -49,6 +50,7 @@ ADAPTER_REGISTRY: dict[str, type[SourceAdapter]] = {
     "cumhurbaskanligi": CumhurbaskanligiAdapter,
     "cb_kararname": CumhurbaskanligiAdapter,
     "tuik_sdmx": TuikSdmxAdapter,
+    "evds": EvdsAdapter,
     "wp_rest": WordPressRestAdapter,
     "generic_html": GenericHtmlAdapter,
     "twitter": TwitterAdapter,
@@ -113,6 +115,13 @@ def build_adapter(source: SourceRow, http: HttpClient | None = None) -> SourceAd
         # ister (F5-02). Ayrıca robots denetimi kapalıdır — kimliğimizle
         # çağırdığımız bir API ucu tarama sözleşmesinin konusu değildir.
         return TuikSdmxAdapter(slug=source.slug)
+
+    if adapter_key == "evds":
+        # TÜİK ile aynı gerekçe: kimliğimizle çağırdığımız bir API ucu
+        # tarama sözleşmesinin (robots.txt) konusu değildir ve EVDS
+        # yoğun saatlerde yavaşlayıp hız sınırı uyguladığı için
+        # varsayılandan cömert bir yeniden deneme bütçesi ister.
+        return EvdsAdapter(slug=source.slug)
 
     if adapter_key == "wp_rest":
         if not source.feed_url:

@@ -100,9 +100,14 @@ def _indicator_strip() -> str:
             delta_text = fmt.signed_percent(delta, 1) if unit == "%" else fmt.number(delta, 1)
             change_text = f"{fmt.period_label(entry.get('latest_period'))} · {delta_text}"
 
+        # Kaynağın kendi seri adı varsa o gösterilir ("ABD doları alış
+        # kuru"); yoksa metrik anahtarı Türkçeye çevrilir. Ham anahtar
+        # ("exchange_rate") hiçbir koşulda ekrana çıkmaz.
+        baslik = entry.get("label") or fmt.metric_label(entry.get("metric"))
+
         cards.append(
             economic_indicator_card(
-                fmt.metric_label(entry.get("metric")),
+                str(baslik),
                 value_text,
                 "" if unit == "%" else unit,
                 history,
