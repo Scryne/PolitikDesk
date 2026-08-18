@@ -7,6 +7,7 @@ Spec §11.1: Redis + Celery. Ingestion, embedding, kümeleme ve LLM
 from __future__ import annotations
 
 from celery import Celery
+from celery.signals import worker_process_init, worker_process_shutdown
 
 from politikdesk.config import get_settings
 from politikdesk.observability import configure_logging
@@ -38,8 +39,6 @@ def ping() -> str:
     """Worker'ın ayakta olduğunu doğrulayan en küçük görev."""
     return "pong"
 
-
-from celery.signals import worker_process_init, worker_process_shutdown
 
 # Celery Beat başlatıldığında `politikdesk.worker.app` üzerinden yüklendiği için
 # `tasks.py` içindeki görevler ve `app.conf.beat_schedule` burada zorunlu olarak yüklenir.

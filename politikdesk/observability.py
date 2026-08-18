@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -51,8 +51,10 @@ def _redact_value(val: Any) -> Any:
 
 
 def redact_sensitive_keys(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
-    """Log boru hattında iç içe geçmiş veri yapılarındaki ve çerezlerdeki hassas anahtarları sansürler."""
-    return _redact_value(event_dict)  # type: ignore[no-any-return]
+    """Log boru hattında iç içe geçmiş veri yapılarındaki ve çerezlerdeki
+    hassas anahtarları sansürler.
+    """
+    return cast(dict[str, Any], _redact_value(event_dict))
 
 
 def configure_logging(settings: Settings | None = None) -> None:

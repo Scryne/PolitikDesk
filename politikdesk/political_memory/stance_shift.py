@@ -134,7 +134,9 @@ def _has_morphological_negation(concept_stem: str, text: str) -> bool:
 
 
 def _matches_concept(concept: str, text_folded: str) -> tuple[bool, bool]:
-    """Kavramın metinde geçip geçmediğini ve morfolojik olarak olumsuzlanıp olumsuzlanmadığını döner."""
+    """Kavramın metinde geçip geçmediğini ve morfolojik olarak
+    olumsuzlanıp olumsuzlanmadığını döner.
+    """
     c_folded = fold_text(concept)
     if " " in c_folded:
         if c_folded in text_folded:

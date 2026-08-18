@@ -73,7 +73,14 @@ class UnsafeUrlError(ValueError):
 
 
 def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_reserved
+        or ip.is_multicast
+        or ip.is_unspecified
+    ):
         return True
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         return _is_private(ip.ipv4_mapped)
@@ -106,10 +113,11 @@ def validate_url(url: str, *, resolve_dns: bool = True) -> str:
     # Doğrudan IP verilmişse (IPv4, IPv6 veya ondalık integer IP)
     ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None
     try:
-        if host.isdigit():
-            ip = ipaddress.IPv4Address(int(host))
-        else:
-            ip = ipaddress.ip_address(host)
+        ip = (
+            ipaddress.IPv4Address(int(host))
+            if host.isdigit()
+            else ipaddress.ip_address(host)
+        )
     except ValueError:
         ip = None
 
