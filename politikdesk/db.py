@@ -41,6 +41,18 @@ def get_pool() -> ConnectionPool[DictConnection]:
     )
 
 
+def reset_db_pool() -> None:
+    """Pre-fork süreçlerde (örn. Celery) miras kalan havuzu güvenli kapatır ve sıfırlar."""
+    if get_pool.cache_info().currsize > 0:
+        try:
+            pool = get_pool()
+            pool.close()
+        except Exception:
+            pass
+        finally:
+            get_pool.cache_clear()
+
+
 @contextmanager
 def connection() -> Iterator[DictConnection]:
     """Havuzdan bir bağlantı ödünç alır."""

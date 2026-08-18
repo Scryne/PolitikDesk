@@ -170,7 +170,10 @@ async def activity(request: Request) -> None:
         log.debug("activity_payload_invalid")
         return
 
-    record_activity(
+    from starlette.concurrency import run_in_threadpool
+
+    await run_in_threadpool(
+        record_activity,
         user_id=current_user_id(),
         kind=payload.kind,
         event_id=payload.event_id,

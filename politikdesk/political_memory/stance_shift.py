@@ -110,6 +110,93 @@ def _extract_metric_and_value(text: str) -> tuple[str | None, float | None]:
     return None, None
 
 
+_TURKISH_VERBAL_NEGATION_RE = re.compile(
+    r"(?:mamal[ıi]|memel[ıi]|mamas[ıi]|memes[ıi]|mayacag|meyece[gk]|maz|mez|m[ıiuü]yor|mad[ıi]|med[ıi]|mam[ıi]s|mem[ıi]s|may[ıi]p|mey[ıi]p|ma(?![ls][ıi])|me(?![ls][ıi]))"
+)
+
+
+def _has_morphological_negation(concept_stem: str, text: str) -> bool:
+    """Türkçe fiil kökünün olumsuzluk eki alıp almadığını kontrol eder.
+
+    Örn: 'art' / 'artır' kökü -> 'artırmayacağız', 'artmayacak', 'artmadı'.
+    """
+    stem_norm = fold_text(concept_stem).strip()
+    text_norm = fold_text(text)
+
+    words = text_norm.split()
+    for w in words:
+        if stem_norm in w:
+            idx = w.find(stem_norm)
+            after_stem = w[idx + len(stem_norm):]
+            if _TURKISH_VERBAL_NEGATION_RE.search(after_stem):
+                return True
+    return False
+
+
+def _matches_concept(concept: str, text_folded: str) -> tuple[bool, bool]:
+    """Kavramın metinde geçip geçmediğini ve morfolojik olarak olumsuzlanıp olumsuzlanmadığını döner."""
+    c_folded = fold_text(concept)
+    if " " in c_folded:
+        if c_folded in text_folded:
+            return True, False
+        return False, False
+
+    sentential_neg = any(
+        neg in text_folded
+        for neg in ("olmayacak", "olmaz", "yapilmayacak", "edilmeyecek", "degil", "yok")
+    )
+
+    if c_folded in text_folded:
+        is_neg = _has_morphological_negation(c_folded, text_folded) or sentential_neg
+        return True, is_neg
+
+    c_stem = c_folded[:4] if len(c_folded) >= 4 else c_folded
+    words = text_folded.split()
+    for w in words:
+        if len(w) >= len(c_stem) and w.startswith(c_stem):
+            is_neg = _has_morphological_negation(c_stem, text_folded) or sentential_neg
+            return True, is_neg
+
+    return False, False
+
+
+def _evaluate_text_polarity(
+    text_folded: str, pos_set: frozenset[str], neg_set: frozenset[str]
+) -> str | None:
+    """Bir metnin kavram çiftine göre kutbunu (pos/neg) morfoloji duyarlı olarak çıkarır."""
+    has_pos_kw = False
+    pos_negated = False
+    for p in pos_set:
+        matched, is_neg = _matches_concept(p, text_folded)
+        if matched:
+            has_pos_kw = True
+            if is_neg:
+                pos_negated = True
+            break
+
+    has_neg_kw = False
+    neg_negated = False
+    for n in neg_set:
+        matched, is_neg = _matches_concept(n, text_folded)
+        if matched:
+            has_neg_kw = True
+            if is_neg:
+                neg_negated = True
+            break
+
+    if has_pos_kw and pos_negated:
+        return "neg"
+    if has_neg_kw and neg_negated:
+        return "pos"
+
+    if has_pos_kw and not has_neg_kw:
+        return "pos"
+    if has_neg_kw and not has_pos_kw:
+        return "neg"
+
+    return None
+
+
 def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
     """Bir aktörün hafıza kayıtlarından söylem değişikliklerini deterministik olarak çıkarır."""
     shifts: list[StanceShift] = []
@@ -174,14 +261,11 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
             t2_folded = fold_text(e2.claim_text)
             days = _calc_days_between(e1.first_reported_at, e2.first_reported_at)
 
-            matched_pair = False
             for pos_set, neg_set in POLARITY_PAIRS:
-                has_pos_1 = any(p in t1_folded for p in pos_set)
-                has_neg_1 = any(n in t1_folded for n in neg_set)
-                has_pos_2 = any(p in t2_folded for p in pos_set)
-                has_neg_2 = any(n in t2_folded for n in neg_set)
+                pol1 = _evaluate_text_polarity(t1_folded, pos_set, neg_set)
+                pol2 = _evaluate_text_polarity(t2_folded, pos_set, neg_set)
 
-                if (has_pos_1 and has_neg_2) or (has_neg_1 and has_pos_2):
+                if pol1 is not None and pol2 is not None and pol1 != pol2:
                     shifts.append(
                         StanceShift(
                             actor_name=mem.actor_name,
@@ -197,14 +281,16 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
                             later_date=e2.first_reported_at,
                             time_span_days=days,
                             confidence=0.85,
-                            evidence_summary="İki beyanda zıt kutuplu ifadeler tespit edildi.",
+                            evidence_summary=(
+                                "İki beyanda morfolojik/semantik zıt "
+                                "kutuplu ifadeler tespit edildi."
+                            ),
                         )
                     )
                     seen_pairs.add(pair)
-                    matched_pair = True
                     break
 
-            if matched_pair:
+            if pair in seen_pairs:
                 continue
 
             # Sayısal Hedef / Gösterge Çelişkisi Taraması

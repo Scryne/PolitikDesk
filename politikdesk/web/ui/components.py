@@ -12,6 +12,7 @@ ve kullanıcıdan gelen metin bu katmandan geçmeden ekrana çıkmaz.
 from __future__ import annotations
 
 import html
+import urllib.parse
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -52,9 +53,12 @@ def esc_attr(value: object) -> str:
     öznitelik düzeyinde etkisizleştirir.
     """
     s = str(value if value is not None else "").strip()
-    # javascript: ve vbscript: protokol sahteciliğini engelle
-    lowered = s.lower().replace(" ", "").replace("\t", "").replace("\r", "").replace("\n", "")
-    if lowered.startswith(("javascript:", "vbscript:", "data:text/html")):
+    # javascript:, vbscript: ve data: protokol sahteciliğini engelle
+    clean = s.lower().replace(" ", "").replace("\t", "").replace("\r", "").replace("\n", "")
+    unquoted = urllib.parse.unquote(clean)
+    if clean.startswith(("javascript:", "vbscript:", "data:")) or unquoted.startswith(
+        ("javascript:", "vbscript:", "data:")
+    ):
         return "#"
     return html.escape(s, quote=True)
 
@@ -169,6 +173,16 @@ def card(body: str, *, title: str = "", actions: str = "", cls: str = "") -> str
             f"{f"<div class='actions'>{actions}</div>" if actions else ''}</div>"
         )
     return f'<section class="card {cls}">{head}{body}</section>'
+
+
+def source_pill(name: str, tier: int | None = None, *, url: str = "") -> str:
+    """Kaynak hapı (Bölüm 8.5) — T1-T4 katman rozeti ile birlikte."""
+    t_html = tier_badge(tier) if tier else ""
+    esc_name = esc(name)
+    content = f"{t_html}<span>{esc_name}</span>"
+    if url:
+        return f'<a class="source-pill" href="{esc_attr(url)}" target="_blank" rel="noopener noreferrer">{content}</a>'
+    return f'<span class="source-pill">{content}</span>'
 
 
 # ═══════════════════════════════════════════ 8.1 KPI kartı (varyant A)

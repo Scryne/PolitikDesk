@@ -397,7 +397,7 @@ class Settings(BaseSettings):
         Token ayarlanmamışsa kimlik doğrulama atlanır; üretim ortamında bu durum
         tüm API ve yönetim uçlarını açıkta bırakır.
         """
-        if self.is_production and not self.api_token:
+        if self.is_production and (not self.api_token or not self.api_token.strip()):
             raise ValueError(
                 "PD_ENV='production' iken PD_API_TOKEN zorunludur. "
                 "API ve admin uçlarını korumak için güvenli bir belirteç tanımlayın."

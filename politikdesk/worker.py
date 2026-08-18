@@ -39,7 +39,25 @@ def ping() -> str:
     return "pong"
 
 
+from celery.signals import worker_process_init, worker_process_shutdown
+
 # Celery Beat başlatıldığında `politikdesk.worker.app` üzerinden yüklendiği için
 # `tasks.py` içindeki görevler ve `app.conf.beat_schedule` burada zorunlu olarak yüklenir.
 import politikdesk.tasks as _tasks  # noqa: F401, E402
+
+
+@worker_process_init.connect
+def on_worker_process_init(**kwargs: object) -> None:
+    """Celery pre-fork alt süreci başladığında DB bağlantı havuzunu sıfırlar."""
+    from politikdesk.db import reset_db_pool
+
+    reset_db_pool()
+
+
+@worker_process_shutdown.connect
+def on_worker_process_shutdown(**kwargs: object) -> None:
+    """Celery pre-fork alt süreci kapandığında havuzu temiz kapatır."""
+    from politikdesk.db import reset_db_pool
+
+    reset_db_pool()
 

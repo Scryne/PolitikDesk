@@ -134,9 +134,9 @@ class _TokenAuthMiddleware(BaseHTTPMiddleware):
         # `X-API-Token: <token>`. İkincisi programatik istemciler için
         # daha basittir (curl -H "X-API-Token: ...").
         provided = None
-        auth_header = request.headers.get("authorization", "")
-        if auth_header.startswith("Bearer "):
-            provided = auth_header[7:].strip()
+        auth_header = request.headers.get("authorization", "").strip()
+        if auth_header.lower().startswith("bearer "):
+            provided = auth_header[7:].strip() or None
         if not provided:
             provided = request.headers.get("x-api-token", "").strip() or None
 
@@ -184,7 +184,7 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # D04: belirteç taşıyan istekler CSRF'e açık değildir — çerez
         # tabanlı oturum yok, sır bizzat istekte taşınıyor.
         if request.headers.get("x-api-token") or (
-            request.headers.get("authorization", "").startswith("Bearer ")
+            request.headers.get("authorization", "").strip().lower().startswith("bearer ")
         ):
             return await call_next(request)
 
@@ -318,12 +318,21 @@ async def unhandled_exception_handler(  # noqa: RUF029
     request: Request, exc: Exception
 ) -> Response:
     log.error("unhandled_server_error", exc=str(exc), path=request.url.path, exc_info=True)
+    settings = get_settings()
+    err_detail = (
+        str(exc)
+        if not settings.is_production
+        else "Sunucu tarafında beklenmeyen bir hata oluştu."
+    )
     if _wants_json(request):
+        content: dict[str, Any] = {"detail": "Sunucu hatası oluştu."}
+        if not settings.is_production:
+            content["error"] = str(exc)
         return JSONResponse(
             status_code=500,
-            content={"detail": "Sunucu hatası oluştu.", "error": str(exc)},
+            content=content,
         )
-    return _error_page(500, str(exc))
+    return _error_page(500, err_detail)
 
 
 @app.get("/version", tags=["health"])

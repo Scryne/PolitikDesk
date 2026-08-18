@@ -15,6 +15,45 @@ from politikdesk.config import Settings, get_settings
 
 _configured = False
 
+_SENSITIVE_KEYS = frozenset(
+    {
+        "password",
+        "passwd",
+        "token",
+        "access_token",
+        "refresh_token",
+        "api_token",
+        "authorization",
+        "cookie",
+        "secret",
+        "private_key",
+        "credential",
+        "credentials",
+    }
+)
+
+
+def _is_sensitive_key(key: object) -> bool:
+    kl = str(key).lower()
+    return any(s in kl for s in _SENSITIVE_KEYS)
+
+
+def _redact_value(val: Any) -> Any:
+    if isinstance(val, dict):
+        return {
+            k: "[REDACTED]" if _is_sensitive_key(k) else _redact_value(v)
+            for k, v in val.items()
+        }
+    if isinstance(val, (list, tuple)):
+        redacted_list = [_redact_value(item) for item in val]
+        return type(val)(redacted_list) if isinstance(val, tuple) else redacted_list
+    return val
+
+
+def redact_sensitive_keys(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+    """Log boru hattında iç içe geçmiş veri yapılarındaki ve çerezlerdeki hassas anahtarları sansürler."""
+    return _redact_value(event_dict)  # type: ignore[no-any-return]
+
 
 def configure_logging(settings: Settings | None = None) -> None:
     """structlog'u JSON (üretim) veya renkli konsol (geliştirme) çıktısına bağlar."""
@@ -33,6 +72,7 @@ def configure_logging(settings: Settings | None = None) -> None:
 
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
+        redact_sensitive_keys,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso", utc=True),

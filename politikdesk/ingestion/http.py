@@ -73,14 +73,11 @@ class UnsafeUrlError(ValueError):
 
 
 def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_reserved
-        or ip.is_multicast
-        or ip.is_unspecified
-    )
+    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+        return True
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        return _is_private(ip.ipv4_mapped)
+    return False
 
 
 def validate_url(url: str, *, resolve_dns: bool = True) -> str:
@@ -99,16 +96,20 @@ def validate_url(url: str, *, resolve_dns: bool = True) -> str:
     if not parsed.hostname:
         raise UnsafeUrlError("URL'de host yok")
 
-    host = parsed.hostname.lower().strip("[]")
+    host = parsed.hostname.lower().strip("[]").rstrip(".")
     if (
         host in _DISALLOWED_HOSTNAMES
         or any(host.endswith(suffix) for suffix in _DISALLOWED_SUFFIXES)
     ):
         raise UnsafeUrlError(f"Yerel/özel adrese erişilemez: {host}")
 
-    # Doğrudan IP verilmişse (IPv4 veya IPv6)
+    # Doğrudan IP verilmişse (IPv4, IPv6 veya ondalık integer IP)
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None
     try:
-        ip = ipaddress.ip_address(host)
+        if host.isdigit():
+            ip = ipaddress.IPv4Address(int(host))
+        else:
+            ip = ipaddress.ip_address(host)
     except ValueError:
         ip = None
 
