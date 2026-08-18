@@ -21,7 +21,43 @@
 *.sh       text eol=lf
 Dockerfile text eol=lf
 
+# Kaynak ve belge dosyaları LF. Bu kural 18 Ağustos 2026 denetiminde
+# eklendi ve bir ÖLÇÜMDEN doğdu.
+#
+# O güne kadar `*.py` ve `*.md` için hiçbir kural yoktu; `core.autocrlf`
+# de `false`. Sonuç, dosyanın deposunda kimin hangi editörle oluşturduğuna
+# bağlı bir piyangoydu:
+#
+#     39 .py + 10 .md dosyası CRLF
+#     290 dosya LF
+#     2 dosya KARIŞIK (aynı dosyada iki tür satır sonu)
+#
+# Görünen bedel: `git diff --check`, CRLF'li bir dosyada eklenen HER
+# satırı "trailing whitespace" diye işaretliyor (satır sonundaki `\r`
+# boşluk sayılır). Denetim sırasında bu komut yüzlerce uyarı verdi;
+# uyarıların tamamı sahteydi ve gerçek bir trailing whitespace olsaydı
+# aralarında kaybolurdu.
+#
+# Bu, bu depoda üçüncü kez görülen kalıbın aynısıdır: yanlış alarm veren
+# bir kapı, kapıyı işe yaramaz hâle getirir (bkz. `pipeline_health.py`
+# iddia aşaması ve `conftest.py` DB testi atlanması). Kapı ya doğru
+# sinyal verir ya kaldırılır; üçüncü seçenek yoktur.
+#
+# `*.cmd`/`*.bat`/`*.ps1` YUKARIDAKİ kuralla CRLF kalmaya devam eder —
+# orada CRLF bir tercih değil, `cmd.exe` gereğidir.
+*.py   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.sql  text eol=lf
+*.toml text eol=lf
+*.json text eol=lf
+*.csv  text eol=lf
+*.jsonl text eol=lf
+
 # Fontlar ikilidir. Bu depoda eol donusumu acik; bir woff2'ye CRLF
 # donusumu uygulanirsa dosya bozulur ve taraycida sessizce fallback
 # fonta duser (arayuzde iki font karisir — DESIGN.md Bolum 6.1).
 *.woff2 binary
+*.pem   binary
+*.dump  binary
