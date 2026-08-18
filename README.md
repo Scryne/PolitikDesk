@@ -8,12 +8,12 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL_16-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Celery + Redis](https://img.shields.io/badge/Celery-Redis_5.2-CC0000?style=for-the-badge&logo=redis&logoColor=white)](https://docs.celeryq.dev)
-[![Tests](https://img.shields.io/badge/Tests-960%2B_Passing-success?style=for-the-badge&logo=pytest&logoColor=white)](https://docs.pytest.org)
+[![Tests](https://img.shields.io/badge/Tests-1087_Passing-success?style=for-the-badge&logo=pytest&logoColor=white)](https://docs.pytest.org)
 [![Code Style](https://img.shields.io/badge/Ruff_&_Mypy-Strict_0_Errors-blueviolet?style=for-the-badge&logo=mypy&logoColor=white)](https://mypy-lang.org)
 [![Architecture Guard](https://img.shields.io/badge/Architecture_Guard-100%25_Deterministic-brightgreen?style=for-the-badge&logo=shield&logoColor=white)](docs/guvenlik-notu.md)
 
 <p align="center">
-  <b>Makro ekonomi, yasama, siyaset ve sosyal medya gündemini 16+ resmî ve bağımsız kaynaktan toplayan; haberleri olaya çeviren, her iddiayı deterministik kurallarla kanıta bağlayan ve kaynaklı editoryal taslak üreten kişisel istihbarat terminali.</b>
+  <b>Makro ekonomi, yasama, siyaset ve sosyal medya gündemini 88 yapılandırılmış resmî ve bağımsız kaynaktan toplayan; haberleri olaya çeviren, her iddiayı deterministik kurallarla kanıta bağlayan ve kaynaklı editoryal taslak üreten kişisel istihbarat terminali.</b>
 </p>
 
 ---
@@ -82,12 +82,12 @@ Sistem her 5 dakikada bir otomatik olarak şu döngüyü işletir:
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   1. TOPLA   │ ──▶ │  2. KÜMELE   │ ──▶ │  3. KANITLA  │ ──▶ │ 4. BAĞLAMLAMA│ ──▶ │  5. TASLAK   │
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-  16+ Kaynak           multilingual-e5      R0–R8 Kuralları       Political Memory     4 Editoryal Açı
+  88 Kaynak            multilingual-e5      R0–R8 Kuralları       Political Memory     4 Editoryal Açı
   RSS / SDMX / WP      Artımlı Centroid     ⛔ LLM Yasak          İlişki Grafı         Grounding Check
   TBMM / X Listeleri   Sayısal Muhafız      Bağımsız Sayım        Vaat & Denetim       İsnat Denetimi
 ```
 
-1. **Topla (Ingestion):** Kibar bot ilkeleri (Rate limiting, robots.txt, Exponential Backoff, CA demeti) ile 16 kaynaktan veri çeker. İçerik hash'i ve SimHash ile tekilleştirir.
+1. **Topla (Ingestion):** Kibar bot ilkeleri (Rate limiting, robots.txt, Exponential Backoff, CA demeti) ile 88 yapılandırılmış kaynaktan veri çeker. İçerik hash'i ve SimHash ile tekilleştirir.
 2. **Kümele (Clustering):** `multilingual-e5-large` embedding vektörleriyle haberleri olaylara bağlar. Aynı kurumun farklı göstergeleri ayrı olayda tutulur; sayısal çelişkiler `needs_review` bayrağı alır.
 3. **Kanıtla (Evidence):** Deterministik kurallarla iddiaları kanıt durumuna (`verified`, `partially_verified`, `disputed`, `unverified`, `prediction`) bağlar.
 4. **Bağlamlandır (Context & Memory):** Yeni olayı geçmiş Sayıştay raporları, TBMM oylamaları, vaatler ve aktör siciliyle (`fulfils`, `fails`, `contradicts`, `updates`) bağlar.
@@ -217,6 +217,7 @@ make open
 | Sayfa Adresi | Açıklama ve İşlev |
 |---|---|
 | `http://localhost:8000/feed` | **Live Feed:** Anlık salience ve önem sırasına göre olay akışı |
+| `http://localhost:8000/war-room` | **Kumanda Odası:** Canlı gündem radarı, kritik kırılmalar ve resmî gösterge şeridi |
 | `http://localhost:8000/accountability` | **Hesap Sor:** Vaat, icraat ve Sayıştay denetim bulgusu takip tablosu |
 | `http://localhost:8000/promises` | **Siyasi Vaatler:** Taahhütler ve gerçekleşme oranları |
 | `http://localhost:8000/memory` | **Siyasi Hafıza:** Aktör ilişkileri, geçmiş beyanlar ve zıtlıklar |
@@ -227,6 +228,10 @@ make open
 ### Programatik REST API
 
 * `GET /api/events/{id}/evidence-card` — Yapılandırılmış sosyal medya kanıt kartı JSON çıktısı.
+* `GET /api/events/{id}/export?format=…` — Tek olayın 11 kanala dışa aktarımı: `markdown`, `text`,
+  `json`, `svg`, `x_thread`, `bluesky`, `mastodon`, `linkedin`, `instant` (Telegram/WhatsApp),
+  `newsletter` (Substack), `podcast`. Her biçim yalnızca **metin üretir**; gönderme eylemi
+  kullanıcıdadır (Spec §15/6).
 * `GET /api/memory/actors?q=...` — Siyasi aktör arama ve sicil dökümü.
 * `GET /api/accountability/search?q=...` — Vaat, icraat ve Sayıştay kayıtlarında parametrik arama.
 * `GET /api/events/live` — Server-Sent Events (SSE) ile anlık olay bildirimleri akışı.
@@ -243,11 +248,11 @@ pd ci                         :: Tüm denetimleri tek seferde koşturur
 
 `pd ci` şu adımları eksiksiz doğrular:
 1. **Linter & Formatter:** `ruff check .` (0 hata)
-2. **Statik Tip Güvenliği:** `mypy politikdesk scripts config` (152 dosya, 0 hata, strict mode)
+2. **Statik Tip Güvenliği:** `mypy politikdesk scripts config` (156 dosya, 0 hata, strict mode)
 3. **Bağımsızlık Güvenlik Taraması:** `pip-audit` (0 bilinen zafiyet)
 4. **Mimari İzolasyon:** `check_architecture.py` (`evidence/` ➔ `llm/` ihlal denetimi)
 5. **Veritabanı Dayanıklılığı:** Çift yönlü migration & idempotency testi
-6. **Otomasyon Testleri:** **960+ Pytest** testi (Canlı DB, NLP, kural motoru, güvenlik kapıları)
+6. **Otomasyon Testleri:** **1087 Pytest** testi (Canlı DB, NLP, kural motoru, güvenlik kapıları)
 
 ---
 

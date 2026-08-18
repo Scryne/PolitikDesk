@@ -192,7 +192,14 @@ def _tweet_module(row: dict[str, Any]) -> str:
 
         encoded_tweet = urllib.parse.quote(body_text)
         intent_url = f"https://x.com/intent/tweet?text={encoded_tweet}"
-        body_json = json.dumps(body_text)
+        # `json.dumps` JS için doğru, HTML özniteliği için YETERSİZ: tek
+        # tırnağı kaçırmaz. Öznitelik tek tırnakla açıldığı için Türkçe
+        # metindeki her kesme işareti ("Silivri'deki", "Mahkemesi'nde")
+        # özniteliği erkenden kapatıyor ve kopyala düğmesini bozuyordu —
+        # üstelik kalan metin işaretleme olarak ayrıştırılıyordu.
+        # `esc` (`quote=True`) tek tırnağı `&#x27;` yapar; tarayıcı onu
+        # öznitelik değeri çözülürken geri açar, JS doğru JSON'ı görür.
+        body_json = esc(json.dumps(body_text))
 
         status_pill = (
             f'<span class="badge strong" style="font-size:11px;height:18px">{char_len}/280 X Uyumlu</span>'
@@ -531,32 +538,91 @@ window.pdQuickDraft = async function(eventId, angle, btn) {{
     var encTweet = encodeURIComponent(body);
     var intentUrl = 'https://x.com/intent/tweet?text=' + encTweet;
     var isThread = body.length > 280;
-    var pill = !isThread
-      ? '<span class="badge strong" style="font-size:11px;height:18px">' + body.length + '/280 X Uyumlu</span>'
-      : '<span class="badge neutral" style="font-size:11px;height:18px">' + body.length + ' Karakter (Thread)</span>';
 
-    box.innerHTML = `
-      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-2)">
-        <div class="row tight" style="align-items:center">
-          <span class="badge accent" style="font-size:11px;height:18px">X Tweeti Hazır</span>
-          <span class="subtle" style="font-size:var(--text-xs)">Açı: <b>` + angle.toUpperCase() + `</b></span>
-          ` + pill + `
-        </div>
-        <div class="row tight">
-          <button class="btn sm ghost" type="button" onclick='pdCopy(` + JSON.stringify(body) + `, "X Tweeti")'>
-            ` + window.pdIconCopy + `<span>Kopyala</span>
-          </button>
-          <a class="btn sm primary" href="` + intentUrl + `" target="_blank" rel="noopener noreferrer">
-            ` + window.pdIconShare + `<span>X'te Paylaş</span>
-          </a>
-        </div>
-      </div>
-      <textarea class="feed-tweet-textarea" readonly onclick="this.select()">` + body + `</textarea>
-      <div class="row" style="justify-content:space-between;align-items:center;margin-top:var(--space-2);font-size:var(--text-xs)">
-        <span class="subtle mono">Doğrulanmış kanıt kütüğüne bağlı</span>
-        <a href="/draft/` + draftId + `" class="subtle plain" style="font-size:var(--text-xs)">Stüdyoda Düzenle &rarr;</a>
-      </div>
-    `;
+    // DİKKAT: Taslak gövdesi ŞABLONA GÖMÜLMEZ. İki ayrı arıza vardı:
+    //   1. Kopyala düğmesinin işleyicisi tek tırnaklı bir öznitelik olarak
+    //      yazılıyor ve gövde JSON kaçışıyla içine gömülüyordu. JSON kaçışı
+    //      tek tırnağı kaçırmaz; Türkçede kesme işareti kural olduğundan
+    //      ("TCMB'nin", "Türkiye'nin") düğme neredeyse HER taslakta
+    //      bozuluyordu.
+    //   2. Gövde metin alanının içine işaretleme olarak yazılıyordu; kapanış
+    //      etiketi geçen bir taslak alandan çıkıp HTML enjekte edebilirdi.
+    // Çözüm: metin DOM düğümüne değer olarak verilir, hiç ayrıştırılmaz.
+    // Regresyon koruması: tests/test_ui_charts_and_security.py
+    box.replaceChildren();
+
+    var head = document.createElement('div');
+    head.className = 'row';
+    head.style.cssText = 'justify-content:space-between;align-items:center;margin-bottom:var(--space-2)';
+
+    var headLeft = document.createElement('div');
+    headLeft.className = 'row tight';
+    headLeft.style.alignItems = 'center';
+
+    var readyBadge = document.createElement('span');
+    readyBadge.className = 'badge accent';
+    readyBadge.style.cssText = 'font-size:11px;height:18px';
+    readyBadge.textContent = 'X Tweeti Hazır';
+
+    var angleEl = document.createElement('span');
+    angleEl.className = 'subtle';
+    angleEl.style.fontSize = 'var(--text-xs)';
+    angleEl.textContent = 'Açı: ' + angle;
+
+    var pill = document.createElement('span');
+    pill.className = isThread ? 'badge neutral' : 'badge strong';
+    pill.style.cssText = 'font-size:11px;height:18px';
+    pill.textContent = isThread
+      ? body.length + ' karakter (zincir)'
+      : body.length + '/280 X uyumlu';
+
+    headLeft.append(readyBadge, angleEl, pill);
+
+    var headRight = document.createElement('div');
+    headRight.className = 'row tight';
+
+    var copyBtn = document.createElement('button');
+    copyBtn.className = 'btn sm ghost';
+    copyBtn.type = 'button';
+    copyBtn.innerHTML = window.pdIconCopy;   // sunucu tarafı sabit ikon SVG'si
+    var copyLabel = document.createElement('span');
+    copyLabel.textContent = 'Kopyala';
+    copyBtn.appendChild(copyLabel);
+    copyBtn.addEventListener('click', function(){{ window.pdCopy(body, 'X Tweeti'); }});
+
+    var shareLink = document.createElement('a');
+    shareLink.className = 'btn sm primary';
+    shareLink.href = intentUrl;
+    shareLink.target = '_blank';
+    shareLink.rel = 'noopener noreferrer';
+    shareLink.innerHTML = window.pdIconShare;
+    var shareLabel = document.createElement('span');
+    shareLabel.textContent = "X'te Paylaş";
+    shareLink.appendChild(shareLabel);
+
+    headRight.append(copyBtn, shareLink);
+    head.append(headLeft, headRight);
+
+    var area = document.createElement('textarea');
+    area.className = 'feed-tweet-textarea';
+    area.readOnly = true;
+    area.value = body;
+    area.addEventListener('click', function(){{ area.select(); }});
+
+    var foot = document.createElement('div');
+    foot.className = 'row';
+    foot.style.cssText = 'justify-content:space-between;align-items:center;margin-top:var(--space-2);font-size:var(--text-xs)';
+    var footNote = document.createElement('span');
+    footNote.className = 'subtle mono';
+    footNote.textContent = 'Doğrulanmış kanıt kütüğüne bağlı';
+    var studioLink = document.createElement('a');
+    studioLink.href = '/draft/' + encodeURIComponent(draftId);
+    studioLink.className = 'subtle plain';
+    studioLink.style.fontSize = 'var(--text-xs)';
+    studioLink.textContent = 'Stüdyoda Düzenle →';
+    foot.append(footNote, studioLink);
+
+    box.append(head, area, foot);
     box.dataset.hasDraft = 'true';
     window.pdToast('X Tweeti hazır!');
   }} catch(e) {{

@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id
 from politikdesk.web import repository
+from politikdesk.web.ui import format as fmt
 from politikdesk.web.ui.charts import economic_indicator_card
 from politikdesk.web.ui.components import (
     card,
@@ -55,6 +56,70 @@ def _war_room_js() -> str:
 """
 
 
+def _indicator_strip() -> str:
+    """Makro gösterge şeridi — **yalnızca kurumun kendi yayımladığı sayı.**
+
+    ⛔ Buradaki sayılar bir dönem koda gömülüydü ve TÜİK/TCMB/Hazine
+    imzasıyla gösteriliyordu. Ürünün sözleşmesi (Spec §15/13) kanıtta
+    bulunmayan sayıyı yasaklar; kurum imzalı uydurma sayı bunun en ağır
+    biçimiydi. Artık tek kaynak `articles.official_value`'dur
+    (`repository.official_indicator_series`).
+
+    Veri yoksa **hiçbir sayı üretilmez**: boş durum, boru hattının
+    henüz resmî bir sayısal yayın toplamadığını açıkça söyler.
+    """
+    try:
+        series = repository.official_indicator_series()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("war_room_indicators_failed", error=str(exc))
+        series = []
+
+    if not series:
+        return (
+            '<div class="notice" style="margin-bottom:var(--space-6)">'
+            f"<div>{icon('info', 16)}</div>"
+            "<div><p><b>Resmî gösterge yayını beklemede.</b> Bu şerit yalnızca "
+            "kurumun kendi makine okunur yayınından gelen sayıları gösterir "
+            "(TÜİK SDMX gibi). Boru hattı henüz böyle bir yayım toplamadı; "
+            "tahmini veya örnek sayı gösterilmez.</p></div></div>"
+        )
+
+    cards = []
+    for entry in series[:6]:
+        history = [float(v) for v in entry["history"]]
+        unit = str(entry.get("unit") or "")
+        latest = float(entry["latest_value"])
+        previous = entry.get("previous_value")
+
+        value_text = fmt.percent(latest, 1) if unit == "%" else fmt.number(latest, 1)
+
+        if previous is None:
+            change_text = f"{fmt.period_label(entry.get('latest_period'))} · ilk gözlem"
+        else:
+            delta = latest - float(previous)
+            delta_text = fmt.signed_percent(delta, 1) if unit == "%" else fmt.number(delta, 1)
+            change_text = f"{fmt.period_label(entry.get('latest_period'))} · {delta_text}"
+
+        cards.append(
+            economic_indicator_card(
+                fmt.metric_label(entry.get("metric")),
+                value_text,
+                "" if unit == "%" else unit,
+                history,
+                change_text,
+                source_name=str(entry.get("source_name") or ""),
+            )
+        )
+
+    return (
+        '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));'
+        'gap:var(--space-3);margin-bottom:var(--space-2);">' + "".join(cards) + "</div>"
+        '<p class="subtle" style="margin:0 0 var(--space-6);font-size:var(--text-xs)">'
+        "Bu şerit yalnızca kurumun kendi makine okunur yayınından gelen değerleri "
+        "gösterir; türetilmiş veya tahmini sayı içermez.</p>"
+    )
+
+
 @router.get("/war-room", response_class=HTMLResponse)
 @router.get("/radar", response_class=HTMLResponse, include_in_schema=False)
 def war_room_page() -> str:
@@ -70,15 +135,7 @@ def war_room_page() -> str:
     strong_count = sum(1 for e in events if e.get("top_claim_status") == "strongly_corroborated")
     breaking_events = [e for e in events if (e.get("salience_score") or 0) >= 55]
 
-    # Makro Ekonomi Gösterge Kartları (Sparkline ile)
-    indicators_html = f"""
-    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-3);margin-bottom:var(--space-6);">
-      {economic_indicator_card("TCMB Politika Faizi", "%45.00", "", [40.0, 42.5, 45.0, 45.0, 45.0], "Son Karar: Sabit", source_name="TCMB")}
-      {economic_indicator_card("TÜİK Yıllık TÜFE", "%58.2", "", [64.8, 61.8, 59.5, 58.2], "-1.3 puan düşüş", source_name="TÜİK SDMX")}
-      {economic_indicator_card("Hazine Nakit Dengesi", "-124.5", "Mlr ₺", [-90.2, -110.0, -145.0, -124.5], "+20.5 Mlr ₺ toparlanma", source_name="Hazine")}
-      {economic_indicator_card("BIST 100 Endeksi", "10,250", "", [9800.0, 9950.0, 10100.0, 10250.0], "+%1.48 Günlük", source_name="Piyasa")}
-    </div>
-    """
+    indicators_html = _indicator_strip()
 
     # Breaking News Bar
     breaking_cards = []
@@ -180,12 +237,23 @@ def war_room_page() -> str:
     {card(breaking_section, title="Kritik Kırılmalar")}
     {
         card(
+            # Bu listede YALNIZCA bu sayfada gerçekten çalışan kısayollar
+            # bulunur. Önceden J/K ve X de yazıyordu; o ikisi `web/feed.py`
+            # içindeki dinleyiciye bağlı ve bu sayfada hiçbir şey yapmıyordu.
+            # Çalışmayan bir kısayol listesi, kısayol listesi olmamasından
+            # kötüdür: kullanıcı tuşa basar, hiçbir şey olmaz, arayüzün
+            # bozuk olduğunu düşünür.
             '<div style="font-size:var(--text-xs);color:var(--color-fg-muted);line-height:1.6;">'
-            '<p style="margin:0 0 var(--space-2)"><b>Kısayollar:</b></p>'
-            '<p style="margin:0 0 4px"><kbd class="shortcut-key">J</kbd> / <kbd class="shortcut-key">K</kbd> : Olaylar arasında gezin</p>'
-            '<p style="margin:0 0 4px"><kbd class="shortcut-key">X</kbd> : Hızlı X taslağı aç</p>'
-            '<p style="margin:0 0 4px"><kbd class="shortcut-key">Ctrl+K</kbd> : Komuta paleti / Hızlı arama</p>'
-            '</div>',
+            '<p style="margin:0 0 var(--space-2)"><b>Bu ekranda çalışan kısayollar:</b></p>'
+            '<p style="margin:0 0 4px"><kbd class="shortcut-key">Ctrl</kbd> + '
+            '<kbd class="shortcut-key">K</kbd> : Komuta paleti ve hızlı arama</p>'
+            '<p style="margin:0 0 var(--space-3)"><kbd class="shortcut-key">Esc</kbd> : '
+            "Açık pencereyi kapat</p>"
+            '<p style="margin:0">Olaylar arası klavye gezintisi '
+            '(<kbd class="shortcut-key">J</kbd> / <kbd class="shortcut-key">K</kbd>) ve hızlı '
+            'X taslağı (<kbd class="shortcut-key">X</kbd>) '
+            '<a href="/feed">Gündem Masası</a> ekranındadır.</p>'
+            "</div>",
             title="Kumanda Kılavuzu",
         )
     }

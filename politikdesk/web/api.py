@@ -28,6 +28,7 @@ from politikdesk.metrics import record_activity
 from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id
 from politikdesk.web import repository
+from politikdesk.web.export_formats import STATUS_LABELS
 
 log = get_logger(__name__)
 
@@ -439,14 +440,10 @@ def render_evidence_card_svg(
         "unverified": DARK["color-unverified"],
         "attribution_verified": DARK["color-accent"],
     }
-    status_label_map = {
-        "strongly_corroborated": "GÜÇLÜ TEYİTLİ",
-        "partially_corroborated": "KISMEN TEYİTLİ",
-        "single_source": "TEK KAYNAKLI",
-        "contradicted": "ÇELİŞKİLİ",
-        "unverified": "DOĞRULANMAMIŞ",
-        "attribution_verified": "BEYAN SABİT",
-    }
+    # Etiketler `export_formats.STATUS_LABELS`'tan gelir. Daha önce burada
+    # ve markdown dalında iki kopya daha vardı; üç kopyanın er geç
+    # ayrışacağı bir tabloyu üç yerde tutmanın hiçbir gerekçesi yok.
+    status_label_map = STATUS_LABELS
 
     ev_title = escape(str(ev.get("title", "Olay")))
     salience = ev.get("salience_score", 0)
@@ -534,6 +531,9 @@ def export_event_dossier(
         "linkedin",
         "instant",
         "podcast",
+        "bluesky",
+        "mastodon",
+        "newsletter",
     ] = "markdown",
 ) -> Any:
     """Olayı ve kanıt zincirini istenen formatta dışa aktarır."""
@@ -541,8 +541,11 @@ def export_event_dossier(
 
     from politikdesk.web.export_formats import (
         to_audio_script,
+        to_bluesky_post,
         to_instant_dispatch,
         to_linkedin_brief,
+        to_mastodon_post,
+        to_newsletter_markdown,
         to_x_thread,
     )
 
@@ -574,6 +577,18 @@ def export_event_dossier(
             "tweets": tweets,
             "formatted_text": "\n\n---\n\n".join(tweets),
         }
+
+    if format == "bluesky":
+        bsky_text = to_bluesky_post(ev, claims, articles)
+        return PlainTextResponse(bsky_text, media_type="text/plain; charset=utf-8")
+
+    if format == "mastodon":
+        masto_text = to_mastodon_post(ev, claims, articles)
+        return PlainTextResponse(masto_text, media_type="text/plain; charset=utf-8")
+
+    if format == "newsletter":
+        nl_text = to_newsletter_markdown(ev, claims, articles)
+        return PlainTextResponse(nl_text, media_type="text/markdown; charset=utf-8")
 
     if format == "linkedin":
         li_text = to_linkedin_brief(ev, claims, articles)
@@ -614,15 +629,8 @@ def export_event_dossier(
         "",
     ]
     for c in claims:
-        status_tag = {
-            "strongly_corroborated": "[Güçlü Teyitli]",
-            "partially_corroborated": "[Kısmen Teyitli]",
-            "single_source": "[Tek Kaynaklı]",
-            "contradicted": "[Çelişkili]",
-            "unverified": "[Doğrulanmamış]",
-            "attribution_verified": "[Beyan Sabit]",
-        }.get(c["evidence_status"], f"[{c['evidence_status']}]")
-        md_lines.append(f"* **{status_tag}:** {c['claim_text']}")
+        status_tag = STATUS_LABELS.get(c["evidence_status"], c["evidence_status"])
+        md_lines.append(f"* **[{status_tag}]:** {c['claim_text']}")
 
     md_lines.extend(["", "## Kaynakça", ""])
     for a in articles:

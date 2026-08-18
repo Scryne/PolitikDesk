@@ -128,3 +128,77 @@ def to_audio_script(ev: dict[str, Any], claims: list[dict[str, Any]], articles: 
         "Gelişmeler ve siyasi hafıza eşleşmeleri PolitikDesk çalışma masasında güncellenmeye devam ediyor."
     )
     return script
+
+
+def to_bluesky_post(ev: dict[str, Any], claims: list[dict[str, Any]], articles: list[dict[str, Any]]) -> str:
+    """Bluesky için azami 300 karakterlik teyitli gönderi metni."""
+    title = str(ev.get("title", "Gelişme"))
+    salience = ev.get("salience_score", 0)
+    top_claim = claims[0].get("claim_text", "") if claims else ""
+    status = claims[0].get("evidence_status", "unverified") if claims else "unverified"
+    status_tag = STATUS_LABELS.get(status, "BİLGİ")
+
+    post = f"POLİTİKDESK TEYİTLİ İSTİHBARAT\n\n{title}\n[{status_tag}] {top_claim}\n\nGündem Skoru: {salience}/90 · {len(articles)} Kaynak"
+    if len(post) > 300:
+        post = post[:297] + "…"
+    return post
+
+
+def to_mastodon_post(ev: dict[str, Any], claims: list[dict[str, Any]], articles: list[dict[str, Any]]) -> str:
+    """Mastodon için azami 500 karakterlik yapılandırılmış açık kaynak istihbarat gönderisi."""
+    title = str(ev.get("title", "Gelişme"))
+    salience = ev.get("salience_score", 0)
+
+    lines = [
+        f"POLİTİKDESK DOĞRULANMIŞ İSTİHBARAT: {title}",
+        f"Gündem Ağırlığı: {salience}/90 · Kaynak Sayısı: {len(articles)}",
+        "",
+        "Doğrulanan Temel İddialar:",
+    ]
+    for c in claims[:3]:
+        status = c.get("evidence_status", "unverified")
+        tag = STATUS_LABELS.get(status, "BİLGİ")
+        lines.append(f"• [{tag}] {c.get('claim_text')}")
+
+    src_names = [str(a.get("source_name") or a.get("slug") or "Kaynak") for a in articles[:3]]
+    lines.extend([
+        "",
+        f"Kaynaklar: {', '.join(src_names)}",
+        "#PolitikDesk #DoğrulanmışHaber #VeriGazeteciliği #MakroEkonomi",
+    ])
+    text = "\n".join(lines)
+    if len(text) > 500:
+        text = text[:497] + "…"
+    return text
+
+
+def to_newsletter_markdown(ev: dict[str, Any], claims: list[dict[str, Any]], articles: list[dict[str, Any]]) -> str:
+    """Substack ve kurumsal e-bültenler için hazır, zengin biçimlendirilmiş Markdown bloğu."""
+    title = str(ev.get("title", "Gelişme"))
+    salience = ev.get("salience_score", 0)
+
+    lines = [
+        f"### {title}",
+        "",
+        f"> **Gündem Skoru:** `{salience}/90` | **Teyit Havuzu:** `{len(articles)} Bağımsız/Resmî Kaynak`",
+        "",
+        "**Doğrulanmış İddialar ve Kanıt Dökümü:**",
+        "",
+    ]
+    for idx, c in enumerate(claims, start=1):
+        status = c.get("evidence_status", "unverified")
+        tag = STATUS_LABELS.get(status, "BİLGİ")
+        lines.append(f"{idx}. **[{tag}]** {c.get('claim_text')}")
+
+    lines.extend([
+        "",
+        "**Referans Alınan Kaynaklar:**",
+        "",
+    ])
+    for a in articles:
+        lines.append(f"- *{a.get('source_name')}* — [{a.get('title', '')}]({a.get('url', '#')})")
+
+    lines.append("\n---\n")
+    return "\n".join(lines)
+
+

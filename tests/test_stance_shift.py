@@ -268,3 +268,56 @@ def test_non_matching_unrelated_claims_do_not_produce_false_positives() -> None:
     assert len(shifts) == 0
 
 
+def test_polarity_is_evaluated_once_per_entry_not_once_per_pair(monkeypatch) -> None:
+    """Tarama O(n²) çifttir; kutup çıkarımı O(n) olmalıdır.
+
+    Ön hesap yokken her kaydın metni ve kutbu, o kaydın girdiği HER çift
+    için yeniden hesaplanıyordu. Ölçülen bedel gerçekti:
+    `/api/memory/stance-shifts` 5,2 saniye sürüyordu (olay sayfası hedefi
+    p95 < 1,5 sn). Ön hesapla 0,7 saniyeye indi ve çıktı birebir aynı
+    kaldı — bu test o değişikliğin geri alınmasını engeller.
+    """
+    from politikdesk.political_memory import stance_shift
+
+    calls = {"n": 0}
+    original = stance_shift._evaluate_text_polarity
+
+    def counting(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        calls["n"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(stance_shift, "_evaluate_text_polarity", counting)
+
+    entry_count = 12
+    mem = ActorMemory(
+        actor_name="Ölçüm Aktörü",
+        total_claims=entry_count,
+        promises=[],
+        attributions=[
+            MemoryEntry(
+                event_id=100 + i,
+                event_title=f"Beyan {i}",
+                claim_id=1000 + i,
+                claim_text=f"Bütçe görüşmeleri {i}. oturumda tamamlandı",
+                claim_type="attribution",
+                evidence_status="strongly_corroborated",
+                first_reported_at=f"2026-01-{i + 1:02d}T10:00:00Z",
+            )
+            for i in range(entry_count)
+        ],
+        facts_and_numbers=[],
+        relation_chains=[],
+    )
+
+    stance_shift.detect_stance_shifts_from_memory(mem)
+
+    pair_count = entry_count * (entry_count - 1) // 2
+    linear_budget = entry_count * len(stance_shift.POLARITY_PAIRS)
+
+    assert calls["n"] == linear_budget, (
+        f"Kutup cikarimi {calls['n']} kez cagrildi; kayit basina bir kez, "
+        f"yani {linear_budget} cagri beklenir. Cift basina hesaplanirsa "
+        f"{pair_count * len(stance_shift.POLARITY_PAIRS)} cagriya cikar."
+    )
+
+

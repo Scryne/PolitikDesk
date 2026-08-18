@@ -140,21 +140,56 @@ STAGES: tuple[Stage, ...] = (
         # Deneme hakkı dolmuş olaylar burada sayılmaz: onlar birikme
         # değil, sonuçlanmış bir karardır ("bu metinden iddia çıkmıyor").
         # Sayılsalardı alarm kalıcı olarak kırmızı kalır ve susturulurdu.
+        #
+        # ⚠️ YAŞ ÖLÇÜTÜ BU AŞAMADA FARKLIDIR — ve bu bilinçlidir.
+        #
+        # Diğer aşamalar "en eski bekleyen öğe kaç saattir bekliyor?" diye
+        # sorar. Burada o soru YANLIŞ CEVAP verir, çünkü:
+        #
+        #   1. `PENDING_EVENTS_SQL` kuyruğu `last_update_at DESC` ile
+        #      işler — yani EN YENİ önce. Kuyruğun eski ucu bilerek en
+        #      sonda bekler; oraya bakan bir alarm, işçinin kasten
+        #      ertelediği şeyi arıza sanar.
+        #   2. `last_update_at` geriye dönük yüklenen belgelerde BELGENİN
+        #      KENDİ TARİHİDİR. Sayıştay/TBMM arşivi içeri alındığında
+        #      2015 tarihli olaylar oluşur; ölçülen yaş 94.617 saat
+        #      (~10,8 yıl) çıkar ve alarm YAPISAL OLARAK yeşile
+        #      dönemez.
+        #
+        # 18 Ağustos 2026 denetiminde tam olarak bu görüldü: aşama
+        # kırmızıydı, oysa iddia çıkarımı 16 dakika önce koşmuştu. Kendi
+        # başlığındaki kural burada çiğneniyordu: *"Yanlış alarm veren bir
+        # alarm kapatılır."* Kapanmış bir alarm, gerçek kopmayı da gizler.
+        #
+        # DOĞRU ÖLÇÜT: **en son ne zaman iddia çıkarımı DENENDİ?**
+        # İşçi ayaktaysa `claims_attempted_at` 10 dakikada bir ilerler;
+        # durursa ilerlemez. Hiç denenmemişse `created_at`e (satırın
+        # gerçek ekleniş anı, belgenin tarihi değil) düşülür.
+        #
+        # Birikme sayısı bilgi olarak korunur: panoda "651 bekliyor"
+        # görmek anlamlıdır, alarmı tetikleyen o değildir.
         sql="""
-            SELECT count(*) AS backlog,
-                   EXTRACT(EPOCH FROM (now() - min(e.last_update_at))) / 3600
-                     AS oldest_hours
-            FROM events e
-            WHERE e.merged_into_id IS NULL
-              AND e.article_count > 0
-              AND (
-                    e.claims_attempted_at IS NULL
-                 OR e.last_update_at > e.claims_attempted_at
-                 OR (
-                      NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
-                      AND e.claims_attempt_count < %s
-                    )
-              )
+            WITH pending AS (
+                SELECT e.id
+                FROM events e
+                WHERE e.merged_into_id IS NULL
+                  AND e.article_count > 0
+                  AND (
+                        e.claims_attempted_at IS NULL
+                     OR e.last_update_at > e.claims_attempted_at
+                     OR (
+                          NOT EXISTS (SELECT 1 FROM claims c WHERE c.event_id = e.id)
+                          AND e.claims_attempt_count < %s
+                        )
+                  )
+            )
+            SELECT (SELECT count(*) FROM pending) AS backlog,
+                   CASE WHEN (SELECT count(*) FROM pending) = 0 THEN NULL
+                        ELSE EXTRACT(EPOCH FROM (now() - COALESCE(
+                                 (SELECT max(claims_attempted_at) FROM events),
+                                 (SELECT min(created_at) FROM events)
+                             ))) / 3600
+                   END AS oldest_hours
         """,
         params=(MAX_CLAIM_ATTEMPTS,),
         hint="LLM bütçesi dolmuş olabilir (`/admin/metrics` bütçe kutusu) "

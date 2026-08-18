@@ -98,6 +98,108 @@ def test_security_headers_in_response() -> None:
     assert "geolocation=()" in resp.headers.get("Permissions-Policy", "")
 
 
+def test_content_security_policy_enforces_the_no_cdn_promise() -> None:
+    """DESIGN.md 6.1 "sıfır harici CSS/CDN" sözü tarayıcıda da zorlanmalı.
+
+    Söz şimdiye dek yalnızca disiplinle tutuluyordu; yanlışlıkla eklenen
+    bir CDN bağlantısı sessizce çalışırdı. `default-src 'self'` onu
+    tarayıcı düzeyinde reddeder.
+    """
+    from fastapi.testclient import TestClient
+
+    from politikdesk.api.main import app
+
+    client = TestClient(app)
+    csp = client.get("/health/live").headers.get("Content-Security-Policy", "")
+
+    assert "default-src 'self'" in csp
+    # XSS başarılı olsa bile veri dışarı sızdıramasın.
+    assert "connect-src 'self'" in csp
+    assert "object-src 'none'" in csp
+    assert "base-uri 'self'" in csp
+    # Harici kaynak izni HİÇBİR direktifte olmamalı.
+    assert "http://" not in csp
+    assert "https://" not in csp
+    assert "*" not in csp
+
+
+def test_command_palette_never_writes_untrusted_names_as_html() -> None:
+    """Komuta paleti aktör adlarını DB'den okur; o adlar NER ile DIŞ
+    KAYNAKLI makale metninden çıkarılır. innerHTML'e verilmeleri saklı
+    XSS olurdu."""
+    from politikdesk.web.ui.shell import _CMD_JS
+
+    assert "a.innerHTML" not in _CMD_JS
+    assert "titleEl.textContent = item.title" in _CMD_JS
+
+
+def test_command_palette_reads_the_actual_search_actors_contract() -> None:
+    """Palet, `service.search_actors`'ın döndürdüğü anahtarları okumalı.
+
+    Bir dönem `data.items` / `act.actor_name` okunuyordu; sözleşme
+    `{actors: [{name, entity_type}]}` olduğu için palet aktör aramasını
+    SESSİZCE hiç göstermiyordu — hata da vermiyordu, sonuç da yoktu.
+    """
+    import inspect
+
+    from politikdesk.political_memory import service as mem_service
+    from politikdesk.web.ui.shell import _CMD_JS
+
+    contract = inspect.getsource(mem_service.search_actors)
+    assert '"actors": actors' in contract
+    assert '"name"' in contract or "canonical_name as name" in contract
+
+    assert "data.actors" in _CMD_JS
+    assert "act.name" in _CMD_JS
+    assert "actor_name" not in _CMD_JS
+
+
+def test_quick_draft_never_interpolates_draft_body_into_markup() -> None:
+    """Taslak gövdesi şablona gömülmemeli.
+
+    İki arıza birden vardı: tek tırnaklı `onclick` özniteliğine
+    `JSON.stringify(body)` gömülüyordu (Türkçe kesme işareti düğmeyi
+    bozuyordu) ve gövde `<textarea>` içine innerHTML ile yazılıyordu.
+    """
+    from fastapi.testclient import TestClient
+
+    from politikdesk.api.main import app
+
+    html = TestClient(app).get("/feed").text
+
+    assert "JSON.stringify(body)" not in html
+    # Metin alanı işaretleme olarak KURULMAZ; gövde ona değer olarak verilir.
+    assert "feed-tweet-textarea" in html
+    assert "<textarea class=\\\"feed-tweet-textarea" not in html
+    assert "area.value = body" in html
+    assert "box.replaceChildren()" in html
+
+
+def test_server_rendered_copy_button_survives_turkish_apostrophes() -> None:
+    """Kesme işareti içeren taslak, kopyala düğmesini bozmamalı.
+
+    Bu, canlı veriyle yakalanmış bir arızadır: `onclick` özniteliği tek
+    tırnakla açılıyor ve gövde `json.dumps` ile gömülüyordu. `json.dumps`
+    tek tırnağı kaçırmaz; Türkçede kesme işareti kural olduğu için
+    ("Silivri'deki", "Mahkemesi'nde") düğme pratikte HER taslakta
+    bozuluyordu ve kalan metin işaretleme olarak ayrıştırılıyordu.
+    """
+    from politikdesk.web.feed import _tweet_module
+
+    body = "Mahkeme kararı Silivri'deki salonda okundu; İBB'nin itirazı reddedildi."
+    html = _tweet_module(
+        {
+            "id": 7,
+            "latest_draft": {"id": 3, "body": body, "is_grounded": True, "angle": "inform"},
+        }
+    )
+
+    # Ham tek tırnak öznitelik değerinin içinde KALMAMALI.
+    onclick = html.split("onclick='pdCopy(", 1)[1].split("'", 1)[0]
+    assert "&#x27;" in onclick, "Kesme isareti kacirilmamis — oznitelik erken kapaniyor."
+    assert "Silivri" in onclick
+
+
 def test_pd_toast_does_not_use_inner_html() -> None:
     """IMP-01 Regresyon Testi: pdToast metinleri innerHTML ile basmamalı (DOM XSS savunması)."""
     from politikdesk.web.ui.shell import _THEME_JS

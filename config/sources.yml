@@ -1,9 +1,12 @@
-# PolitikDesk — MVP kaynak listesi (F0-08, F0-09)
+# PolitikDesk — makro ekonomi kaynak listesi (F0-08, F0-09)
 #
-# ⛔ SERT KURAL (Spec §9.2 / D6, v3.3'te revize): AZAMİ 15 KAYNAK.
-#    tests/test_sources_config.py bu kuralı zorlar.
+# ⛔ SERT KURAL (Spec §9.2 / D6): kaynak sayısı `max_sources` ile sınırlıdır.
+#    Bu dosyada yürürlükteki sınır AŞAĞIDAKİ `max_sources` alanıdır (20);
+#    `tests/test_sources_config.py` onu zorlar. Sayıyı bu yorumda ayrıca
+#    tekrarlamıyoruz — 15 yazan eski bir metin burada aylarca kaldı ve
+#    dosyanın kendi ayarıyla çelişti.
 #
-#    SINIR NEDEN 8'DEN 15'E ÇIKTI (F5-01, 13 Ağu 2026 ölçümü):
+#    SINIR NEDEN 8'DEN YUKARI ÇIKTI (F5-01, 13 Ağu 2026 ölçümü):
 #    8 sınırı bir kalite korumasıydı — "kaynak eklemek yanıltıcı derecede
 #    tatmin edicidir, kümeleme hatasını gizler". Gerekçe hâlâ geçerli, ama
 #    ölçüm sınırın ürünün ANA metriğini yapısal olarak engellediğini
@@ -13,10 +16,11 @@
 #    🟢 teyit YAPISAL OLARAK imkânsızdı ve `diversity_ratio` 1,0'da
 #    çakılıydı (hedef 2,5).
 #
-#    Sınır gevşedi, KALİTE KAPILARI GEVŞEMEDİ: 15'e tek adımda çıkılmaz.
+#    Sınır gevşedi, KALİTE KAPILARI GEVŞEMEDİ: tavana tek adımda çıkılmaz.
 #    Önce 10, en az bir hafta ölçüm (kümeleme precision >= 0,88 korunuyor
 #    mu, konu filtresi yeni kaynaklarda alakasız içerik geçiriyor mu),
-#    ancak regresyon yoksa 15'e devam (F5-05).
+#    ancak regresyon yoksa devam (F5-05). Yürürlükteki kadro bu yolla
+#    kademe kademe 20'ye çıktı.
 #
 # ⛔ tos_status='forbidden' kaynaktan ingestion kod seviyesinde engellidir
 #    (politikdesk/ingestion/guard.py, F1-06).
@@ -26,8 +30,8 @@
 #   🔎 akış yerel ağdan doğrulanmalı: `python -m scripts.discover_feeds`
 #
 # REUTERS DÜŞÜRÜLDÜ: açık RSS ucu yok, içerik lisansa tabi. Spec §9.2'nin
-# "uluslararası çapraz teyit" rolü boşta; yerine iki Tier 3 yayın ile
-# çerçeveleme çeşitliliği güçlendirildi. Kaynak sayısı 8 -> 7.
+# "uluslararası çapraz teyit" rolü sonradan DW ve Euronews Türkçe ile
+# dolduruldu; ikisi de ayrı sahiplik grubunda ve canlı doğrulandı.
 
 version: 3
 vertical: macro_economy

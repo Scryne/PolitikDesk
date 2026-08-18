@@ -265,3 +265,109 @@ Kapsam: `/accountability` (`/hesap-sor`), `/memory` (`/hafiza`), `/promises` (`/
 | Ekran × Viewport Denetimi | 11 × 4 = 44 denetim kombinasyonu (0 taşma, 0 konsol hatası) |
 | Lighthouse Skorları | Perf: 98 · A11y: 100 · Best Prac: 100 · SEO: 100 |
 
+
+---
+
+## 2026-08-18 · TAM KAPSAM DENETİMİ — Arayüz Bulguları ve Düzeltmeler
+
+**Kapsam:** `/war-room`, `/event/{id}`, `/feed`, komuta paleti (tüm ekranlar).
+
+### 1. Kumanda odasından uydurma göstergelerin kaldırılması (KRİTİK)
+
+`/war-room` gösterge şeridi koda gömülü sayılar gösteriyor ve bunları
+**TCMB / TÜİK SDMX / Hazine imzasıyla** sunuyordu: "Politika Faizi %45,00",
+"Yıllık TÜFE %58,2", "Hazine Nakit Dengesi −124,5 Mlr ₺", "BIST 100: 10.250".
+Sparkline serileri de uydurmaydı.
+
+Bu bir tasarım tercihi değil, ürünün en sert sözleşmesinin ihlaliydi
+(Spec §15/13; `editorial/grounding_check.py` aynı yasağı taslak metninde
+zorluyor). Bir gazetecinin ekranda gördüğü kurum imzalı sayıya
+güvenememesi, ürünün varlık sebebini ortadan kaldırır.
+
+**Karar:** Şerit yalnızca `articles.official_value`'dan beslenir — yani
+kurumun kendi makine okunur yayınından gelen `{metric, value, unit, period}`
+dörtlüsünden (migration 0007). Veri yoksa **hiçbir sayı üretilmez**;
+yerine ne olduğunu açıkça söyleyen bir boş durum gösterilir:
+
+> **Resmî gösterge yayını beklemede.** Bu şerit yalnızca kurumun kendi
+> makine okunur yayınından gelen sayıları gösterir. Boru hattı henüz böyle
+> bir yayım toplamadı; tahmini veya örnek sayı gösterilmez.
+
+Metrik etiketleri `ui/format.py::METRIC_LABELS` ile makine adından
+türetilir (`unemployment_rate` → "İşsizlik oranı"); dönem etiketi
+`period_label()` ile Türkçeleşir (`2026-06` → "Haziran 2026").
+`tests/test_omnichannel_and_warroom.py` `war_room.py` içinde kayan
+noktalı sabit bulunmasını yasaklar.
+
+### 2. Dışa aktarım kanallarının arayüze bağlanması
+
+API 11 biçim üretiyordu; olay sayfası bunların yalnızca 3'üne bağlıydı.
+X zinciri, Bluesky, Mastodon, LinkedIn, Telegram/WhatsApp, Substack
+e-bülteni ve seslendirme metni **kullanıcı için yoktu.**
+
+Olay sayfasına "Dışa aktarım kanalları" kartı eklendi (11 biçim, ikon +
+açıklama, `auto-fill minmax(190px,1fr)` ızgara). Kartın altındaki not
+Spec §15/6'yı tekrarlar: *"Her biçim yalnızca metin üretir. Gönderme
+kararı ve gönderme eylemi sende kalır — bu üründe otomatik yayın kod
+yolu yoktur."* API ile arayüz listesinin ayrışması testle kilitlendi.
+
+Kart, kör nokta radarının içinden çıkarılıp kendi kartına taşındı:
+dışa aktarım bir *medya kapsamı analizi* değil, ayrı bir iştir.
+
+### 3. Komuta paleti — ölü arama ve saklı XSS
+
+Palet `/api/memory/actors` yanıtından `data.items` / `act.actor_name`
+okuyordu; sözleşme `{actors: [{name, entity_type}]}`. Aktör araması
+**sessizce hiç sonuç döndürmüyordu** — ne hata, ne sonuç.
+
+Aynı yerde ikinci bir sorun vardı: sonuçlar `innerHTML` ile basılıyordu.
+Aktör adları NER ile dış kaynaklı makale metninden çıkarılır; arama
+düzelince bu yol canlanacaktı. `textContent` ile DOM düğümü kurmaya
+çevrildi. Sonuç ipucu artık varlık türünü gösteriyor ("Kurum" /
+"Siyasi aktör").
+
+### 4. Türkçe kesme işareti kopyala düğmesini bozuyordu
+
+`/feed` kartlarındaki "Kopyala" düğmesi `onclick` özniteliğini tek
+tırnakla açıyor, taslak gövdesini `json.dumps` ile içine gömüyordu.
+JSON kaçışı tek tırnağı kaçırmaz. Türkçede kesme işareti kural olduğu
+için ("Silivri'deki", "Mahkemesi'nde", "İBB'nin") düğme **pratikte her
+taslakta bozuluyordu** ve öznitelikten taşan metin işaretleme olarak
+ayrıştırılıyordu.
+
+Bu, Ek B.3'ün "Türkçe biçimlendirme elle yapılmaz" ilkesinin
+işaretleme katmanındaki karşılığıdır: dil, kaçış kurallarını belirler.
+Sunucu tarafında `esc()` (tek tırnağı `&#x27;` yapar), istemci tarafında
+şablon yerine DOM kurulumu.
+
+### 5. Çalışmayan kısayol reklamının kaldırılması
+
+`/war-room` "Kumanda Kılavuzu" kartı <kbd>J</kbd>/<kbd>K</kbd> ve
+<kbd>X</kbd> kısayollarını listeliyordu; ikisi de `web/feed.py`
+dinleyicisine bağlı ve bu ekranda hiçbir şey yapmıyordu. Çalışmayan bir
+kısayol listesi, liste olmamasından kötüdür: kullanıcı tuşa basar,
+hiçbir şey olmaz, arayüzün bozuk olduğunu düşünür. Liste bu sayfada
+gerçekten çalışanlarla sınırlandı (<kbd>Ctrl</kbd>+<kbd>K</kbd>,
+<kbd>Esc</kbd>), diğerleri için `/feed`'e yönlendirme eklendi.
+
+### 6. CSP — "sıfır harici CDN" sözünün tarayıcıda zorlanması
+
+Bölüm 6.1'in sözü şimdiye dek yalnızca disiplinle tutuluyordu (bu
+belgenin 15 Ağustos girdisi "Güvenli CSP" diyordu, oysa CSP başlığı
+hiç gönderilmiyordu). `default-src 'self'`, `connect-src 'self'`,
+`object-src 'none'`, `base-uri 'self'` eklendi. `'unsafe-inline'`
+script/style için korundu: arayüz sunucu tarafında üretiliyor ve stil
+tek bir satır içi blok — nonce altyapısı ayrı bir iş.
+
+### Doğrulama
+
+| Kontrol | Sonuç |
+|---|---|
+| `ruff check .` | 0 hata |
+| `mypy politikdesk scripts config` | 156 dosya, 0 hata |
+| `scripts/check_architecture.py` | temiz |
+| `pytest` | 1087 geçti, 0 atlandı |
+| Ham hex / uppercase / emoji denetimi | temiz (`test_design_tokens.py`) |
+| WCAG AA kontrast (açık + koyu) | tüm çiftler geçti |
+| `/event/{id}` sunucu yanıtı | 200, dışa aktarım kartı 11 kanalla render ediliyor |
+| `/war-room` gösterge şeridi | canlı TÜİK verisi (işsizlik %7,6 · Haziran 2026) |

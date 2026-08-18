@@ -336,11 +336,29 @@ def test_excerpt_constraint_is_enforced_by_database(db_conn) -> None:  # noqa: A
     """Kısıt yorum değil: 301 karakterlik alıntı DB tarafından reddedilmeli."""
     import psycopg
 
+    # Slug `pytest-` ile başlar ve kaynak PASİF eklenir. İkisi de bilinçli:
+    #
+    #   * `db_conn` fixture'ı `autocommit=True` ile bağlanır, yani
+    #     aşağıdaki `db_conn.rollback()` bu satırı geri ALMAZ. Temizlik
+    #     tamamen `conftest.isolate_database_state`'in id-su-seviyesi
+    #     süpürgesine kalır; o da her hatayı yutar (`except: pass`).
+    #     Bir kez kaçan satır KALICI olur.
+    #   * 18 Ağustos 2026 denetiminde tam olarak bu görüldü: `test-excerpt-src`
+    #     canlı veritabanında AKTİF bir Tier-1 kaynak olarak duruyordu,
+    #     boru hattı onu 5 dakikada bir çekmeye çalışıyor ve kaynak sağlık
+    #     panosunda kalıcı kırmızı gösteriyordu.
+    #
+    # `pytest-` öneki süpürgenin `DELETE FROM sources WHERE slug LIKE
+    # 'pytest%'` satırına takılır; `is_active = false` ise kaçsa bile
+    # toplayıcının o kaynağa hiç dokunmamasını garanti eder.
     with db_conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO sources (name, slug, tier, kind, access_method, tos_status) "
-            "VALUES ('Test', 'test-excerpt-src', 1, 'official', 'official_feed', 'allowed') "
-            "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id"
+            "INSERT INTO sources "
+            "(name, slug, tier, kind, access_method, tos_status, is_active) "
+            "VALUES ('Test', 'pytest-excerpt-src', 1, 'official', "
+            "'official_feed', 'allowed', false) "
+            "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, "
+            "is_active = false RETURNING id"
         )
         source_id = cur.fetchone()["id"]
 

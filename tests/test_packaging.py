@@ -226,3 +226,50 @@ def test_makefile_and_pd_cmd_commands_are_synced() -> None:
 
 
 
+
+
+# ══════════════════════════════════════ test ortamının belirliliği (18 Ağu 2026)
+def test_database_tests_are_not_silently_skipped_when_env_defines_a_dsn() -> None:
+    """DB testlerinin koşup koşmaması TEST SIRASINA bağlı olmamalı.
+
+    **Bu testin var olma sebebi bir denetim bulgusudur.**
+
+    `conftest.py` `Settings.model_config["env_file"] = None` yazarak
+    `.env`'in sızmasını engellediğini sanıyordu. Engellemiyordu:
+    `config.get_settings()` her çağrısında `load_env_file()` koşar ve
+    `.env`'deki her anahtarı doğrudan `os.environ`'a kopyalar. Yani `.env`
+    yine yükleniyordu — ama NE ZAMAN yükleneceği, ilk `get_settings()`
+    çağrısını hangi testin tetiklediğine bağlıydı.
+
+    Ölçülen sonuç:
+
+        pytest                      -> 65 veritabani testi kosar
+        pytest tests/test_schema.py -> ayni testlerin 9'u SESSIZCE atlanir
+
+    Atlananlar arasında pazarlıksız kısıtları koruyanlar vardı (alıntı
+    300 karakter sınırı, tam metin saklama yasağı). Koşmayan bir kısıt
+    testi kısıtı korumaz; üstelik `pd ci` her iki durumda da yeşil der.
+
+    Çözüm `conftest`'te `.env`'i açıkça ve tek seferde yüklemekti. Bu
+    test o çözümü yerinde tutar: `.env` bir DSN tanımlıyorsa, testler
+    hangi sırayla koşarsa koşsun onu görmelidir.
+    """
+    import os
+
+    from politikdesk.config import resolve_env_file_path
+
+    env_path = resolve_env_file_path()
+    if not env_path or not env_path.is_file():
+        return  # `.env` yok — CI konteyneri gibi; söylenecek bir şey de yok.
+
+    from dotenv import dotenv_values
+
+    declared = dotenv_values(env_path, encoding="utf-8")
+    if not declared.get("PD_DATABASE_URL"):
+        return
+
+    assert os.environ.get("PD_DATABASE_URL"), (
+        "`.env` bir PD_DATABASE_URL tanimliyor ama surecin ortaminda yok. "
+        "conftest.py `.env`'i acikca yuklemeli; aksi halde veritabani "
+        "testleri test sirasina gore SESSIZCE atlanir."
+    )

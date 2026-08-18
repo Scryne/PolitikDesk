@@ -71,6 +71,48 @@ def test_claims_stage_predicate_parity_with_worker() -> None:
     assert claims_stage.get_params() == (MAX_CLAIM_ATTEMPTS,)
 
 
+def test_claims_stage_age_is_worker_liveness_not_oldest_backlog_item() -> None:
+    """İddia aşamasının yaş ölçütü `min(last_update_at)` OLMAMALI.
+
+    18 Ağustos 2026 denetiminde aşama kırmızıydı ve "94.617 saattir
+    bekliyor" diyordu; oysa iddia çıkarımı 16 dakika önce koşmuştu.
+    İki sebep üst üste binmişti:
+
+      1. `PENDING_EVENTS_SQL` kuyruğu `last_update_at DESC` işler — eski
+         uç KASTEN en sonda bekler. Oraya bakan alarm, işçinin bilinçli
+         önceliklendirmesini arıza sanar.
+      2. Geriye dönük yüklenen Sayıştay/TBMM arşivinde `last_update_at`
+         belgenin KENDİ tarihidir (2015). Yaş ölçüsü yapısal olarak
+         eşiğin altına inemezdi.
+
+    Modülün kendi kuralı: "Yanlış alarm veren bir alarm kapatılır."
+    Kapanmış bir alarm gerçek kopmayı da gizler; bu yüzden ölçüt
+    işçinin canlılığına (`claims_attempted_at`) bağlandı.
+    """
+    claims_stage = next(s for s in STAGES if s.key == "claims")
+
+    assert "min(e.last_update_at)" not in claims_stage.sql, (
+        "Yas olcutu yine kuyrugun eski ucuna baglanmis — arsiv yuklemesi "
+        "alarmi kalici kirmiziya cakar."
+    )
+    assert "max(claims_attempted_at)" in claims_stage.sql
+    # Hiç denenmemişse: satırın gerçek ekleniş anı, belgenin tarihi değil.
+    assert "min(created_at)" in claims_stage.sql
+    # Birikme sayısı bilgi olarak korunmalı.
+    assert "AS backlog" in claims_stage.sql
+
+
+def test_claims_stage_stays_green_when_worker_is_alive_despite_old_backlog() -> None:
+    """Arşiv kuyruğu dolu ama işçi çalışıyorsa aşama YEŞİL olmalı."""
+    from politikdesk.pipeline_health import _classify
+
+    claims_stage = next(s for s in STAGES if s.key == "claims")
+    # İşçi 16 dakika önce koştu; 651 olay bekliyor olsa da bu bir kopma değil.
+    assert _classify(0.27, claims_stage.threshold_hours) == "green"
+    # İşçi 7 saattir hiç denemediyse gerçekten kopmuştur.
+    assert _classify(7.0, claims_stage.threshold_hours) == "red"
+
+
 def test_evidence_stage_predicate_parity_with_worker() -> None:
     """İzleyici evidence yüklemi, evidence/pipeline.py::score_claims ile tam uyumlu olmalı (F5-17)."""
     evidence_stage = next(s for s in STAGES if s.key == "evidence")

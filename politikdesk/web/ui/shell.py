@@ -312,7 +312,21 @@ _CMD_JS = """
       var a = document.createElement('a');
       a.className = 'cmd-item' + (idx === 0 ? ' selected' : '');
       a.href = item.href;
-      a.innerHTML = '<div class="cmd-item-left"><span>' + item.title + '</span></div>' + (item.hint ? '<span class="cmd-item-hint">' + item.hint + '</span>' : '');
+      // innerHTML DEĞİL: `item.title` aktör aramasında veritabanından
+      // gelir ve o adlar NER ile DIŞ KAYNAKLI makale metninden çıkarılır.
+      // Kaynağı güvenilmez bir dizeyi innerHTML'e vermek saklı XSS'tir.
+      var left = document.createElement('div');
+      left.className = 'cmd-item-left';
+      var titleEl = document.createElement('span');
+      titleEl.textContent = item.title;
+      left.appendChild(titleEl);
+      a.appendChild(left);
+      if (item.hint) {
+        var hintEl = document.createElement('span');
+        hintEl.className = 'cmd-item-hint';
+        hintEl.textContent = item.hint;
+        a.appendChild(hintEl);
+      }
       a.addEventListener('click', closeDialog);
       body.appendChild(a);
     });
@@ -328,17 +342,24 @@ _CMD_JS = """
     clearTimeout(searchTimer);
     if (q.length >= 2) {
       searchTimer = setTimeout(function(){
-        fetch('/api/memory/actors?q=' + encodeURIComponent(q))
+        // Anahtar adları `political_memory/service.py::search_actors`
+        // sözleşmesinden gelir: {actors: [{name, entity_type, ...}]}.
+        // Önceden bambaşka iki anahtar okunuyordu; ikisi de sözleşmede
+        // yoktu ve palet aktör aramasını SESSİZCE hiç göstermiyordu —
+        // ne hata veriyordu ne sonuç. Regresyon koruması:
+        // tests/test_ui_charts_and_security.py
+        fetch('/api/memory/actors?q=' + encodeURIComponent(q) + '&limit=8')
           .then(function(r){ return r.json(); })
           .then(function(data){
             var dynamic = [];
-            if (data && data.items) {
-              data.items.forEach(function(act){
+            if (data && data.actors) {
+              data.actors.forEach(function(act){
+                if (!act || !act.name) return;
                 dynamic.push({
-                  title: act.actor_name,
-                  href: '/hafiza/' + encodeURIComponent(act.actor_name),
-                  group: 'Aktörler (' + act.total_claims + ' kayıt)',
-                  hint: 'Hafıza Profili'
+                  title: act.name,
+                  href: '/hafiza/' + encodeURIComponent(act.name),
+                  group: 'Aktörler',
+                  hint: act.entity_type === 'institution' ? 'Kurum' : 'Siyasi aktör'
                 });
               });
             }

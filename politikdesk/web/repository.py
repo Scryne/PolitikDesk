@@ -158,6 +158,79 @@ def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
     }
 
 
+def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, Any]]:
+    """Kurumun KENDİ makine okunur yayınından gelen gösterge serileri.
+
+    ⛔ Bu fonksiyon neden var: kumanda odasındaki gösterge kartları bir
+    dönem **kodda sabitlenmiş** sayılarla dolduruluyordu ("TCMB Politika
+    Faizi %45,00", kaynak etiketi "TCMB"). Ürünün en sert sözleşmesi
+    (Spec §15/13 ve `editorial/grounding_check.py`) kanıtta bulunmayan
+    hiçbir sayının ekrana çıkamayacağını söyler; uydurma bir sayıyı
+    üstelik TÜİK/TCMB imzasıyla göstermek o sözleşmenin en ağır ihlaliydi.
+
+    Kaynak `articles.official_value`'dur (migration 0007): adaptörün
+    kurumdan ALDIĞI `{metric, value, unit, period}` dörtlüsü. Modelden
+    değil, kurumdan gelir. Veri yoksa bu fonksiyon **boş liste** döner ve
+    arayüz dürüst bir boş durum gösterir — tahmin üretmez.
+
+    Dönen her kayıt: `metric`, `unit`, `latest_value`, `latest_period`,
+    `history` (eskiden yeniye sıralı değerler), `source_name`.
+    """
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT metric, unit, period, value, source_name
+            FROM (
+                SELECT a.official_value->>'metric'            AS metric,
+                       a.official_value->>'unit'              AS unit,
+                       a.official_value->>'period'            AS period,
+                       (a.official_value->>'value')::float8   AS value,
+                       s.name                                 AS source_name,
+                       row_number() OVER (
+                           PARTITION BY a.official_value->>'metric'
+                           ORDER BY a.official_value->>'period' DESC
+                       ) AS rn
+                FROM articles a
+                JOIN sources s ON s.id = a.source_id
+                WHERE a.official_value IS NOT NULL
+                  AND a.official_value ? 'metric'
+                  AND a.official_value ? 'value'
+                  AND a.official_value ? 'period'
+            ) ranked
+            WHERE rn <= %s
+            ORDER BY metric ASC, period ASC
+            """,
+            (limit_per_metric,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        metric = row["metric"]
+        entry = grouped.setdefault(
+            metric,
+            {
+                "metric": metric,
+                "unit": row["unit"] or "",
+                "source_name": row["source_name"] or "",
+                "history": [],
+                "periods": [],
+            },
+        )
+        entry["history"].append(float(row["value"]))
+        entry["periods"].append(row["period"])
+
+    out: list[dict[str, Any]] = []
+    for entry in grouped.values():
+        entry["latest_value"] = entry["history"][-1]
+        entry["latest_period"] = entry["periods"][-1]
+        entry["previous_value"] = entry["history"][-2] if len(entry["history"]) >= 2 else None
+        out.append(entry)
+
+    out.sort(key=lambda e: str(e["metric"]))
+    return out
+
+
 def event_page(event_id: int, user_id: int) -> dict[str, Any] | None:
     """Olay sayfasının tüm bölümleri (Spec §14.3, F3-03…F3-07)."""
     with connection() as conn, conn.cursor() as cur:

@@ -225,6 +225,43 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# İçerik Güvenliği Politikası (CSP).
+#
+# Bu politika ürünün ZATEN verdiği bir sözü tarayıcı tarafında ZORLAR:
+# "sıfır harici CSS/CDN" (DESIGN.md Bölüm 6.1, README teknoloji yığını).
+# Söz şimdiye dek yalnızca disiplinle tutuluyordu; `default-src 'self'`
+# ile artık bir CDN bağlantısı yanlışlıkla eklenirse tarayıcı reddeder ve
+# hata konsola düşer — gözden kaçmaz.
+#
+# `'unsafe-inline'` neden var: arayüz sunucu tarafında üretilir ve stil
+# tek bir satır içi `<style>` bloğu, davranış da satır içi `<script>`
+# olarak gömülüdür (Ek A'nın uygulama katmanı kararı). Bunları kaldırmak
+# nonce altyapısı ister ve ayrı bir iştir; CSP'nin geri kalanı o gün
+# gelene kadar da değerlidir.
+#
+# Asıl kazanç şu üç direktifte:
+#   connect-src 'self'  — XSS başarılı olsa bile veri dışarı sızdıramaz
+#   object-src  'none'  — eklenti tabanlı kaçış yolu kapalı
+#   base-uri    'self'  — <base> enjeksiyonuyla göreli yolların
+#                         kaçırılması engellenir
+#
+# `img-src` `data:` kabul eder: satır içi SVG ikonlar ve kanıt kartı.
+_CSP = "; ".join(
+    (
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data:",
+        "font-src 'self'",
+        "connect-src 'self'",
+        "form-action 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'self'",
+    )
+)
+
+
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Güvenlik başlıkları middleware'i (OWASP standardı)."""
 
@@ -235,6 +272,8 @@ class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        response.headers["Content-Security-Policy"] = _CSP
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         return response
 
 

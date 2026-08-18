@@ -214,3 +214,65 @@ def plural_count(count: int, noun: str) -> str:
     bir hatadır; tek doğru biçimi burada sabitliyoruz.
     """
     return f"{number(count)} {noun}"
+
+
+# `nlp/claims.py::VALID_METRICS` makine adlarının Türkçe karşılıkları.
+# Metrik adı ekrana ham hâliyle ("unemployment_rate") çıkmamalı; bu tablo
+# `VALID_METRICS` ile birebir eşleşir ve `tests/test_web.py` bunu denetler.
+METRIC_LABELS: dict[str, str] = {
+    "tufe_monthly": "TÜFE (aylık)",
+    "tufe_annual": "TÜFE (yıllık)",
+    "ufe_monthly": "Yİ-ÜFE (aylık)",
+    "ufe_annual": "Yİ-ÜFE (yıllık)",
+    "policy_rate": "Politika faizi",
+    "overnight_lending_rate": "Gecelik borç verme faizi",
+    "overnight_borrowing_rate": "Gecelik borçlanma faizi",
+    "unemployment_rate": "İşsizlik oranı",
+    "employment_rate": "İstihdam oranı",
+    "participation_rate": "İşgücüne katılma oranı",
+    "gdp_growth_annual": "GSYH büyümesi (yıllık)",
+    "gdp_growth_quarterly": "GSYH büyümesi (çeyreklik)",
+    "industrial_production": "Sanayi üretim endeksi",
+    "current_account_balance": "Cari işlemler dengesi",
+    "budget_balance": "Bütçe dengesi",
+    "trade_balance": "Dış ticaret dengesi",
+    "minimum_wage": "Asgari ücret",
+    "public_debt": "Kamu borç stoku",
+    "reserves": "Rezervler",
+    "exchange_rate": "Döviz kuru",
+    "other": "Diğer gösterge",
+}
+
+
+def metric_label(metric: str | None) -> str:
+    """`unemployment_rate` → `İşsizlik oranı`. Tanınmayan metrik kendi
+    adıyla döner — uydurulmuş bir etiket, yanlış bir etiketten iyidir."""
+    if not metric:
+        return EMPTY
+    return METRIC_LABELS.get(metric, metric)
+
+
+def period_label(period: str | None) -> str:
+    """SDMX dönem kodunu okunur Türkçeye çevirir.
+
+    `2026-06` → `Haziran 2026` · `2026-Q2` → `2026 2. çeyrek` ·
+    `2026` → `2026`. Tanınmayan biçim olduğu gibi döner: bir dönem
+    etiketini yanlış çevirmek, çevirmemekten kötüdür.
+    """
+    if not period:
+        return EMPTY
+    text = str(period).strip()
+
+    if "-Q" in text or "-q" in text:
+        year, _, quarter = text.upper().partition("-Q")
+        if year.isdigit() and quarter.isdigit():
+            return f"{year} {quarter}. çeyrek"
+        return text
+
+    if "-" in text:
+        year, _, month = text.partition("-")
+        if year.isdigit() and month.isdigit() and 1 <= int(month) <= 12:
+            return f"{MONTHS_LONG[int(month) - 1]} {year}"
+        return text
+
+    return text

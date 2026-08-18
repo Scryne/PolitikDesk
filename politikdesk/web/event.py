@@ -329,24 +329,64 @@ def _blindspot_block(data: dict[str, Any]) -> str:
     tone = severity_tones.get(report.severity, "")
     badge_html = f'<span class="badge {tone}">{esc(report.summary_label)}</span>' if tone else f'<span class="badge">{esc(report.summary_label)}</span>'
 
-    export_links = (
-        f'<div class="row tight" style="margin-top:var(--space-4);gap:var(--space-2)">'
-        f'{button("Markdown İndir", href=f"/api/events/{event["id"]}/export?format=markdown", icon_name="download", small=True)}'
-        f'{button("Düz Metin", href=f"/api/events/{event["id"]}/export?format=text", icon_name="copy", small=True)}'
-        f'{button("JSON Kanıt Verisi", href=f"/api/events/{event["id"]}/export?format=json", icon_name="external", small=True)}'
-        f'</div>'
-    )
-
     return card(
         f'<div class="row tight" style="margin-bottom:var(--space-3)">{badge_html}</div>'
         f'<p style="margin:0 0 var(--space-4);font-size:var(--text-sm)">{esc(report.description)}</p>'
         f'<p class="eyebrow" style="margin-bottom:var(--space-2)">Medya Kademesi Dağılımı</p>'
         f'{dist_html}'
         f'<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
-        f'{len(report.covered_sources)} kaynak haberi geçti, {len(report.missing_sources)} kaynak henüz haberleştirmedi.</p>'
-        f'{export_links}',
+        f'{len(report.covered_sources)} kaynak haberi geçti, {len(report.missing_sources)} kaynak henüz haberleştirmedi.</p>',
         title="Medya Kapsamı ve Kör Nokta Radarı",
         actions=f'<span class="subtle" style="font-size:var(--text-xs)">%{int(report.coverage_ratio*100)} kapsama</span>',
+    )
+
+
+# Dışa aktarım kanalları: (format, etiket, ikon, açıklama).
+#
+# Bu tablo `web/api.py::export_event_dossier`'ın `format` Literal'ıyla
+# BİREBİR aynı olmalıdır; `tests/test_omnichannel_and_warroom.py` ayrışmayı
+# yakalar. Ayrışmanın maliyeti somut: yedi kanal (x_thread, linkedin,
+# instant, podcast, bluesky, mastodon, newsletter) API'de aylarca
+# çalışır durumdaydı ama arayüzde hiçbir bağlantısı yoktu — yani kullanıcı
+# için var olmuyorlardı.
+EXPORT_CHANNELS: tuple[tuple[str, str, str, str], ...] = (
+    ("markdown", "Markdown dosyası", "download", "Kanıt zinciriyle tam dosya"),
+    ("text", "Düz metin", "copy", "Biçimsiz, her yere yapışır"),
+    ("json", "JSON kanıt verisi", "external", "Programatik kullanım"),
+    ("svg", "SVG kanıt kartı", "download", "Paylaşılabilir görsel kart"),
+    ("x_thread", "X zinciri", "share", "280 karaktere bölünmüş dizi"),
+    ("bluesky", "Bluesky gönderisi", "share", "Azami 300 karakter"),
+    ("mastodon", "Mastodon gönderisi", "share", "Azami 500 karakter"),
+    ("linkedin", "LinkedIn bilgi notu", "share", "Kurumsal özet biçimi"),
+    ("instant", "Telegram / WhatsApp", "share", "Madde işaretli anlık bülten"),
+    ("newsletter", "E-bülten bloğu", "external", "Substack uyumlu Markdown"),
+    ("podcast", "Seslendirme metni", "external", "60 saniyelik konuşma dili"),
+)
+
+
+def _export_block(event_id: int) -> str:
+    """ÇOK KANALLI DIŞA AKTARIM (Spec §15/6).
+
+    ⛔ Burada "yayınla" düğmesi YOKTUR ve olmayacaktır. Her bağlantı bir
+    METİN üretir; nereye, ne zaman ve gönderilip gönderilmeyeceğine karar
+    veren daima kullanıcıdır. Otomatik yayın kod yolu bu üründe yoktur.
+    """
+    items = "".join(
+        f'<a class="btn sm ghost" style="justify-content:flex-start;text-align:left" '
+        f'href="/api/events/{event_id}/export?format={fmt_key}" '
+        f'target="_blank" rel="noopener noreferrer" title="{esc(hint)}">'
+        f"{icon(icon_name, 13)}<span>{esc(label)}</span></a>"
+        for fmt_key, label, icon_name, hint in EXPORT_CHANNELS
+    )
+    return card(
+        f'<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(190px,1fr));'
+        f'gap:var(--space-2)">{items}</div>'
+        f'<p class="subtle" style="margin:var(--space-4) 0 0;font-size:var(--text-xs)">'
+        f"Her biçim yalnızca <b>metin üretir</b>. Gönderme kararı ve gönderme "
+        f"eylemi sende kalır — bu üründe otomatik yayın kod yolu yoktur.</p>",
+        title="Dışa aktarım kanalları",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{len(EXPORT_CHANNELS)} biçim</span>",
     )
 
 
@@ -639,6 +679,7 @@ def event_page(event_id: int) -> str:
     {_sources_table(data)}
     {_blindspot_block(data)}
     {_timeline_block(data)}
+    {_export_block(event_id)}
   </div>
   <div class="stack" style="position:sticky;top:calc(var(--topbar-h) + 24px)">
     {_editorial_panel(event_id)}

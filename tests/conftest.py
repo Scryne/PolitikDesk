@@ -7,12 +7,37 @@ import pytest
 
 from politikdesk.config import Settings
 
-# Testler kendi ayarlarıyla koşsun; geliştiricinin .env'i sızmasın.
+# Testler kendi ayarlarıyla koşsun.
 os.environ.setdefault("PD_ENV", "test")
 os.environ.setdefault("PD_LOG_FORMAT", "console")
 
-# ...ve `.env` DOSYASI da sızmasın.
+# Pydantic'in kendi `.env` okuyucusu kapatılır.
 Settings.model_config["env_file"] = None
+
+# ...ama bu TEK BAŞINA yetmez ve yıllarca yettiği sanıldı.
+#
+# `config.get_settings()` her çağrısında `load_env_file()` koşar ve `.env`
+# içindeki HER anahtarı doğrudan `os.environ`'a kopyalar. Yani pydantic
+# ayarı devre dışı bırakılsa bile `.env` sürecin ortamına giriyordu —
+# yalnızca NE ZAMAN gireceği belirsizdi: ilk `get_settings()` çağrısını
+# hangi testin tetiklediğine, yani TEST SIRASINA bağlıydı.
+#
+# Somut sonucu (18 Ağustos 2026 denetimi):
+#
+#     pytest                      -> 65 veritabanı testi KOŞAR
+#     pytest tests/test_schema.py -> aynı testlerin 9'u SESSİZCE ATLANIR
+#
+# Atlananların arasında pazarlıksız kısıtları koruyanlar vardı: alıntı
+# 300 karakter sınırı, tam metin saklama yasağı. Bir kısıt testi
+# "yeşil" derken hiç koşmamışsa, kısıt korunmuyor demektir.
+#
+# Çözüm: belirsizliği kaldır. `.env` BURADA, açıkça ve tek seferde
+# yüklenir; hangi testin neyi import ettiği artık sonucu değiştirmez.
+# Kabuktan verilen değer yine `.env`'i yener (`load_env_file` mevcut
+# değişkenleri ezmez).
+from politikdesk.config import load_env_file  # noqa: E402
+
+load_env_file()
 
 
 def _get_test_dsn() -> str | None:
@@ -123,7 +148,13 @@ def isolate_database_state(request: pytest.FixtureRequest) -> Generator[None, No
                 "DELETE FROM event_feedback WHERE note LIKE 'Geri bildirim%' OR note LIKE 'Açılmamış%'"
             )
             cur.execute("DELETE FROM events WHERE title LIKE 'L6 Test%' OR title LIKE 'pytest%'")
-            cur.execute("DELETE FROM sources WHERE slug LIKE 'pytest%'")
+            # `test-` öneki de süpürülür: `db_conn` autocommit ile bağlanır,
+            # dolayısıyla testlerdeki `rollback()` çağrıları bu satırları
+            # geri almaz ve id-su-seviyesi süpürgesi bir kez kaçırırsa
+            # satır KALICI olur. 18 Ağustos 2026'da `test-excerpt-src` böyle
+            # kaçmış, canlı veritabanında AKTİF bir Tier-1 kaynak olarak
+            # kalmış ve toplayıcı onu 5 dakikada bir çekmeye çalışıyordu.
+            cur.execute("DELETE FROM sources WHERE slug LIKE 'pytest%' OR slug LIKE 'test-%'")
             conn.commit()
     except Exception:
         pass
