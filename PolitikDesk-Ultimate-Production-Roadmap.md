@@ -108,9 +108,31 @@ RSSHub'ın X'ten aldığı HTTP 503 (yukarı akış), 1'i O-01'e bağlı.
 
 ## 1.1 TCMB EVDS Entegrasyonu
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI (19 Ağu 2026). 6/6 gösterge canlı doğrulandı.**
 
-Audit'in en yüksek değerli kaynak önerisi.
+### Sonuç
+
+| Seri | TCMB adı | Sıklık |
+|---|---|---|
+| `TP.BISPOLFAIZ.TUR` | Türkiye Merkez Bankası Politika Faiz Oranı | aylık |
+| `TP.DK.USD.A.YTL` | (USD) ABD Doları (Döviz Alış) | günlük |
+| `TP.DK.EUR.A.YTL` | (EUR) Euro (Döviz Alış) | günlük |
+| `TP.AB.B6` | Toplam Rezervler | aylık |
+| `TP.ENFBEK.PKA12ENF` | Piyasa katılımcılarının 12 ay sonrası yıllık enflasyon beklentileri (%) | aylık |
+| `TP.KAVRAMSAL.HAMM2.INDX` | Kur Etkisinden Arındırılmamış M2 | haftalık |
+
+### Yol boyunca çıkan iki gerçek
+
+**EVDS v2 kapanmış.** `evds2.tcmb.gov.tr/service/evds/...` her yolda 302 ile
+evds3 köküne yönlendiriyor; gelen şey React SPA kabuğu. Adaptörün HTML
+muhafızı bunu yakaladı — muhafız olmasaydı her tur 200 alıp 0 öğe üretir
+ve "başarılı" görünürdü (B-42/B-43'ün aynısı). Yeni taban SPA'nın JS
+paketinden çıkarıldı: `/igmevdsms-dis`.
+
+**Probe dört hatalı kod yakaladı.** İkisi veri döndürüyordu ama başka bir
+büyüklüğü ölçüyordu — `TP.APIFON4` "Ağırlıklı Ortalama Fonlama Maliyeti"
+getiriyor, politika faizi değil. Kapı olmasaydı "TCMB politika faizi:
+%40,0" ekrana çıkardı. Doğru kodlar canlı arama ucuyla bulundu.
 
 ### Hedef
 
@@ -175,7 +197,21 @@ revision
 
 ## 1.2 TÜİK Veri Yayımlama Takvimi
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI (19 Ağu 2026). F2-18 üç faz sonra kapandı.**
+
+Kapsam beklenenden büyük çıktı: bu yalnızca TÜİK takvimi değil, **Ulusal**
+Veri Yayımlama Takvimi — 31 kurum, 2026 için 4.085 kayıt. Uç kimlik
+doğrulama istemiyor ve yayımlananları/bekleyenleri ayrı listelerde
+veriyor, yani "beklenen/gerçekleşen" ayrımını kurum yapıyor.
+
+| | |
+|---|---:|
+| içe aktarılan | 3.474 kayıt (API ile birebir, sıfır kayıp) |
+| bugün beklenen | 8 resmî yayın |
+| eşleşen | 243 |
+| kaçırılan | 15 → 0 |
+
+Gecikme ölçümü kurum bazında: TCMB 0,6 dk · TÜİK 1,0 dk · BDDK 42,8 dk.
 
 TÜİK'in 2026 Ulusal Veri Yayımlama Takvimi resmi yayın tarihlerini ve saatlerini önceden ilan ediyor. Bu nedenle PolitikDesk'in "beklenen gelişme" katmanı için doğal bir birincil kaynak. citeturn0search0turn0search48
 
