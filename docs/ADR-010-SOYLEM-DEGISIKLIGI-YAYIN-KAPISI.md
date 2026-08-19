@@ -223,3 +223,89 @@ Konu örtüşmesi şartı için gereken araç bu arada hazırlandı:
 öncesinde 1.680 olayın tamamında boştu.
 
 **Kapı kapalı kalır.** Bu, ölçülmüş bir "henüz değil"dir.
+
+---
+
+## 7. Kapanış durumu (19 Ağustos 2026): kapılar kuruldu, doğrulama veriye bağlı
+
+§5'in şartlarından beşi uygulandı, ikisi **uygulanamadı** — ve
+uygulanamama sebebi mühendislik değil, veri.
+
+### 7.1 Uygulananlar
+
+| § | şart | durum |
+|---|---|---|
+| 1 | konu eşleştirmesi | ✅ Jaccard ≥ 0,5 (`MIN_TOPIC_OVERLAP`) |
+| 2 | aktör = konuşan | ✅ `attribution_strength == "strong"` |
+| 3 | varlık çözümlemesi temizliği | ✅ unvan soyma + belirsizlik koruyan kanonikleştirme |
+| 4 | gerçek güven skoru | ✅ kavram özgüllüğü + örtüşme + süre |
+| 5 | asgari zaman aralığı | ✅ `MIN_DAYS_FOR_REVERSAL = 7` |
+
+Ayrıca eşleşen kavram artık kaydediliyor (eskiden biliniyor ama atılıp
+yerine sabit "Politika / Tutum Beyanı" yazılıyordu) ve her kayma
+`metadata` içinde dayanağını taşıyor: kavram indeksi, örtüşme oranı,
+ortak konular, her iki tarafın konuşanı.
+
+### 7.2 Ölçüm
+
+`eval/evaluate_stance_gates.py` (deterministik, LLM yok, yazma yok),
+40 aktör:
+
+```
+hafıza kaydı                 3.251
+atfı SAĞLAM olan               484  (%14,9)
+kutup zıtlığı olan aday çift     5   ← öncesinde 67 kayma vardı
+  konu kapısında elenen          0
+  süre kapısında elenen          5  (%100)
+  üçünü de geçen                 0
+```
+
+**Tek başına atıf kapısı 67 adayı 5'e indiriyor.** Yani eski
+kaymaların neredeyse tamamı, yalnızca beyanın yanlış kişiye
+atfedilmesinden doğuyordu.
+
+### 7.3 ⚠️ "0 kayma" bir başarı ölçüsü DEĞİLDİR
+
+Kalan 5 adayın 5'i de süre kapısında elendi. Bu, kapının doğru
+çalıştığını göstermez:
+
+```
+konuşan atfı olan iddia penceresi : 2026-08-13 → 2026-08-19  (6 gün)
+en geniş aktör aralığı            : 6 gün (TÜİK)
+süre kapısı                       : 7 gün
+```
+
+**Kapı, külliyatın tamamından uzun.** Bu veride hiçbir çift geçemez.
+Dolayısıyla çıktının boş olması, dedektörün doğruluğu hakkında hiçbir
+şey söylemiyor.
+
+Eşiği veriye uydurmak (7 → 3 gün) reddedildi: eşik olgunun
+doğasından gelir, külliyatın uzunluğundan değil. Bir "U dönüşü"nün
+saatler içinde olmadığı, elimizde ne kadar veri olduğundan bağımsız
+olarak doğrudur.
+
+Kapı davranışı bunun yerine **13 sentetik testle** sabitlendi
+(`tests/test_stance_shift_gates.py`) — pozitif durum dâhil: üç kapıyı
+da geçen geçerli bir kayma tespit ediliyor.
+
+### 7.4 Uygulanamayanlar
+
+| § | şart | neden |
+|---|---|---|
+| 6 | ≥100 kalemlik elle etiketlenmiş altın küme | Kapıları geçen **0** aday var; etiketlenecek örnek üretilemiyor |
+| 7 | yanlış isnat oranı ≈ 0 | Payda 0; oran tanımsız |
+
+Bir sınıflandırıcının kesinliği, hiç pozitif üretmediği bir külliyatta
+ölçülemez. Bu, §6-7'nin atlanması değil, **henüz sırasının gelmemesi**dir.
+
+### 7.5 Karar
+
+**Kapı KAPALI kalır.** `PUBLISH_GATE_OPEN = False`.
+
+Açılabilmesi için gereken tek şey artık kod değil, **zaman**: konuşan
+atfı olan iddia külliyatı en az birkaç aya ulaşmalı ki süre kapısı
+anlamlı biçimde tetiklensin, aday üretilebilsin ve §6-7 ölçülebilsin.
+
+Bu, ölçülmüş bir "henüz değil"in ikinci kez tekrarıdır — ve ilkinden
+farklı olarak bu kez engel giderilmiş durumda, yalnızca gözlem
+penceresi bekleniyor.
