@@ -349,6 +349,8 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
             if pair in seen_pairs:
                 continue
 
+            days = _calc_days_between(e1.first_reported_at, e2.first_reported_at)
+
             # ⛔ KAPI 2 — KONU ÖRTÜŞMESİ (ADR-010 §5/1)
             #
             # Farklı konulardaki iki beyan "fikir değiştirdi" sayılamaz.
@@ -357,24 +359,32 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
             # kapıdır. Jaccard ≥ 0,5'te bu oran %17,5'e iniyor. Olay
             # başına medyan etiket sayısı 1 olduğu için eşik, yaygın
             # durumda "tam aynı konu" demeye gelir.
-            ortak = _topic_overlap(e1.topic_tags, e2.topic_tags)
-            if ortak < MIN_TOPIC_OVERLAP:
-                continue
-
-            days = _calc_days_between(e1.first_reported_at, e2.first_reported_at)
-
+            #
             # ⛔ KAPI 3 — ZAMAN (ADR-010 §5/5)
             #
             # Saatler içinde "U dönüşü" olmaz. Eski çıktıda 67 kaymanın
-            # 17'si aynı gün içindeydi; bunlar bir görüş değişikliği
-            # değil, çoğunlukla iki ayrı konuydu.
-            if days < MIN_DAYS_FOR_REVERSAL:
-                continue
+            # 17'si aynı gün içindeydi.
+            #
+            # Bu iki kapı YALNIZCA `reversal` dalına aittir. Aşağıdaki
+            # sayısal sapma taraması için ikisi de yanlış olurdu:
+            # sayısal çelişkide METRİĞİN KENDİSİ zaten konudur, ve
+            # birbiriyle çelişen iki rakamın günler arayla söylenmesi
+            # şart değildir — aynı gün verilen iki farklı rakam gerçek
+            # bir tutarsızlıktır.
+            ortak = _topic_overlap(e1.topic_tags, e2.topic_tags)
+            reversal_kapisi_acik = (
+                ortak >= MIN_TOPIC_OVERLAP and days >= MIN_DAYS_FOR_REVERSAL
+            )
 
             for k, (pol1, pol2) in enumerate(
                 zip(polarity_vectors[i], polarity_vectors[j], strict=True)
             ):
-                if pol1 is not None and pol2 is not None and pol1 != pol2:
+                if (
+                    reversal_kapisi_acik
+                    and pol1 is not None
+                    and pol2 is not None
+                    and pol1 != pol2
+                ):
                     # ⛔ Eşleşen KAVRAM kaydedilir. Eskiden sabit
                     # "Politika / Tutum Beyanı" yazılıyordu; hangi
                     # kavramın eşleştiği biliniyor olmasına rağmen
