@@ -148,3 +148,78 @@ Doğrulandı: ikinci sync koşumunda 62 tespit, **0 yeni kayıt, 0 kopya imza**.
 
 Bu iş, Faz 6'nın izlediği "ölç → kıyasla → karar ver" yordamına uygun
 olarak **kendi roadmap maddesi** olarak ele alınmalıdır.
+
+---
+
+## 6. Ölçüm sonucu: kapı şu an AÇILAMAZ — önkoşul eksik
+
+§5'i uygulamaya başlarken yapılan teşhis (`eval/diagnose_stance_shift.py`,
+19 Ağustos 2026, hiçbir şey yazmadan) iki şey buldu.
+
+### 6.1 Kavramların %79'u konu değil, içeriksiz duruş fiili
+
+67 kalıcılaşmış kaymanın kaynağı:
+
+| kavram çifti | kayma | tür |
+|---|---:|---|
+| `yasaklanmalı → serbest olmalı` | 32 | içeriksiz duruş fiili |
+| `destekliyoruz → karşıyız` | 21 | içeriksiz duruş fiili |
+| `faiz artırımı → indirimi` | **14** | **konusal** |
+| `asla olmaz → müzakere edilebilir` | 0 | içeriksiz duruş fiili |
+
+**53/67 (%79,1)** özneden bağımsız bir fiil eşleşmesinden geliyor.
+"X'i destekliyoruz" ile "Y'ye karşıyız", X ≠ Y olsa da eşleşiyor.
+
+Daha kötüsü, eşleşmeler çoğu zaman sözcük parçası düzeyinde: kayma #1'de
+`yasak_serbest` çifti, *"üyeliğin **açıldığı**nı duyurduk"* cümlesindeki
+"açıldı" ile serbestleşme kutbundaki "açılması"yı eşleştiriyor. Ortada
+bir duruş yok, ortak bir kök var.
+
+17/67 kayma aynı gün içinde "U dönüşü" iddia ediyor.
+
+### 6.2 Belirleyici engel: `speaker` alanı hiç doldurulmuyor
+
+§5'in 2. şartı "aktör = konuşan" diyor. Bunu uygulamak için gereken alan
+`claims.status_reason->>'speaker'`. Ölçüm:
+
+```
+speaker dolu olan iddia : 0 / 4.542
+status_reason yazan kod : YOK (depo geneli arama)
+iddia çıkarım şemasında `speaker` alanı : YOK
+```
+
+Alan **beş yerde okunuyor** — `political_memory/candidate_filter.py`,
+`political_memory/orchestrator.py`, `political_memory/service.py`,
+`editorial/social_publisher.py` — ve **hiçbir yerde yazılmıyor.**
+
+Sonuç: aktör ataması, `service.get_actor_memory()` sorgusundaki üç gevşek
+dala düşüyor — iddia metninde ad geçiyorsa, **olayın herhangi bir makale
+başlığında** geçiyorsa, ya da **olaya bağlı herhangi bir varlıkla**
+eşleşiyorsa. Yani bir olayda yalnızca *adı anılan* aktör, o olaydaki
+**herkesin** beyanını devralıyor.
+
+§1'deki örneğin gerçek açıklaması budur: Cumhurbaşkanlığı'na Bahçeli'nin
+ve Erkan Mumcu'nun sözlerinin atfedilmesi, dedektörün değil, **hafıza
+sorgusunun** kusurudur.
+
+### 6.3 Bunun anlamı
+
+"Bu aktör görüş değiştirdi" iddiası, kimin ne söylediği bilinmeden
+türetilemez. O bilgi veritabanında **yok**. Kutup eşleştiricisini ne
+kadar iyileştirirsek iyileştirelim bu değişmez; eksik olan eşik değil,
+**olgunun kendisi**.
+
+Dolayısıyla ADR-010 §5 bu hâliyle uygulanamaz. Doğru sıra:
+
+1. **Önce konuşan atfı (speaker attribution).** İddia çıkarımı, beyanın
+   sahibini de üretmeli ve saklamalı. Bu tek başına `candidate_filter`,
+   `orchestrator` ve `social_publisher`'ı da düzeltir — üçü de bugün boş
+   bir alanı okuyor.
+2. **Sonra** §5'in kalan şartları (konu örtüşmesi, gerçek güven skoru,
+   asgari süre, altın küme) uygulanabilir hale gelir.
+
+Konu örtüşmesi şartı için gereken araç bu arada hazırlandı:
+`events.topic_tags` 19 Ağustos'ta doldurulmaya başlandı (1.664 olay),
+öncesinde 1.680 olayın tamamında boştu.
+
+**Kapı kapalı kalır.** Bu, ölçülmüş bir "henüz değil"dir.
