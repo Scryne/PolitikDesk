@@ -196,3 +196,52 @@ def test_migration_documents_why_not_status_reason() -> None:
     sql = yol.read_text(encoding="utf-8")
     assert "ADD COLUMN IF NOT EXISTS speaker" in sql
     assert "status_reason" in sql
+
+
+# ═══════════════════════════ ad varyantı normalizasyonu
+def test_titles_are_stripped() -> None:
+    from politikdesk.nlp.speaker import strip_title
+
+    assert strip_title("Cumhurbaşkanı Recep Tayyip Erdoğan") == "Recep Tayyip Erdoğan"
+    assert strip_title("TBMM Başkanı Numan Kurtulmuş") == "Numan Kurtulmuş"
+    assert strip_title("Bakan Mehmet Şimşek") == "Mehmet Şimşek"
+    assert strip_title("Gazeteci Fatih Altaylı") == "Fatih Altaylı"
+
+
+def test_stripping_never_empties_the_name() -> None:
+    """Adın tamamı unvandan ibaretse ad korunur, boş dize dönmez."""
+    from politikdesk.nlp.speaker import strip_title
+
+    assert strip_title("Bakan") == "Bakan"
+
+
+def test_unambiguous_surname_resolves_to_full_name() -> None:
+    from politikdesk.nlp.speaker import canonicalize_speaker
+
+    tam = frozenset({"Mehmet Şimşek", "Numan Kurtulmuş"})
+    assert canonicalize_speaker("Şimşek", tam) == "Mehmet Şimşek"
+    assert canonicalize_speaker("Bakan Şimşek", tam) == "Mehmet Şimşek"
+
+
+def test_ambiguous_surname_is_left_alone() -> None:
+    """⛔ EN ÖNEMLİ TEST.
+
+    Külliyatta "Recep Tayyip Erdoğan" ile birlikte **"Emine Erdoğan"** ve
+    **"Fatoş Erdoğan"** da var. Yalın soyadı en sık geçen tam ada
+    yapıştırmak üç farklı kişiyi tek kişi yapardı — ADR-010'da kapatılan
+    yanlış isnadın aynısı, yeni bir yerden. Belirsizliği korumak, yanlış
+    çözmekten iyidir.
+    """
+    from politikdesk.nlp.speaker import canonicalize_speaker
+
+    tam = frozenset({"Recep Tayyip Erdoğan", "Emine Erdoğan", "Fatoş Erdoğan"})
+    assert canonicalize_speaker("Erdoğan", tam) == "Erdoğan"
+    assert canonicalize_speaker("Cumhurbaşkanı Erdoğan", tam) == "Erdoğan"
+    # Tam adlar hiçbir koşulda birbirine karışmaz.
+    assert canonicalize_speaker("Emine Erdoğan", tam) == "Emine Erdoğan"
+
+
+def test_full_names_pass_through_unchanged() -> None:
+    from politikdesk.nlp.speaker import canonicalize_speaker
+
+    assert canonicalize_speaker("Özgür Özel", frozenset()) == "Özgür Özel"

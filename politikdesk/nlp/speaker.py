@@ -112,6 +112,66 @@ def _plausible(name: str) -> bool:
     return _fold(kelimeler[0]) not in _STOPWORDS
 
 
+# Ad öbeğinin BAŞINDA gelebilen unvan/görev sözcükleri. Bunları soymak
+# güvenlidir: "Cumhurbaşkanı Erdoğan" ile "Erdoğan" aynı kişidir.
+_TITLES: Final[tuple[str, ...]] = (
+    "cumhurbaşkanı", "cumhurbaşkani", "başbakan", "bakan", "başkan",
+    "tbmm başkanı", "genel başkan", "genel başkanı", "sözcü", "sözcüsü",
+    "gazeteci", "prof", "prof.", "dr", "dr.", "av", "av.",
+    "akp sözcüsü", "chp sözcüsü", "mhp sözcüsü", "vali", "belediye başkanı",
+    "milletvekili", "bakanı", "müsteşar", "genel müdür", "genel müdürü",
+)
+
+
+def strip_title(name: str) -> str:
+    """Baştaki unvanları soyar. "Cumhurbaşkanı Erdoğan" → "Erdoğan".
+
+    Unvan soymak güvenlidir çünkü kişiyi değiştirmez. Soyada indirgemek
+    ise güvenli DEĞİLDİR — `canonicalize_speaker` bakınız.
+    """
+    ad = name.strip()
+    degisti = True
+    while degisti:
+        degisti = False
+        for unvan in sorted(_TITLES, key=len, reverse=True):
+            on = unvan + " "
+            if _fold(ad).startswith(on):
+                ad = ad[len(on):].strip()
+                degisti = True
+                break
+    return ad or name.strip()
+
+
+def canonicalize_speaker(name: str, known_full_names: frozenset[str]) -> str:
+    """Konuşan adını kanonik biçime indirger.
+
+    ⛔ SOYAD BİRLEŞTİRME YALNIZCA TEK ADAY VARSA YAPILIR.
+
+    Külliyatta "Erdoğan" (30), "Recep Tayyip Erdoğan" (12) ama aynı
+    zamanda **"Emine Erdoğan" (3)** ve **"Fatoş Erdoğan" (2)** var.
+    Yalın soyadı en sık geçen tam ada yapıştırmak, üç farklı kişiyi tek
+    kişi yapardı — ADR-010'da kapatılan yanlış isnadın aynısı, yeni bir
+    yerden.
+
+    Bu yüzden kural şudur: yalın bir soyad, ancak o soyadı taşıyan
+    **tek bir** tam ad biliniyorsa ona bağlanır. Birden fazla aday varsa
+    ad olduğu gibi bırakılır — belirsizliği korumak, yanlış çözmekten
+    iyidir.
+    """
+    ad = strip_title(name)
+    if " " in ad:
+        return ad
+
+    soyad = _fold(ad)
+    adaylar = {
+        tam for tam in known_full_names
+        if " " in tam and _fold(tam).split()[-1] == soyad
+    }
+    if len(adaylar) == 1:
+        return next(iter(adaylar))
+    return ad
+
+
 def extract_speaker(
     claim_text: str, *, known_publications: frozenset[str] = frozenset()
 ) -> str | None:
