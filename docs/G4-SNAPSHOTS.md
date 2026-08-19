@@ -15,3 +15,4 @@
 | Gün 1 | 2026-08-16 20:55 UTC | `af81e0d6da45` | 35/38 aktif | 🟡 3 kaynakta hata | %21.05 (884/4200) | 626 art / 335 evt | 3/9 | `0014_access_methods` | Unclustered: 0, Pending Drafts: 2 |
 | Gün 2 | 2026-08-17 20:55 UTC | `73b09b910aa2` | 77/88 aktif | 🟡 11 kaynakta hata | %14.58 (14/96) | 789 art / 474 evt | 0/0 | `0015_composite_indexes` | Unclustered: 0, Pending Drafts: 0 |
 | Gün 3 | 2026-08-18 20:55 UTC | `73b09b910aa2` | 81/88 aktif | 🟡 7 kaynakta hata | %25.98 (9214/35468) | 4528 art / 1458 evt | 7/13 | `0015_composite_indexes` | Unclustered: 12, Pending Drafts: 2 |
+| Gün 4 | 2026-08-19 20:55 UTC | `61cf0392c3f3` | 82/89 aktif | 🟡 7 kaynakta hata | %23.76 (13147/55338) | 6284 art / 1810 evt | 9/15 | `0020_claim_speaker` | Unclustered: 0, Pending Drafts: 2 |
