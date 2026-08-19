@@ -632,3 +632,40 @@ Faz 7 girdisi `/feed`'de kısayol penceresinin kapatma düğmesinde
 `aria-label`/`title` eksikliğini kapsam dışı bırakmıştı. Pencere bu fazda
 sözleşmeden yeniden üretilirken düğmeye `title="Kapat"` eklendi;
 `pd ui-check` 12 ekranın hiçbirinde etiketsiz ikon düğmesi bildirmiyor.
+
+---
+
+## 19 Ağustos 2026 — Faz 8 sonrası: "Olmayanlar" paneli yalan söylüyordu
+
+Faz 8'de kurduğum imza öğesi `resmi-gazete`'yi "susan kaynak" olarak
+listeliyordu. Panel doğru veriyi gösteriyordu; **veri yanlıştı.**
+
+Kaynak üç fazdır kırmızıydı ve sebebi B-44 (GoodbyeDPI) diye biliniyordu.
+GoodbyeDPI'ın kendi kendine durduğu görüldü, TLS üç konakta da ölçüldü
+(97/90/64 ms) ve adaptör canlıda 17 kalem / 0,2 sn çekti. Ama sayaç hâlâ
+758 ardışık hatadaydı.
+
+Sebep şuydu: konu filtresi (vergi, gümrük, KDV…) o günkü 17 kalemin
+hiçbirini geçirmiyordu — çünkü o gün Resmî Gazete vergi mevzuatı
+yayımlamamıştı. Filtre doğru çalışıyordu; `record_fetch` onu arıza
+sayıyordu. 7 günde 1358 turun 516'sı böyleydi.
+
+Asimetri ölçüldü ve karar onu düzeltmeye dayandı:
+
+| Filtre nerede | Örnek | Kaynak durumu |
+|---|---|---|
+| Boru hattında | `ekonomim`: 25 çekildi, 25 elendi | **yeşil** |
+| Adaptör içinde | `resmi-gazete`: 17 ayrıştırıldı, 17 elendi | **kırmızı** |
+
+Karar `docs/ADR-012-KONU-FILTRESI-KAYNAK-SAGLIGI.md`. B-42/B-43 koruması
+("uç 200 döner, gövde beklenen şey değildir") **kalkmadı**; değişen tek
+şey ölçünün konu filtresinden önce alınması.
+
+Arayüz açısından asıl ders: **panel doğruydu, ölçü yanlıştı.** Bir
+gösterge kalıcı olarak yanlış yanıyorsa, o gösterge sinyal olmaktan
+çıkar — kaynak gerçekten bozulduğu gün hiçbir şey değişmez. "Olmayanlar"
+panelinin değeri, listelediği her satırın gerçekten bir yokluk olmasına
+bağlı.
+
+Sonuç: ardışık hata 758 → 0, "susan kaynak" 8 → 7. Kalan 7'si RSSHub'ın
+X'ten aldığı HTTP 503'e bağlı ve gerçek sessizliktir.

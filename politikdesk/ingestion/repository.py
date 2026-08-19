@@ -189,6 +189,7 @@ def record_fetch(
     filtered_out: int,
     error: str | None,
     partial_failures: Sequence[str] = (),
+    items_parsed: int | None = None,
 ) -> None:
     """Çekim turunu günlüğe yazar ve kaynağın sağlık alanlarını günceller.
 
@@ -202,6 +203,21 @@ def record_fetch(
     `partial_failures`: öğe GELDİ ama bazı akışlar düştü. Tur başarılı
     sayılır (kaynağı kırmızıya çekmek yanlış alarm olurdu), yalnızca
     `error` sütununa iz düşülür.
+
+    `items_parsed`: adaptörün konu filtresinden **ÖNCE** ayrıştırdığı ham
+    kalem sayısı. `None` = adaptör ayrım yapmıyor; o zaman `items_fetched`
+    ham sayının kendisidir ve davranış değişmez (89 kaynağın 88'i böyle).
+
+    Ayrım neden gerekti (19 Ağustos 2026, ölçüm `adapters/base.py`
+    `note_parsed` başlığında): "0 öğe → sağlıksız" kuralı, *sayfadan hiç
+    kalem çıkmadı* ile *kalemler çıktı ama konu filtresi hiçbirini
+    geçirmedi* durumlarını aynı kefeye koyuyordu. İkincisi Resmî Gazete
+    için normaldir ve 7 günde 516 kez yaşanmıştı; kaynak kalıcı kırmızıya
+    düşmüş, ardışık hata sayacı 758'e çıkmıştı.
+
+    ⛔ İlk durum arıza olmaya DEVAM EDER. B-42/B-43'ün korumaya çalıştığı
+    şey buydu: uç 200 döner, gövde beklenen şey değildir, tur sessizce
+    başarılı görünür.
     """
     now = datetime.now(UTC)
     logged_error = error
@@ -229,10 +245,17 @@ def record_fetch(
             ),
         )
 
-        if error is None and items_fetched > 0:
-            # ÖNEMLİ: yalnızca gerçekten öğe geldiğinde "başarı" sayılır.
-            # HTTP 200 dönen ama boş liste veren bir kaynak sağlıklı değildir —
-            # aksi halde JS ile yüklenen bir sayfa sonsuza dek yeşil görünür.
+        # "Kaynağa ulaşıldı ve içerik ÜRETTİ mi?" — konu filtresinin ne
+        # kadarını geçirdiği ayrı bir sorudur.
+        #
+        # ÖNEMLİ: yalnızca gerçekten kalem geldiğinde "başarı" sayılır.
+        # HTTP 200 dönen ama boş liste veren bir kaynak sağlıklı değildir —
+        # aksi halde JS ile yüklenen bir sayfa sonsuza dek yeşil görünür
+        # (B-42/B-43). Bu koruma DURUYOR; değişen tek şey, ölçünün konu
+        # filtresinden ÖNCEKİ sayı olması.
+        uretken = items_fetched > 0 or (items_parsed or 0) > 0
+
+        if error is None and uretken:
             cur.execute(
                 """
                 UPDATE sources SET last_fetched_at = %s, last_success_at = %s,

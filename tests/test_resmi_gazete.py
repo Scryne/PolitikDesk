@@ -319,3 +319,87 @@ def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
     assert len(failures) == 1
     assert "ReadTimeout" in failures[0]
     assert today_str in failures[0]
+
+
+# ------------------------------------------- konu filtresi ≠ kaynak arızası
+#
+# 19 Ağustos 2026. Resmî Gazete günde onlarca kalem yayımlar ve çoğu gün
+# hiçbiri vergi/gümrük konusunda değildir. Adaptör doğru davranıp 0 öğe
+# döndürüyordu, ama boru hattı bunu KAYNAK ARIZASI sayıyordu.
+#
+# Ölçüldü: 7 günde 1358 turun 516'sı bu yüzden "hata"ydı; ardışık hata
+# sayacı 758'e çıkmış ve kaynak kalıcı kırmızıya düşmüştü. Roadmap Faz
+# 2.3'ün yasağı buydu: "Alarm yanlış pozitif üretmemeli."
+#
+# Yanlış alarmın asıl bedeli gürültü değil KÖRLÜK: kaynak zaten hep
+# kırmızıysa, gerçekten bozulduğu gün hiçbir şey değişmez.
+
+
+def test_topic_filter_emptying_the_round_is_not_a_source_failure() -> None:
+    """Kalemler ayrıştırıldı ama hiçbiri konumuzla ilgili değil.
+
+    `fetch()` boş döner (doğru), fakat ham sayaç kaynağın SAĞLIKLI
+    olduğunu söyler — boru hattı turu arıza saymaz.
+    """
+    adapter = _adapter(keyword_filter=["bu-kelime-fihristte-yok"])
+
+    assert adapter.fetch() == []
+    assert adapter.drain_parsed() == 3, "Fihristten üç kalem ayrıştırılmalıydı."
+
+
+def test_empty_index_is_still_a_source_failure() -> None:
+    """Fihristten TEK kalem bile çıkmazsa bu gerçek bir arızadır.
+
+    ⛔ B-42/B-43'ün koruduğu durum: uç 200 döner, gövde beklenen şey
+    değildir, tur sessizce başarılı görünür. Bu koruma KALKMADI.
+    """
+    adapter = _adapter(http=_FakeHttp(body="<html><body>bos</body></html>"))
+
+    assert adapter.fetch() == []
+    assert adapter.drain_parsed() == 0
+
+
+def test_parsed_counter_is_drained_between_rounds() -> None:
+    """Sayaç turlar arasında taşınmaz.
+
+    `drain_failures` ile aynı gerekçe: adaptör örnekleri yeniden
+    kullanılabilir ve taşınan bir sayaç, bir sonraki turda kaynağı
+    olduğundan sağlıklı gösterirdi.
+    """
+    adapter = _adapter(keyword_filter=["vergi"])
+
+    adapter.fetch()
+    assert adapter.drain_parsed() == 3
+    assert adapter.drain_parsed() == 0, "Boşaltılan sayaç sıfırlanmadı."
+
+
+def test_health_rule_uses_parsed_count_not_filtered_count() -> None:
+    """`record_fetch` sözleşmesi: `items_parsed` üretkenliği belirler.
+
+    Sözleşmenin kendisi burada ölçülür; veritabanına gitmeden, kuralın
+    hangi girdilerle "üretken" dediği sabitlenir.
+    """
+    import inspect
+
+    from politikdesk.ingestion import repository
+
+    kaynak = inspect.getsource(repository.record_fetch)
+    assert "items_parsed" in kaynak
+    assert "uretken = items_fetched > 0 or (items_parsed or 0) > 0" in kaynak
+
+
+def test_adapters_without_the_counter_keep_the_old_behaviour() -> None:
+    """89 kaynağın 88'i konu filtresi kullanmıyor; onlar için değişiklik yok.
+
+    Sayaç tutmayan bir adaptörde `drain_parsed` `None` döner ve
+    `record_fetch` eski kuralın aynısını uygular.
+    """
+    from politikdesk.ingestion.adapters import base as adapter_base
+
+    class _SayacsizAdaptor:
+        slug = "sayacsiz"
+
+        def fetch(self):  # noqa: ANN202
+            return []
+
+    assert adapter_base.drain_parsed(_SayacsizAdaptor()) is None

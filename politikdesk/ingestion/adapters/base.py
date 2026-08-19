@@ -31,6 +31,7 @@ class FailureRecorder:
 
     def __init__(self) -> None:
         self._failures: list[str] = []
+        self._parsed = 0
 
     def record_failure(self, target: str, exc: BaseException) -> None:
         self._failures.append(f"{target}: {type(exc).__name__}: {str(exc)[:200]}")
@@ -38,6 +39,35 @@ class FailureRecorder:
     def note_failure(self, message: str) -> None:
         """İstisna olmayan başarısızlık (ör. uç 200 döndü ama liste boş)."""
         self._failures.append(message)
+
+    def note_parsed(self, count: int) -> None:
+        """Kaynaktan AYRIŞTIRILAN ham kalem sayısı — konu filtresinden ÖNCE.
+
+        Neden ayrı bir sayaç gerekti (19 Ağustos 2026):
+
+        `record_fetch` "0 öğe → kaynak sağlıksız" kuralını uygular ve bu
+        kural doğrudur; JS ile yüklenen bir sayfa aksi hâlde sonsuza dek
+        yeşil görünür (B-42/B-43). Ama kural iki farklı durumu birbirine
+        karıştırıyordu:
+
+            sayfadan hiç kalem çıkmadı        → GERÇEK arıza
+            kalemler çıktı, konu filtresi     → NORMAL sonuç
+            hiçbirini geçirmedi
+
+        Resmî Gazete günde onlarca kalem yayımlar ve çoğu gün hiçbiri
+        vergi/gümrük konusunda değildir. Ölçüldü: 7 günde 1358 turun
+        516'sı bu yüzden "arıza" sayılmış, ardışık hata sayacı 758'e
+        çıkmış ve kaynak kalıcı kırmızıya düşmüştü. Roadmap Faz 2.3'ün
+        yasağı tam olarak buydu: *"Alarm yanlış pozitif üretmemeli."*
+
+        Yanlış alarmın asıl bedeli gürültü değil **körlük**: kaynak zaten
+        hep kırmızıysa, gerçekten bozulduğu gün hiçbir şey değişmez.
+
+        Boru hattı düzeyindeki konu filtresi bunu zaten doğru yapıyordu —
+        `filtered_out` sayılıyor ama `items_fetched` düşmüyor, kaynak
+        yeşil kalıyor. Bu sayaç, adaptör içi filtreyi aynı hizaya getirir.
+        """
+        self._parsed += max(0, int(count))
 
     def drain_failures(self) -> list[str]:
         """Biriken hataları döndürür ve defteri boşaltır.
@@ -48,6 +78,20 @@ class FailureRecorder:
         """
         drained = self._failures
         self._failures = []
+        return drained
+
+    def peek_parsed(self) -> int:
+        """Sayacı SIFIRLAMADAN okur — adaptörün kendi karar mantığı için."""
+        return self._parsed
+
+    def drain_parsed(self) -> int:
+        """Ayrıştırılan kalem sayısını döndürür ve sayacı sıfırlar.
+
+        `drain_failures` ile aynı gerekçe: adaptör örnekleri turlar
+        arasında yeniden kullanılabilir.
+        """
+        drained = self._parsed
+        self._parsed = 0
         return drained
 
 
@@ -61,6 +105,19 @@ def drain_failures(adapter: object) -> list[str]:
     if callable(drain):
         return list(drain())
     return []
+
+
+def drain_parsed(adapter: object) -> int | None:
+    """Adaptör ham kalem sayacı tutuyorsa boşaltır, yoksa `None`.
+
+    `None` "bu adaptör ayrım yapmıyor" demektir ve eski davranış aynen
+    korunur — 89 kaynağın 88'i konu filtresi kullanmıyor, onlar için
+    `items_fetched` zaten ham sayının kendisidir.
+    """
+    drain = getattr(adapter, "drain_parsed", None)
+    if callable(drain):
+        return int(drain())
+    return None
 
 
 @runtime_checkable

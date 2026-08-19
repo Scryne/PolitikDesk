@@ -112,18 +112,43 @@ class ResmiGazeteAdapter(FailureRecorder):
                 )
                 continue
 
-            for item in self._parse(response.text, day):
+            ham, gecen = self._parse(response.text, day)
+            # Konu filtresinden ÖNCEKİ sayı boru hattına ayrıca gider.
+            # Gerekçe `adapters/base.py::note_parsed` başlığında: "hiç kalem
+            # çıkmadı" ile "kalemler çıktı ama konu filtresi geçirmedi"
+            # aynı şey değildir ve ikincisi bu kaynakta NORMALDİR.
+            self.note_parsed(ham)
+            for item in gecen:
                 if item.url in seen:
                     continue
                 seen.add(item.url)
                 items.append(item)
 
-        if not items:
+        parsed_total = self.peek_parsed()
+        if not parsed_total:
+            # Fihristten TEK kalem bile çıkmadı: sayfa yapısı değişmiş veya
+            # WAF başka bir gövde döndürmüş olabilir. Bu gerçek bir arıza.
             log.warning("resmi_gazete_empty", days_back=self.days_back)
+        elif not items:
+            # Kaynak sağlıklı; bugün konumuzla ilgili bir kalem yok.
+            # `info`: gündelik ve beklenen bir sonuçtur, uyarı değil.
+            log.info(
+                "resmi_gazete_no_topic_match",
+                parsed=parsed_total,
+                keywords=len(self.keyword_filter or []),
+            )
         return items
 
-    def _parse(self, html: str, day: date) -> list[RawItem]:
+    def _parse(self, html: str, day: date) -> tuple[int, list[RawItem]]:
+        """`(ayrıştırılan ham kalem sayısı, konu filtresini geçenler)`.
+
+        İki sayı ayrı döner çünkü ikisi farklı soruyu yanıtlar: birincisi
+        **kaynak sağlıklı mı**, ikincisi **bugün bizi ilgilendiren bir şey
+        var mı**. Tek sayıya indirildiğinde ikinciye verilen "hayır"
+        cevabı birinciye de "hayır" diye okunuyordu.
+        """
         out: list[RawItem] = []
+        ham = 0
         published = datetime(day.year, day.month, day.day, tzinfo=UTC)
 
         for match in _ANCHOR.finditer(html):
@@ -134,6 +159,11 @@ class ResmiGazeteAdapter(FailureRecorder):
             title = clean_item_title(label)
             if not title or title.casefold() == "pdf görüntüle":
                 continue
+
+            # Buraya gelen her satır GEÇERLİ bir Resmî Gazete kalemidir;
+            # sayaç konu filtresinden önce artar.
+            ham += 1
+
             if not self._passes_keyword_filter(title):
                 continue
 
@@ -148,7 +178,7 @@ class ResmiGazeteAdapter(FailureRecorder):
                     guid=url,
                 )
             )
-        return out
+        return ham, out
 
     def _passes_keyword_filter(self, title: str) -> bool:
         if not self.keyword_filter:

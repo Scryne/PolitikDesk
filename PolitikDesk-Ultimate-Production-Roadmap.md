@@ -35,13 +35,39 @@ Yeni özellik geliştirmeden önce 18 Ağustos audit çıktısını değişmez b
       akışında görünüyordu; ilişkilerin hiçbiri gerçek olaya sızmamıştı.
       Silmeden önce tam yedek alındı ve doğrulandı (22 MB, 254 nesne).
 - [x] `.gov.tr` TLS problemini ağ/ortam seviyesinde çöz.
-      → **Kök neden bulundu, çözüm kullanıcı eylemi gerektiriyor.**
-      Ayrıntı aşağıda (O-01).
+      → **Çözüldü** (19 Ağu 2026). Ayrıntı aşağıda (O-01).
 - [x] RSSHub servisinin neden timeout verdiğini çöz. → **Çözüldü** (O-02).
 - [x] Baseline commit oluştur. → `60866b9`, ardından `76d37f4` (satır
       sonu) ve `a4fb130` (RSSHub). Push edilmedi.
 
-### O-01 · `.gov.tr` TLS — teşhis kesin, eylem sizde
+### O-01 · `.gov.tr` TLS — **KAPANDI (19 Ağu 2026)**
+
+GoodbyeDPI servisi kendi kendine durmuş bulundu (`STATE: STOPPED`, çıkış
+kodu 1067 — beklenmedik sonlanma). Kullanıcı eylemi gerekmedi; aşağıdaki
+teşhis ölçümle doğrulandı:
+
+| Konak | TLS el sıkışma |
+|---|---|
+| `resmigazete.gov.tr` | OK, 97 ms |
+| `sayistay.gov.tr` | OK, 90 ms |
+| `tccb.gov.tr` | OK, 64 ms |
+
+`resmi-gazete` adaptörü canlıda 17 kalem / 0,2 sn çekiyor. Çekirdek tur:
+43 kaynak, 1414 öğe, **0 hata**.
+
+**Ama kaynak yine de kırmızı kaldı ve sebebi başkaydı.** Ardışık hata
+sayacı 758'di; ölçüldüğünde bunun büyük kısmının Resmî Gazete'nin o gün
+vergi mevzuatı yayımlamamış olmasından geldiği görüldü. Konu filtresinin
+boşalttığı tur, kaynak arızası sayılıyordu — Roadmap Faz 2.3'ün
+yasakladığı yanlış pozitif. Karar ve ölçüm:
+`docs/ADR-012-KONU-FILTRESI-KAYNAK-SAGLIGI.md`.
+
+Düzeltmeden sonra: ardışık hata **758 → 0**, kumanda odasındaki "susan
+kaynak" sayısı 8 → 7. Kalan 7'si RSSHub'ın X'ten aldığı yukarı akış
+HTTP 503'üne bağlı ve **gerçek** sessizliktir.
+
+<details>
+<summary>Özgün kayıt (teşhis anı)</summary>
 
 Üç konak (`resmigazete`, `sayistay`, `tccb`) TCP'de sorunsuz bağlanıyor
 ama TLS el sıkışması **sunucu tarafından sıfırlanıyor** (`WinError 10054`),
@@ -63,6 +89,8 @@ net stop GoodbyeDPI          :: yönetici komut isteminde
 ```
 
 Sonrasında doğrulama: `python -m scripts.verify_feeds` veya `pd ingest`.
+
+</details>
 
 ### O-02 · RSSHub — çözüldü
 
@@ -97,10 +125,13 @@ RSSHub'ın X'ten aldığı HTTP 503 (yukarı akış), 1'i O-01'e bağlı.
 - [x] 0 bilinen kritik/yüksek kod kusuru.
 - [x] Canlı DB test artığı yok.
 - [x] Baseline commit mevcut.
-- [ ] **AÇIK:** O-01 (GoodbyeDPI) kullanıcı eylemi bekliyor. Kod tarafında
-      yapılacak bir şey yok; `resmi-gazete` bu çözülene kadar kırmızı kalır.
+- [x] O-01 (GoodbyeDPI) **kapandı** (19 Ağu 2026). Servis kendi kendine
+      durmuş; TLS üç konakta da ölçülerek doğrulandı. Altından **ayrı bir
+      kod arızası** çıktı — konu filtresinin boşalttığı tur kaynak arızası
+      sayılıyordu (ADR-012). O da düzeltildi: `resmi-gazete` ardışık hata
+      758 → 0.
 
-**Öncelik: P0 — kod tarafı KAPANDI, tek açık madde O-01.**
+**Öncelik: P0 — FAZ 0 TAMAMEN KAPANDI.**
 
 ---
 

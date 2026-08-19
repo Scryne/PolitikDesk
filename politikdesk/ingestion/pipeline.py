@@ -250,6 +250,9 @@ class Pipeline:
         # Adaptörün içeride yuttuğu hatalar (B-80). İstisna boru hattına
         # ulaşmadığı için tur "başarılı" görünürdü; artık ayrıca taşınıyor.
         failures: list[str] = []
+        # Adaptörün konu filtresinden ÖNCE ayrıştırdığı ham kalem sayısı.
+        # `None` = adaptör ayrım yapmıyor (89 kaynağın 88'i).
+        parsed: int | None = None
 
         try:
             decision = guard.check(source.slug, source.tos_status, is_active=source.is_active)
@@ -267,6 +270,7 @@ class Pipeline:
                 # `finally`: fetch yarıda patlasa bile o ana kadar yutulmuş
                 # hatalar kaydedilsin, adaptörün defteri boşalsın.
                 failures = adapter_base.drain_failures(adapter)
+                parsed = adapter_base.drain_parsed(adapter)
             stats.fetched = len(items)
             stats = self._store_items(items, source, decision, stats)
 
@@ -319,6 +323,7 @@ class Pipeline:
             filtered_out=stats.filtered_out,
             error=error,
             partial_failures=failures if error is None else [],
+            items_parsed=parsed,
         )
         return stats
 
