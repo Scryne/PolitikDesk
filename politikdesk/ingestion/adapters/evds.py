@@ -60,7 +60,30 @@ from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
 
-EVDS_BASE: Final[str] = "https://evds2.tcmb.gov.tr/service/evds"
+# ⚠️ EVDS v2 KAPANDI (19 Ağustos 2026'da ölçüldü).
+#
+# `evds2.tcmb.gov.tr/service/evds/...` artık veri döndürmüyor: her yol —
+# anahtar başlıkta, anahtar sorgu dizesinde ya da anahtarsız — `302` ile
+# `https://evds3.tcmb.gov.tr` KÖKÜNE yönlendiriyor. Yönlendirme takip
+# edilince gelen şey bir React SPA kabuğu, yani HTML.
+#
+# Bu, adaptörün HTML muhafızının neden şart olduğunun canlı kanıtıdır:
+# muhafız olmasaydı adaptör her turda 200 alır, 0 öğe üretir ve tur
+# "başarılı" görünürdü — B-42 ve B-43'ün aynısı.
+#
+# Sözleşme v3'te KORUNMUŞ, yalnızca taban değişmiş:
+#     GET https://evds3.tcmb.gov.tr/igmevdsms-dis/series=<KOD>
+#         &startDate=DD-MM-YYYY&endDate=DD-MM-YYYY&type=json
+#         Header: key: <APIKEY>
+#     -> {"totalCount": N, "items": [{"Tarih": "...", "TP_DK_USD_A_YTL": "..."}]}
+#
+# Taban `evds3.tcmb.gov.tr` JS paketinden çıkarıldı
+# (`axios.defaults.baseURL = "/igmevdsms-dis"`); yöntem `tuik_auth.py` ve
+# `context/official_calendar.py` ile aynı.
+EVDS_BASE: Final[str] = "https://evds3.tcmb.gov.tr/igmevdsms-dis"
+
+# Seri adını doğrulayan uç (yalnızca `scripts/probe_evds.py` kullanır).
+EVDS_SEARCH_URL: Final[str] = EVDS_BASE + "/searchResults?searchVal={code}"
 
 # Kaç günlük pencere istenecek. Seriler farklı sıklıkta yayımlanır
 # (günlük kur, haftalık rezerv, aylık beklenti); 120 gün, en seyrek
@@ -131,28 +154,43 @@ class EvdsSeries:
 
 
 # ---------------------------------------------------------------------------
-# İzlenen seriler.
+# İzlenen seriler — HEPSİ 19 AĞUSTOS 2026'DA CANLI UÇTA DOĞRULANDI.
 #
-# ⚠️ HEPSİ `verified=False` İLE GELİYOR ve bu bilinçli.
+# Doğrulama `python -m scripts.probe_evds` ile yapıldı: her kod için hem
+# veri çekildi hem de TCMB'nin serine verdiği RESMÎ AD okunup
+# `expected_name_contains` ile karşılaştırıldı.
 #
-# 18 Ağustos 2026 itibarıyla depoda EVDS API anahtarı yok; kodlar canlı
-# uçta DOĞRULANAMADI. Doğrulanmamış bir kodu "çalışıyor" varsayıp
-# yayımlamak, bu denetimde kapatılan D-01 kusurunun (kurum imzalı
-# doğrulanmamış sayı) tekrarı olurdu.
+# ⚠️ İLK TABLO YANLIŞTI VE PROBE ONU YAKALADI. Bu, `verified` kapısının
+# neden var olduğunun kanıtıdır — altı kodun dördü hatalıydı:
 #
-# Doğrulama yolu:  python -m scripts.probe_evds
-# Betik canlı uçtan seri adını okur, `expected_name_contains` ile
-# karşılaştırır ve hangi satırların `verified=True` yapılabileceğini
-# yazdırır. Bayrağı elle açmak, doğrulamayı atlamaktır.
+#   TP.APIFON4      veri DÖNDÜRÜYORDU (40,0) ama adı "TCMB Ağırlıklı
+#                   Ortalama Fonlama Maliyeti" — politika faizi DEĞİL.
+#                   Kapı olmasaydı bu sayı "politika faizi" etiketiyle
+#                   ekrana çıkardı. Tehlike 404 almak değil, tam olarak
+#                   budur: çalışan ama BAŞKA BİR ŞEYİ ölçen kod.
+#   TP.AB.A01       adı "A.AKTİF" — rezerv değil.
+#   TP.BEK.S01.E.Y  HTTP 400, seri yok.
+#   TP.PARA.M2      HTTP 400, seri yok.
+#
+# Doğru kodlar tahminle değil, canlı arama ucuyla bulundu
+# (`/searchResults?searchVal=...`).
+#
+# Yeni seri eklerken bayrak ELLE açılmaz: önce probe koşulur.
 # ---------------------------------------------------------------------------
 TRACKED: tuple[EvdsSeries, ...] = (
     EvdsSeries(
-        code="TP.APIFON4",
+        code="TP.BISPOLFAIZ.TUR",
         label="TCMB politika faizi",
         metric="policy_rate",
         unit="%",
-        expected_name_contains="politika faizi",
-        qualifier="1 hafta vadeli repo ihale faiz oranı",
+        expected_name_contains="politika faiz",
+        verified=True,
+        # Dürüstlük notu: bu seri BIS derlemesidir ve AYLIKTIR; TCMB'nin
+        # PPK gününde yayımladığı anlık karar duyurusu değildir. Faiz
+        # KARARININ kendisi `sources.yml`'deki TCMB RSS akışından
+        # (PPK Kararları) haber olarak geliyor; bu seri o kararın
+        # makine okunur zaman serisi karşılığıdır.
+        qualifier="BIS derlemesi, aylık",
     ),
     EvdsSeries(
         code="TP.DK.USD.A.YTL",
@@ -160,7 +198,8 @@ TRACKED: tuple[EvdsSeries, ...] = (
         metric="exchange_rate",
         unit="TRY",
         expected_name_contains="abd dolari",
-        qualifier="döviz alış",
+        verified=True,
+        qualifier="döviz alış, günlük",
     ),
     EvdsSeries(
         code="TP.DK.EUR.A.YTL",
@@ -168,31 +207,38 @@ TRACKED: tuple[EvdsSeries, ...] = (
         metric="exchange_rate",
         unit="TRY",
         expected_name_contains="euro",
-        qualifier="döviz alış",
+        verified=True,
+        qualifier="döviz alış, günlük",
     ),
     EvdsSeries(
-        code="TP.AB.A01",
-        label="TCMB brüt döviz rezervleri",
+        code="TP.AB.B6",
+        label="Toplam rezervler",
         metric="reserves",
-        unit="USD mn",
+        # Birim BİLEREK boş: EVDS bu seri için birim beyan etmiyor
+        # (arama ucunda `birim` alanı yok). Uydurulmuş bir birim
+        # ("USD mn"), uydurulmuş bir sayı kadar yanıltıcıdır.
+        unit="",
         expected_name_contains="rezerv",
-        qualifier="brüt",
+        verified=True,
+        qualifier="aylık; birim TCMB tarafından beyan edilmiyor",
     ),
     EvdsSeries(
-        code="TP.BEK.S01.E.Y",
-        label="12 ay sonrası yıllık TÜFE beklentisi",
+        code="TP.ENFBEK.PKA12ENF",
+        label="12 ay sonrası yıllık enflasyon beklentisi",
         metric="tufe_annual",
         unit="%",
         expected_name_contains="enflasyon beklenti",
-        qualifier="piyasa katılımcıları anketi, 12 ay sonrası",
+        verified=True,
+        qualifier="piyasa katılımcıları anketi, aylık",
     ),
     EvdsSeries(
-        code="TP.PARA.M2",
-        label="M2 para arzı",
+        code="TP.KAVRAMSAL.HAMM2.INDX",
+        label="M2 para arzı (kur etkisinden arındırılmamış)",
         metric="other",
-        unit="TRY bin",
+        unit="",
         expected_name_contains="m2",
-        qualifier="para ve banka istatistikleri",
+        verified=True,
+        qualifier="haftalık (cuma); birim TCMB tarafından beyan edilmiyor",
     ),
 )
 

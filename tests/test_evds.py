@@ -130,18 +130,50 @@ def test_unverified_series_produces_no_value_and_is_reported() -> None:
     assert any("probe_evds" in h for h in hatalar), hatalar
 
 
-def test_shipped_series_table_is_entirely_unverified_until_probed() -> None:
-    """Depoda anahtar yokken hiçbir seri doğrulanmış sayılamaz.
+def test_every_shipped_series_was_verified_against_the_live_endpoint() -> None:
+    """Her seri canlı uçta doğrulanmış olmalı — 19 Ağustos 2026, 6/6.
 
-    Bu test bir hatırlatıcıdır: `verified=True` yapmak, `probe_evds`
-    canlı uçtan seri adını okuyup onayladıktan SONRA yapılır. Elle
-    açmak doğrulamayı atlamaktır ve D-01'in (kurum imzalı doğrulanmamış
-    sayı) tekrarıdır.
+    **Bu testin ilk hâli tersini söylüyordu** ("hiçbiri doğrulanmamış
+    olmalı") ve doğruydu: depoda anahtar yoktu. Anahtar geldiğinde
+    `python -m scripts.probe_evds` koşuldu ve KODLARIN DÖRDÜ HATALI
+    ÇIKTI:
+
+        TP.APIFON4      veri DÖNDÜRÜYORDU (40,0) ama adı "TCMB Ağırlıklı
+                        Ortalama Fonlama Maliyeti" — politika faizi değil
+        TP.AB.A01       adı "A.AKTİF" — rezerv değil
+        TP.BEK.S01.E.Y  HTTP 400, seri yok
+        TP.PARA.M2      HTTP 400, seri yok
+
+    İlk ikisi kapının asıl varlık sebebidir: kod çalışıyor, veri geliyor,
+    ama ölçtüğü şey etiketin söylediği şey değil. Kapı olmasaydı
+    "TCMB politika faizi: %40,0" ekrana çıkardı — D-01'de kaldırılan
+    uydurma göstergenin birebir tekrarı, üstelik bu kez kurum verisi
+    kılığında.
+
+    Doğru kodlar tahminle değil, canlı arama ucuyla bulundu.
     """
-    acik = [s.code for s in TRACKED if s.verified]
-    assert not acik, (
-        f"Su seriler verified=True: {acik}. Canli dogrulama yapildiysa bu "
-        "testi gerekcesiyle birlikte guncelleyin."
+    dogrulanmamis = [s.code for s in TRACKED if not s.verified]
+    assert not dogrulanmamis, (
+        f"Su seriler dogrulanmamis: {dogrulanmamis}. "
+        "`python -m scripts.probe_evds` kosup dogrulayin; elle "
+        "verified=True yapmak dogrulamayi atlamaktir."
+    )
+    assert len(TRACKED) >= 5, (
+        "Roadmap 1.1 cikis olcutu en az 5 gosterge istiyor; "
+        f"su an {len(TRACKED)} seri var."
+    )
+
+
+def test_probe_is_the_only_documented_way_to_flip_the_verified_flag() -> None:
+    """`verified` bayrağının gerekçesi kodda yazılı kalmalı."""
+    import inspect
+
+    from politikdesk.ingestion.adapters import evds
+
+    kaynak = inspect.getsource(evds)
+    assert "probe_evds" in kaynak, (
+        "Dogrulama yolu kaynakta anlatilmiyor; bayragin nasil acildigi "
+        "kaybolursa kapi anlamsizlasir."
     )
 
 
@@ -317,7 +349,7 @@ def test_every_value_carries_full_provenance() -> None:
 
     assert deger["source"] == "TCMB EVDS"
     assert deger["series_code"] == "TP.TEST.SERI"
-    assert "evds2.tcmb.gov.tr" in deger["source_url"]
+    assert "evds3.tcmb.gov.tr" in deger["source_url"]
 
 
 def test_series_code_discriminates_two_series_sharing_one_metric() -> None:

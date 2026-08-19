@@ -1,7 +1,7 @@
 # PolitikDesk — makro ekonomi kaynak listesi (F0-08, F0-09)
 #
 # ⛔ SERT KURAL (Spec §9.2 / D6): kaynak sayısı `max_sources` ile sınırlıdır.
-#    Bu dosyada yürürlükteki sınır AŞAĞIDAKİ `max_sources` alanıdır (20);
+#    Bu dosyada yürürlükteki sınır AŞAĞIDAKİ `max_sources` alanıdır;
 #    `tests/test_sources_config.py` onu zorlar. Sayıyı bu yorumda ayrıca
 #    tekrarlamıyoruz — 15 yazan eski bir metin burada aylarca kaldı ve
 #    dosyanın kendi ayarıyla çelişti.
@@ -20,7 +20,8 @@
 #    Önce 10, en az bir hafta ölçüm (kümeleme precision >= 0,88 korunuyor
 #    mu, konu filtresi yeni kaynaklarda alakasız içerik geçiriyor mu),
 #    ancak regresyon yoksa devam (F5-05). Yürürlükteki kadro bu yolla
-#    kademe kademe 20'ye çıktı.
+#    kademe kademe çıktı. 19 Ağu 2026: EVDS için 20 -> 21 (gerekçe o
+#    kaynağın `notes` alanında; medya değil, kurumun veri servisi).
 #
 # ⛔ tos_status='forbidden' kaynaktan ingestion kod seviyesinde engellidir
 #    (politikdesk/ingestion/guard.py, F1-06).
@@ -35,7 +36,7 @@
 
 version: 3
 vertical: macro_economy
-max_sources: 20
+max_sources: 21
 
 
 sources:
@@ -114,6 +115,48 @@ sources:
       koleksiyonudur: /portal/v2/posts. `link` alanı arka uç konağını
       (api.hmb.gov.tr) gösterir; genel adres base_url + /duyuru/<slug>
       ile kurulur.
+
+  - slug: tcmb-evds
+    name: "TCMB Elektronik Veri Dağıtım Sistemi (EVDS)"
+    tier: 1
+    kind: official
+    independence_group: "official-tcmb"
+    access_method: api
+    tos_status: allowed
+    base_url: "https://evds3.tcmb.gov.tr"
+    feed_url: "https://evds3.tcmb.gov.tr/igmevdsms-dis"
+    adapter: evds
+    verified: true                      # ✅ 19 Ağu 2026, 6/6 seri canlı doğrulandı
+    # `independence_group` bilerek `tcmb` ile AYNI. Bu, bağımsızlık
+    # kuralının ihlali değil, TAM OLARAK UYGULANMASIDIR: TCMB'nin RSS
+    # duyurusu ile EVDS veri servisi tek kurumdur ve bir iddiayı ikisi
+    # birden "doğruluyorsa" bu İKİ bağımsız kaynak değildir.
+    # Beyan açık tutuluyor ki kaza eseri çakışmayla karışmasın —
+    # `tests/test_sources_config.py` bu alanı arar.
+    same_institution_as: tcmb
+    robots_txt: null
+    topics: [politika_faizi, kur_ve_rezervler, enflasyon]
+    produces_scheduled_events: false
+    notes: >-
+      SINIR 20'DEN 21'E ÇIKTI (19 Ağu 2026). Gerekçe, dosya başlığındaki
+      "kaynak eklemek yanıltıcı derecede tatmin edicidir" uyarısını
+      ÇİĞNEMEZ: EVDS bir MEDYA kaynağı değil, kurumun kendi makine
+      okunur veri servisidir. Çerçeveleme çeşitliliği için değil,
+      `articles.official_value` için eklendi — yani kanıt motorunun R3
+      kuralını besler (Spec §8.3). `independence_group` bilerek TCMB'nin
+      RSS akışıyla AYNI ("official-tcmb"): ikisi tek kurumdur ve
+      bağımsız sayımı şişirmemelidir.
+      —
+      EVDS v2 KAPANDI: evds2.tcmb.gov.tr/service/evds/... her yolda 302
+      ile evds3 köküne yönlendiriyor ve gelen şey React SPA kabuğu.
+      Sözleşme v3'te korundu, yalnızca taban değişti; taban SPA'nın JS
+      paketinden çıkarıldı (axios baseURL = "/igmevdsms-dis").
+      Anahtar `key` başlığıyla gönderilir (PD_EVDS_API_KEY_ENV).
+      —
+      İzlenen 6 serinin tamamı `python -m scripts.probe_evds` ile canlı
+      doğrulandı. İlk denemede kodların DÖRDÜ hatalıydı; ikisi veri
+      döndürüyor ama BAŞKA bir büyüklüğü ölçüyordu (TP.APIFON4 =
+      "Ağırlıklı Ortalama Fonlama Maliyeti", politika faizi değil).
 
   - slug: resmi-gazete
     name: "Resmî Gazete"

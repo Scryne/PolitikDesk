@@ -54,6 +54,23 @@ TOPIC_KEYWORDS: Final[dict[str, tuple[str, ...]]] = {
         "dolar kuru",
         "euro kuru",
         "kur politikası",
+        # 19 Ağu 2026: TCMB EVDS adaptörü açıldığında bulunan sözlük
+        # boşluğu. Kurumun kendi seri adı "(USD) ABD Doları (Döviz Alış)"
+        # ve türetilen başlık "ABD doları alış kuru" — sözlükte "dolar
+        # kuru" vardı ama "alış kuru" yoktu, dolayısıyla TCMB'nin KENDİ
+        # kur verisi konu dışı sayılıp eleniyordu. Filtre doğru
+        # çalışıyordu; eksik olan sözlüktü.
+        "alış kuru",
+        "satış kuru",
+        "döviz alış",
+        "döviz satış",
+        "efektif alış",
+        "efektif satış",
+        # Parasal büyüklükler bu başlığın altındadır: M1/M2/M3 para arzı
+        # kur ve rezervlerle birlikte para politikasının niceliksel
+        # tarafını oluşturur.
+        "para arzı",
+        "parasal büyüklük",
     ),
     "butce_ve_hazine": (
         "bütçe",

@@ -35,6 +35,7 @@ import unicodedata
 from politikdesk.config import load_env_file
 from politikdesk.ingestion.adapters.evds import (
     EVDS_BASE,
+    EVDS_SEARCH_URL,
     TRACKED,
     EvdsAdapter,
     EvdsAuthError,
@@ -48,26 +49,42 @@ from politikdesk.ingestion.http import HttpClient
 
 
 def fold(text: str) -> str:
-    """Aksan ve büyük/küçük farkını siler — Türkçe `İ`/`ı` tuzağı dâhil.
+    """Aksan, büyük/küçük ve BOŞLUK farkını siler.
 
-    `nlp/claims.py::fold_text` ile aynı deyim; ad karşılaştırması
-    "Politika Faizi" ile "politika faizi"ni aynı saymalı.
+    Boşluk normalizasyonu şart: EVDS seri adlarını çift boşlukla
+    döndürüyor — `"(USD)  ABD  Doları  (Döviz Alış)"`. Boşluk
+    daraltılmazsa "abd dolari" araması bu ada eşleşmez ve doğru bir kod
+    yanlışlıkla reddedilir.
+
+    **Noktasız `ı` da `i`ye indirilir** ve bu şart. İlk sürüm bunu
+    yapmıyordu; sonuç, DOĞRU olan `TP.DK.USD.A.YTL` kodunun yanlışlıkla
+    reddedilmesiydi: TCMB adı "ABD Doları" (noktasız ı), aranan parça
+    "abd dolari" (noktalı i) ve `casefold()` ikisini birbirine
+    çevirmiyor. Karşılaştırma iki yazımı da aynı saymalı — aksi hâlde
+    doğrulama, doğru kodları eler.
     """
-    decomposed = unicodedata.normalize("NFKD", text.replace("İ", "i").replace("I", "ı"))
-    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    sade = (
+        text.replace("İ", "i")
+        .replace("I", "i")
+        .replace("ı", "i")
+    )
+    decomposed = unicodedata.normalize("NFKD", sade)
+    temiz = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    return " ".join(temiz.split())
 
 
 def _seri_adi(client: HttpClient, spec: EvdsSeries, key: str) -> str | None:
     """Serinin TCMB'deki resmî adını okur.
 
-    EVDS meta ucu seri adını Türkçe ve İngilizce döndürür. Hangi alan
-    adının geleceği belgelenmemiş, bu yüzden birkaç aday taranır.
+    Arama ucu `{"seriler": [{"serieCode", "serieName", ...}]}` döndürür.
+    Kod TAM eşleşmeli: arama "TP.DK.USD" için birden çok seri getirebilir
+    ve yanlış olanın adına bakmak, doğrulamayı anlamsız kılar.
     """
-    url = f"{EVDS_BASE}/serieList/type=json&code={spec.code}"
+    url = EVDS_SEARCH_URL.format(code=spec.code)
     try:
         response = client.get(url, headers={"key": key}, source_slug="tcmb-evds")
     except Exception as exc:  # noqa: BLE001
-        print(f"      meta ucu yanit vermedi: {type(exc).__name__}")
+        print(f"      arama ucu yanit vermedi: {type(exc).__name__}")
         return None
 
     govde = (response.text or "").strip()
@@ -77,12 +94,15 @@ def _seri_adi(client: HttpClient, spec: EvdsSeries, key: str) -> str | None:
         payload = json.loads(govde)
     except json.JSONDecodeError:
         return None
+    if not isinstance(payload, dict):
+        return None
 
-    kayitlar = payload if isinstance(payload, list) else payload.get("items") or []
-    for kayit in kayitlar if isinstance(kayitlar, list) else []:
+    for kayit in payload.get("seriler") or []:
         if not isinstance(kayit, dict):
             continue
-        for alan in ("SERIE_NAME", "SERIE_NAME_ENG", "serieName", "DATAGROUP_NAME"):
+        if str(kayit.get("serieCode", "")).strip().upper() != spec.code.upper():
+            continue
+        for alan in ("serieName", "serieNameEng"):
             if kayit.get(alan):
                 return str(kayit[alan])
     return None

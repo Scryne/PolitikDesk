@@ -30,21 +30,21 @@ VALID_TOS = {"allowed", "restricted", "forbidden", "pending_review"}
 
 
 def test_source_count_never_exceeds_hard_limit() -> None:
-    """Spec §9.2 / D6 (v3.5): azami 20 ekonomi kaynağı."""
-    assert len(SOURCES) <= DATA["max_sources"] == 20, (
-        f"{len(SOURCES)} kaynak var. Sınır 20'dir ve gerekçesi "
+    """Spec §9.2 / D6: azami 21 ekonomi kaynağı (19 Ağu 2026, EVDS ile)."""
+    assert len(SOURCES) <= DATA["max_sources"] == 21, (
+        f"{len(SOURCES)} kaynak var. Sınır 21'dir ve gerekçesi "
         "config/sources.yml başlığındadır (F5-01)."
     )
 
 
 
 def test_source_count_matches_staged_rollout() -> None:
-    """F5-06: 15 -> 20 tam kapsamlı rollout.
+    """F5-06: 15 -> 20 tam kapsamlı rollout; 19 Ağu 2026: EVDS ile 21.
 
     20 kaynak sınırı ile makro ekonomi, piyasalar, fintech, uzman blogları
     ve reel sektör çerçeveleme çeşitliliği en üst seviyeye çıkarıldı.
     """
-    assert len(SOURCES) == 20
+    assert len(SOURCES) == 21
 
 
 def test_slugs_are_unique() -> None:
@@ -77,11 +77,14 @@ def test_no_social_tier_source_in_mvp() -> None:
 
 
 def test_tier_distribution() -> None:
-    """4 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın."""
+    """5 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın.
+
+    19 Ağu 2026: Tier 1 dörtten beşe çıktı — TCMB EVDS eklendi.
+    """
     counts: dict[int, int] = {}
     for s in SOURCES:
         counts[s["tier"]] = counts.get(s["tier"], 0) + 1
-    assert counts == {1: 4, 2: 2, 3: 14}, counts
+    assert counts == {1: 5, 2: 2, 3: 14}, counts
 
 
 
@@ -97,8 +100,32 @@ def test_every_source_has_a_distinct_independence_group() -> None:
 
     Somut tuzak: hurriyet ve milliyet Demirören grubundadır, cnnturk da
     öyle. Üçünü birden eklemek üç bağımsız kaynak DEĞİL, bir tanedir.
+
+    ── İSTİSNA: AYNI KURUMUN İKİ AKIŞI (19 Ağu 2026, TCMB EVDS)
+
+    Kural farklı YAYINCILARIN aynı gruba düşmesini engeller. Aynı kurumun
+    iki akışı (TCMB'nin RSS duyurusu ve EVDS veri servisi) grubu
+    PAYLAŞMALIDIR — aksi hâlde tek kurum iki bağımsız kaynak sayılır ve
+    kuralın engellemek istediği şişme tam da o olur. Yani burada grubu
+    paylaşmak ihlal değil, kuralın doğru uygulanmasıdır.
+
+    İstisna çıkarımla değil, BEYANLA tanınır: kaynak `same_institution_as`
+    alanını taşımalıdır. Böylece kaza eseri çakışma ile bilinçli paylaşım
+    birbirine karışmaz.
     """
-    groups = [s["independence_group"] for s in SOURCES]
+    beyanli = {s["slug"] for s in SOURCES if s.get("same_institution_as")}
+    for s in SOURCES:
+        hedef = s.get("same_institution_as")
+        if not hedef:
+            continue
+        esler = [o for o in SOURCES if o["slug"] == hedef]
+        assert esler, f"{s['slug']}: same_institution_as='{hedef}' diye bir kaynak yok"
+        assert esler[0]["independence_group"] == s["independence_group"], (
+            f"{s['slug']} ile {hedef} ayni kurum ilan edilmis ama "
+            "independence_group'lari FARKLI — beyan ise yaramiyor."
+        )
+
+    groups = [s["independence_group"] for s in SOURCES if s["slug"] not in beyanli]
     duplicates = {g for g in groups if groups.count(g) > 1}
     assert not duplicates, f"aynı bağımsızlık grubunda birden fazla kaynak: {duplicates}"
 
@@ -117,8 +144,13 @@ def test_primary_sources_exist_for_evidence_anchor() -> None:
 def test_tier1_sources_are_in_distinct_independence_groups() -> None:
     """Dört resmî kurum birbirinden bağımsızdır; aynı gruba düşerlerse
     bağımsız kanıt sayımı (Spec §8.2) çöker."""
-    groups = [s["independence_group"] for s in SOURCES if s["tier"] == 1]
-    assert None not in groups, "Tier 1 kaynakların independence_group'u atanmalı"
+    tier1 = [s for s in SOURCES if s["tier"] == 1]
+    assert all(s["independence_group"] for s in tier1), (
+        "Tier 1 kaynakların independence_group'u atanmalı"
+    )
+    # Aynı kurum ilan edenler dışarıda: bkz.
+    # `test_every_source_has_a_distinct_independence_group` istisnası.
+    groups = [s["independence_group"] for s in tier1 if not s.get("same_institution_as")]
     assert len(set(groups)) == len(groups), f"Tier 1 grupları çakışıyor: {groups}"
 
 
