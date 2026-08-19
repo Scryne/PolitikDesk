@@ -36,6 +36,10 @@ class MemoryEntry:
     # konuşanı belirten kesin kalıp yok.
     speaker: str | None = None
 
+    # Beyanın geçtiği olayın konu etiketleri (`events.topic_tags`).
+    # İki beyanın AYNI KONUDA olup olmadığı bununla sınanır.
+    topic_tags: tuple[str, ...] = ()
+
     # ⛔ Bu kaydın aktörle bağı NE KADAR SAĞLAM?
     #
     # "strong": `claims.speaker` doğrudan aktörü gösteriyor — beyan ona
@@ -157,7 +161,7 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
             """
             SELECT c.id as claim_id, c.claim_text, c.claim_type, c.evidence_status,
                    c.event_id, e.title as event_title, e.first_reported_at,
-                   c.status_reason, c.speaker
+                   c.status_reason, c.speaker, e.topic_tags
             FROM claims c
             JOIN events e ON e.id = c.event_id
             WHERE c.claim_text ILIKE %s
@@ -206,6 +210,7 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
                     first_reported_at=reported,
                     quote_span=quote,
                     speaker=r.get("speaker"),
+                    topic_tags=tuple(r.get("topic_tags") or ()),
                     # Aktör adı konuşan alanında geçiyorsa beyan ona
                     # aittir; geçmiyorsa kayıt yalnızca "aynı olayda
                     # anılıyor" demektir.

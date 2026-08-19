@@ -60,6 +60,61 @@ _POLARITY_PAIRS_RAW: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     ),
 )
 
+# Kavramların insan okunur adı. Sıra `_POLARITY_PAIRS_RAW` ile birebir.
+# ⛔ Eskiden eşleşen kavram atılıp yerine sabit "Politika / Tutum Beyanı"
+# yazılıyordu; 50 kaydın 50'si aynı konuyu gösteriyordu.
+CONCEPT_LABELS: tuple[str, ...] = (
+    "Para politikası (faiz yönü)",
+    "Genel destek / karşıtlık",
+    "Yasak / serbestlik",
+    "Kesin ret / müzakere",
+)
+
+# Kavramın KONUSAL ağırlığı. Para politikası bir konuyu adlandırır;
+# "destekliyoruz / karşıyız" özneden bağımsız bir duruş fiilidir ve tek
+# başına neyin desteklendiğini söylemez. Ölçüm: eski çıktıdaki 67
+# kaymanın 53'ü (%79,1) bu içeriksiz fiillerden geliyordu.
+CONCEPT_SPECIFICITY: tuple[float, ...] = (0.90, 0.55, 0.55, 0.60)
+
+# Konu örtüşmesi eşiği (Jaccard). Ölçüm gerekçesi `detect` içinde.
+MIN_TOPIC_OVERLAP: float = 0.5
+
+# Bir "U dönüşü" iddiası için asgari süre. Saatler içinde görüş
+# değişmez; eski çıktıda 17 kayma aynı gün içindeydi.
+MIN_DAYS_FOR_REVERSAL: int = 7
+
+MAX_CONFIDENCE: float = 0.95
+
+
+def _topic_overlap(a: tuple[str, ...], b: tuple[str, ...]) -> float:
+    """İki olayın konu kümesi Jaccard benzerliği. Etiket yoksa 0."""
+    sa, sb = set(a), set(b)
+    if not sa or not sb:
+        # Etiket yokluğu örtüşme KANITI değildir. 1.0 dönmek, konusu
+        # bilinmeyen her çifti "aynı konu" saymak olurdu.
+        return 0.0
+    return len(sa & sb) / len(sa | sb)
+
+
+def _confidence(concept_index: int, topic_overlap: float, days: int) -> float:
+    """Kayma güveni — GİRDİYE GÖRE DEĞİŞİR.
+
+    ⛔ Eskiden bu değer sabit 0,85'ti. Hep aynı olan bir güven skoru bir
+    güven skoru değildir; ölçülmüş gibi görünen bir sabittir (ADR-010 §1).
+
+    Üç bileşen: kavramın konusal özgüllüğü, konu örtüşmesinin gücü ve
+    beyanlar arasındaki sürenin makullüğü. Üçü de yükseldikçe iddia
+    güçlenir.
+    """
+    ozgulluk = CONCEPT_SPECIFICITY[concept_index]
+    # Eşiğin (0,5) üstündeki örtüşme 0..1 aralığına yayılır.
+    ortusme = (topic_overlap - MIN_TOPIC_OVERLAP) / (1.0 - MIN_TOPIC_OVERLAP)
+    # 7 günden 180 güne doğru artan, sonra sabitlenen bir katkı.
+    sure = min(1.0, (days - MIN_DAYS_FOR_REVERSAL) / 173.0)
+    ham = 0.45 * ozgulluk + 0.35 * ortusme + 0.20 * sure
+    return round(min(MAX_CONFIDENCE, ham), 3)
+
+
 POLARITY_PAIRS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = tuple(
     (
         tuple(sorted((fold_text(w) for w in pos), key=len, reverse=True)),
@@ -275,8 +330,18 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
     for i in range(len(sorted_entries)):
         e1 = sorted_entries[i]
 
+        # ⛔ KAPI 1 — ATIF SAĞLAMLIĞI (ADR-010 §5/2)
+        #
+        # Beyan gerçekten bu aktöre ait olmalı. "Aynı olayda adı geçiyor"
+        # yetmez: eski davranış buydu ve Cumhurbaşkanlığı'na Bahçeli'nin
+        # sözünün atfedilmesinin sebebi tam olarak buydu.
+        if e1.attribution_strength != "strong":
+            continue
+
         for j in range(i + 1, len(sorted_entries)):
             e2 = sorted_entries[j]
+            if e2.attribution_strength != "strong":
+                continue
             if e1.event_id == e2.event_id:
                 continue
 
@@ -284,15 +349,44 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
             if pair in seen_pairs:
                 continue
 
+            # ⛔ KAPI 2 — KONU ÖRTÜŞMESİ (ADR-010 §5/1)
+            #
+            # Farklı konulardaki iki beyan "fikir değiştirdi" sayılamaz.
+            # Ölçüm: rastgele bir olay çiftinde ≥1 ortak etiket bulunma
+            # oranı %29,5 — yani "en az bir ortak etiket" zayıf bir
+            # kapıdır. Jaccard ≥ 0,5'te bu oran %17,5'e iniyor. Olay
+            # başına medyan etiket sayısı 1 olduğu için eşik, yaygın
+            # durumda "tam aynı konu" demeye gelir.
+            ortak = _topic_overlap(e1.topic_tags, e2.topic_tags)
+            if ortak < MIN_TOPIC_OVERLAP:
+                continue
+
             days = _calc_days_between(e1.first_reported_at, e2.first_reported_at)
 
-            for pol1, pol2 in zip(polarity_vectors[i], polarity_vectors[j], strict=True):
+            # ⛔ KAPI 3 — ZAMAN (ADR-010 §5/5)
+            #
+            # Saatler içinde "U dönüşü" olmaz. Eski çıktıda 67 kaymanın
+            # 17'si aynı gün içindeydi; bunlar bir görüş değişikliği
+            # değil, çoğunlukla iki ayrı konuydu.
+            if days < MIN_DAYS_FOR_REVERSAL:
+                continue
+
+            for k, (pol1, pol2) in enumerate(
+                zip(polarity_vectors[i], polarity_vectors[j], strict=True)
+            ):
                 if pol1 is not None and pol2 is not None and pol1 != pol2:
+                    # ⛔ Eşleşen KAVRAM kaydedilir. Eskiden sabit
+                    # "Politika / Tutum Beyanı" yazılıyordu; hangi
+                    # kavramın eşleştiği biliniyor olmasına rağmen
+                    # atılıyordu ve 50 kaydın 50'si aynı konuyu
+                    # gösteriyordu.
+                    kavram = CONCEPT_LABELS[k]
+                    guven = _confidence(k, ortak, days)
                     shifts.append(
                         StanceShift(
                             actor_name=mem.actor_name,
                             shift_type="reversal",
-                            topic_or_metric="Politika / Tutum Beyanı",
+                            topic_or_metric=kavram,
                             earlier_event_id=e1.event_id,
                             earlier_event_title=e1.event_title,
                             earlier_claim_text=e1.claim_text,
@@ -302,11 +396,21 @@ def detect_stance_shifts_from_memory(mem: ActorMemory) -> list[StanceShift]:
                             later_claim_text=e2.claim_text,
                             later_date=e2.first_reported_at,
                             time_span_days=days,
-                            confidence=0.85,
+                            confidence=guven,
                             evidence_summary=(
-                                "İki beyanda morfolojik/semantik zıt "
-                                "kutuplu ifadeler tespit edildi."
+                                f"'{kavram}' ekseninde zıt kutuplu iki beyan. "
+                                f"Konu örtüşmesi {ortak:.2f}; arada {days} gün. "
+                                f"Her iki beyan da aktöre doğrudan atfedilmiş."
                             ),
+                            metadata={
+                                "concept_index": k,
+                                "topic_overlap": round(ortak, 3),
+                                "shared_topics": sorted(
+                                    set(e1.topic_tags) & set(e2.topic_tags)
+                                ),
+                                "earlier_speaker": e1.speaker,
+                                "later_speaker": e2.speaker,
+                            },
                         )
                     )
                     seen_pairs.add(pair)
