@@ -32,6 +32,7 @@ from politikdesk.nlp.claims import (
     claim_signature,
     extract_claims,
 )
+from politikdesk.nlp.speaker import extract_speaker
 from politikdesk.observability import get_logger
 
 log = get_logger(__name__)
@@ -291,8 +292,9 @@ def _persist(
             cur.execute(
                 """
                 INSERT INTO claims (event_id, claim_text, claim_type, normalized_value,
-                                    evidence_status, status_reason, claim_signature)
-                VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb, %s)
+                                    evidence_status, status_reason, claim_signature,
+                                    speaker)
+                VALUES (%s, %s, %s, %s::jsonb, 'unverified', %s::jsonb, %s, %s)
                 ON CONFLICT (event_id, claim_signature)
                     WHERE claim_signature IS NOT NULL
                     DO NOTHING
@@ -310,6 +312,10 @@ def _persist(
                     # ve DB CHECK'i ihlal etmez.
                     json.dumps({"rule": "pending", "engine_version": "not_yet_scored"}),
                     signature,
+                    # Konuşan atfı DETERMİNİSTİKTİR ve `status_reason`'a
+                    # konmaz: orası kanıt motorunun malı ve her yeniden
+                    # puanlamada üzerine yazılıyor (ADR-010 §6).
+                    extract_speaker(claim.claim_text),
                 ),
             )
             row = cur.fetchone()

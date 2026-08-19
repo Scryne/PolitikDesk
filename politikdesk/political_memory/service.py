@@ -32,6 +32,23 @@ class MemoryEntry:
     source_names: tuple[str, ...] = ()
     relation_to_current: str | None = None
 
+    # Beyanın SAHİBİ (`claims.speaker`, deterministik). None = bu cümlede
+    # konuşanı belirten kesin kalıp yok.
+    speaker: str | None = None
+
+    # ⛔ Bu kaydın aktörle bağı NE KADAR SAĞLAM?
+    #
+    # "strong": `claims.speaker` doğrudan aktörü gösteriyor — beyan ona
+    #           ait.
+    # "weak"  : yalnızca olayda adı geçiyor (makale başlığı ya da bağlı
+    #           varlık). Bu, ADR-010 §1'deki yanlış isnadın kaynağıdır:
+    #           bir olayda adı anılan aktör, o olaydaki HERKESİN beyanını
+    #           devralıyordu.
+    #
+    # Bir aktöre tutarsızlık isnat eden her analiz "strong" şartı
+    # aramalıdır. Ayrımı taşımamak, ikisini eşit saymak demekti.
+    attribution_strength: str = "weak"
+
 
 @dataclass
 class ActorMemory:
@@ -140,11 +157,14 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
             """
             SELECT c.id as claim_id, c.claim_text, c.claim_type, c.evidence_status,
                    c.event_id, e.title as event_title, e.first_reported_at,
-                   c.status_reason
+                   c.status_reason, c.speaker
             FROM claims c
             JOIN events e ON e.id = c.event_id
             WHERE c.claim_text ILIKE %s
-               OR c.status_reason->>'speaker' ILIKE %s
+               -- ⛔ TEK SAĞLAM DAL BUDUR. Aşağıdakiler yalnızca "bu
+               -- olayda adı geçiyor" der; beyanın ona ait olduğunu
+               -- söylemez (ADR-010 §6).
+               OR c.speaker ILIKE %s
                OR EXISTS (
                    SELECT 1 FROM articles a
                    WHERE a.event_id = e.id AND a.title ILIKE %s
@@ -154,10 +174,21 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
                    JOIN entities en ON en.id = ee.entity_id
                    WHERE ee.event_id = e.id AND en.canonical_name ILIKE %s
                )
-            ORDER BY e.first_reported_at DESC
+            -- ⛔ ÖNCE AKTÖRÜN KENDİ BEYANLARI.
+            --
+            -- Yalnızca tarihe göre sıralandığında `LIMIT 100`, gevşek
+            -- dallardan gelen ("aynı olayda adı geçiyor") kayıtlarla
+            -- doluyordu ve aktörün KENDİ sözleri listeden dışarı
+            -- itiliyordu. Ölçüldü: Özgür Özel'in konuşan alanında 44
+            -- beyanı varken hafızasında 0 sağlam kayıt görünüyordu.
+            --
+            -- `NULLS LAST` şart: Postgres'te `DESC` sıralamada NULL'lar
+            -- BAŞA gelir. Onsuz, konuşanı hiç olmayan kayıtlar en öne
+            -- geçiyor ve düzeltme tam tersine çalışıyordu.
+            ORDER BY (c.speaker ILIKE %s) DESC NULLS LAST, e.first_reported_at DESC
             LIMIT 100;
             """,
-            (pattern, pattern, pattern, pattern),
+            (pattern, pattern, pattern, pattern, pattern),
         )
         rows = cur.fetchall()
         for r in rows:
@@ -174,6 +205,16 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
                     evidence_status=r["evidence_status"],
                     first_reported_at=reported,
                     quote_span=quote,
+                    speaker=r.get("speaker"),
+                    # Aktör adı konuşan alanında geçiyorsa beyan ona
+                    # aittir; geçmiyorsa kayıt yalnızca "aynı olayda
+                    # anılıyor" demektir.
+                    attribution_strength=(
+                        "strong"
+                        if r.get("speaker")
+                        and actor_name.casefold() in str(r["speaker"]).casefold()
+                        else "weak"
+                    ),
                 )
             )
 
