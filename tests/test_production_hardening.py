@@ -40,7 +40,7 @@ from politikdesk.political_memory.stance_shift import (
     _evaluate_text_polarity,
     _has_morphological_negation,
 )
-from politikdesk.web.ui.components import esc, esc_attr, source_pill
+from politikdesk.web.ui.components import esc, esc_attr, esc_url, source_pill
 from politikdesk.worker import on_worker_process_init, on_worker_process_shutdown
 
 
@@ -418,16 +418,26 @@ def test_ui_components_xss_and_unsafe_uri_schemes() -> None:
     assert "&lt;script&gt;" in escaped
 
     # 2. URI protokol sahteciliği engeli (javascript, vbscript, data URI, percent-encoded)
-    assert esc_attr("javascript:alert(1)") == "#"
-    assert esc_attr("  JAVASCRIPT:alert(1) ") == "#"
-    assert esc_attr("vbscript:msgbox(1)") == "#"
-    assert esc_attr("data:text/html;base64,PHNjcmlwdD4=") == "#"
-    assert esc_attr("data:image/svg+xml;utf8,<svg onload=alert(1)>") == "#"
-    assert esc_attr("javascript%3Aalert(1)") == "#"
+    #
+    # 20 Ağustos 2026 denetimi: bu denetim `esc_attr`ten `esc_url`e TAŞINDI.
+    # Gerekçe iki yönlü — `esc_attr` kara listesi (a) `href` artık oradan
+    # geçmediği için güvenlik katmıyordu, (b) "javascript: dilinde yeni
+    # sürüm" gibi meşru bir başlığı `#`e çevirip içeriği bozuyordu.
+    # `esc_url` aynı vektörleri İZİN LİSTESİYLE kapatır, yani daha güçlüdür.
+    assert esc_url("javascript:alert(1)") == "#"
+    assert esc_url("  JAVASCRIPT:alert(1) ") == "#"
+    assert esc_url("vbscript:msgbox(1)") == "#"
+    assert esc_url("data:text/html;base64,PHNjcmlwdD4=") == "#"
+    assert esc_url("data:image/svg+xml;utf8,<svg onload=alert(1)>") == "#"
+    assert esc_url("javascript%3Aalert(1)") == "#"
 
     # 3. Güvenli linklere izin verilir
-    assert esc_attr("https://politikdesk.com/event/1") == "https://politikdesk.com/event/1"
-    assert esc_attr("/feed") == "/feed"
+    assert esc_url("https://politikdesk.com/event/1") == "https://politikdesk.com/event/1"
+    assert esc_url("/feed") == "/feed"
+
+    # 4. Metin öznitelikleri kaçırılır ama İÇERİK BOZULMAZ.
+    assert esc_attr('Sayfa "1"') == "Sayfa &quot;1&quot;"
+    assert esc_attr("javascript: dilinde yeni sürüm") == "javascript: dilinde yeni sürüm"
 
     # 4. Kaynak hapı (source_pill) XSS denetimi
     pill = source_pill("<img src=x onerror=alert(1)>", tier=1, url="javascript:alert(1)")

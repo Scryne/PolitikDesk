@@ -31,6 +31,27 @@ app.conf.update(
     enable_utc=True,
     task_acks_late=True,
     worker_prefetch_multiplier=1,
+    # ── Zaman sınırı: KÜRESEL VARSAYILAN (20 Ağustos 2026 denetimi) ──
+    #
+    # Eskiden yalnızca iki görevin kendi sınırı vardı; geri kalan on altısı
+    # sınırsızdı. Worker `--concurrency 2` ile koşuyor, yani asılı kalan iki
+    # görev TÜM işleme kapasitesini süresiz olarak tutabilirdi ve beat
+    # kuyruğa yeni iş yığmaya devam ederdi. Boru hattı, hiçbir şey "hata"
+    # vermeden durur — 13 Ağustos'ta kümelemenin 13 saat sessizce durması
+    # tam olarak bu sınıftan bir arızaydı.
+    #
+    # `soft` önce gelir: görev `SoftTimeLimitExceeded` alır, kendi `except`
+    # bloğu çalışır ve düzgün bir hata kaydı düşer. `hard` yalnızca soft'a
+    # yanıt vermeyen (C içinde bloke, ölü soket) süreçleri keser.
+    #
+    # Kendi sınırını bildiren görevler (`ingest_social`, `link_political_
+    # relations`, `sync_stance_shifts`) bu varsayılanı EZER; dekoratördeki
+    # değer önceliklidir.
+    task_soft_time_limit=600,
+    task_time_limit=900,
+    # Worker çökerse görev yeniden teslim edilsin (`acks_late` ile birlikte
+    # anlamlıdır: onay iş bitince verilir, çöken worker'ın işi kaybolmaz).
+    task_reject_on_worker_lost=True,
 )
 
 

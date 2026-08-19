@@ -47,21 +47,93 @@ def esc(value: object) -> str:
     return html.escape(str(value if value is not None else ""), quote=True)
 
 
-def esc_attr(value: object) -> str:
-    """HTML özniteliği (attribute) için güvenli kaçış.
+# Tarayıcı, bir URL'i çözümlemeden ÖNCE onu normalleştirir (WHATWG URL
+# Standard). Şema denetimi bu normalleştirmeyi birebir taklit etmezse
+# denetim ile tarayıcının gördüğü dize farklı olur — aradaki fark bir
+# atlatma yoludur.
+#
+# İki kural geçerlidir:
+#   1. Baştaki (ve sondaki) C0 kontrol karakterleri (U+0000–U+001F) ve
+#      boşluk ATILIR.
+#   2. Sekme (U+0009), LF (U+000A) ve CR (U+000D) URL'in HER YERİNDEN atılır.
+#
+# ⚠ Python'un `str.strip()`'i 1. kuralı KARŞILAMAZ: yalnızca boşluk
+# saydığı karakterleri (`\t\n\v\f\r`, `\x1c`–`\x1f`, boşluk) soyar;
+# `\x00`–`\x08` ve `\x0e`–`\x1b` aralığı elinde kalır. Ölçüldü (20 Ağustos
+# 2026, gerçek Chromium): `esc_attr("\x01javascript:alert(1)")` eski
+# sürümde dizeyi olduğu gibi geçiriyordu ve tarayıcı `a.protocol` değerini
+# `javascript:` olarak çözüyordu — yani denetim bypass ediliyordu.
+_URL_LEADING_STRIP = "".join(chr(c) for c in range(0x20)) + " "
+_URL_INLINE_STRIP = str.maketrans("", "", "\t\n\r")
 
-    Tırnak işaretleri, ampersand ve XSS teşebbüslerini (`javascript:`, `data:` URI'ları)
-    öznitelik düzeyinde etkisizleştirir.
+_DANGEROUS_SCHEMES = ("javascript:", "vbscript:", "data:")
+
+# `href`/`src`/`action` için İZİN LİSTESİ. Kara liste yaklaşımı yeni bir
+# tehlikeli şema (blob:, filesystem:, intent: …) çıktığında sessizce
+# açık kalır; izin listesi varsayılan olarak kapalıdır.
+_SAFE_URL_SCHEMES = ("http://", "https://", "mailto:")
+
+
+def _browser_normalized_url(value: str) -> str:
+    """Tarayıcının şemayı çözerken göreceği biçim (küçük harfli)."""
+    return value.strip(_URL_LEADING_STRIP).translate(_URL_INLINE_STRIP).lower()
+
+
+def _has_dangerous_scheme(value: str) -> bool:
+    """Değer, tarayıcı gözüyle tehlikeli bir şemayla mı başlıyor?"""
+    normalized = _browser_normalized_url(value)
+    if normalized.startswith(_DANGEROUS_SCHEMES):
+        return True
+    # Yüzde kodlaması (`%6a%61%76%61script:`) tek geçişte çözülür.
+    return urllib.parse.unquote(normalized).startswith(_DANGEROUS_SCHEMES)
+
+
+def esc_attr(value: object) -> str:
+    """URL TAŞIMAYAN HTML öznitelikleri için güvenli kaçış.
+
+    `quote=True` ile tırnak, `<`, `>` ve `&` kaçırılır — yani değer
+    özniteliğin dışına çıkamaz ve yeni bir öznitelik (`onerror=` gibi)
+    açamaz. Bir metin özniteliği için güvenlik sınırı budur.
+
+    **Şema kara listesi BURADAN KALDIRILDI (20 Ağustos 2026 denetimi).**
+
+    Eskiden bu fonksiyon `javascript:`/`data:`/`vbscript:` ile başlayan
+    değeri `#`e çeviriyordu, çünkü `href` de buradan geçiyordu. Artık
+    `href`/`src`/`action` `esc_url()` kullanıyor ve denetim ORAYA,
+    üstelik kara liste yerine İZİN LİSTESİ olarak taşındı.
+
+    Kara listeyi burada bırakmak güvenlik katmıyordu (kaçırılmış bir metin
+    zaten çalıştırılamaz) ama meşru içeriği bozuyordu: "javascript: dilinde
+    yeni sürüm" başlıklı bir haberin `title` özniteliği `#` oluyordu.
+    """
+    return html.escape(str(value if value is not None else ""), quote=True)
+
+
+def esc_url(value: object) -> str:
+    """`href` / `src` / `action` için güvenli URL kaçışı (izin listesi).
+
+    Kabul edilenler:
+      * mutlak `http://`, `https://`, `mailto:`
+      * site içi göreli yollar (`/feed`, `?sayfa=2`, `#bolum`)
+
+    Geri kalan her şey `#`e düşer. Kaynaklardan gelen bir bağlantı
+    `javascript:` ise ekranda tıklanabilir olmaması DOĞRU davranıştır:
+    haberin kendisi görünmeye devam eder, yalnızca bağlantı ölür.
     """
     s = str(value if value is not None else "").strip()
-    # javascript:, vbscript: ve data: protokol sahteciliğini engelle
-    clean = s.lower().replace(" ", "").replace("\t", "").replace("\r", "").replace("\n", "")
-    unquoted = urllib.parse.unquote(clean)
-    if clean.startswith(("javascript:", "vbscript:", "data:")) or unquoted.startswith(
-        ("javascript:", "vbscript:", "data:")
-    ):
+    if not s:
+        return ""
+    if _has_dangerous_scheme(s):
         return "#"
-    return html.escape(s, quote=True)
+
+    normalized = _browser_normalized_url(s)
+    if normalized.startswith(_SAFE_URL_SCHEMES):
+        return html.escape(s, quote=True)
+    # Göreli yollar. `//evil.com` protokol-göreli bir MUTLAK adrestir;
+    # site içi sayılmaz ve reddedilir.
+    if normalized.startswith(("/", "?", "#")) and not normalized.startswith("//"):
+        return html.escape(s, quote=True)
+    return "#"
 
 
 def script_json(value: Any) -> str:
@@ -120,7 +192,9 @@ def _attrs(**kwargs: Any) -> str:
         if value is True:
             out.append(name)
         elif key in ("href", "action", "src"):
-            out.append(f'{name}="{esc_attr(value)}"')
+            # URL öznitelikleri izin listesinden geçer; gerisi yalnızca
+            # kaçırılır (bir `title` içinde "javascript:" geçmesi meşrudur).
+            out.append(f'{name}="{esc_url(value)}"')
         else:
             out.append(f'{name}="{esc_attr(value)}"')
     return (" " + " ".join(out)) if out else ""
@@ -228,7 +302,7 @@ def source_pill(name: str, tier: int | None = None, *, url: str = "") -> str:
     esc_name = esc(name)
     content = f"{t_html}<span>{esc_name}</span>"
     if url:
-        return f'<a class="source-pill" href="{esc_attr(url)}" target="_blank" rel="noopener noreferrer">{content}</a>'
+        return f'<a class="source-pill" href="{esc_url(url)}" target="_blank" rel="noopener noreferrer">{content}</a>'
     return f'<span class="source-pill">{content}</span>'
 
 

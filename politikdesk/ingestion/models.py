@@ -89,6 +89,14 @@ class IngestionStats:
     near_duplicates: int = 0
     filtered_out: int = 0
     errors: int = 0
+    rejected_urls: int = 0
+    """Bağlantısı `http`/`https` olmadığı için atılan kalem sayısı.
+
+    `filtered_out`tan AYRI tutulur: o konu kapsamı kararıdır ve normaldir;
+    bu ise kaynağın verdiği bağlantının kullanılamaz olmasıdır. İkisini
+    aynı sayaçta toplamak, bir kaynağın bozuk/düşman bağlantı üretmeye
+    başladığını görünmez kılardı.
+    """
 
     def merge(self, other: IngestionStats) -> None:
         self.fetched += other.fetched
@@ -97,3 +105,4 @@ class IngestionStats:
         self.near_duplicates += other.near_duplicates
         self.filtered_out += other.filtered_out
         self.errors += other.errors
+        self.rejected_urls += other.rejected_urls

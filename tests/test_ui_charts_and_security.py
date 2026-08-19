@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from politikdesk.web.ui.charts import economic_indicator_card, sparkline_svg
-from politikdesk.web.ui.components import SafeString, _attrs, esc, esc_attr, mark_safe
+from politikdesk.web.ui.components import (
+    SafeString,
+    _attrs,
+    esc,
+    esc_attr,
+    esc_url,
+    mark_safe,
+)
 from politikdesk.web.ui.css import stylesheet
 
 
@@ -19,15 +26,21 @@ def test_safestring_and_esc_immunity() -> None:
     assert esc(safe_markup) == '<span class="badge">Güvenli</span>'
 
 
-def test_esc_attr_neutralizes_protocols_and_quotes() -> None:
+def test_esc_url_neutralizes_protocols() -> None:
+    """URI şema denetimi (20 Ağu 2026'da `esc_attr`ten `esc_url`e taşındı)."""
     # JavaScript URI saldırısı etkisizleşmeli
-    assert esc_attr("javascript:alert(1)") == "#"
-    assert esc_attr("JAVASCRIPT: alert(1)") == "#"
-    assert esc_attr("vbscript:msgbox(1)") == "#"
-    assert esc_attr("data:text/html,<script>alert(1)</script>") == "#"
+    assert esc_url("javascript:alert(1)") == "#"
+    assert esc_url("JAVASCRIPT: alert(1)") == "#"
+    assert esc_url("vbscript:msgbox(1)") == "#"
+    assert esc_url("data:text/html,<script>alert(1)</script>") == "#"
 
-    # Güvenli URL ve değerler düzgün kaçırılmalı
-    assert esc_attr('https://example.com/search?q="test"') == 'https://example.com/search?q=&quot;test&quot;'
+
+def test_esc_attr_escapes_quotes() -> None:
+    """Metin özniteliği: tırnak kaçırılır, içerik korunur."""
+    assert (
+        esc_attr('https://example.com/search?q="test"')
+        == "https://example.com/search?q=&quot;test&quot;"
+    )
 
 
 def test_attrs_escaping() -> None:

@@ -197,7 +197,29 @@ def cluster_pending(self, limit: int = CLUSTER_BATCH_SIZE) -> dict[str, int]:  #
         raise self.retry(exc=exc, countdown=120) from exc
 
 
-@app.task(name="politikdesk.extract_claims_pending", bind=True, max_retries=2)
+@app.task(
+    name="politikdesk.extract_claims_pending",
+    bind=True,
+    max_retries=2,
+    # Küresel varsayılan (600/900 sn) BU GÖREV İÇİN YETERSİZDİR — ölçüldü.
+    #
+    # 20 Ağustos 2026, son 24 saatin 3.928 çağrısı (`llm_calls`):
+    #     ortalama 22,1 sn · p95 80,8 sn · azami 335,3 sn   (TEK çağrı)
+    #
+    # Görev `CLAIM_BATCH_EVENTS` (5) olay işler ve olay başına en az bir
+    # çağrı yapar; sağlayıcı 429 döndürdüğünde geri çekilme ve ikinci
+    # modele düşüş bunu ikiye katlar. Kuyruğun kuyruk ucunda bir parti
+    # 5 × 335 sn ≈ 28 dakikaya kadar çıkabilir.
+    #
+    # 600 sn'lik varsayılan bırakılsaydı parti düzenli olarak kesilir ve
+    # her kesilme, yarım kalan olayın LLM çağrılarını çöpe atardı — yani
+    # sistemin EN KIT kaynağı olan ücretsiz katman kotası boşa giderdi.
+    #
+    # İş kaybı yok: `claims_pipeline.run` her olaydan sonra `commit`
+    # eder, dolayısıyla kesilme yalnızca o anki olayı geri alır.
+    soft_time_limit=1800,
+    time_limit=2100,
+)
 def extract_claims_pending(self, limit: int = CLAIM_BATCH_EVENTS) -> dict[str, int]:  # noqa: ANN001
     """Olaylardan iddia çıkarır (F2-06…F2-10).
 
@@ -578,3 +600,24 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=23, minute=50),
     },
 }
+
+
+# ── Periyodik görevler bayatlayınca ÖLSÜN (20 Ağustos 2026 denetimi) ──
+#
+# Beat, worker'ın ayakta olup olmadığına bakmadan kuyruğa yazar. Worker bir
+# saat kapalı kalırsa `ingest_all` kuyrukta 12 kez birikir; worker döndüğünde
+# bu 12 turun tamamını sırayla koşar. Hepsi AYNI işi yapar (kaynakların o
+# anki hâlini çeker), yani on biri boşunadır — üstelik taze turu dakikalarca
+# geciktirir ve toparlanmayı yavaşlatır.
+#
+# `expires`, görev bir sonraki turdan önce ele alınmadıysa onu düşürür:
+# kaçırılan tur telafi edilmez, çünkü telafi edilecek bir şey yoktur.
+#
+# Yalnızca sabit aralıklı (saniye cinsinden) görevlere uygulanır. `crontab`
+# tabanlı olanlar (brifing, gecelik metrik, purge) BİLEREK dışarıdadır:
+# onlar günün belirli bir anına aittir ve gecikmeli de olsa koşmaları
+# gerekir — akşam brifingi 20:05'te üretilebilir, hiç üretilmemesi kötüdür.
+for _name, _entry in app.conf.beat_schedule.items():
+    _schedule = _entry.get("schedule")
+    if isinstance(_schedule, int | float):
+        _entry.setdefault("options", {}).setdefault("expires", float(_schedule) * 0.9)

@@ -53,19 +53,47 @@ _TRACKING_EXACT = frozenset(
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 _WHITESPACE_RE = re.compile(r"\s+")
 
+# Bir makale bağlantısı yalnızca web adresi olabilir. Kaynak akışları
+# güvenilmeyen girdidir: `<link>` alanına ne yazıldığını biz seçmiyoruz.
+_ALLOWED_ARTICLE_SCHEMES = frozenset({"http", "https"})
+
+
+class UnsafeArticleUrlError(ValueError):
+    """Makale bağlantısı web adresi değil (ör. `javascript:`, `data:`)."""
+
 
 def canonicalize_url(url: str) -> str:
     """URL'i tekilleştirmeye uygun kanonik biçime getirir.
 
+    - şema doğrulanır: yalnızca `http`/`https` kabul edilir
     - şema ve host küçük harfe indirilir
     - takip parametreleri atılır
     - kalan sorgu parametreleri sıralanır (sıra farkı tekrar üretmesin)
     - fragment (#...) atılır
     - sondaki '/' kaldırılır (kök hariç)
+
+    **Şema denetimi neden BURADA (20 Ağustos 2026 denetimi).**
+
+    Eskiden şema hiç denetlenmiyordu: `parts.scheme or "https"` ne
+    gelirse küçük harfe indirip geçiriyordu. Yani düşman ya da ele
+    geçirilmiş bir akışın `<link>javascript:alert(1)</link>` satırı
+    `articles.canonical_url` sütununa AYNEN yazılabiliyordu (tabloda
+    şema üzerinde `CHECK` kısıtı da yok).
+
+    Ekranda bunu `esc_url()` yakalar — ama o SON savunmadır ve HTML'e
+    özgüdür. Aynı sütun HTML dışına da akıyor: `web/export_formats.py`
+    içindeki bülten dışa aktarımı URL'i doğrudan Markdown bağlantısına
+    gömer ve orada hiçbir HTML kaçışı devrede değildir.
+
+    Doğru katman girişdir: kirli değer veritabanına hiç girmemelidir.
     """
-    parts = urlsplit(url.strip())
+    raw = url.strip()
+    parts = urlsplit(raw)
 
     scheme = (parts.scheme or "https").lower()
+    if scheme not in _ALLOWED_ARTICLE_SCHEMES:
+        raise UnsafeArticleUrlError(f"Desteklenmeyen bağlantı şeması: {scheme!r}")
+
     netloc = parts.netloc.lower()
     if netloc.startswith("www."):
         netloc = netloc[4:]

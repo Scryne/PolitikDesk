@@ -116,7 +116,7 @@ def test_partial_failure_keeps_the_round_successful(monkeypatch) -> None:
     monkeypatch.setattr(
         pipeline_mod.Pipeline,
         "_store_items",
-        lambda self, items, source, decision, stats: stats,
+        lambda self, items, source, decision, stats, **kwargs: stats,
     )
 
     pipeline_mod.Pipeline().run_source(_source_row())
@@ -546,7 +546,7 @@ def test_http_client_acquires_rate_limiter_on_every_retry_attempt(
     client = HttpClient(max_retries=4, respect_robots=False)
     mock_limiter = MagicMock()
     client._limiter = mock_limiter
-    client._client.request = fake_request  # type: ignore[method-assign]
+    client._perform = fake_request  # type: ignore[method-assign,assignment]
 
     resp = client._send("GET", "https://ornek.gov.tr/veri")
     assert resp.status_code == 200
@@ -580,7 +580,7 @@ def test_http_client_429_scenario_acquires_limiter_per_attempt(
     client = HttpClient(max_retries=3, respect_robots=False)
     mock_limiter = MagicMock()
     client._limiter = mock_limiter
-    client._client.request = fake_request  # type: ignore[method-assign]
+    client._perform = fake_request  # type: ignore[method-assign,assignment]
 
     resp = client._send("GET", "https://ornek.gov.tr/api")
     assert resp.status_code == 200
@@ -606,7 +606,7 @@ def test_http_client_no_sleep_on_final_retry_attempt(monkeypatch: pytest.MonkeyP
 
     client = HttpClient(max_retries=3, respect_robots=False)
     client._limiter = MagicMock()
-    client._client.request = fake_failing_request  # type: ignore[method-assign]
+    client._perform = fake_failing_request  # type: ignore[method-assign,assignment]
 
     with pytest.raises(httpx.HTTPStatusError):
         client._send("GET", "https://ornek.gov.tr/hata")
@@ -642,7 +642,7 @@ def test_http_client_retry_after_and_capped_sleep(monkeypatch: pytest.MonkeyPatc
 
     client = HttpClient(max_retries=3, respect_robots=False)
     client._limiter = MagicMock()
-    client._client.request = fake_429_request  # type: ignore[method-assign]
+    client._perform = fake_429_request  # type: ignore[method-assign,assignment]
 
     with pytest.raises(httpx.HTTPStatusError):
         client._send("GET", "https://ornek.gov.tr/oran")

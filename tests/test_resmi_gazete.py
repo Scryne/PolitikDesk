@@ -189,7 +189,10 @@ def test_http_retry_on_timeout(monkeypatch) -> None:
             raise httpx.ReadTimeout("Sunucu yanit vermedi")
         return httpx.Response(200, text=FIHRIST, request=httpx.Request(method, url))
 
-    monkeypatch.setattr(httpx.Client, "request", mock_request)
+    # Ag katmaninin yama noktasi `HttpClient._perform`tir; imza aynidir.
+    # `httpx.Client.request`e baglanmak ürün kodunun ic detayina baglanmakti
+    # (20 Agu 2026: govde boyut tavani eklenince o cagri `send`e donustu).
+    monkeypatch.setattr(HttpClient, "_perform", mock_request)
 
     client = HttpClient(timeout=5.0, max_retries=4, respect_robots=False)
     resp = client.get(f"{BASE}/fihrist?tarih=2026-08-13")
@@ -212,7 +215,10 @@ def test_http_non_retryable_error(monkeypatch) -> None:
         req = httpx.Request(method, url)
         return httpx.Response(404, request=req)
 
-    monkeypatch.setattr(httpx.Client, "request", mock_request)
+    # Ag katmaninin yama noktasi `HttpClient._perform`tir; imza aynidir.
+    # `httpx.Client.request`e baglanmak ürün kodunun ic detayina baglanmakti
+    # (20 Agu 2026: govde boyut tavani eklenince o cagri `send`e donustu).
+    monkeypatch.setattr(HttpClient, "_perform", mock_request)
 
     client = HttpClient(timeout=5.0, max_retries=4, respect_robots=False)
     with pytest.raises(httpx.HTTPStatusError):
@@ -294,6 +300,7 @@ def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
     import httpx
 
     from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
+    from politikdesk.ingestion.http import HttpClient
 
     today_str = date.today().isoformat()
 
@@ -303,7 +310,10 @@ def test_resmi_gazete_partial_timeout_recovery(monkeypatch) -> None:
             raise httpx.ReadTimeout("Gecici gov.tr sunucu takilmasi")
         return httpx.Response(200, text=FIHRIST, request=req)
 
-    monkeypatch.setattr(httpx.Client, "request", mock_request)
+    # Ag katmaninin yama noktasi `HttpClient._perform`tir; imza aynidir.
+    # `httpx.Client.request`e baglanmak ürün kodunun ic detayina baglanmakti
+    # (20 Agu 2026: govde boyut tavani eklenince o cagri `send`e donustu).
+    monkeypatch.setattr(HttpClient, "_perform", mock_request)
 
     adapter = ResmiGazeteAdapter(
         slug="resmi-gazete",

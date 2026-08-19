@@ -35,7 +35,7 @@ from politikdesk.ingestion.adapters.twitter import TwitterAdapter
 from politikdesk.ingestion.dedup import classify as classify_duplicate
 from politikdesk.ingestion.http import HttpClient
 from politikdesk.ingestion.models import IngestionStats, RawItem
-from politikdesk.ingestion.normalizer import normalize
+from politikdesk.ingestion.normalizer import UnsafeArticleUrlError, normalize
 from politikdesk.ingestion.repository import SourceRow
 from politikdesk.observability import get_logger
 
@@ -226,9 +226,26 @@ class Pipeline:
         """
         sources = [s for s in repository.list_sources(only_active=True) if _selects(select, s)]
 
+        # Tekilleştirme penceresi TUR BAŞINA BİR KEZ yüklenir ve kaynaklar
+        # arasında paylaşılır (20 Ağustos 2026 denetimi).
+        #
+        # Eskiden `_store_items` her kaynak için yeniden yüklüyordu. Ölçüm:
+        # pencere 6.239 satır / ~2 MB metin, yükleme 78 ms. Canlı `source_
+        # fetch_log`'a göre saatte 970 kaynak turu öğe döndürüyor — yani
+        # AYNI veri saatte 970 kez çekiliyordu (~76 sn boşa DB zamanı ve
+        # ~1,9 GB satır trafiği).
+        #
+        # Paylaşmak DOĞRULUĞU DA ARTIRIR: `window.remember()` tur içinde
+        # eklenen makaleleri de karşılaştırmaya sokar, dolayısıyla artık
+        # aynı turda FARKLI kaynaklardan gelen aynı haber de yakalanır.
+        # Kaynak başına yüklemede A kaynağının eklediği makale, B kaynağı
+        # işlenirken pencerede YOKTU (B kendi anlık görüntüsünü almıştı) —
+        # yani ajans kopyaları tur içinde gözden kaçabiliyordu.
+        window = repository.load_dedup_window()
+
         total = IngestionStats()
         for source in sources:
-            total.merge(self.run_source(source))
+            total.merge(self.run_source(source, window=window))
         log.info(
             "ingestion_cycle_complete",
             select=select,
@@ -238,11 +255,20 @@ class Pipeline:
             exact_dupes=total.exact_duplicates,
             near_dupes=total.near_duplicates,
             filtered=total.filtered_out,
+            rejected_urls=total.rejected_urls,
             errors=total.errors,
         )
         return total
 
-    def run_source(self, source: SourceRow) -> IngestionStats:
+    def run_source(
+        self, source: SourceRow, *, window: repository.DedupWindow | None = None
+    ) -> IngestionStats:
+        """Tek bir kaynağı işler.
+
+        `window` verilmezse kaynağa özel bir pencere yüklenir — tek kaynak
+        elle koşturulduğunda (`scripts.ingest`, testler) gereken davranış
+        budur. Tam turda `run_all` paylaşılan pencereyi geçirir.
+        """
         stats = IngestionStats()
         started = time.perf_counter()
         error: str | None = None
@@ -272,7 +298,7 @@ class Pipeline:
                 failures = adapter_base.drain_failures(adapter)
                 parsed = adapter_base.drain_parsed(adapter)
             stats.fetched = len(items)
-            stats = self._store_items(items, source, decision, stats)
+            stats = self._store_items(items, source, decision, stats, window=window)
 
         except guard.ForbiddenSourceError:
             # Yasaklı kaynak bir yapılandırma hatasıdır; yutulmaz.
@@ -334,11 +360,14 @@ class Pipeline:
         source: SourceRow,
         decision: guard.GuardDecision,
         stats: IngestionStats,
+        *,
+        window: repository.DedupWindow | None = None,
     ) -> IngestionStats:
         if not items:
             return stats
 
-        window = repository.load_dedup_window()
+        if window is None:
+            window = repository.load_dedup_window()
 
         for item in items:
             matched_topics = topics.classify(item.title, item.summary, vertical=source.vertical)
@@ -346,12 +375,25 @@ class Pipeline:
                 stats.filtered_out += 1
                 continue
 
-            article = normalize(
-                item,
-                store_excerpt=decision.store_excerpt,
-                topics=matched_topics,
-                vertical=source.vertical,
-            )
+            try:
+                article = normalize(
+                    item,
+                    store_excerpt=decision.store_excerpt,
+                    topics=matched_topics,
+                    vertical=source.vertical,
+                )
+            except UnsafeArticleUrlError as exc:
+                # Kaynağın verdiği bağlantı web adresi değil. Tek kalem
+                # atılır; tur devam eder — bir bozuk `<link>` yüzünden
+                # kaynağın tamamını düşürmek orantısız olurdu.
+                stats.rejected_urls += 1
+                log.warning(
+                    "article_url_rejected",
+                    source=source.slug,
+                    title=item.title[:80],
+                    detail=str(exc)[:120],
+                )
+                continue
             article_text = f"{article.title} {article.excerpt or ''}"
 
             verdict = classify_duplicate(

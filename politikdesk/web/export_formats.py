@@ -10,6 +10,32 @@ from __future__ import annotations
 
 from typing import Any
 
+# Markdown bağlantısı HTML kaçış katmanının DIŞINDADIR. `esc_url()` yalnızca
+# sunucu-üretimi HTML'i korur; buradan çıkan metin Substack/e-bülten gibi
+# başka bir işleyiciye gider ve orada bizim kaçışımız devrede değildir.
+#
+# İki ayrı risk kapatılır:
+#   1. Şema — bağlantı `http`/`https` değilse hiç yazılmaz.
+#   2. Sözdizimi kaçışı — başlıktaki `]` veya URL'deki `)` bağlantıyı
+#      erken kapatıp arkasına serbest Markdown yazılmasına izin verirdi.
+_SAFE_LINK_SCHEMES = ("http://", "https://")
+
+
+def _safe_link_url(raw: object) -> str | None:
+    """Markdown bağlantısına yazılabilir bir URL mi? Değilse `None`."""
+    url = str(raw or "").strip()
+    if not url.lower().startswith(_SAFE_LINK_SCHEMES):
+        return None
+    # Parantez ve boşluk bağlantı sözdizimini bozar; `<...>` biçimi de
+    # `>` içeren bir URL'de kırılır, o yüzden doğrudan kodlanır.
+    return url.replace("(", "%28").replace(")", "%29").replace(" ", "%20").replace(">", "%3E")
+
+
+def _md_text(raw: object) -> str:
+    """Markdown bağlantı ETİKETİ için: köşeli parantezleri etkisizleştirir."""
+    return str(raw or "").replace("[", r"\[").replace("]", r"\]")
+
+
 STATUS_LABELS: dict[str, str] = {
     "strongly_corroborated": "GÜÇLÜ TEYİTLİ",
     "partially_corroborated": "KISMEN TEYİTLİ",
@@ -196,7 +222,16 @@ def to_newsletter_markdown(ev: dict[str, Any], claims: list[dict[str, Any]], art
         "",
     ])
     for a in articles:
-        lines.append(f"- *{a.get('source_name')}* — [{a.get('title', '')}]({a.get('url', '#')})")
+        label = _md_text(a.get("title", ""))
+        source_name = _md_text(a.get("source_name"))
+        url = _safe_link_url(a.get("url"))
+        if url:
+            lines.append(f"- *{source_name}* — [{label}]({url})")
+        else:
+            # Bağlantı kullanılamıyor: kaynak ve başlık YİNE DE yazılır.
+            # Kaynağın nereden geldiğini düşürmek, bozuk bir bağlantıyı
+            # düşürmekten daha kötüdür (Spec §9.3 kaynak gösterimi).
+            lines.append(f"- *{source_name}* — {label}")
 
     lines.append("\n---\n")
     return "\n".join(lines)

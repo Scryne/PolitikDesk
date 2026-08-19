@@ -50,6 +50,27 @@ DEFAULT_POOL_TIMEOUT = 5.0
 DEFAULT_MAX_RETRIES = 4
 RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 
+# Yanıt gövdesi tavanı (20 Ağustos 2026 denetimi).
+#
+# Adaptörlerin tamamı `response.text` / `response.content` çağırır, yani
+# gövdenin TAMAMINI belleğe alır. Tavan yokken bir kaynağın döndürdüğü
+# gövde ne kadar büyükse worker o kadar bellek ayırır ve `--concurrency 2`
+# ile iki eşzamanlı çekim bunu ikiye katlar.
+#
+# Asıl mesele boyutun kendisi değil, SIKIŞTIRMA ORANI: istemci `Accept-
+# Encoding: gzip, deflate` gönderiyor ve httpx gövdeyi otomatik açıyor.
+# Birkaç yüz kilobaytlık bir gzip yanıtı gigabaytlarca veriye açılabilir
+# (klasik "zip bomb"). Bu, kaynağın ele geçirilmesi ya da yalnızca
+# bozulması durumunda worker'ı düşürür.
+#
+# 25 MB, en büyük meşru gövdenin (Resmî Gazete fihristi, ölçülen ~3 MB)
+# yaklaşık sekiz katıdır — meşru kaynakları etkilemez.
+MAX_RESPONSE_BYTES = 25 * 1024 * 1024
+
+
+class ResponseTooLargeError(RuntimeError):
+    """Yanıt gövdesi tavanı aştı; içerik okunmadan bağlantı kapatıldı."""
+
 _ALLOWED_SCHEMES = frozenset({"http", "https"})
 _DISALLOWED_HOSTNAMES = frozenset({
     "localhost",
@@ -143,6 +164,9 @@ NON_RETRYABLE_ERRORS = (
     httpx.InvalidURL,
     UnsafeUrlError,
     CircuitOpenError,
+    # Tavanı aşan bir gövdeyi yeniden istemek aynı gövdeyi yeniden
+    # indirmektir — saldırıyı dört katına çıkarır, sorunu çözmez.
+    ResponseTooLargeError,
 )
 
 
@@ -539,7 +563,7 @@ class HttpClient:
                 req_kwargs: dict[str, Any] = {"data": data, "headers": headers}
                 if follow_redirects is not None:
                     req_kwargs["follow_redirects"] = follow_redirects
-                response = self._client.request(method, url, **req_kwargs)
+                response = self._perform(method, url, **req_kwargs)
             except NON_RETRYABLE_ERRORS as exc:
                 if not isinstance(exc, CircuitOpenError):
                     circuit.record_failure(error=type(exc).__name__)
@@ -584,6 +608,62 @@ class HttpClient:
         assert last_error is not None
         circuit.record_failure(error=type(last_error).__name__)
         raise last_error
+
+    def _perform(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+        """Tek bir HTTP isteğini yürütür — `MAX_RESPONSE_BYTES` tavanıyla.
+
+        **Ağ katmanının TEK yama noktasıdır (seam).** Testler ağı buradan
+        taklit eder; `httpx`in iç metotlarına (`Client.request`,
+        `Client.send`) bağlanmazlar. Bu ayrım 20 Ağustos 2026'da gerekti:
+        tavan denetimi eklenince `request()` yerine `send(stream=True)`
+        kullanmak zorunlu oldu ve `httpx.Client.request`i yamalayan sekiz
+        test, ürün kodu doğru çalıştığı hâlde kırıldı. Yama noktası artık
+        bizim, dolayısıyla httpx sürümü veya çağrı biçimi değiştiğinde
+        testler kırılmaz.
+
+        Gövde AKIŞLA okunur ve tavan aşıldığı anda bağlantı kapatılır —
+        yani devasa bir yanıt hiçbir zaman tamamen belleğe alınmaz. Tavan
+        AÇILMIŞ (decoded) bayta uygulanır; sıkıştırma bombasını ancak bu
+        katman görebilir, transport katmanı sıkıştırılmış baytı görür.
+
+        Tavanı aşmayan yanıtlar için davranış değişmez: `.text` ve
+        `.content` her zamanki gibi çalışır.
+        """
+        follow = kwargs.pop("follow_redirects", None)
+        request = self._client.build_request(method, url, **kwargs)
+        send_kwargs: dict[str, Any] = {"stream": True}
+        if follow is not None:
+            send_kwargs["follow_redirects"] = follow
+
+        response = self._client.send(request, **send_kwargs)
+        try:
+            declared = response.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > MAX_RESPONSE_BYTES:
+                raise ResponseTooLargeError(
+                    f"{url}: gövde {int(declared)} bayt olduğunu bildiriyor "
+                    f"(tavan {MAX_RESPONSE_BYTES})"
+                )
+
+            body = bytearray()
+            for chunk in response.iter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    # Sıkıştırılmış gövde tavanı açıldıktan SONRA aşabilir;
+                    # bildirilen uzunluk bunu göstermez. Asıl koruma burası.
+                    raise ResponseTooLargeError(
+                        f"{url}: gövde {MAX_RESPONSE_BYTES} bayt tavanını aştı"
+                    )
+        finally:
+            # Akış tüketildi ya da tavanda kesildi; her koşulda soketi
+            # havuza geri ver.
+            with contextlib.suppress(Exception):
+                response.close()
+
+        # httpx, akışla okunan bir yanıtta `.content`i doldurmaz; gövdeyi
+        # zaten tavan denetiminden geçirerek biriktirdik, geri yazıyoruz ki
+        # adaptörler (`response.text`) değişmeden çalışsın.
+        response._content = bytes(body)  # noqa: SLF001
+        return response
 
     def _backoff(
         self, attempt: int, url: str, *, reason: str, override: float | None = None

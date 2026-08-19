@@ -669,3 +669,56 @@ bağlı.
 
 Sonuç: ardışık hata 758 → 0, "susan kaynak" 8 → 7. Kalan 7'si RSSHub'ın
 X'ten aldığı HTTP 503'e bağlı ve gerçek sessizliktir.
+
+---
+
+## 20 Ağustos 2026 — Bağlantı kaçışı: kara listeden izin listesine
+
+Üretim denetimi (`docs/AUDIT-2026-08-20.md`, bulgu A1) arayüzün URL
+kaçışında **gerçek tarayıcıda çalışan** bir atlatma buldu.
+
+`esc_attr` şemayı denetlemeden önce `str.strip()` uyguluyordu. Python'un
+`strip()`'i `\x00`–`\x08` ve `\x0e`–`\x1b` aralığını boşluk saymaz;
+tarayıcı ise WHATWG URL Standard gereği baştaki **bütün** C0 kontrol
+karakterlerini atar. Yani denetimin gördüğü dize ile tarayıcının gördüğü
+dize farklıydı.
+
+Playwright + gerçek Chromium ile ölçüldü — `esc_attr` çıktısı `href`e
+konup `a.protocol` okundu:
+
+```
+'\x01javascript:alert(1)'  ->  protocol = "javascript:"   ÇALIŞIYOR
+'\x00javascript:alert(1)'  ->  protocol = "javascript:"   ÇALIŞIYOR
+'\x02javascript:alert(1)'  ->  protocol = "javascript:"   ÇALIŞIYOR
+'\x08javascript:alert(1)'  ->  protocol = "javascript:"   ÇALIŞIYOR
+```
+
+### Karar: iki ayrı fonksiyon
+
+| Öznitelik | Fonksiyon | Yaklaşım |
+|---|---|---|
+| `href`, `src`, `action` | `esc_url()` | **izin listesi** — http/https/mailto + site içi göreli yol |
+| diğer her şey (`title`, `aria-*`, `data-*`) | `esc_attr()` | yalnızca `html.escape(quote=True)` |
+
+Kara liste yerine izin listesi: yeni bir tehlikeli şema (`blob:`,
+`filesystem:`, `intent:`) çıktığında varsayılan **kapalı** kalır.
+
+### Şema denetimi neden `esc_attr`ten kalktı
+
+Orada güvenlik katmıyordu — kaçırılmış bir metin zaten çalıştırılamaz —
+ama **içeriği bozuyordu**: "javascript: dilinde yeni sürüm" başlıklı bir
+haberin `title` özniteliği `#` oluyordu. Bir kaçış katmanının meşru
+haber metnini sessizce silmesi, DESIGN.md Bölüm 13'ün (anti-slop)
+doğrudan ihlalidir: ekranda görünen şey kaynaktaki şey olmalı.
+
+### Arayüz açısından ders
+
+Bir güvenlik denetimi, koruduğu ortamın **kendi normalleştirmesini**
+taklit etmek zorundadır. Tarayıcı URL'i çözmeden önce ona dokunuyorsa,
+denetim de aynı dokunuşu yapmalı; yoksa denetim ile gerçeklik arasındaki
+fark bir açık kapıdır.
+
+Doğrulama: aynı tarayıcı sondası düzeltme sonrası **4 → 0** çalışan
+vektör. Gerçek olay sayfasında (`/event/1819`) 12 dış bağlantının tamamı
+sağlam, `href="#"` sayısı **0** — izin listesi meşru bağlantıları
+bozmuyor.
