@@ -193,6 +193,70 @@ def _expected_publications() -> str:
     )
 
 
+def _anomaly_panel() -> str:
+    """GÖSTERGE SAPMALARI (Roadmap Faz 3.1).
+
+    ⛔ Bir anomali bir YORUM DEĞİLDİR. Kart yalnızca ölçümü gösterir:
+    hangi seri, hangi dönem, ne kadar saptı, hangi yöntem, hangi eşik.
+    "Sebebi şu" demez ve demeyecek — nedensellik kanıt ister.
+
+    Durumlar açık yazılır (NORMAL / SAPMA / VERİ YETERSİZ / BAYAT /
+    YOK); kırmızı-yeşil tek anlam taşımaz.
+    """
+    from politikdesk.analysis.pipeline import open_anomalies
+
+    try:
+        kayitlar = open_anomalies(limit=6)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("war_room_anomaly_failed", error=str(exc))
+        return ""
+
+    if not kayitlar:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            "İzlenen resmî göstergelerde açık sapma yok.</p>"
+            '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            "Sapma yokluğu doğruluk kanıtı değildir; yalnızca eşiğin "
+            "aşılmadığını söyler.</p>",
+            title="Gösterge sapmaları",
+        )
+
+    tonlar = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
+    satirlar = []
+    for k in kayitlar:
+        ton = tonlar.get(str(k["severity"]), "")
+        birim = f" {k['unit']}" if k.get("unit") else ""
+        oran = k.get("deviation_ratio")
+        satirlar.append(
+            f'<div style="padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)">'
+            f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
+            f'<span style="font-size:var(--text-sm);font-weight:var(--weight-semibold)">'
+            f"{esc(k['label'])}</span>"
+            f'<span class="badge sm {ton}">SAPMA · {esc(str(k["severity"]).upper())}</span></div>'
+            f'<div class="mono" style="font-size:var(--text-xs);margin-top:2px">'
+            f"{esc(fmt.period_label(k['period']))} · "
+            f"{esc(fmt.number(float(k['observed_value']), 2))}{esc(birim)}"
+            + (f" · {oran:+.1f}σ" if oran is not None else "")
+            + "</div>"
+            f'<div class="subtle" style="font-size:var(--text-xs)">'
+            f"{esc(k['source_name'])} · {esc(k['series_code'])} · "
+            f"yöntem {esc(k['detection_method'])}, eşik {esc(str(k['threshold']))}, "
+            f"{esc(fmt.plural_count(int(k['baseline_size']), 'gözlem'))}</div>"
+            f"</div>"
+        )
+
+    return card(
+        "".join(satirlar)
+        + '<p class="subtle" style="margin:var(--space-4) 0 0;font-size:var(--text-xs)">'
+        "Sapma bir <b>ölçümdür</b>, yorum değil: bir gözlemin kendi geçmişine "
+        "göre eşiği aştığını söyler. Sebebi hakkında hiçbir iddiada bulunmaz — "
+        "nedensellik kanıt ister.</p>",
+        title="Gösterge sapmaları",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(len(kayitlar), 'açık sapma')}</span>",
+    )
+
+
 @router.get("/war-room", response_class=HTMLResponse)
 @router.get("/radar", response_class=HTMLResponse, include_in_schema=False)
 def war_room_page() -> str:
@@ -308,6 +372,7 @@ def war_room_page() -> str:
   </div>
   <div class="stack" style="flex:1;position:sticky;top:calc(var(--topbar-h) + 24px)">
     {card(breaking_section, title="Kritik Kırılmalar")}
+    {_anomaly_panel()}
     {_expected_publications()}
     {
         card(

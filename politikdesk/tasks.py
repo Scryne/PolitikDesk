@@ -306,6 +306,52 @@ def match_scheduled_events(self) -> dict[str, int]:  # noqa: ANN001
         raise self.retry(exc=exc, countdown=120) from exc
 
 
+@app.task(name="politikdesk.detect_indicator_anomalies", bind=True, max_retries=1)
+def detect_indicator_anomalies(self) -> dict[str, object]:  # noqa: ANN001
+    """Gösterge serilerini tazeler ve anomali tespiti koşar (Faz 3.1).
+
+    Günde iki kez yeter: izlenen serilerin en sık olanı GÜNLÜKTÜR
+    (kur), gerisi haftalık/aylık. Daha sık koşmak aynı gözlemi tekrar
+    tekrar değerlendirmekten başka bir şey yapmaz — tespit zaten
+    idempotenttir, ama boşuna iş de yapılmamalı.
+
+    Sabah turu brifingten ÖNCE (07:20), akşam turu gün kapanışından
+    sonra (20:20).
+    """
+    from politikdesk.analysis.pipeline import detect_all, sync_series
+
+    try:
+        senkron = sync_series()
+        tespit = detect_all()
+    except Exception as exc:  # noqa: BLE001
+        log.error(
+            "indicator_anomaly_task_failed",
+            error=type(exc).__name__,
+            detail=str(exc)[:300],
+        )
+        raise self.retry(exc=exc, countdown=1800) from exc
+
+    return {"sync": senkron.as_dict(), "detect": tespit.as_dict()}
+
+
+@app.task(name="politikdesk.mark_delayed_releases", bind=True, max_retries=1)
+def mark_delayed_releases(self) -> dict[str, int]:  # noqa: ANN001
+    """Beklenen saati geçmiş resmî yayınları `delayed` yapar (Faz 3.2).
+
+    Saatlik koşar ve `scheduler-match-hourly` ile aynı ritimdedir:
+    eşleştirici önce arar (dakika 20), gecikme işareti sonra düşer
+    (dakika 40). Ters sırada koşsalardı eşleşecek bir yayın kısa süreli
+    "gecikmiş" görünürdü.
+    """
+    from politikdesk.analysis.expected_events import mark_delayed
+
+    try:
+        return mark_delayed()
+    except Exception as exc:  # noqa: BLE001
+        log.error("mark_delayed_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=600) from exc
+
+
 @app.task(name="politikdesk.purge_expired_bodies")
 def purge_expired_bodies() -> int:
     """30 günü geçmiş `lead_paragraph` alanlarını siler (F1-12)."""
@@ -447,6 +493,17 @@ app.conf.beat_schedule = {
     "official-calendar-twice-daily": {
         "task": "politikdesk.sync_official_calendar",
         "schedule": crontab(hour="6,21", minute=10),
+    },
+    # Gösterge anomali tespiti (Faz 3.1). Günde iki kez: en sık seri
+    # günlüktür, daha sık koşmak boşuna iş.
+    "indicator-anomaly-twice-daily": {
+        "task": "politikdesk.detect_indicator_anomalies",
+        "schedule": crontab(hour="7,20", minute=20),
+    },
+    # Gecikme işareti eşleştirmeden SONRA düşer (dakika 20 -> 40).
+    "mark-delayed-hourly": {
+        "task": "politikdesk.mark_delayed_releases",
+        "schedule": crontab(minute=40),
     },
     # Takvim eşleştirmesi: veri yayım saatleri bellidir, saatlik yeter.
     "scheduler-match-hourly": {

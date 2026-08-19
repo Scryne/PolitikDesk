@@ -195,6 +195,8 @@ EXPECTED_SCHEDULE_ENTRIES = {
     "context-every-30-minutes",
     "political-relations-every-15-minutes",
     "official-calendar-twice-daily",
+    "indicator-anomaly-twice-daily",
+    "mark-delayed-hourly",
     "scheduler-match-hourly",
     "purge-daily",
     "health-check-hourly",
