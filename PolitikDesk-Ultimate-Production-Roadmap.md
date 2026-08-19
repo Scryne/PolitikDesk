@@ -438,7 +438,10 @@ birlikte anlamlı olduğunda yükselmeli.
 
 ## 3.1 Gösterge Anomali Tespiti
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI (19 Ağu 2026).** 3 yöntem (return_mad /
+absolute_change / change_mad); istatistiksel VE maddi anlamlılık birlikte
+aranır. Geri test iki gerçek kusur çıkardı ve düzeltildi. ⚠️ Beat görevi
+canlıda EKSİK — konteyner yeniden inşası bekliyor.
 
 Audit sonrası en yüksek ürün değerlerinden biri.
 
@@ -511,7 +514,10 @@ Bu katman, mevcut F2-18 açığını kapatır.
 
 ## 4.1 Event Relations Persistence
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI, SONRA YAYINDAN ÇEKİLDİ (ADR-010).**
+Kalıcılaştırma çalışıyor (219× okuma hızlanması) ama üretilen kayıtların
+içeriği denetlendiğinde yanlış siyasi isnat ürettiği görüldü: konu
+eşleştirmesi yok, güven skoru sabit 0,85. Yayın kapısı KAPALI.
 
 Şu an her request'te hesaplanan söylem değişikliğini kalıcılaştır.
 
@@ -584,7 +590,12 @@ Sadece mevcut evidence setini özetlemeli.
 
 ## 5.1 Claim Lifecycle
 
-**Öncelik: P0**
+**Öncelik: P0 — KISMEN.** `evidence_status` beş durumu canlı taşıyor
+(single_source 3.923 / partially_corroborated 314 / unverified 256 /
+attribution_verified 27 / strongly_corroborated 2) ve `claim_signature`
+kimlik gruplamasını yapıyor (4.522 iddia → 4.461 tekil imza).
+AÇIK: `contradicted` durumu hiç üretilmiyor (ADR-008) ve
+RETRACTED/UPDATED geçişleri yok.
 
 Her iddia:
 
@@ -637,7 +648,9 @@ Kesinlik dili kontrollü olmalı.
 
 ## 6.1 Önce Ölç
 
-**Öncelik: P1**
+**Öncelik: P1 — TAMAMLANDI (19 Ağu 2026). Karar: BENİMSENMEDİ (ADR-009).**
+Yerel doğruluk 0,686 / yanlış destek 0,16; uzak 0,909 / 0,0. Ölçülmüş
+bir "hayır" da fazın geçerli çıktısıdır.
 
 Audit'e göre bottleneck maliyet değil throughput: 651 olay birikimi ve yaklaşık 10 dakikada 5 olay işlenmesi raporlandı.
 
