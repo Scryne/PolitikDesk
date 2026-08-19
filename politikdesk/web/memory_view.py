@@ -339,6 +339,7 @@ def actor_memory_page(actor: str) -> HTMLResponse:
         else '<p class="subtle" style="margin:0">Kayıtlı olay ilişkisi bulunmuyor.</p>'
     )
 
+    from politikdesk.political_memory import shift_store
     from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
     from politikdesk.web.ui.charts import render_knowledge_graph
 
@@ -368,7 +369,15 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     )
 
     # Söylem Değişiklikleri ve Zıtlık Radarı
-    shifts = detect_stance_shifts_from_memory(memory)
+    #
+    # ⛔ Bu sayfa dedektörü DOĞRUDAN çağırıyor, yani `shift_store` yayın
+    # kapısını atlıyordu. Kapı ADR-010 ile kapatıldığında olay sayfası
+    # temizlendi ama burası "180° Zıt Beyan" kartlarını üretmeye devam
+    # ediyordu — aynı yanlış isnat, ikinci yoldan. Bir kapı, atlanabilen
+    # her yolda kapalı değilse kapı değildir.
+    shifts = (
+        detect_stance_shifts_from_memory(memory) if shift_store.PUBLISH_GATE_OPEN else []
+    )
     shift_cards = []
     for s in shifts:
         shift_tone = "bad" if s.shift_type in ("reversal", "broken_promise") else "warn"
@@ -390,9 +399,35 @@ def actor_memory_page(actor: str) -> HTMLResponse:
             f'</div>'
         )
 
+    # Kapı kapalıyken "tespit edilmedi" demek YANLIŞ olurdu: tespit edildi,
+    # güvenilmez olduğu için gösterilmiyor. İkisi aynı şey değil.
+    if shift_cards:
+        shifts_govde = "".join(shift_cards)
+    elif not shift_store.PUBLISH_GATE_OPEN:
+        shifts_govde = (
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            "<b>Bu bölüm geçici olarak yayından kaldırıldı.</b></p>"
+            '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            "Söylem değişikliği tespiti denetlendiğinde, farklı konulardaki "
+            "beyanları aynı konuymuş gibi karşılaştırdığı ve bir kişiye ait "
+            "olmayan sözleri o kişiye atfedebildiği görüldü. Yanlış bir "
+            "isnadı göstermektense hiçbir şey göstermemeyi seçiyoruz. "
+            "Tespit çalışmaya devam ediyor; kayıtlar saklanıyor ama "
+            "yayınlanmıyor.</p>"
+        )
+    else:
+        shifts_govde = (
+            '<p class="subtle" style="margin:0">Belirgin bir söylem '
+            "değişikliği veya zıtlık tespit edilmedi.</p>"
+        )
+
     shifts_html = card(
-        "".join(shift_cards) if shift_cards else '<p class="subtle" style="margin:0">Belirgin bir söylem değişikliği veya zıtlık tespit edilmedi.</p>',
-        title=f"Söylem Değişikliği ve Zıtlık Radarı · {len(shifts)}",
+        shifts_govde,
+        title=(
+            "Söylem Değişikliği ve Zıtlık Radarı"
+            if not shift_store.PUBLISH_GATE_OPEN
+            else f"Söylem Değişikliği ve Zıtlık Radarı · {len(shifts)}"
+        ),
     )
 
     body = f"""

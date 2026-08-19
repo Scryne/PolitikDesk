@@ -187,8 +187,53 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
 
     Dönen her kayıt: `metric`, `label`, `unit`, `latest_value`,
     `latest_period`, `history` (eskiden yeniye sıralı), `source_name`.
+
+    ⛔ BİRİNCİL KAYNAK `indicator_observations`'TIR.
+
+    `articles.official_value` seri başına yalnızca **son** yayımı taşır;
+    o yol tek başına kullanıldığında `history` tek noktaya, `previous_value`
+    `None`'a düşüyordu. Sonuç: şerit her kart için "ilk gözlem" yazıyor ve
+    sparkline düz bir nokta çiziyordu — 683 gerçek USD/TRY gözlemi
+    veritabanında dururken. Faz 3'te kurulan zaman serisi deposu
+    (`indicator_series` + `indicator_observations`) tam da bunun için var.
+
+    `superseded_at IS NULL` şartı revize edilmiş gözlemleri eler: kurum bir
+    dönemi yeniden yayımladığında ekranda **yürürlükteki** sayı durur.
+
+    Zaman serisi deposunda karşılığı olmayan metrikler (TÜİK SDMX'ten gelen
+    `employment_rate` gibi) eski `official_value` yoluna düşer — bu bir
+    gerileme değil, kapsama farkıdır: o kaynaklar henüz seri olarak
+    tanımlanmadı ve tek gözlem göstermek, hiç göstermemekten iyidir.
     """
     with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT series_key, metric, label, unit, period, value, source_name
+            FROM (
+                SELECT si.series_code            AS series_key,
+                       si.metric                 AS metric,
+                       si.label                  AS label,
+                       si.unit                   AS unit,
+                       io.period                 AS period,
+                       io.value                  AS value,
+                       s.name                    AS source_name,
+                       row_number() OVER (
+                           PARTITION BY si.id ORDER BY io.period DESC
+                       ) AS rn
+                FROM indicator_series si
+                JOIN indicator_observations io ON io.series_id = si.id
+                JOIN sources s ON s.id = si.source_id
+                WHERE si.is_active
+                  AND io.superseded_at IS NULL
+            ) ranked
+            WHERE rn <= %s
+            ORDER BY series_key ASC, period ASC
+            """,
+            (limit_per_metric,),
+        )
+        seri_satirlari = [dict(r) for r in cur.fetchall()]
+        kapsanan = {r["series_key"] for r in seri_satirlari}
+
         cur.execute(
             """
             SELECT series_key, metric, label, unit, period, value, source_name
@@ -218,7 +263,12 @@ def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, An
             """,
             (limit_per_metric,),
         )
-        rows = [dict(r) for r in cur.fetchall()]
+        # Zaman serisi deposunda zaten olan bir seriyi ikinci kez ekleme:
+        # aynı gösterge iki kart olarak çıkardı.
+        yedek = [r for r in (dict(x) for x in cur.fetchall())
+                 if r["series_key"] not in kapsanan]
+
+    rows = seri_satirlari + yedek
 
     grouped: dict[str, dict[str, Any]] = {}
     for row in rows:

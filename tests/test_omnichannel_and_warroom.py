@@ -108,6 +108,34 @@ def test_war_room_indicators_never_come_from_hardcoded_numbers() -> None:
         )
 
 
+def test_indicator_strip_reads_the_timeseries_store_not_only_latest_article() -> None:
+    """Gösterge şeridi `indicator_observations`'ı BİRİNCİL kaynak almalı.
+
+    Gerileme: şerit yalnızca `articles.official_value`'dan okuduğunda seri
+    başına tek satır dönüyordu; `history` tek noktaya, `previous_value`
+    `None`'a düşüyor ve her kart "ilk gözlem" yazıyordu — Faz 3'te
+    toplanan 1.803 gözlem veritabanında dururken. Yani ürün, sahip olduğu
+    veriyi göstermiyordu.
+
+    Kaynağı tarar, çıktıyı değil: veritabanı boşken de geçer.
+    """
+    import inspect
+
+    from politikdesk.web import repository
+
+    kaynak = inspect.getsource(repository.official_indicator_series)
+    assert "indicator_observations" in kaynak, (
+        "Sunum katmani zaman serisi deposunu kullanmiyor."
+    )
+    assert "superseded_at IS NULL" in kaynak, (
+        "Revize edilmis gozlemler elenmiyor: ekranda yururlukten kalkmis "
+        "sayi gorunebilir."
+    )
+    # Yedek yol korunmalı: seri olarak tanımlanmamış TÜİK metrikleri
+    # (employment_rate gibi) hâlâ tek gözlemle de olsa görünmeli.
+    assert "official_value" in kaynak
+
+
 def test_indicator_metric_labels_cover_the_whole_metric_vocabulary() -> None:
     """Ekrana ham metrik anahtarı (`unemployment_rate`) çıkmamalı."""
     from politikdesk.nlp.claims import VALID_METRICS

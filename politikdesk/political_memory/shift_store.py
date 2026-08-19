@@ -52,6 +52,29 @@ ENGINE_VERSION: Final[str] = "stance.v1"
 # bırakmak arka plan görevini saatlerce koşturabilir.
 DEFAULT_ACTOR_LIMIT: Final[int] = 40
 
+# ---------------------------------------------------------------------------
+# ⛔ YAYIN KAPISI — KAPALI (19 Ağustos 2026, ADR-010)
+# ---------------------------------------------------------------------------
+# Dedektör çalışıyor ve kayıt üretiyor; ürettiği kayıtlar GÜVENİLİR DEĞİL.
+# 50 kaydın tamamı denetlendiğinde konu eşleştirmesinin hiç olmadığı,
+# güven skorunun sabit 0,85 olduğu ve aktör alanına "Adayı" gibi sözcük
+# parçalarının sızdığı görüldü. Somut örnek: Cumhurbaşkanlığı'na, 42
+# dakika arayla atılmış ve hiçbiri onun beyanı olmayan iki ilgisiz tweete
+# dayanarak "U dönüşü" atfediliyordu.
+#
+# Gerçek kişi ve kurumlara yönelik yanlış siyasi isnat, bu ürünün
+# verebileceği en pahalı çıktıdır. Kayıtlar SİLİNMEZ (dedektör
+# düzeltildiğinde aynı veriyle yeniden ölçüm yapılabilsin diye), fakat
+# okuma yolundan geçmez.
+#
+# Bu kapının açılma şartları ADR-010 §5'te yazılıdır. Kapıyı açmak için
+# bu sabiti `True` yapmak YETMEZ; şartlar ölçülmeden değiştirilmemelidir.
+PUBLISH_GATE_OPEN: Final[bool] = False
+
+# Yayına uygun sayılan durum. Kapı açılana dek dedektör buraya yazmaz.
+PUBLISHED_STATUS: Final[str] = "open"
+WITHHELD_STATUS: Final[str] = "withheld"
+
 
 def signature(
     actor: str, earlier_id: int, later_id: int, shift_type: str, topic: str
@@ -95,6 +118,10 @@ def _persist(cur: Any, shift: dict[str, Any]) -> bool:
         str(shift["shift_type"]),
         str(shift["topic_or_metric"]),
     )
+    # Kapı kapalıyken kayıt YAZILIR ama YAYINLANMAZ. Yazmayı büsbütün
+    # durdurmak, dedektör düzeltildiğinde karşılaştırılacak veriyi de yok
+    # ederdi; "ölçme" ile "yayınlama" ayrı kararlardır.
+    durum = PUBLISHED_STATUS if PUBLISH_GATE_OPEN else WITHHELD_STATUS
     cur.execute(
         """
         INSERT INTO stance_shifts (
@@ -103,10 +130,10 @@ def _persist(cur: Any, shift: dict[str, Any]) -> bool:
             earlier_event_title, earlier_claim_text, earlier_date,
             later_event_title, later_claim_text, later_date,
             time_span_days, confidence, evidence_summary, metadata,
-            signature, engine_version
+            signature, engine_version, status
         )
-        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s)
-        ON CONFLICT (signature) WHERE status = 'open' DO NOTHING
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s)
+        ON CONFLICT (signature) WHERE status <> 'superseded' DO NOTHING
         RETURNING id
         """,
         (
@@ -120,7 +147,7 @@ def _persist(cur: Any, shift: dict[str, Any]) -> bool:
             float(shift.get("confidence") or 0),
             shift.get("evidence_summary", ""),
             __import__("json").dumps(shift.get("metadata") or {}, ensure_ascii=False),
-            imza, ENGINE_VERSION,
+            imza, ENGINE_VERSION, durum,
         ),
     )
     return cur.fetchone() is not None
@@ -222,7 +249,12 @@ _SELECT = """
 
 
 def list_all(*, limit: int = 50, shift_type: str | None = None) -> list[dict[str, Any]]:
-    """Tüm aktörlerin kaymaları — tek sorgu, hesap yok."""
+    """Tüm aktörlerin kaymaları — tek sorgu, hesap yok.
+
+    Yayın kapısı kapalıyken **boş liste** döner (ADR-010).
+    """
+    if not PUBLISH_GATE_OPEN:
+        return []
     ek = "AND s.shift_type = %s" if shift_type else ""
     params: list[Any] = [shift_type, limit] if shift_type else [limit]
     with connection() as conn, conn.cursor() as cur:
@@ -231,7 +263,9 @@ def list_all(*, limit: int = 50, shift_type: str | None = None) -> list[dict[str
 
 
 def for_actor(actor_name: str, *, limit: int = 50) -> list[dict[str, Any]]:
-    """Bir aktörün kaymaları."""
+    """Bir aktörün kaymaları. Kapı kapalıyken boş (ADR-010)."""
+    if not PUBLISH_GATE_OPEN:
+        return []
     with connection() as conn, conn.cursor() as cur:
         cur.execute(_SELECT.format(extra="AND s.actor_name = %s"), (actor_name, limit))
         return [dict(r) for r in cur.fetchall()]
@@ -242,7 +276,11 @@ def for_event(event_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
 
     Kalıcılaştırmanın açtığı kapı bu: "bu olay hangi söylem
     değişikliklerinin parçası?" sorusu, hesap yapmadan yanıtlanır.
+
+    Yayın kapısı kapalıyken **boş liste** döner (ADR-010).
     """
+    if not PUBLISH_GATE_OPEN:
+        return []
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             _SELECT.format(extra="AND (s.earlier_event_id = %s OR s.later_event_id = %s)"),
@@ -252,7 +290,15 @@ def for_event(event_id: int, *, limit: int = 50) -> list[dict[str, Any]]:
 
 
 def summary() -> dict[str, Any]:
-    """Tür ve aktör dağılımı — panolar için."""
+    """Tür ve aktör dağılımı — panolar için.
+
+    ⛔ `withheld` sayısı AYRI raporlanır ve gizlenmez.
+
+    Yayın kapısı kapatıldığında bu özet sessizce sıfır dönseydi, sistem
+    "hiç kayma bulunmadı" ile "bulunanlar güvenilmez olduğu için
+    yayınlanmadı" arasındaki farkı silerdi. Bu projede tekrar tekrar
+    ödenen bedel tam olarak budur: *ölçülemedi ≠ sıfır*.
+    """
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT shift_type, count(*) AS n FROM stance_shifts "
@@ -268,9 +314,15 @@ def summary() -> dict[str, Any]:
         cur.execute("SELECT count(*) AS n FROM stance_shifts WHERE status = 'superseded'")
         eski_satiri = cur.fetchone()
 
+        cur.execute("SELECT count(*) AS n FROM stance_shifts WHERE status = 'withheld'")
+        cekilen_satiri = cur.fetchone()
+
     return {
         "by_type": turler,
         "total": sum(turler.values()),
         "actors": int(aktor_satiri["n"]) if aktor_satiri else 0,
         "superseded": int(eski_satiri["n"]) if eski_satiri else 0,
+        # Tespit edildi ama güvenilmez olduğu için yayınlanmadı.
+        "withheld": int(cekilen_satiri["n"]) if cekilen_satiri else 0,
+        "publish_gate_open": PUBLISH_GATE_OPEN,
     }
