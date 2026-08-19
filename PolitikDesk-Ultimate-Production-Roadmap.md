@@ -294,9 +294,29 @@ aboneliği alınırsa. Ayrıntı ADR-007 §6'da.
 
 ## 2.1 Kaynak Kalitesi Skoru
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI (19 Ağu 2026)**
 
-88 kaynağın sayısını artırmak yerine bağımsızlık ve kaliteyi ölç.
+⛔ Skor bir **güvenilirlik yargısı değildir.** Kaynağın haberciliği
+hakkında hiçbir şey söylemez; yalnızca akışın teknik sağlığını ölçer.
+Gerekçe Spec §8.5'tir ve `tests/test_source_quality.py` hiçbir bileşenin
+içeriğe bakmadığını tarar.
+
+Altı bileşen, hepsi `source_fetch_log`'dan (7 günde 51.166 tur) ölçülmüş:
+authority · independence · freshness · reliability · structuredness · yield.
+
+**Ölçülemeyen ≠ sıfır.** "Hiç turu yok" ile "hep başarısız" aynı şey
+değil; ölçülemeyen bileşen ortalamaya girmez ve `coverage` alanı skorun
+kaç bileşene dayandığını söyler.
+
+**Bakım sinyali yapısal özellik için yanmaz.** İlk uygulama 24 kaynağı
+`authority` yüzünden işaretliyordu — sosyal kaynakları sosyal oldukları
+için. Sinyal artık yalnızca düzeltilebilir bileşenlerden geliyor.
+
+Canlı sonuç: `resmi-gazete` (tazelik 0, başarı %53,6 → O-01), 7 X hesabı
+(0/400-600 tur), ve **yeni bir bulgu**: sosyal kaynaklar 4.600 öğe çekip
+4.610'unu tekrar diye atıyor — ölçülmemiş bir israftı, artık görünür.
+
+Uçlar: `/admin/source-quality`, `/admin/source-quality/attention`.
 
 ### Score
 
@@ -337,9 +357,25 @@ Last Failure
 
 ## 2.2 Source Dependency Graph
 
-**Öncelik: P1**
+**Öncelik: P1 — ÇIKIŞ ÖLÇÜTÜ ZATEN SAĞLANMIŞ (19 Ağu 2026 doğrulaması)**
 
-Bir olayın kaç farklı görünen kaynak tarafından değil, kaç bağımsız kaynak grubu tarafından doğrulandığını göster.
+Ayrım hâlihazırda hem veri hem arayüz katmanında var:
+`events.article_count` (görünen kaynak) ile `independence_groups` ve
+`independent_count` (bağımsız grup) ayrı taşınıyor; `web/feed.py` ve
+`web/event.py` ikisini ayrı gösteriyor.
+
+Canlı örnek — istenen sinyalin ta kendisi:
+
+| olay | makale | bağımsız grup |
+|---:|---:|---:|
+| 7748 | 27 | **2** |
+| 1819 | 11 | 7 |
+| 7750 | 13 | **1** |
+
+Açık kalan kısım yalnızca **sunum**: roadmap'teki ağaç görünümü
+(Government / Parliament / Official Statistics / Independent Media)
+mevcut veriden türetilebilir bir görselleştirmedir, yeni bir ölçüm
+değil. `evidence/blindspot.py` kademe kırılımını zaten üretiyor.
 
 Örnek:
 
@@ -360,7 +396,16 @@ Event
 
 ## 2.3 Kaynak Sağlık Otomasyonu
 
-**Öncelik: P1**
+**Öncelik: P1 — büyük ölçüde karşılandı**
+
+Maddenin istediği alanların tamamı `source_quality.report()` çıktısında:
+success rate, latency (`avg_ms`), freshness, consecutive failures,
+parser errors. Devre durumu `pipeline_health.circuit_status_report()`'ta.
+
+Maddenin asıl şartı — *"Alarm yanlış pozitif üretmemeli"* — bu oturumda
+üç kez uygulandı: iddia çıkarımı alarmı (kalıcı kırmızıydı), DB testleri
+(sessizce atlanıyordu), `git diff --check` (yüzlerce sahte uyarı). Bakım
+listesi de aynı ilkeyle kuruldu: yapısal özellik alarm üretmez.
 
 Her source için:
 
