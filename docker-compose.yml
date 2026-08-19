@@ -151,6 +151,25 @@ services:
         PD_EXTRAS: embed-local
     container_name: pd-worker
     restart: unless-stopped
+    # Eşzamanlılık 2'de KALIYOR — 4 denendi ve ÖLÇÜLDÜ, işe yaramadı.
+    #
+    # 19 Ağu 2026. Çıkarım işi CPU değil ağ bağlıdır (çağrı başına 8,6
+    # saniyenin neredeyse tamamı uzak modelin yanıtı beklenerek geçiyor),
+    # bu yüzden slot sayısını artırmak doğal kaldıraç gibi görünüyordu.
+    # Değildi:
+    #
+    #   eşzamanlılık 2 → 9,7 çağrı/dk · ortalama  8.642 ms · 429 yok
+    #   eşzamanlılık 4 → 10,0 çağrı/dk · ortalama 12.128 ms · 429 yok
+    #
+    # Verim SABİT kaldı, gecikme %40 arttı. Bu, sağlayıcının 429 döndürmek
+    # yerine yanıtı YAVAŞLATARAK sınırladığının imzasıdır — dört slot aynı
+    # kotayı daha uzun bekleyerek paylaşıyor. Daha fazla slot yalnızca
+    # daha fazla açık bağlantı ve daha yüksek gecikme demek.
+    #
+    # ⛔ Darboğaz worker değil, ücretsiz katman kotasıdır. Kuyruk (bu
+    # ölçümde 741 olay) yalnızca kota büyütülerek veya daha az çağrı
+    # gerektiren bir çıkarım tasarımıyla erir; eşzamanlılıkla erimez.
+    # Ölçmeden artırmayın.
     command:
       ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
        "--concurrency", "2"]
