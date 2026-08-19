@@ -13,6 +13,13 @@ htmlcov/
 # Ortam
 .env
 .env.local
+# `.env` yedekleri de sır taşır. 19 Ağu 2026'da `.env.yedek-*` bir
+# yapılandırma değişikliği öncesinde oluşturuldu ve `git add -A` ile
+# SAHNELENDİ — `.env` kuralı desenle eşleşmiyordu. Yakalandı, ama
+# kural olmadan bir dahakine yakalanmayabilirdi.
+.env.yedek*
+.env.bak*
+.env.*.bak
 *.local
 config/editorial_stance.md
 

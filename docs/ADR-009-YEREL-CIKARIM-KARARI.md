@@ -201,3 +201,89 @@ Bunlar yapılmadan yerel çıkarım üretime alınmamalıdır.
 | O-01 uygulama kodunda baypas edilmedi | ✅ açık kaldı |
 
 43 test: `tests/test_stance_benchmark.py`. Hiçbiri ağa çıkmaz.
+
+---
+
+## 7. Sonradan gelen not — yapılandırma bu karara uymuyordu (19 Ağustos 2026)
+
+Karar "yerel çıkarım benimsenmedi" diyordu, ama üretim yapılandırması onu
+uygulamıyordu. 19 Ağustos öğleninde `.env` `hybrid` sağlayıcısına
+geçirilmiş ve **çıkarım** yerel bir uca yönlendirilmişti:
+
+```
+PD_LLM_EXTRACTION_BASE_URL=http://127.0.0.1:11434/v1
+PD_LLM_MODEL_EXTRACTION=qwen2.5:7b-instruct-q5_K_M
+```
+
+O uç hiçbir zaman çalışamazdı. İki sebep birden vardı:
+
+1. Ortamda hiç Ollama konteyneri yok.
+2. Olsaydı bile `127.0.0.1` **konteynerin kendisidir**, host değil.
+   Worker kendi içindeki 11434 portuna bağlanmaya çalışıyordu.
+
+### Ölçülen bedel
+
+| | değer |
+|---|---|
+| Yerel uca giden çağrı | 72 |
+| Başarılı | **0** |
+| Ortalama gecikme | 174.691 ms (zaman aşımı 180 sn) |
+| En yavaş | 335.335 ms |
+
+Her çıkarım önce burada asılıyor, sonra yedeğe — **üretim** modeline
+(`llama-3.3-70b`, 53,9 sn) düşüyordu. Yani çıkarım hem gecikme cezası
+ödüyor hem de kendisi için seçilmemiş, dört kat yavaş bir modelle
+yapılıyordu. Çıkarım/üretim ayrımının (Risk R6) amacı tam tersiydi.
+
+### Düzeltme ve etkisi
+
+Çıkarım, üretimle **aynı uzak uca** alındı; ayrı ve daha hızlı model
+korundu. Ölçüm, düzeltmeden 15 dakika sonra:
+
+| | önce | sonra |
+|---|---:|---:|
+| Çıkarım hızı | 1,7 çağrı/dk | **11,1 çağrı/dk** |
+| Ortalama gecikme | 52.743 ms | **8.859 ms** |
+| Başarı oranı | %90,5 | **%100** (166/166) |
+| Ölü uca giden tur | her çağrıda | **yok** |
+
+**6,5× hızlanma, tek bir yapılandırma satırı.**
+
+### Bu kararın kalıcı dersi
+
+Bir ADR "hayır" dediğinde, o hayrın **yapılandırmada karşılığı olup
+olmadığı ayrıca denetlenmelidir.** Karar belgesi ile çalışan sistem
+arasında sessiz bir sapma oluşabilir ve buradaki gibi aylarca fark
+edilmeyebilir — hata vermiyordu, yalnızca yavaştı.
+
+⚠️ `.env` git'te değildir; bu sapmayı hiçbir test yakalayamazdı.
+Kalıcı koruma için çalışma zamanı sağlık kontrolü gerekir
+(`scripts/check_deployment.py`'a "çıkarım ucu erişilebilir mi" adımı).
+Bu, bu ADR'nin açık bıraktığı iştir.
+
+### Çıkarım modeli seçimi ölçüldü
+
+Düzeltme "uzak uca al" diyordu; hangi model sorusu ayrıca ölçüldü
+(`python -m scripts.llm_benchmark`, `eval/golden_set_v1.jsonl`, 4 makale):
+
+| Model | Çağrı | Alıntı sadakati | Makale başına iddia | Gecikme |
+|---|---:|---:|---:|---:|
+| `nvidia/nemotron-3-super-120b-a12b` | **4/4** | **%90** | 2,2 | 15.104 ms |
+| `meta/llama-3.3-70b-instruct` | 2/4 | %50 | 0,5 | 23.180 ms |
+
+Çıkarımda nemotron her eksende önde: güvenilirlik, alıntı sadakati, verim
+ve gecikme. Seçim korundu.
+
+**Bu, üretim kararıyla çelişmiyor.** F5-15'te nemotron *üretim* için
+elenmişti çünkü taslakta kanıtta olmayan bir TARİH üretmişti ve G3 koşul 2
+orada **sert bir kapıdır**. Çıkarım farklı bir görevdir ve kendi sert
+kapısı vardır: uydurulmuş alıntı `nlp/claims.py` tarafından reddedilir
+(ölçümde nemotron'un 10 iddiasından 1'i bu kapıya takıldı). İki görev,
+iki model — çıkarım/üretim ayrımının amacı zaten buydu.
+
+⚠️ **Örneklem küçüktür (4 makale, 12 iddia).** `llama-3.3-70b`'nin 2
+başarısız çağrısı, kıyaslamada kullandığım 60 sn'lik zaman aşımına
+takılmıştır; üretimdeki 180 sn ile başarabilirdi. Bulgu bu yüzden
+*yönlendirici*dir, kesin değil. Model değiştirilecekse ölçüm daha geniş
+bir örneklemle tekrarlanmalıdır — bu, Faz 12'nin (LLM regresyon kapısı)
+kapsamına girer.

@@ -11,6 +11,7 @@ Denetimler:
   5. Statik varlık ve yapılandırma dosyaları (/app/certs/, /app/config/)
   6. Celery Beat zamanlanmış görev bütünlüğü (16/16 görev)
   7. Veritabanı migration uyumluluğu ve bekleyen şema değişiklikleri
+  8. LLM uçlarının worker'ın kendi ağ görüntüsünden erişilebilirliği (ADR-009 §7)
 
 Kullanım:
     python -m scripts.check_deployment
@@ -180,6 +181,69 @@ def check_db_migrations() -> tuple[bool, list[str], list[str]]:
         return False, repo_migrations, [str(e)]
 
 
+# Worker'in ICINDEN kosar: yapilandirilan LLM ucuna TCP baglantisi kurulabiliyor mu.
+#
+# ⛔ Bu adim neden var (19 Agu 2026, ADR-009 §7). `.env` cikarimi yerel bir
+# uca (127.0.0.1:11434) yonlendirmisti. O uc hicbir zaman calismazdi: ortamda
+# Ollama yoktu ve olsaydi bile 127.0.0.1 KONTEYNERIN KENDISIDIR. Sistem hata
+# vermedi — her cagri once orada 180 sn asildi, sonra yedege dustu. Cikarim
+# 6,5 kat yavas calisti ve bunu hicbir test, hicbir kapi yakalamadi.
+#
+# `.env` git'te olmadigi icin bu sapma statik olarak denetlenemez; yalnizca
+# CALISMA ZAMANINDA, worker'in kendi ag goruntusunden olculebilir. Adimin
+# tamami bu yuzden `docker exec` ile konteyner icinde kosar.
+#
+# Yalnizca TCP erisimi olculur, model cagrilmaz: kapi bir saglik kontrolu,
+# bir kalite olcumu degil ve API kotasi harcamamalidir.
+_LLM_ENDPOINT_SNIPPET = """
+import json, socket, urllib.parse
+from politikdesk.config import get_settings
+s = get_settings()
+uclar = {
+    'extraction': s.llm_extraction_base_url or s.llm_base_url,
+    'generation': s.llm_generation_base_url or s.llm_base_url,
+}
+out = {}
+for ad, url in uclar.items():
+    if not url:
+        out[ad] = {'url': '', 'durum': 'tanimsiz'}
+        continue
+    p = urllib.parse.urlparse(url)
+    port = p.port or (443 if p.scheme == 'https' else 80)
+    try:
+        with socket.create_connection((p.hostname, port), timeout=5):
+            out[ad] = {'url': url, 'durum': 'ok'}
+    except Exception as exc:
+        out[ad] = {'url': url, 'durum': type(exc).__name__}
+print(json.dumps(out))
+"""
+
+
+def check_llm_endpoints(container: str = "pd-worker") -> list[str]:
+    """Worker'in yapilandirilan LLM uclarina gercekten ulasip ulasamadigi."""
+    ham = _docker_exec(container, _LLM_ENDPOINT_SNIPPET)
+    if ham is None:
+        return [f"[ATLANDI]      {container} calismiyor — uc denetimi yapilamadi"]
+    try:
+        sonuc = json.loads(ham)
+    except Exception as exc:  # noqa: BLE001
+        return [f"[HATA]         uc denetimi okunamadi: {exc}"]
+
+    satirlar = []
+    for ad, bilgi in sonuc.items():
+        url = bilgi["url"] or "(tanimsiz)"
+        if bilgi["durum"] == "ok":
+            satirlar.append(f"[OK]           {ad:<11} - {url}")
+        elif bilgi["durum"] == "tanimsiz":
+            satirlar.append(f"[OK]           {ad:<11} - genel yapilandirmaya dusuyor")
+        else:
+            satirlar.append(
+                f"[ULASILAMIYOR] {ad:<11} - {url} ({bilgi['durum']}). "
+                f"Cikarim/uretim bu uca gidemez; cagrilar zaman asimina ugrar."
+            )
+    return satirlar
+
+
 def main() -> int:
     print("=" * 70)
     print("POLITIKDESK - DAGITIM VE SURUM BUTUNLUGU DENETIMI (FAZ 1 GATE)")
@@ -198,7 +262,7 @@ def main() -> int:
     has_error = False
 
     # 1. Konteyner Varlığı ve Kod Özeti
-    print("[1/6] Konteyner Calisma ve Kod Senkronizasyonu:")
+    print("[1/7] Konteyner Calisma ve Kod Senkronizasyonu:")
     for container in CONTAINERS:
         actual = _docker_exec(container, _HASH_SNIPPET)
         if actual is None:
@@ -215,7 +279,7 @@ def main() -> int:
             has_error = True
 
     # 2. Release Identity Kontrolü
-    print("\n[2/6] Release Identity ve Surum Butunlugu:")
+    print("\n[2/7] Release Identity ve Surum Butunlugu:")
     for container in CONTAINERS:
         raw_rel = _docker_exec(container, _RELEASE_SNIPPET)
         if raw_rel is None:
@@ -258,7 +322,7 @@ def main() -> int:
             has_error = True
 
     # 3. Çalışma Zamanı Modülleri ve Adaptör Kayıtları
-    print("\n[3/6] Modul ve Adaptor Butunlugu (pd-worker):")
+    print("\n[3/7] Modul ve Adaptor Butunlugu (pd-worker):")
     raw_mod = _docker_exec("pd-worker", _MODULES_SNIPPET)
     if raw_mod is not None:
         try:
@@ -284,7 +348,7 @@ def main() -> int:
         has_error = True
 
     # 4. Celery Beat Zamanlama Bütünlüğü
-    print("\n[4/6] Celery Beat Zamanlanmis Gorevler:")
+    print("\n[4/7] Celery Beat Zamanlanmis Gorevler:")
     want_sched = expected_schedule()
     raw_sched = _docker_exec("pd-beat", _SCHEDULE_SNIPPET)
     if raw_sched is not None:
@@ -307,7 +371,7 @@ def main() -> int:
         has_error = True
 
     # 5. Statik Varlık ve Konfigürasyon Dosyaları
-    print("\n[5/6] Statik Varlik ve Yapilandirma Dosyalari:")
+    print("\n[5/7] Statik Varlik ve Yapilandirma Dosyalari:")
     want_assets = expected_assets()
     for container in CONTAINERS:
         raw_assets = _docker_exec(container, _ASSET_SNIPPET)
@@ -334,7 +398,7 @@ def main() -> int:
             has_error = True
 
     # 6. Veritabanı Migration Senkronizasyonu
-    print("\n[6/6] Veritabani Sema ve Migration Uyumlulugu:")
+    print("\n[6/7] Veritabani Sema ve Migration Uyumlulugu:")
     mig_ok, applied_migs, pending_migs = check_db_migrations()
     if mig_ok:
         last_mig = applied_migs[-1] if applied_migs else "Yok"
@@ -345,6 +409,13 @@ def main() -> int:
     else:
         print(f"  [KAYMA] Bekleyen/Uygulanmamis migration'lar var: {pending_migs}")
         has_error = True
+
+    # 7. LLM uçlarının worker'dan GERÇEKTEN erişilebilir olması
+    print("\n[7/7] LLM Uc Erisilebilirligi (worker icinden):")
+    for satir in check_llm_endpoints():
+        print(f"  {satir}")
+        if "[ULASILAMIYOR]" in satir:
+            has_error = True
 
     print("\n" + "=" * 70)
     if has_error:
