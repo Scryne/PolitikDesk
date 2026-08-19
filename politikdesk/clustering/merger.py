@@ -115,6 +115,12 @@ def _refresh_event(cur: Any, event_id: int) -> None:
         (to_pgvector(centroid) if centroid else None, event_id, event_id),
     )
 
+    # Konu etiketleri de üyelerden yeniden kurulmalı: birleştirme ve
+    # bölme üyelik kümesini değiştirir, dolayısıyla konu kümesini de.
+    from politikdesk.clustering.repository import refresh_topic_tags
+
+    refresh_topic_tags(cur, event_id)
+
     # Varlık kümesi de üyelerden yeniden kurulmalı: taşınan makalelerin
     # varlıkları kaynakta kalırsa, sonraki kümelemede olmayan bir bağ
     # üzerinden eşleşme olur.

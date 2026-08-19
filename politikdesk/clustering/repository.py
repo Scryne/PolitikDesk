@@ -153,6 +153,42 @@ def candidate_events(
     return candidates
 
 
+def refresh_topic_tags(cur: Any, event_id: int) -> None:
+    """Olayın konu etiketlerini ÜYE MAKALELERİNDEN yeniden kurar.
+
+    ⛔ Bu fonksiyon neden var: `events.topic_tags` 1.680 olayın
+    **tamamında boş dizi** idi, oysa `articles.topics` 5.631 makalenin
+    5.631'inde doluydu (`enflasyon`, `vergi_ve_harclar` gibi). Konu
+    sinyali makale düzeyinde üretiliyor ama olay düzeyine hiç
+    taşınmıyordu; olayları yazan üç yolun (`create_event`, üye ekleme,
+    `merger._refresh_event`) hiçbiri bu alana dokunmuyordu.
+
+    Görünmeyen bedeli şuydu: `web/repository.py` kişiselleştirme
+    ayarını `personal_adjustment(topic_tags, priorities)` ile hesaplıyor.
+    Alan hep boş geldiği için **kullanıcının konu önceliklerinin
+    sıralamaya etkisi sıfırdı** — özellik arayüzde duruyor, sessizce
+    hiçbir şey yapmıyordu. Aynı şekilde siyasi hafızanın aday filtresi
+    de konu örtüşmesi sinyalini boş alıyordu.
+
+    Üyesi olmayan ya da konusu olmayan olayda `'{}'` yazılır; NULL
+    bırakmak "hesaplanmadı" ile "konu yok"u ayırt edilemez kılardı.
+    """
+    cur.execute(
+        """
+        UPDATE events e
+           SET topic_tags = COALESCE(sub.tags, '{}')
+          FROM (
+            SELECT array_agg(DISTINCT t ORDER BY t) AS tags
+              FROM articles a
+              CROSS JOIN LATERAL unnest(a.topics) AS t
+             WHERE a.event_id = %s
+          ) sub
+         WHERE e.id = %s
+        """,
+        (event_id, event_id),
+    )
+
+
 def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
     """Yeni olay yaratır; merkez ilk üyenin vektörüdür.
 
@@ -193,6 +229,7 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
             log.warning("event_creation_aborted_already_assigned", article_id=article.article_id)
             return None
 
+        refresh_topic_tags(cur, event_id)
         conn.commit()
 
     log.info("event_created", event_id=event_id, article_id=article.article_id)
@@ -292,6 +329,9 @@ def assign_article(article: ArticleFeatures, decision: Assignment) -> bool:
                 decision.event_id,
             ),
         )
+
+        # Yeni üye yeni konu getirmiş olabilir.
+        refresh_topic_tags(cur, decision.event_id)
 
         if decision.needs_review:
             cur.execute(
