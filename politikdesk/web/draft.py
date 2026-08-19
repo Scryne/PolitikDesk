@@ -36,6 +36,7 @@ from politikdesk.editorial import repository as editorial_repo
 from politikdesk.editorial.checker import SEVERITY_MARK
 from politikdesk.editorial.generator import ANGLES
 from politikdesk.web.ui import (
+    action_attrs,
     button,
     card,
     esc,
@@ -174,8 +175,7 @@ def _check_panel(check: dict[str, Any] | None) -> str:
         }
 </div>
 <label class="opt" style="margin-top:var(--space-3)">
-  <input type="checkbox" id="override"
-         onchange="document.getElementById('go').disabled = !this.checked">
+  <input type="checkbox" id="override"{action_attrs("override-toggle", event="change")}>
   <span>Kanıtla eşleşmeyen sayısal iddiaya rağmen devam etmek istiyorum.</span>
 </label>"""
 
@@ -258,13 +258,21 @@ def draft_page(draft_id: int) -> str:
                 "Kabul et",
                 variant="primary",
                 icon_name="check",
-                onclick="pdAct('accepted')",
+                action="act",
+                action_args=("accepted",),
                 disabled=not is_grounded,
                 id_="go",
             )
-            + button("Düzenlemeyi kaydet", onclick="pdAct('edited')", disabled=not is_grounded)
-            + button("Yeniden üret", icon_name="refresh", onclick="pdAct('regenerated')")
-            + button("Reddet", onclick="pdAct('rejected')")
+            + button(
+                "Düzenlemeyi kaydet",
+                action="act",
+                action_args=("edited",),
+                disabled=not is_grounded,
+            )
+            + button(
+                "Yeniden üret", icon_name="refresh", action="act", action_args=("regenerated",)
+            )
+            + button("Reddet", action="act", action_args=("rejected",))
             + "</div>",
             title="Taslak",
         )
@@ -273,7 +281,7 @@ def draft_page(draft_id: int) -> str:
   {
         card(
             '<div class="btn-row">'
-            + button("Panoya kopyala", icon_name="copy", onclick="pdCopyDraft()")
+            + button("Panoya kopyala", icon_name="copy", action="copy-draft")
             + button("X'te aç", href="#", icon_name="external", id_="intent")
             + "</div>"
             '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
@@ -364,6 +372,14 @@ async function pdAct(action){{
         ? ' Düzenleme mesafesi: ' + data.edit_distance : ''));
   setTimeout(function(){{ location.reload(); }}, 600);
 }}
+
+window.pdAction('act', pdAct);
+window.pdAction('copy-draft', pdCopyDraft);
+// Faz 7: eskiden `onchange` ozniteligindeki tek satirlik ifadeydi.
+window.pdAction('override-toggle', function(el){{
+  var go = document.getElementById('go');
+  if (go) go.disabled = !el.checked;
+}});
 """
     return page(
         f"{angle_label} taslağı",

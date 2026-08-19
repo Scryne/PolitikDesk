@@ -48,6 +48,7 @@ from politikdesk.users import current_user_id
 from politikdesk.web import repository
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     button,
     card,
     cell,
@@ -94,9 +95,8 @@ def _tldr(claims: list[dict[str, Any]]) -> str:
         )
     sentences = [c["claim_text"].strip().rstrip(".") + "." for c in verified[:MAX_TLDR_CLAIMS]]
     summary_text = " ".join(sentences)
-    summary_json = json.dumps(summary_text)
     copy_action = (
-        f'<button class="btn sm ghost" type="button" onclick=\'pdCopy({summary_json}, "Özet")\'>'
+        f'<button class="btn sm ghost" type="button"{action_attrs("copy", summary_text, "Özet")}>'
         f'{icon("copy", 13)}<span>Özeti Kopyala</span></button>'
     )
     return card(
@@ -544,7 +544,8 @@ def _editorial_panel(event_id: int) -> str:
         button(
             ANGLES[key][0],
             variant="primary" if index == 0 else "",
-            onclick=f"pdGenerate('{key}')",
+            action="generate",
+            action_args=(key,),
             icon_name="edit" if index == 0 else None,
         )
         for index, key in enumerate(keys)
@@ -571,7 +572,7 @@ def _feedback_panel(open_count: int) -> str:
         "İşaretlediğinde olay insan denetimi kuyruğuna düşer.</p>"
     )
     return card(
-        button("Bu yanlış", icon_name="flag", onclick="pdFlag()") + note,
+        button("Bu yanlış", icon_name="flag", action="flag") + note,
         title="Geri bildirim",
     )
 
@@ -677,6 +678,11 @@ async function pdCopyEventDossier(){
     window.pdToast('Dosya kopyalanamadı: ' + e.message);
   }
 }
+
+window.pdAction('generate', pdGenerate);
+window.pdAction('flag', pdFlag);
+window.pdAction('understood', pdUnderstood);
+window.pdAction('copy-dossier', pdCopyEventDossier);
 """
 )
 
@@ -706,13 +712,13 @@ def event_page(event_id: int) -> str:
 
     actions_html = (
         f'<div class="row tight">'
-        f'<button class="btn sm ghost" type="button" onclick="pdCopyEventDossier()" title="Kanıt dosyasını kopyala">'
+        f'<button class="btn sm ghost" type="button"{action_attrs("copy-dossier")} title="Kanıt dosyasını kopyala">'
         f'{icon("copy", 13)}<span>Metin Kopyala</span></button>'
         f'<a class="btn sm ghost" href="/api/events/{event_id}/evidence-card.svg" target="_blank" rel="noopener noreferrer" title="SVG Kanıt Kartını Gör / İndir">'
         f'{icon("download", 13)}<span>SVG Kart</span></a>'
         f'<a class="btn sm ghost" href="/api/events/{event_id}/export?format=markdown" target="_blank" rel="noopener noreferrer" title="Markdown Olarak İndir">'
         f'{icon("external", 13)}<span>Markdown</span></a>'
-        f'{button("Anladım", icon_name="check", onclick="pdUnderstood(this)")}'
+        f'{button("Anladım", icon_name="check", action="understood")}'
         f'</div>'
     )
 

@@ -17,6 +17,7 @@ from politikdesk.political_memory.accountability import LEGAL_DISCLAIMER
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     cell,
     esc,
     icon,
@@ -74,17 +75,21 @@ _PROMISES_JS = """
 
   window.pdFilterPromises = function(filterKey, btn) {
     currentFilter = filterKey;
-    document.querySelectorAll('#promises-tabs a').forEach(function(a) {
-      a.removeAttribute('aria-current');
+    document.querySelectorAll('#promises-tabs button').forEach(function(b) {
+      b.removeAttribute('aria-current');
     });
     if (btn) btn.setAttribute('aria-current', 'true');
     applyFilters();
   };
 
-  window.pdSearchPromises = function(val) {
-    currentQuery = val;
+  // Dagitici `input` olayinda (oge, olay) gecer; arama metni ogeden okunur.
+  window.pdSearchPromises = function(el) {
+    currentQuery = el.value;
     applyFilters();
   };
+
+  window.pdAction('filter-promises', window.pdFilterPromises);
+  window.pdAction('search-promises', window.pdSearchPromises);
 })();
 """
 
@@ -168,10 +173,10 @@ def promises_page() -> HTMLResponse:
         {icon("filter", 12)}Filtrele:
       </span>
       <div id="promises-tabs" class="segment">
-        <a href="javascript:void(0)" aria-current="true" onclick="pdFilterPromises('all', this)">Tümü ({total_count})</a>
-        <a href="javascript:void(0)" onclick="pdFilterPromises('fulfils', this)">Gerçekleşen ({fulfilled_count})</a>
-        <a href="javascript:void(0)" onclick="pdFilterPromises('contradicts', this)">Çelişen / Reddedilen ({contra_count})</a>
-        <a href="javascript:void(0)" onclick="pdFilterPromises('pending', this)">Takipte ({pending_count})</a>
+        <button type="button" aria-current="true"{action_attrs("filter-promises", "all")}>Tümü ({total_count})</button>
+        <button type="button"{action_attrs("filter-promises", "fulfils")}>Gerçekleşen ({fulfilled_count})</button>
+        <button type="button"{action_attrs("filter-promises", "contradicts")}>Çelişen / Reddedilen ({contra_count})</button>
+        <button type="button"{action_attrs("filter-promises", "pending")}>Takipte ({pending_count})</button>
       </div>
     </div>
     """
@@ -188,7 +193,7 @@ def promises_page() -> HTMLResponse:
     {page_head(
         "Vaat Takip Masası",
         lede="Siyasi aktörlerin kamuoyuna verdikleri taahhütlerin, kanunlaşma süreçlerinin ve gerçekleşme kayıtlarının doğrulanmış kütüğü.",
-        actions=search_input("promise-search", "Aktör veya vaat ara…", oninput="pdSearchPromises(this.value)"),
+        actions=search_input("promise-search", "Aktör veya vaat ara…", action="search-promises"),
     )}
 
     {kpis_html}

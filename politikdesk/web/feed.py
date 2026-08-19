@@ -10,7 +10,6 @@ sayısı kırılımı, son güncelleme; **30 sn'de bir sessiz yenileme** ve **en
 
 from __future__ import annotations
 
-import json
 import urllib.parse
 from typing import Any
 
@@ -24,6 +23,7 @@ from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web import repository
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     button,
     esc,
     event_badge,
@@ -199,7 +199,6 @@ def _tweet_module(row: dict[str, Any]) -> str:
         # üstelik kalan metin işaretleme olarak ayrıştırılıyordu.
         # `esc` (`quote=True`) tek tırnağı `&#x27;` yapar; tarayıcı onu
         # öznitelik değeri çözülürken geri açar, JS doğru JSON'ı görür.
-        body_json = esc(json.dumps(body_text))
 
         status_pill = (
             f'<span class="badge strong" style="font-size:11px;height:18px">{char_len}/280 X Uyumlu</span>'
@@ -216,7 +215,7 @@ def _tweet_module(row: dict[str, Any]) -> str:
               {status_pill}
             </div>
             <div class="row tight">
-              <button class="btn sm ghost" type="button" onclick='pdCopy({body_json}, "X Tweeti")' title="Tweet metnini kopyala">
+              <button class="btn sm ghost" type="button"{action_attrs("copy", body_text, "X Tweeti")} title="Tweet metnini kopyala">
                 {icon("copy", 12)}<span>Kopyala</span>
               </button>
               <a class="btn sm primary" href="{intent_url}" target="_blank" rel="noopener noreferrer" title="Yeni sekmede X'te aç">
@@ -224,7 +223,7 @@ def _tweet_module(row: dict[str, Any]) -> str:
               </a>
             </div>
           </div>
-          <textarea class="feed-tweet-textarea" readonly onclick="this.select()" aria-label="X Tweet Taslağı">{esc(body_text)}</textarea>
+          <textarea class="feed-tweet-textarea" readonly{action_attrs("select-all")} aria-label="X Tweet Taslağı">{esc(body_text)}</textarea>
           <div class="row" style="justify-content:space-between;align-items:center;margin-top:var(--space-2);font-size:var(--text-xs)">
             <span class="subtle mono">Doğrulanmış kanıt kütüğüne bağlı</span>
             <div class="row tight">
@@ -244,7 +243,8 @@ def _tweet_module(row: dict[str, Any]) -> str:
 
     # Olay yazıma hazır ama henüz taslak üretilmemiş
     angle_chips = "".join(
-        f'<button class="btn sm ghost" type="button" onclick="pdQuickDraft({event_id}, \'{key}\', this)" style="font-size:11px;height:22px;padding:0 6px">'
+        f'<button class="btn sm ghost" type="button"'
+        f'{action_attrs("quick-draft", event_id, key)} style="font-size:11px;height:22px;padding:0 6px">'
         f'{esc(ANGLES[key][0])}</button>'
         for key in ANGLES
     )
@@ -257,7 +257,7 @@ def _tweet_module(row: dict[str, Any]) -> str:
           <span class="subtle" style="font-size:var(--text-xs)">Açı seç & 1-tıkla hazırla:</span>
           {angle_chips}
         </div>
-        <button class="btn sm ghost" type="button" onclick="pdQuickDraft({event_id}, 'inform', this)" style="font-size:12px">
+        <button class="btn sm ghost" type="button"{action_attrs("quick-draft", event_id, "inform")} style="font-size:12px">
           {icon("zap", 12)}<span>Hızlı Üret</span>
         </button>
       </div>
@@ -380,11 +380,11 @@ def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
 
 
 _SHORTCUTS_MODAL = f"""
-<div id="shortcuts-modal" class="shortcuts-backdrop" onclick="if(event.target===this)pdToggleShortcuts()">
+<div id="shortcuts-modal" class="shortcuts-backdrop"{action_attrs("shortcuts-backdrop")}>
   <div class="shortcuts-modal">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
       <h3 style="margin:0;font-size:var(--text-lg)">Klavye Kısayolları</h3>
-      <button class="btn sm ghost" type="button" onclick="pdToggleShortcuts()">{icon("close", 14)}</button>
+      <button class="btn sm ghost" type="button"{action_attrs("toggle-shortcuts")}>{icon("close", 14)}</button>
     </div>
     <div class="shortcut-row"><span>Sonraki olay</span><span class="shortcut-key">J</span></div>
     <div class="shortcut-row"><span>Önceki olay</span><span class="shortcut-key">K</span></div>
@@ -428,12 +428,12 @@ def feed_page(
     )
 
     actions_html = (
-        search_input("feed-search", "Gündemde ara… [/]", oninput="pdSearchFeed(this.value)")
-        + f'<button class="btn sm ghost" type="button" onclick="pdToggleView()" id="view-toggle" title="Görünüm değiştir">'
+        search_input("feed-search", "Gündemde ara… [/]", action="search-feed")
+        + f'<button class="btn sm ghost" type="button"{action_attrs("toggle-view")} id="view-toggle" title="Görünüm değiştir">'
         f'{icon("grid", 13)}<span id="view-mode-label">Kompakt</span></button>'
-        f'<button class="btn sm ghost" type="button" onclick="pdToggleShortcuts()" title="Klavye Kısayolları (?)">'
+        f'<button class="btn sm ghost" type="button"{action_attrs("toggle-shortcuts")} title="Klavye Kısayolları (?)">'
         f'{icon("info", 13)}<span>Kısayollar</span></button>'
-        + button("Yenile", icon_name="refresh", onclick="pdRefresh()")
+        + button("Yenile", icon_name="refresh", action="refresh")
     )
 
     body = f"""
@@ -495,8 +495,9 @@ window.pdToggleShortcuts = function() {{
   if (modal) modal.classList.toggle('open');
 }};
 
-window.pdSearchFeed = function(q) {{
-  var val = (q || '').toLowerCase().trim();
+// Dağıtıcı `input` olayında (öğe, olay) geçer; arama metni öğeden okunur.
+window.pdSearchFeed = function(el) {{
+  var val = (el.value || '').toLowerCase().trim();
   var cards = document.querySelectorAll('#cards [data-search]');
   var visible = 0;
   cards.forEach(function(c) {{
@@ -653,7 +654,7 @@ async function pdRefresh(){{
     }});
     note.innerHTML = '<span class="pulse-dot"></span><span>' + new Date().toLocaleTimeString('tr-TR') + ' güncellendi</span>';
     var searchEl = document.getElementById('feed-search');
-    if (searchEl && searchEl.value) window.pdSearchFeed(searchEl.value);
+    if (searchEl && searchEl.value) window.pdSearchFeed(searchEl);
   }} catch (e) {{
     note.innerHTML = '<span class="subtle">Yenilenemedi — bağlantı yok. Kartlar son hâliyle duruyor.</span>';
   }}
@@ -721,6 +722,17 @@ document.addEventListener('keydown', function(e) {{
     e.preventDefault();
     window.pdToggleShortcuts();
   }}
+}});
+
+window.pdAction('toggle-view', window.pdToggleView);
+window.pdAction('toggle-shortcuts', window.pdToggleShortcuts);
+window.pdAction('search-feed', window.pdSearchFeed);
+window.pdAction('quick-draft', window.pdQuickDraft);
+window.pdAction('refresh', pdRefresh);
+// Arka plana tıklayınca kapanır, pencerenin İÇİNE tıklayınca kapanmaz.
+// Eskiden arka planın satır içi tıklama özniteliğindeydi; koşul aynen korundu.
+window.pdAction('shortcuts-backdrop', function(el, ev){{
+  if (ev.target === el) window.pdToggleShortcuts();
 }});
 
 setInterval(function(){{ if (!document.hidden) pdRefresh(); }},

@@ -183,21 +183,36 @@ def test_server_rendered_copy_button_survives_turkish_apostrophes() -> None:
     tek tırnağı kaçırmaz; Türkçede kesme işareti kural olduğu için
     ("Silivri'deki", "Mahkemesi'nde") düğme pratikte HER taslakta
     bozuluyordu ve kalan metin işaretleme olarak ayrıştırılıyordu.
+
+    Faz 7'de taşıyıcı `onclick` değil `data-pd-args` oldu; arıza sınıfı
+    aynı kaldığı için test de taşındı — ve TAM TUR (round-trip) doğrulaması
+    yaparak güçlendirildi: özniteliği tarayıcının yaptığı gibi çözüp JSON'ı
+    ayrıştırıyoruz ve metnin bit bit aynı çıktığını görüyoruz. Eski hâli
+    yalnızca "kaçırılmış mı" diye bakıyordu.
     """
+    import html as html_mod
+    import json
+    import re
+
     from politikdesk.web.feed import _tweet_module
 
     body = "Mahkeme kararı Silivri'deki salonda okundu; İBB'nin itirazı reddedildi."
-    html = _tweet_module(
+    markup = _tweet_module(
         {
             "id": 7,
             "latest_draft": {"id": 3, "body": body, "is_grounded": True, "angle": "inform"},
         }
     )
 
-    # Ham tek tırnak öznitelik değerinin içinde KALMAMALI.
-    onclick = html.split("onclick='pdCopy(", 1)[1].split("'", 1)[0]
-    assert "&#x27;" in onclick, "Kesme isareti kacirilmamis — oznitelik erken kapaniyor."
-    assert "Silivri" in onclick
+    # Kopyala düğmesinin argümanları. Öznitelik çift tırnakla açılır;
+    # ham tek tırnak İÇERİDE kalmamalı, `&#x27;` olarak kaçırılmalı.
+    raw = re.search(r'data-pd-click="copy" data-pd-args="([^"]*)"', markup)
+    assert raw is not None, "Kopyala düğmesi eylem özniteliğini taşımıyor."
+    assert "&#x27;" in raw.group(1), "Kesme işareti kaçırılmamış."
+
+    # Tarayıcının yaptığı: öznitelik varlıklarını çöz, sonra JSON'ı ayrıştır.
+    args = json.loads(html_mod.unescape(raw.group(1)))
+    assert args == [body, "X Tweeti"], "Metin tam turdan aynı çıkmadı."
 
 
 def test_pd_toast_does_not_use_inner_html() -> None:

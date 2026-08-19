@@ -17,6 +17,7 @@ from politikdesk.political_memory.accountability import LEGAL_DISCLAIMER
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     button,
     card,
     empty_state,
@@ -89,17 +90,21 @@ _ACCOUNTABILITY_JS = """
 
   window.pdFilterAcc = function(filterKey, btn) {
     currentFilter = filterKey;
-    document.querySelectorAll('#accountability-tabs a').forEach(function(a) {
-      a.removeAttribute('aria-current');
+    document.querySelectorAll('#accountability-tabs button').forEach(function(b) {
+      b.removeAttribute('aria-current');
     });
     if (btn) btn.setAttribute('aria-current', 'true');
     applyFilters();
   };
 
-  window.pdSearchAcc = function(val) {
-    currentQuery = val;
+  // Dağıtıcı `input` olayında (öğe, olay) geçer; arama metni öğeden okunur.
+  window.pdSearchAcc = function(el) {
+    currentQuery = el.value;
     applyFilters();
   };
+
+  window.pdAction('filter-acc', window.pdFilterAcc);
+  window.pdAction('search-acc', window.pdSearchAcc);
 })();
 """
 
@@ -243,11 +248,11 @@ def accountability_page() -> HTMLResponse:
 
     filter_tabs_html = f"""
     <div id="accountability-tabs" class="segment">
-      <a href="javascript:void(0)" aria-current="true" onclick="pdFilterAcc('all', this)">Tümü ({total_count})</a>
-      <a href="javascript:void(0)" onclick="pdFilterAcc('verified', this)">Doğrulanmış ({verified_count})</a>
-      <a href="javascript:void(0)" onclick="pdFilterAcc('supported', this)">Desteklenen ({supported_count})</a>
-      <a href="javascript:void(0)" onclick="pdFilterAcc('contra', this)">Çelişkiler ({contra_count})</a>
-      <a href="javascript:void(0)" onclick="pdFilterAcc('inferred', this)">Olası İlişki ({inferred_count})</a>
+      <button type="button" aria-current="true"{action_attrs("filter-acc", "all")}>Tümü ({total_count})</button>
+      <button type="button"{action_attrs("filter-acc", "verified")}>Doğrulanmış ({verified_count})</button>
+      <button type="button"{action_attrs("filter-acc", "supported")}>Desteklenen ({supported_count})</button>
+      <button type="button"{action_attrs("filter-acc", "contra")}>Çelişkiler ({contra_count})</button>
+      <button type="button"{action_attrs("filter-acc", "inferred")}>Olası İlişki ({inferred_count})</button>
     </div>
     """
 
@@ -255,7 +260,7 @@ def accountability_page() -> HTMLResponse:
     {page_head(
         "Hesap Sor: Editoryal Hesap Verebilirlik",
         lede="Geçmiş vaatler, TBMM oylama tutanakları ve Sayıştay kamu zararı bulguları arasındaki çapraz eşleme ve nedensellik kütüğü.",
-        actions=search_input("acc-search", "Vaka, aktör veya kurum ara…", oninput="pdSearchAcc(this.value)"),
+        actions=search_input("acc-search", "Vaka, aktör veya kurum ara…", action="search-acc"),
     )}
 
     {kpis_html}

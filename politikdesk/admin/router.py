@@ -510,7 +510,7 @@ def dashboard() -> str:
             actions=(
                 button(
                     "Boru Hattını Boşalt",
-                    onclick="this.disabled=true;this.innerText='İşleniyor...';fetch('/admin/drain',{method:'POST'}).then(()=>location.reload())",
+                    action="drain",
                     variant="primary",
                     icon_name="pipeline",
                 )
@@ -582,9 +582,20 @@ def dashboard() -> str:
     }
 </div>
 """
+    # Faz 7: eskiden `onclick` özniteliğine gömülü tek satırlık bir ifadeydi.
+    # Davranış birebir korundu — buton devre dışı bırakılır, metni değişir,
+    # istek biter bitmez sayfa yenilenir.
+    drain_js = """
+window.pdAction('drain', function(el){
+  el.disabled = true;
+  el.innerText = 'İşleniyor...';
+  fetch('/admin/drain', {method: 'POST'}).then(function(){ location.reload(); });
+});
+"""
     return page(
         "Boru hattı",
         body,
         active="/admin/",
         crumbs=(("Denetim", None), ("Boru hattı", None)),
+        extra_js=drain_js,
     )

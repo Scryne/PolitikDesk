@@ -7,8 +7,6 @@ model sürümlerini ve denetim kütüğünü gösterir.
 
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
@@ -16,6 +14,7 @@ from politikdesk.editorial.archive import list_archived_publications
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     esc,
     icon,
     kpi,
@@ -60,17 +59,21 @@ _ARCHIVE_JS = """
 
   window.pdFilterArchive = function(angleKey, btn) {
     currentAngle = angleKey;
-    document.querySelectorAll('#archive-tabs a').forEach(function(a) {
-      a.removeAttribute('aria-current');
+    document.querySelectorAll('#archive-tabs button').forEach(function(b) {
+      b.removeAttribute('aria-current');
     });
     if (btn) btn.setAttribute('aria-current', 'true');
     applyFilters();
   };
 
-  window.pdSearchArchive = function(val) {
-    currentQuery = val;
+  // Dağıtıcı `input` olayında (öğe, olay) geçer; arama metni öğeden okunur.
+  window.pdSearchArchive = function(el) {
+    currentQuery = el.value;
     applyFilters();
   };
+
+  window.pdAction('filter-archive', window.pdFilterArchive);
+  window.pdAction('search-archive', window.pdSearchArchive);
 })();
 """
 
@@ -133,7 +136,6 @@ def archive_page() -> HTMLResponse:
         cited_len = len(r.get("cited_claim_ids") or [])
         event_id = r.get("event_id")
 
-        body_json = json.dumps(body_text)
 
         search_blob = f"{title_esc} {body_esc} {angle_raw} {action_esc}".replace(
             '"', "&quot;"
@@ -148,7 +150,7 @@ def archive_page() -> HTMLResponse:
               {grounded_badge}
             </div>
             <div class="row tight">
-              <button class="btn sm ghost" type="button" onclick='pdCopy({body_json}, "Yayınlanan metin")'>
+              <button class="btn sm ghost" type="button"{action_attrs("copy", body_text, "Yayınlanan metin")}>
                 {icon("copy", 13)}<span>Kopyala</span>
               </button>
               <a class="btn sm ghost" href="/event/{event_id}">
@@ -181,7 +183,8 @@ def archive_page() -> HTMLResponse:
 
     tabs_items = [('Tümü', 'all')] + [(a.upper(), a) for a in sorted(angles_present)]
     filter_tabs_html = '<div id="archive-tabs" class="segment">' + "".join(
-        f'<a href="javascript:void(0)"{" aria-current=\"true\"" if key == "all" else ""} onclick="pdFilterArchive(\'{key}\', this)">{esc(lbl)}</a>'
+        f'<button type="button"{" aria-current=\"true\"" if key == "all" else ""}'
+        f"{action_attrs('filter-archive', key)}>{esc(lbl)}</button>"
         for lbl, key in tabs_items
     ) + "</div>"
 
@@ -189,7 +192,7 @@ def archive_page() -> HTMLResponse:
     {page_head(
         "Editoryal Yayın ve Kanıt Arşivi",
         lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü (Spec §14.4).",
-        actions=search_input("archive-search", "Arşivde veya metinde ara…", oninput="pdSearchArchive(this.value)"),
+        actions=search_input("archive-search", "Arşivde veya metinde ara…", action="search-archive"),
     )}
 
     {kpis_html}

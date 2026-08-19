@@ -37,6 +37,7 @@ from politikdesk.web.memory_view import router as memory_router
 from politikdesk.web.metrics_dashboard import router as metrics_router
 from politikdesk.web.onboarding import router as onboarding_router
 from politikdesk.web.promises_view import router as promises_router
+from politikdesk.web.ui.nonce import new_nonce, reset_nonce, set_nonce
 from politikdesk.web.war_room import router as war_room_router
 
 log = get_logger(__name__)
@@ -233,12 +234,6 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
 # ile artık bir CDN bağlantısı yanlışlıkla eklenirse tarayıcı reddeder ve
 # hata konsola düşer — gözden kaçmaz.
 #
-# `'unsafe-inline'` neden var: arayüz sunucu tarafında üretilir ve stil
-# tek bir satır içi `<style>` bloğu, davranış da satır içi `<script>`
-# olarak gömülüdür (Ek A'nın uygulama katmanı kararı). Bunları kaldırmak
-# nonce altyapısı ister ve ayrı bir iştir; CSP'nin geri kalanı o gün
-# gelene kadar da değerlidir.
-#
 # Asıl kazanç şu üç direktifte:
 #   connect-src 'self'  — XSS başarılı olsa bile veri dışarı sızdıramaz
 #   object-src  'none'  — eklenti tabanlı kaçış yolu kapalı
@@ -246,10 +241,24 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
 #                         kaçırılması engellenir
 #
 # `img-src` `data:` kabul eder: satır içi SVG ikonlar ve kanıt kartı.
-_CSP = "; ".join(
+#
+# ── script-src: `'unsafe-inline'` KALDIRILDI (Faz 7 / ADR-011) ──
+#
+# Eskiden `script-src 'self' 'unsafe-inline'` idi ve bu, CSP'nin XSS'e karşı
+# koruyan tek direktifini pratikte ETKİSİZ kılıyordu: enjekte edilen bir
+# `<script>` bloğu da tam olarak "satır içi script"tir, tarayıcı ikisini
+# ayırt edemez. Artık her istek kendi nonce'unu alır ve yalnızca o nonce'u
+# taşıyan iki sunucu-üretimi blok çalışır.
+#
+# `style-src 'unsafe-inline'` KASITLI OLARAK DURUYOR ve Faz 7 kapsamı
+# dışındadır: depo boyunca yüzlerce `style="..."` ÖZNİTELİĞİ var, nonce
+# öznitelik stillerini kapsamaz — onlar için `'unsafe-hashes'` gerekirdi ki
+# o ayrı ve daha büyük bir iştir. Stil enjeksiyonu script yürütmez; risk
+# sınıfı farklıdır. Bilinen sınırlama olarak ADR-011'de kayıtlıdır.
+_CSP_TEMPLATE: str = "; ".join(
     (
         "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",
+        "script-src 'self' 'nonce-{nonce}'",
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data:",
         "font-src 'self'",
@@ -263,16 +272,33 @@ _CSP = "; ".join(
 
 
 class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Güvenlik başlıkları middleware'i (OWASP standardı)."""
+    """Güvenlik başlıkları middleware'i (OWASP standardı).
+
+    Nonce'u BU middleware üretir ve yığının en dışında durur (en son
+    `add_middleware` edilen en dışta koşar). İki sonucu var:
+
+      * Nonce, `call_next` ÇAĞRILMADAN ÖNCE bağlama yazılır; böylece içeride
+        çalışan rota işleyicisi `shell.page()` üzerinden aynı değeri okur ve
+        başlıktaki nonce ile HTML'deki nonce aynı isteğe ait olur.
+      * İçerideki auth/CSRF middleware'leri erken 401/403 döndürdüğünde bile
+        başlıklar eklenir (mevcut regresyon testi bunu kilitliyor).
+    """
 
     async def dispatch(self, request: Request, call_next):  # noqa: ANN201
-        response: Response = await call_next(request)
+        nonce = new_nonce()
+        token = set_nonce(nonce)
+        try:
+            response: Response = await call_next(request)
+        finally:
+            # Bağlamı her koşulda geri al: bir isteğin nonce'u, olay
+            # döngüsünde sırayı devralan bir sonraki işe sızmamalı.
+            reset_nonce(token)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
-        response.headers["Content-Security-Policy"] = _CSP
+        response.headers["Content-Security-Policy"] = _CSP_TEMPLATE.format(nonce=nonce)
         response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
         return response
 

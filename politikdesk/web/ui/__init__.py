@@ -16,6 +16,7 @@ içe aktarır; kendi stilini, ikonunu veya biçimlendirmesini tanımlamaz.
 
 from politikdesk.web.ui import charts, format
 from politikdesk.web.ui.components import (
+    action_attrs,
     button,
     card,
     cell,
@@ -44,6 +45,7 @@ from politikdesk.web.ui.icons import icon, status_icon
 from politikdesk.web.ui.shell import ACTIVITY_JS, page
 
 __all__ = [
+    "action_attrs",
     "ACTIVITY_JS",
     "button",
     "card",

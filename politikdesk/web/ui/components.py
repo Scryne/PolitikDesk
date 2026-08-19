@@ -12,6 +12,7 @@ ve kullanıcıdan gelen metin bu katmandan geçmeden ekrana çıkmaz.
 from __future__ import annotations
 
 import html
+import json
 import urllib.parse
 from collections.abc import Iterable, Sequence
 from typing import Any
@@ -61,6 +62,37 @@ def esc_attr(value: object) -> str:
     ):
         return "#"
     return html.escape(s, quote=True)
+
+
+def action_attrs(name: str | None, *args: Any, event: str = "click") -> str:
+    """Eylem özniteliklerini üretir — satır içi işleyicinin yerine geçer (Faz 7).
+
+    `onclick="pdFilterAcc('all', this)"` yerine
+    `data-pd-click="filter-acc" data-pd-args="[&quot;all&quot;]"`.
+
+    Neden gerekli: CSP'den `'unsafe-inline'` kalkınca satır içi öznitelik
+    işleyicileri tarayıcıda çalışmaz ve nonce onları kurtarmaz (nonce
+    yalnızca `<script>` etiketine uygulanır). Davranış `shell.py`'deki
+    delegasyon dağıtıcısına taşındı; burası onun işaretleme tarafıdır.
+
+    Argümanlar JSON olarak gömülür ve `esc_attr`'den geçer — yani içlerindeki
+    tırnak, `<` ve `&` kaçırılır. Bu, eski `onclick` kuşağının canlı veriyle
+    yaşadığı arızayı da kapatır: Türkçe kesme işareti (`Silivri'deki`) artık
+    özniteliği erken kapatamaz, çünkü değer KOD değil VERİ olarak taşınır ve
+    hiçbir noktada `eval` edilmez.
+
+    `event` yalnızca `click` / `input` / `change` olabilir; dağıtıcı bu üç
+    olayı dinler. Yazım hatasıyla dinlenmeyen bir olay adı üretmek sessiz
+    bir arıza olurdu, o yüzden burada patlar.
+    """
+    if not name:
+        return ""
+    if event not in ("click", "input", "change"):
+        raise ValueError(f"Desteklenmeyen eylem olayı: {event!r} (click/input/change)")
+    out = f' data-pd-{event}="{esc_attr(name)}"'
+    if args:
+        out += f' data-pd-args="{esc_attr(json.dumps(list(args), ensure_ascii=False))}"'
+    return out
 
 
 def _attrs(**kwargs: Any) -> str:
@@ -375,7 +407,8 @@ def button(
     href: str | None = None,
     variant: str = "",
     icon_name: str | None = None,
-    onclick: str | None = None,
+    action: str | None = None,
+    action_args: Sequence[Any] = (),
     disabled: bool = False,
     title: str | None = None,
     id_: str | None = None,
@@ -385,6 +418,10 @@ def button(
 
     İkon-only buton (`label=""`) için `title` zorunludur — `aria-label`
     olarak da basılır (Bölüm 12).
+
+    `action` / `action_args`: tıklamada çalışacak eylem (Faz 7). Eskiden
+    `onclick=` bir JavaScript İFADESİ alıyordu; artık kayıt defterindeki bir
+    eylemin ADI ve onun veri argümanları alınır — işaretlemeye kod gömülmez.
     """
     classes = ["btn", variant, "sm" if small else "", "icon" if not label else ""]
     graphic = icon(icon_name, 14 if small else 16) if icon_name else ""
@@ -398,8 +435,13 @@ def button(
         id=id_,
     )
     if href is not None:
+        # Bağlantı olarak basılan bir butona eylem verilirse eylem SESSİZCE
+        # düşerdi; düğme tıklanır, hiçbir şey olmaz. Sessiz kalmaktansa patla.
+        if action:
+            raise ValueError("`href` ve `action` birlikte kullanılamaz; biri seçilmeli.")
         return f'<a{common} href="{esc(href)}">{graphic}{text}</a>'
-    return f"<button{common}{_attrs(onclick=onclick, disabled=disabled)}>{graphic}{text}</button>"
+    behaviour = action_attrs(action, *action_args) + _attrs(disabled=disabled)
+    return f"<button{common}{behaviour}>{graphic}{text}</button>"
 
 
 def chip(label: str, href: str, *, active: bool = False, icon_name: str | None = None) -> str:
@@ -427,15 +469,20 @@ def search_input(
     id_: str,
     placeholder: str = "Ara…",
     *,
-    oninput: str | None = None,
+    action: str | None = None,
     cls: str = "",
 ) -> str:
-    """Arama kutusu — ikonlu ve erişilebilir."""
+    """Arama kutusu — ikonlu ve erişilebilir.
+
+    `action`: her tuş vuruşunda çalışacak eylemin adı (Faz 7). Dağıtıcı
+    `input` olayını dinler ve eylemi `fn(öğe, olay)` olarak çağırır; arama
+    metni `öğe.value`'dan okunur.
+    """
     return (
         f'<div class="search-wrap {cls}">'
         f'{icon("search", 14)}'
         f'<input type="search" id="{esc(id_)}" placeholder="{esc(placeholder)}"'
-        f'{_attrs(oninput=oninput)}>'
+        f"{action_attrs(action, event='input')}>"
         f"</div>"
     )
 

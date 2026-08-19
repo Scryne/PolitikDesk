@@ -450,13 +450,22 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
   background:var(--color-surface-sunken);max-width:100%;overflow-x:auto;
   scrollbar-width:none}}
 .segment::-webkit-scrollbar{{display:none}}
-.segment a{{flex:none}}
-.segment a{{display:inline-flex;align-items:center;height:26px;padding:0 12px;
+/* Faz 7: filtre sekmeleri hiçbir yere gitmeyen sözde-URL taşıyan anchor'lardı.
+   O şema CSP'nin script-src'si tarafından reddedilir; üstelik tıklamadan
+   başka bir yere GİTMEYEN bir bağlantı yanlış semantikti (ekran okuyucu
+   "bağlantı" diyordu, Enter/Space davranışı da anchor'ınkiydi). Artık
+   `<button type="button">`. Görünüm birebir korunsun diye tüm kurallar
+   ikisini de hedefler; buton varsayılanları (arka plan, kenarlık, yazı tipi)
+   ayrıca sıfırlanır. */
+.segment a,.segment button{{flex:none}}
+.segment a,.segment button{{display:inline-flex;align-items:center;height:26px;padding:0 12px;
   border-radius:var(--radius-sm);font-size:var(--text-sm);
   color:var(--color-fg-muted);text-decoration:none;
+  background:none;border:0;margin:0;cursor:pointer;
+  font-family:inherit;line-height:1;white-space:nowrap;
   transition:background var(--dur-hover) var(--ease-out)}}
-.segment a:hover{{color:var(--color-fg)}}
-.segment a[aria-current]{{background:var(--color-surface);color:var(--color-fg);
+.segment a:hover,.segment button:hover{{color:var(--color-fg)}}
+.segment a[aria-current],.segment button[aria-current]{{background:var(--color-surface);color:var(--color-fg);
   font-weight:var(--weight-medium);box-shadow:var(--shadow-sm)}}
 
 /* ─── filtre çipi · Bölüm 8.10 ─── */

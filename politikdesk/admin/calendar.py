@@ -182,7 +182,7 @@ def calendar_dashboard() -> str:
             "Beklenen gelişmeler",
             lede="Spec §9.5: ürün yalnızca olanı değil, olacağı da bilir. "
             "Gerçekleşen olay otomatik bağlanır (F2-19).",
-            actions=button("Eşleştirmeyi çalıştır", icon_name="refresh", onclick="pdMatch()"),
+            actions=button("Eşleştirmeyi çalıştır", icon_name="refresh", action="match"),
         )
     }
 <div class="stack">
@@ -206,6 +206,7 @@ async function pdMatch(){
     window.pdToast('Eşleştirme çalıştırılamadı. Veritabanına ulaşılamıyor olabilir.');
   }
 }
+window.pdAction('match', pdMatch);
 """
     return page(
         "Beklenen gelişmeler",

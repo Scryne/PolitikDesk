@@ -15,6 +15,7 @@ from politikdesk.political_memory import service as mem_service
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web.ui import (
     ACTIVITY_JS,
+    action_attrs,
     button,
     card,
     esc,
@@ -33,8 +34,9 @@ router = APIRouter(tags=["web"])
 
 _DIRECTORY_JS = """
 (function(){
-  window.pdSearchActors = function(query) {
-    var q = query.toLowerCase().trim();
+  // Dagitici `input` olayinda (oge, olay) gecer; arama metni ogeden okunur.
+  window.pdSearchActors = function(el) {
+    var q = el.value.toLowerCase().trim();
     var cards = document.querySelectorAll('#actor-grid [data-actor-name]');
     var visible = 0;
     cards.forEach(function(c) {
@@ -52,6 +54,8 @@ _DIRECTORY_JS = """
       emptyEl.style.display = (visible === 0 && cards.length > 0) ? '' : 'none';
     }
   };
+
+  window.pdAction('search-actors', window.pdSearchActors);
 })();
 """
 
@@ -61,8 +65,8 @@ _ACTOR_TIMELINE_JS = """
 
   window.pdFilterTimeline = function(kind, btn) {
     currentFilter = kind;
-    document.querySelectorAll('#timeline-tabs a').forEach(function(a) {
-      a.removeAttribute('aria-current');
+    document.querySelectorAll('#timeline-tabs button').forEach(function(b) {
+      b.removeAttribute('aria-current');
     });
     if (btn) btn.setAttribute('aria-current', 'true');
 
@@ -84,6 +88,8 @@ _ACTOR_TIMELINE_JS = """
       }
     });
   };
+
+  window.pdAction('filter-timeline', window.pdFilterTimeline);
 })();
 """
 
@@ -170,7 +176,7 @@ def memory_directory_page() -> HTMLResponse:
     {page_head(
         "Siyasi Hafıza Masası",
         lede="Siyasi aktörlerin, bakanların ve parti sözcülerinin geçmiş beyanları, kamuoyu vaatleri ve teyit zincirleri.",
-        actions=search_input("actor-search", "Aktör veya kurum ara…", oninput="pdSearchActors(this.value)"),
+        actions=search_input("actor-search", "Aktör veya kurum ara…", action="search-actors"),
     )}
 
     {kpis_html}
@@ -310,10 +316,10 @@ def actor_memory_page(actor: str) -> HTMLResponse:
 
     filter_tabs_html = f"""
     <div id="timeline-tabs" class="segment">
-      <a href="javascript:void(0)" aria-current="true" onclick="pdFilterTimeline('all', this)">Tümü ({len(all_entries)})</a>
-      <a href="javascript:void(0)" onclick="pdFilterTimeline('promise', this)">Vaatler ({p_count})</a>
-      <a href="javascript:void(0)" onclick="pdFilterTimeline('attribution', this)">Beyanlar ({len(memory.attributions)})</a>
-      <a href="javascript:void(0)" onclick="pdFilterTimeline('contra', this)">Çelişkiler ({contra_count})</a>
+      <button type="button" aria-current="true"{action_attrs("filter-timeline", "all")}>Tümü ({len(all_entries)})</button>
+      <button type="button"{action_attrs("filter-timeline", "promise")}>Vaatler ({p_count})</button>
+      <button type="button"{action_attrs("filter-timeline", "attribution")}>Beyanlar ({len(memory.attributions)})</button>
+      <button type="button"{action_attrs("filter-timeline", "contra")}>Çelişkiler ({contra_count})</button>
     </div>
     """
 

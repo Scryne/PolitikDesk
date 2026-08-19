@@ -25,6 +25,7 @@ from typing import Final
 from politikdesk.web.ui.components import esc
 from politikdesk.web.ui.css import stylesheet
 from politikdesk.web.ui.icons import icon
+from politikdesk.web.ui.nonce import nonce_attr
 
 STATIC_BASE: Final[str] = "/static"
 
@@ -65,6 +66,66 @@ _THEME_BOOT: Final[str] = (
     "if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}"
     "catch(e){}})()"
 )
+
+# ── Eylem dağıtıcısı (Faz 7 / ADR-011) ──────────────────────────────────
+#
+# `onclick="pdX()"` özniteliklerinin yerini alır. CSP'de `'unsafe-inline'`
+# kalktığı an satır içi öznitelik işleyicileri tarayıcı tarafından SESSİZCE
+# çalıştırılmaz — nonce onları KURTARMAZ, çünkü nonce yalnızca `<script>`
+# etiketine uygulanır. Bu yüzden hepsi buraya taşındı.
+#
+# ### Neden delegasyon, neden öğe başına addEventListener değil
+#
+# `feed.py::pdRefresh` canlı yenilemede `box.innerHTML = await r.text()` ile
+# kart listesinin TAMAMINI değiştirir. Yükleme anında tek tek bağlanan
+# dinleyiciler o değişimde kaybolurdu ve yenilemeden sonra hiçbir kart
+# düğmesi çalışmazdı. `document` üzerinde tek bir dinleyici DOM değişse de
+# ayakta kalır.
+#
+# ### Neden `window[isim]` değil, açık allowlist
+#
+# Eylem adını `window` üzerinde çözmek gerçek bir CSP bypass'ı açardı:
+# `data-pd-click="eval"` + `data-pd-args='["...kod..."]'` yazabilen bir
+# enjeksiyon, dağıtıcıyı kendi kodunu çalıştıran bir gadget'a çevirirdi.
+# `pdActions` prototipsiz (`Object.create(null)`) bir kayıt defteridir;
+# yalnızca `pdAction()` ile AÇIKÇA kaydedilmiş fonksiyonlar çağrılabilir.
+# Prototipsiz olması `__proto__`/`constructor` gibi adların da boş dönmesini
+# garanti eder.
+#
+# ### Argüman sözleşmesi
+#
+#     fn.apply(öğe, [...data-pd-args] + [öğe, olay])
+#
+# Yani veri argümanları önce, sonra öğenin kendisi, en sonda olay nesnesi.
+# Bu sıra bilinçli seçildi: eski `pdFilterAcc('all', this)` çağrısı
+# `('all', öğe, olay)` olur ve `function(filterKey, btn)` imzası HİÇ
+# DEĞİŞMEDEN doğru argümanları alır. Fazla argüman JavaScript'te yok
+# sayılır. Böylece 50 işleyici taşınırken tek bir fonksiyon gövdesi
+# değiştirilmedi — regresyon yüzeyi işaretlemeyle sınırlı kaldı.
+_DISPATCH_JS: Final[str] = """
+window.pdActions = Object.create(null);
+window.pdAction = function(name, fn){ window.pdActions[name] = fn; };
+(function(){
+  function dispatch(ev, attr){
+    var target = ev.target;
+    if (!target || typeof target.closest !== 'function') return;
+    var el = target.closest('[' + attr + ']');
+    if (!el) return;
+    var fn = window.pdActions[el.getAttribute(attr)];
+    if (typeof fn !== 'function') return;
+    var args = [];
+    var raw = el.getAttribute('data-pd-args');
+    if (raw) {
+      try { args = JSON.parse(raw); } catch (e) { return; }
+      if (!Array.isArray(args)) return;
+    }
+    fn.apply(el, args.concat([el, ev]));
+  }
+  document.addEventListener('click', function(ev){ dispatch(ev, 'data-pd-click'); });
+  document.addEventListener('input', function(ev){ dispatch(ev, 'data-pd-input'); });
+  document.addEventListener('change', function(ev){ dispatch(ev, 'data-pd-change'); });
+})();
+"""
 
 _THEME_JS: Final[str] = """
 (function(){
@@ -123,6 +184,13 @@ window.pdCopy = function(text, label) {
     ok();
   }
 };
+
+// Kabuk düzeyindeki eylemler. `pdCopy` her ekranda kullanılıyor; `print` ve
+// `select-all` ise eskiden satır içi tıklama özniteliğinde duran iki tek
+// satırlık ifadeydi (window.print / this.select).
+window.pdAction('copy', window.pdCopy);
+window.pdAction('print', function(){ window.print(); });
+window.pdAction('select-all', function(el){ el.select(); });
 """
 
 # Kullanım izleme: sayfa açılışı + aktif olunduğunda 60 sn'de bir kalp atışı (F3-19).
@@ -447,7 +515,15 @@ def page(
     from config.election_mode import banner
 
     trail = crumbs or ((title, None),)
-    scripts = "\n".join(part for part in (_THEME_JS, _DRAWER_JS, _CMD_JS, extra_js) if part)
+    # `_DISPATCH_JS` EN BAŞTA: kayıt defterini (`window.pdAction`) o kurar,
+    # sonraki her blok ona eylem kaydeder. Sıra bozulursa kayıtlar
+    # `undefined is not a function` ile düşer.
+    scripts = "\n".join(
+        part for part in (_DISPATCH_JS, _THEME_JS, _DRAWER_JS, _CMD_JS, extra_js) if part
+    )
+    # Bu isteğin nonce'u. Her iki `<script>` etiketi de AYNI değeri taşır ve
+    # o değer yanıtın CSP başlığındakiyle birebir aynıdır.
+    nonce = nonce_attr()
     election = banner()
     election_html = (
         f'<div style="margin-bottom:var(--space-6)">{election}</div>' if election else ""
@@ -459,7 +535,7 @@ def page(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{esc(title)} · PolitikDesk</title>
-<script>{_THEME_BOOT}</script>
+<script{nonce}>{_THEME_BOOT}</script>
 <style>{stylesheet(STATIC_BASE)}</style>
 </head>
 <body{body_attrs}>
@@ -473,6 +549,6 @@ def page(
 </div>
 </div>
 {_CMD_PALETTE_HTML}
-<script>{scripts}</script>
+<script{nonce}>{scripts}</script>
 </body></html>"""
 

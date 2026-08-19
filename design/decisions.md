@@ -371,3 +371,79 @@ tek bir satır içi blok — nonce altyapısı ayrı bir iş.
 | WCAG AA kontrast (açık + koyu) | tüm çiftler geçti |
 | `/event/{id}` sunucu yanıtı | 200, dışa aktarım kartı 11 kanalla render ediliyor |
 | `/war-room` gösterge şeridi | canlı TÜİK verisi (işsizlik %7,6 · Haziran 2026) |
+
+---
+
+## 19 Ağustos 2026 — Faz 7: CSP `script-src` nonce'a taşındı
+
+### 1. `'unsafe-inline'` neden kaldırıldı
+
+Bu belgenin 18 Ağustos girdisi (yukarıda, madde 6) `'unsafe-inline'`ı
+"nonce altyapısı ayrı bir iş" diyerek koruyordu. O iş yapıldı.
+
+Kaldırma gerekçesi: `script-src 'self' 'unsafe-inline'` CSP'nin XSS'e karşı
+koruyan tek direktifini pratikte etkisiz kılıyordu. Enjekte edilen bir
+`<script>` bloğu da "satır içi script"tir; tarayıcı sunucunun yazdığıyla
+saldırganınkini ayırt edemez. Artık her istek kendi nonce'unu alır ve
+yalnızca o nonce'u taşıyan iki sunucu-üretimi blok çalışır.
+
+`style-src 'unsafe-inline'` **kasıtlı olarak duruyor**: depoda yüzlerce
+`style="..."` özniteliği var ve nonce öznitelik stillerini kapsamaz.
+Gerekçe ve kapatma koşulu ADR-011 §3.1'de.
+
+### 2. Arayüz tarafında ne değişti
+
+**50 satır içi olay işleyicisi** (`onclick=`, `oninput=`, `onchange=`)
+kaldırıldı. Nonce bunları kurtarmaz — nonce yalnızca `<script>` etiketine
+uygulanır. Yerine `data-pd-click` / `data-pd-input` / `data-pd-change`
+öznitelikleri ve `shell.py`'de tek bir delegasyon dağıtıcısı kondu.
+
+Bileşen API'si değişti:
+
+| Eski | Yeni |
+|---|---|
+| `button(..., onclick="pdAct('edited')")` | `button(..., action="act", action_args=("edited",))` |
+| `search_input(..., oninput="pdSearch(this.value)")` | `search_input(..., action="search-feed")` |
+
+İşaretlemeye artık **kod gömülmez**; eylemin adı ve veri argümanları
+gömülür. Argümanlar `esc_attr`'den geçmiş JSON'dur ve hiçbir noktada
+`eval` edilmez.
+
+**14 `javascript:void(0)` filtre sekmesi** `<button type="button">` oldu.
+Semantik zaten yanlıştı: hiçbir yere gitmeyen bir bağlantıyı ekran okuyucu
+"bağlantı" diye okuyordu. Görünüm birebir korunsun diye `.segment a`
+kuralları `.segment a, .segment button` olarak genişletildi.
+
+### 3. Bir yan kazanç: Türkçe kesme işareti arızası kapandı
+
+Kopyala düğmeleri `onclick='pdCopy({json.dumps(body)}, ...)'` biçimindeydi.
+`json.dumps` tek tırnağı kaçırmaz; Türkçede kesme işareti kural olduğu için
+("Silivri'deki", "İBB'nin") öznitelik erken kapanıyordu. Artık metin kod
+değil **veri** olarak taşınıyor ve `esc_attr`'den geçiyor. İlgili test tam
+tur (round-trip) doğrulamasına yükseltildi.
+
+### Doğrulama
+
+| Kontrol | Sonuç |
+|---|---|
+| `ruff check .` | 0 hata |
+| `mypy` | 173 dosya, 0 hata |
+| `scripts/check_architecture.py` + `verify_arch_guard` | temiz |
+| `pytest` | **1472 geçti** (64'ü yeni: `test_csp_nonce.py`) |
+| `pip-audit` | bilinen açık yok |
+| `scripts/check_deployment.py` | PASS (konteynerler depoyla senkron) |
+| Tarayıcı (Chromium, CSP zorlanıyor) | 12 ekran: **0 CSP ihlali, 0 konsol hatası** |
+| Saldırgan gözü | nonce'suz / yanlış nonce'lu / başka isteğin nonce'lu enjeksiyon → **üçü de engellendi** |
+| Etkileşim regresyonu | filtreler, arama, kısayol penceresi, kompakt görünüm, tema, Ctrl+K, Enter ile filtre — hepsi çalışıyor |
+| Canlı yenileme sonrası | 151/151 düğme canlı (delegasyon seçiminin gerekçesi) |
+| `pd ui-check` (11 ekran × 4 viewport) | taşma yok, konsol hatası yok |
+| Nonce ek maliyeti | 0.669 µs/istek = `/feed` medyanının %0.003'ü — regresyon yok |
+| Uçtan uca (`127.0.0.1`) | `/feed` medyan 24.3 ms · `/health/live` 2.8 ms |
+
+### Açık kalan (Faz 7 dışı)
+
+`pd ui-check`, `/feed`'de ikon-only bir butonda `aria-label`/`title`
+eksikliği bildiriyor (kısayol penceresinin kapatma düğmesi). Bu bulgu
+**Faz 7 öncesinde de vardı** — eski konteyner kodunda ölçülerek doğrulandı;
+regresyon değildir. Kapsam dışı olduğu için düzeltilmedi. Düzeltmesi
+`feed.py`'deki kapatma düğmesine `title="Kapat"` eklemektir.

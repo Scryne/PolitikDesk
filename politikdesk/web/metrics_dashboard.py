@@ -153,7 +153,7 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
         page_head(
             "Ürün metrikleri",
             lede=lede,
-            actions=button("Şimdi topla", icon_name="refresh", onclick="pdRollup()")
+            actions=button("Şimdi topla", icon_name="refresh", action="rollup")
             + '<span id="rollup-status" class="subtle" aria-live="polite" '
             'style="font-size:var(--text-xs)"></span>',
         )
@@ -189,8 +189,8 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
             '(<span class="mono">metrics_rollup</span>). Pano ilk açıldığında eğilim '
             "boş kalmasın diye geçmiş günler toplanabilir.</p>"
             '<div class="btn-row" style="margin-top:var(--space-4)">'
-            + button("Son 7 günü topla", onclick="pdBackfill(7)")
-            + button("Son 30 günü topla", onclick="pdBackfill(30)")
+            + button("Son 7 günü topla", action="backfill", action_args=(7,))
+            + button("Son 30 günü topla", action="backfill", action_args=(30,))
             + "</div>",
             title="Günlük toplama",
         )
@@ -215,6 +215,8 @@ function pdRollup(){ pdRun('/admin/metrics/rollup', 'Hesaplanıyor…'); }
 function pdBackfill(n){
   pdRun('/admin/metrics/backfill?days=' + n, n + ' gün toplanıyor…');
 }
+window.pdAction('rollup', pdRollup);
+window.pdAction('backfill', pdBackfill);
 """
     return HTMLResponse(
         page(

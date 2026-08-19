@@ -209,6 +209,8 @@ async function pdMerge() {
     note.textContent = e.message;
   }
 }
+window.pdAction('decide', pdDecide);
+window.pdAction('merge', pdMerge);
 """
 
 # Kuyruğa düşme sebepleri — ham anahtar yerine ne olduğunu söyleyen cümle.
@@ -300,13 +302,15 @@ def review_dashboard() -> str:
                     "Onayla",
                     small=True,
                     icon_name="check",
-                    onclick=f"pdDecide({r['id']},'verified',this)",
+                    action="decide",
+                    action_args=(r["id"], "verified"),
                 )
                 + button(
                     "Reddet",
                     small=True,
                     icon_name="close",
-                    onclick=f"pdDecide({r['id']},'rejected',this)",
+                    action="decide",
+                    action_args=(r["id"], "rejected"),
                 )
                 + "</div>",
                 label="Karar",
@@ -360,7 +364,7 @@ def review_dashboard() -> str:
         + '<div class="field" style="max-width:120px">'
         '<label for="tgt">Hedef olay</label>'
         '<input type="number" id="tgt" placeholder="örn. 398"></div>'
-        + button("Birleştir", variant="primary", icon_name="review", onclick="pdMerge()")
+        + button("Birleştir", variant="primary", icon_name="review", action="merge")
         + '<span id="merge-status" class="subtle" aria-live="polite" '
         'style="font-size:var(--text-xs);padding-bottom:10px"></span>' + "</div>",
         title="Olay birleştir",

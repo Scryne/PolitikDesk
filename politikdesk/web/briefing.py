@@ -19,7 +19,6 @@ hedefi değil — bu yüzden liste sade bir tablodur, kart ızgarası değil.
 
 from __future__ import annotations
 
-import json
 from datetime import date
 
 from fastapi import APIRouter, HTTPException
@@ -27,6 +26,7 @@ from fastapi.responses import HTMLResponse, Response
 
 from politikdesk.briefing import generator
 from politikdesk.web.ui import (
+    action_attrs,
     button,
     card,
     cell,
@@ -163,11 +163,11 @@ def briefing_page(on: str, slot: generator.Slot = "morning") -> str:
         )
     )
 
-    body_text_json = json.dumps(record.get("body_text", ""))
     actions_html = (
-        f'<button class="btn sm ghost" type="button" onclick=\'pdCopy({body_text_json}, "Brifing metni")\'>'
+        f'<button class="btn sm ghost" type="button"'
+        f'{action_attrs("copy", record.get("body_text", ""), "Brifing metni")}>'
         f'{icon("copy", 13)}<span>Metni Kopyala</span></button>'
-        f'<button class="btn sm ghost" type="button" onclick="window.print()">'
+        f'<button class="btn sm ghost" type="button"{action_attrs("print")}>'
         f'{icon("printer", 13)}<span>Yazdır</span></button>'
         + button("Listeye dön", href="/briefing", icon_name="arrow-left")
     )
