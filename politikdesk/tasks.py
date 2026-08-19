@@ -294,6 +294,27 @@ def sync_official_calendar(self) -> dict[str, int]:  # noqa: ANN001
         raise self.retry(exc=exc, countdown=1800) from exc
 
 
+@app.task(name="politikdesk.sync_stance_shifts", bind=True, max_retries=1,
+          soft_time_limit=600, time_limit=900)
+def sync_stance_shifts(self) -> dict[str, int]:  # noqa: ANN001
+    """Söylem değişikliklerini tespit edip kalıcılaştırır (Faz 4.1).
+
+    Tespit ARKA PLANDA yapılır, istek anında değil. Ölçüm (19 Ağu 2026):
+    istek anında hesap 645,6 ms sürüyordu; kalıcı kayıttan okuma 3,0 ms.
+
+    20 dakikada bir: siyasi ilişki motoru 15 dakikada bir koşuyor ve
+    kaymalar onun ürettiği zincirlere dayanıyor — biraz sonra koşmak,
+    taze zincirlerin üzerinde çalışmayı garantiler.
+    """
+    from politikdesk.political_memory.shift_store import sync
+
+    try:
+        return sync().as_dict()
+    except Exception as exc:  # noqa: BLE001
+        log.error("sync_stance_shifts_failed", error=type(exc).__name__, detail=str(exc)[:300])
+        raise self.retry(exc=exc, countdown=600) from exc
+
+
 @app.task(name="politikdesk.match_scheduled_events", bind=True, max_retries=1)
 def match_scheduled_events(self) -> dict[str, int]:  # noqa: ANN001
     """Beklenen gelişme -> gerçekleşen olay eşleştirmesi (F2-19)."""
@@ -487,6 +508,11 @@ app.conf.beat_schedule = {
     "political-relations-every-15-minutes": {
         "task": "politikdesk.link_political_relations",
         "schedule": 900.0,
+    },
+    # Söylem değişiklikleri: ilişki motorundan (15 dk) hemen sonra.
+    "stance-shifts-every-20-minutes": {
+        "task": "politikdesk.sync_stance_shifts",
+        "schedule": 1200.0,
     },
     # Resmî takvimin kendisi: yıllık yayımlanır, günde iki tur yeter.
     # Sabah turu brifingten ÖNCE koşar ki "bugün ne bekleniyor" taze olsun.

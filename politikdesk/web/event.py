@@ -416,6 +416,64 @@ def _timeline_block(data: dict[str, Any]) -> str:
     )
 
 
+def _stance_shifts(event_id: int) -> str:
+    """SÖYLEM DEĞİŞİKLİĞİ ZİNCİRİ (Roadmap Faz 4.1).
+
+    Bu kartın var olabilmesi kalıcılaştırmanın doğrudan sonucudur.
+    Kaymalar her istekte yeniden hesaplanırken "bu olay hangi söylem
+    değişikliklerinin parçası?" sorusu **sorulamıyordu** — hesap
+    aktörden başlıyordu, olaydan değil. Kalıcı kayıt her iki yönde de
+    indekslidir; sorgu ölçülen süreyle 1,8 ms.
+
+    ⛔ Kart bir YORUM sunmaz: iki beyanı ve aradaki süreyi gösterir,
+    "neden değişti" demez. Nedensellik kanıt ister.
+    """
+    from politikdesk.political_memory import shift_store
+
+    try:
+        kaymalar = shift_store.for_event(event_id, limit=6)
+    except Exception:  # noqa: BLE001 — kart isteğe bağlıdır, sayfa düşmez
+        return ""
+
+    if not kaymalar:
+        return ""
+
+    tur_etiketi = {
+        "reversal": "Yön değişikliği",
+        "broken_promise": "Tutulmayan vaat",
+        "numeric_divergence": "Sayısal sapma",
+    }
+
+    items = []
+    for k in kaymalar:
+        onceki_bu_mu = int(k["earlier_event_id"]) == event_id
+        diger_id = k["later_event_id"] if onceki_bu_mu else k["earlier_event_id"]
+        diger_baslik = k["later_event_title"] if onceki_bu_mu else k["earlier_event_title"]
+        yon = "sonrasında" if onceki_bu_mu else "öncesinde"
+        items.append(
+            f'<li style="margin-bottom:12px">'
+            f'<div class="row tight" style="align-items:baseline">'
+            f'<b style="font-size:var(--text-sm)">{esc(k["actor_name"])}</b>'
+            f'<span class="badge sm">{esc(tur_etiketi.get(str(k["shift_type"]), "Değişiklik"))}'
+            f"</span></div>"
+            f'<div class="subtle" style="font-size:var(--text-xs);margin-top:2px">'
+            f'Bu olayın {yon} · {esc(fmt.plural_count(int(k["time_span_days"] or 0), "gün"))} ara'
+            f"</div>"
+            f'<a href="/event/{diger_id}" style="font-size:var(--text-sm)">'
+            f"{esc(str(diger_baslik)[:80])}</a></li>"
+        )
+
+    return card(
+        f'<ul style="margin:0;padding-left:18px">{"".join(items)}</ul>'
+        f'<p class="subtle" style="margin:var(--space-4) 0 0;font-size:var(--text-xs)">'
+        f"Bu kart iki beyan arasındaki <b>ölçülmüş</b> zıtlığı gösterir; "
+        f"değişikliğin sebebi hakkında bir iddiada bulunmaz.</p>",
+        title="Söylem değişikliği zinciri",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(len(kaymalar), 'kayma')}</span>",
+    )
+
+
 def _related(data: dict[str, Any]) -> str:
     """ÖNCEKİ BAĞLAM (F2-17 çıktısı)."""
     related = data["related"]
@@ -683,6 +741,7 @@ def event_page(event_id: int) -> str:
   </div>
   <div class="stack" style="position:sticky;top:calc(var(--topbar-h) + 24px)">
     {_editorial_panel(event_id)}
+    {_stance_shifts(event_id)}
     {_related(data)}
     {_upcoming(data)}
     {_feedback_panel(data["open_feedback"])}

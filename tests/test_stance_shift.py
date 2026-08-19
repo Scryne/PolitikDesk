@@ -127,8 +127,9 @@ def test_detect_numeric_divergence():
     assert "Sayısal Gösterge" in d["topic_or_metric"]
 
 
-def test_list_all_stance_shifts_iterates_actors(monkeypatch) -> None:
-    """DEF-02 Regresyon Testi: list_all_stance_shifts, search_actors sözleşmesindeki 'actors' ve 'name' alanlarını işlemelidir."""
+def test_stance_sync_honours_the_search_actors_contract(monkeypatch) -> None:
+    """DEF-02 Regresyon Testi: senkron yolu `search_actors` sözleşmesindeki
+    `actors` ve `name` alanlarını işlemelidir."""
     mock_search = MagicMock(
         return_value={
             "actors": [
@@ -171,10 +172,55 @@ def test_list_all_stance_shifts_iterates_actors(monkeypatch) -> None:
     )
     monkeypatch.setattr(mem_service, "get_actor_memory", MagicMock(return_value=mock_mem))
 
-    shifts = mem_service.list_all_stance_shifts(limit=10)
-    assert len(shifts) == 1
-    assert shifts[0]["actor_name"] == "Ahmet Yılmaz"
-    assert shifts[0]["shift_type"] == "reversal"
+    # DEF-02 sözleşmesi artık OKUMA yolunda değil, SENKRON yolunda
+    # geçerli: tespit arka planda koşar ve `list_all_stance_shifts`
+    # yalnızca kalıcı kayıttan okur (Roadmap Faz 4.1). Bu yüzden
+    # sözleşme, tarayan tarafta sınanır.
+    yazilan: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "politikdesk.political_memory.shift_store._persist",
+        lambda _cur, shift: yazilan.append(shift) or True,  # type: ignore[func-returns-value]
+    )
+
+    class _SahteCursor:
+        rowcount = 0
+
+        def execute(self, *_: object, **__: object) -> None:
+            pass
+
+        def fetchone(self) -> None:
+            return None
+
+        def __enter__(self) -> _SahteCursor:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    class _SahteConn:
+        def cursor(self) -> _SahteCursor:
+            return _SahteCursor()
+
+        def commit(self) -> None:
+            pass
+
+        def __enter__(self) -> _SahteConn:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "politikdesk.political_memory.shift_store.connection", lambda: _SahteConn()
+    )
+
+    from politikdesk.political_memory.shift_store import sync
+
+    stats = sync(actor_limit=10)
+    assert stats.actors == 1, "search_actors sozlesmesindeki 'actors'/'name' islenmedi"
+    assert stats.detected == 1
+    assert yazilan[0]["actor_name"] == "Ahmet Yılmaz"
+    assert yazilan[0]["shift_type"] == "reversal"
 
 
 def test_detect_reversal_with_turkish_diacritics_and_multiword_phrases() -> None:

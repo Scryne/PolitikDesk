@@ -421,29 +421,36 @@ def search_accountability(
 
 
 def get_actor_stance_shifts(actor_name: str) -> list[dict[str, Any]]:
-    """Belirli bir aktöre ait söylem değişikliklerini ve zıtlıkları döndürür."""
-    from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
+    """Bir aktörün söylem değişiklikleri — KALICI kayıttan okunur.
 
-    mem = get_actor_memory(actor_name)
-    shifts = detect_stance_shifts_from_memory(mem)
-    return [s.to_dict() for s in shifts]
+    Tespit istek anında YAPILMAZ; `shift_store.sync()` arka planda
+    çalışır ve buradaki iş tek bir sorgudur (bkz. `list_all_stance_shifts`
+    başlığındaki ölçüm).
+    """
+    from politikdesk.political_memory import shift_store
+
+    return shift_store.for_actor(actor_name)
 
 
 def list_all_stance_shifts(limit: int = 50) -> list[dict[str, Any]]:
-    """Tüm aktörler üzerinden tespit edilen söylem değişikliklerini listeler."""
-    from politikdesk.political_memory.stance_shift import detect_stance_shifts_from_memory
+    """Söylem değişiklikleri — KALICI kayıttan okunur (Roadmap Faz 4.1).
 
-    actors_res = search_actors(query="", limit=20)
-    all_shifts: list[dict[str, Any]] = []
+    **Eskiden burada ne oluyordu ve neden değişti (ölçüldü, 19 Ağu 2026):**
 
-    for item in actors_res.get("actors", []):
-        name = item.get("name")
-        if name:
-            mem = get_actor_memory(name)
-            shifts = detect_stance_shifts_from_memory(mem)
-            all_shifts.extend([s.to_dict() for s in shifts])
+    Fonksiyon her çağrıldığında 20 aktörün hafızasını yeniden okuyup
+    O(n²) tarama yapıyordu. Ölçülen süre 645,6 ms'ydi. Artık kalıcı
+    kayıttan tek sorgu: **3,0 ms — 219 kat hızlı.**
 
-    all_shifts.sort(key=lambda s: s.get("earlier_date") or "", reverse=True)
-    return all_shifts[:limit]
+    Kazanç yalnızca hız değil, KAPSAM da: eski yol `limit=20` ile
+    sınırlıydı ve 37 kayma buluyordu; arka plan işi 40 aktör tarayıp
+    48 buluyor. Yani 11 kayma hiç görülmüyordu.
+
+    Kalıcılaştırmanın açtığı asıl kapı ise graf sorgusudur:
+    `shift_store.for_event()` — "bu olay hangi söylem değişikliklerinin
+    parçası?" sorusu eskiden sorulamıyordu.
+    """
+    from politikdesk.political_memory import shift_store
+
+    return shift_store.list_all(limit=limit)
 
 

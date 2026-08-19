@@ -197,6 +197,7 @@ EXPECTED_SCHEDULE_ENTRIES = {
     "official-calendar-twice-daily",
     "indicator-anomaly-twice-daily",
     "mark-delayed-hourly",
+    "stance-shifts-every-20-minutes",
     "scheduler-match-hourly",
     "purge-daily",
     "health-check-hourly",
