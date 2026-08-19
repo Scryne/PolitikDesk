@@ -1,21 +1,62 @@
-"""PolitikDesk Haber Masası / Kumanda Odası (War Room Live Monitor).
+"""Kumanda Odası — canlı sinyal yüzeyi (Roadmap Faz 8.1, "War Room 2.0").
 
-Büyük ekranlar, editoryal ekipler ve anlık gündem takibi için tasarlanmış
-canlı, reaktif ve çok sütunlu editoryal kumanda merkezi.
+### Bu sayfanın tek işi (BRIEF `birincil_is`)
+
+> "Olağandışı olan ne var — ve sırada ne var?"
+
+Bu, `/feed`'in sorusu DEĞİLDİR ve olmaması bu ekranın var olma sebebidir.
+Gündem masası "şu an ne var, hangisi hakkında güvenle yazabilirim" diye
+sorar; orada birincil nesne **olay**tır. Burada birincil nesne
+**beklentiden sapma**dır: eşiği aşan bir gösterge, gelmeyen bir resmî
+yayın, susmuş bir kaynak.
+
+Roadmap'in ilk sürümünde bu ekran bir haber listesiydi ve maddenin
+kendisi bunu kusur olarak yazıyordu: *"War Room sadece haber listesi
+olmaktan çıkarılmalı."* Olay listesi kaldırılmadı ama **ikinci sıraya**
+indi; ilk sırada sapma ve sessizlik var.
+
+### Roadmap'in altı hücresi ve buradaki karşılıkları
+
+    Indicators       → gösterge şeridi + `_anomaly_panel`
+    Emerging Events  → `_emerging_events`
+    Claims           → `_claims_panel`
+    Source Health    → `_source_health_panel`
+    Relations        → `_relations_panel`   (ADR-010 kapısına tabi)
+    Expected Events  → `_expected_publications`
+
+Altısı **eşit altı kutu olarak dizilmedi.** Eşit ızgara, DESIGN.md
+Bölüm 13.6'nın "bu kararı herhangi bir panel için de verir miydim?"
+sorusuna "evet" cevabı verir. Sol sütun okunacak (derinlik ister), sağ
+sütun taranacak (tek bakışta biter) şeyleri taşır.
+
+### Signature öğe: "Olmayanlar"
+
+Panellerin neredeyse tamamı OLANI gösterir. Bu ürünün farkı beklentiyi
+bilmesidir: kurum ne zaman yayımlayacağını önceden ilan eder, kaynak
+her N dakikada bir veri vermelidir. Gelmeyeni ayrı ve görünür bir
+blokta toplamak, başka hiçbir panelin söylemediği şeyi söyler.
 """
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
+
+if TYPE_CHECKING:  # yalnızca tip için — çalışma zamanında içe aktarılmaz
+    from politikdesk.analysis.expected_events import ExpectationSignal
+    from politikdesk.ingestion.source_quality import QualityComponent, SourceQuality
 
 from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id
 from politikdesk.web import repository
 from politikdesk.web.ui import format as fmt
+from politikdesk.web.ui import keys
 from politikdesk.web.ui.charts import economic_indicator_card
 from politikdesk.web.ui.components import (
     card,
+    distribution,
     esc,
     event_badge,
     kpi,
@@ -28,32 +69,57 @@ from politikdesk.web.ui.shell import ACTIVITY_JS, page
 log = get_logger(__name__)
 router = APIRouter(tags=["war_room"])
 
+# Bir olayın "yükselen" sayılması için gereken gündem skoru.
+#
+# ⛔ Bu bir DOĞRULUK eşiği değildir (Spec §15/13). Skor olayın kaç
+# kaynakta, ne hızda ve ne genişlikte yayıldığını ölçer; iddiaların
+# doğru olup olmadığı hakkında hiçbir şey söylemez.
+RISING_THRESHOLD = 55
+
+# Kaç saat ilerisi "sırada" sayılır. 48 saat, bir sonraki iş gününü de
+# kapsayan en kısa penceredir: cuma akşamı bakan biri pazartesi sabahını
+# görebilmeli.
+HORIZON_HOURS = 48
+
 
 def _war_room_js() -> str:
     return """
 (function(){
-  var sseSource = null;
-  function connectSSE(){
-    if (window.EventSource) {
-      try {
-        sseSource = new EventSource('/api/events/stream');
-        sseSource.addEventListener('event_updated', function(e){
-          var data = JSON.parse(e.data || '{}');
-          if (data && data.title) {
-            window.pdToast('Yeni Gelişme: ' + data.title);
-            var dot = document.getElementById('wr-live-dot');
-            if (dot) {
-              dot.style.background = 'var(--color-accent)';
-              setTimeout(function(){ dot.style.background = 'var(--color-strong)'; }, 2000);
-            }
-          }
-        });
-      } catch (err) {}
-    }
-  }
-  connectSSE();
+  if (!window.EventSource) return;
+  try {
+    var sseSource = new EventSource('/api/events/stream');
+    sseSource.addEventListener('event_updated', function(e){
+      var data = JSON.parse(e.data || '{}');
+      if (!data || !data.title) return;
+      window.pdToast('Yeni gelişme: ' + data.title);
+      var dot = document.getElementById('wr-live-dot');
+      if (dot) {
+        dot.classList.add('flash');
+        setTimeout(function(){ dot.classList.remove('flash'); }, 2000);
+      }
+    });
+  } catch (err) {}
 })();
 """
+
+
+# ═══════════════════════════════════════════════ veri toplayıcılar
+#
+# Her biri kendi hatasını yutar ve BOŞ döner. Gerekçe: bu ekran yedi
+# ayrı alt sisteme bakıyor; birinin düşmesi sayfanın tamamını götürürse
+# kullanıcı en çok ihtiyaç duyduğu anda hiçbir şey göremez (Bölüm 10.4:
+# "kısmi hata: yalnızca o widget hata gösterir, sayfa çökmez").
+
+
+def _safe(name: str, fn: Any, default: Any) -> Any:
+    try:
+        return fn()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("war_room_panel_failed", panel=name, error=str(exc))
+        return default
+
+
+# ═══════════════════════════════════════════════ Indicators
 
 
 def _indicator_strip() -> str:
@@ -62,26 +128,21 @@ def _indicator_strip() -> str:
     ⛔ Buradaki sayılar bir dönem koda gömülüydü ve TÜİK/TCMB/Hazine
     imzasıyla gösteriliyordu. Ürünün sözleşmesi (Spec §15/13) kanıtta
     bulunmayan sayıyı yasaklar; kurum imzalı uydurma sayı bunun en ağır
-    biçimiydi. Artık tek kaynak `articles.official_value`'dur
-    (`repository.official_indicator_series`).
+    biçimiydi. Artık tek kaynak `articles.official_value`'dur.
 
     Veri yoksa **hiçbir sayı üretilmez**: boş durum, boru hattının
     henüz resmî bir sayısal yayın toplamadığını açıkça söyler.
     """
-    try:
-        series = repository.official_indicator_series()
-    except Exception as exc:  # noqa: BLE001
-        log.warning("war_room_indicators_failed", error=str(exc))
-        series = []
+    series = _safe("indicators", repository.official_indicator_series, [])
 
     if not series:
         return (
-            '<div class="notice" style="margin-bottom:var(--space-6)">'
-            f"<div>{icon('info', 16)}</div>"
+            '<div class="notice">'
+            f'<span class="ic">{icon("info", 16)}</span>'
             "<div><p><b>Resmî gösterge yayını beklemede.</b> Bu şerit yalnızca "
             "kurumun kendi makine okunur yayınından gelen sayıları gösterir "
-            "(TÜİK SDMX gibi). Boru hattı henüz böyle bir yayım toplamadı; "
-            "tahmini veya örnek sayı gösterilmez.</p></div></div>"
+            "(TÜİK SDMX, TCMB EVDS gibi). Boru hattı henüz böyle bir yayım "
+            "toplamadı; tahmini veya örnek sayı gösterilmez.</p></div></div>"
         )
 
     cards = []
@@ -116,101 +177,26 @@ def _indicator_strip() -> str:
             )
         )
 
+    # Izgara DEĞİL esnek satır. `auto-fit` ile 6 kart 4 sütuna dizildiğinde
+    # ikinci satırda 2 kart kalıyor ve sağda kart genişliğinde ölü alan
+    # oluşuyordu (Bölüm 13.3: "amaçsız devasa boşluk"). Flex sarmasında
+    # son satırdaki kartlar büyüyüp satırı doldurur; kart sayısı ile sütun
+    # sayısının tutması gerekmez.
     return (
-        '<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));'
-        'gap:var(--space-3);margin-bottom:var(--space-2);">' + "".join(cards) + "</div>"
-        '<p class="subtle" style="margin:0 0 var(--space-6);font-size:var(--text-xs)">'
+        '<div class="indicator-strip">' + "".join(cards) + "</div>"
+        '<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
         "Bu şerit yalnızca kurumun kendi makine okunur yayınından gelen değerleri "
         "gösterir; türetilmiş veya tahmini sayı içermez.</p>"
     )
 
 
-def _expected_publications() -> str:
-    """BEKLENEN RESMÎ YAYINLAR (Spec §9.5 · Roadmap Faz 1.2).
-
-    Ürünün "gizli kozu": yalnızca olanı değil, **olacağı** da bilmek.
-    Kaynak Ulusal Veri Yayımlama Takvimi'dir — kurumların kendi ilan
-    ettiği program, tahmin değil.
-
-    Kaçırılan yayınlar ayrı gösterilir ve bu bilinçli: "kurum açıkladı
-    ama biz görmedik", kaynak kadrosundaki kör noktayı başka hiçbir
-    göstergenin söylemediği kadar doğrudan söyler.
-    """
-    from politikdesk.context import official_calendar as takvim
-
-    try:
-        bekleyen = takvim.upcoming(hours=48, limit=8)
-        kacirilan = takvim.missed_report(days=3, limit=3)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("war_room_calendar_failed", error=str(exc))
-        return ""
-
-    if not bekleyen and not kacirilan:
-        return card(
-            '<p class="subtle" style="margin:0;font-size:var(--text-xs)">'
-            "Önümüzdeki 48 saatte takvimde resmî yayın görünmüyor.</p>",
-            title="Beklenen resmî yayınlar",
-        )
-
-    satirlar = []
-    for r in bekleyen:
-        an = r["expected_at"].astimezone(takvim.CALENDAR_TZ)
-        donem = f" · {esc(r['reference_period'])}" if r.get("reference_period") else ""
-        satirlar.append(
-            f'<div style="padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)">'
-            f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
-            f'<span class="mono" style="font-size:var(--text-xs);color:var(--color-accent)">'
-            f"{fmt.day_month(an)} {an:%H:%M}</span>"
-            f'<span class="badge sm">{esc(r["institution"] or "")}</span></div>'
-            f'<div style="font-size:var(--text-sm);margin-top:2px">{esc(r["title"])}</div>'
-            f'<div class="subtle" style="font-size:var(--text-xs)">{donem.lstrip(" ·")}</div>'
-            f"</div>"
-        )
-
-    kacirilan_html = ""
-    if kacirilan:
-        maddeler = "".join(
-            f'<li style="margin-bottom:4px">{esc(r["institution"] or "")} — '
-            f'{esc(r["title"][:70])}</li>'
-            for r in kacirilan
-        )
-        kacirilan_html = (
-            f'<div style="margin-top:var(--space-4)">'
-            f'<p class="eyebrow" style="margin-bottom:var(--space-2);color:var(--color-contra)">'
-            f"Yayımlandı, biz görmedik</p>"
-            f'<ul style="margin:0;padding-left:18px;font-size:var(--text-xs);'
-            f'color:var(--color-fg-muted)">{maddeler}</ul>'
-            f'<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
-            f"Kurum yayımladı ama hiçbir kaynağımız haberleştirmedi — kaynak "
-            f"kadrosunda kör nokta olabilir.</p></div>"
-        )
-
-    return card(
-        "".join(satirlar) + kacirilan_html,
-        title="Beklenen resmî yayınlar",
-        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
-        f"{fmt.plural_count(len(bekleyen), 'yayın')} · 48 saat</span>",
-    )
-
-
-def _anomaly_panel() -> str:
+def _anomaly_panel(kayitlar: list[dict[str, Any]]) -> str:
     """GÖSTERGE SAPMALARI (Roadmap Faz 3.1).
 
     ⛔ Bir anomali bir YORUM DEĞİLDİR. Kart yalnızca ölçümü gösterir:
     hangi seri, hangi dönem, ne kadar saptı, hangi yöntem, hangi eşik.
     "Sebebi şu" demez ve demeyecek — nedensellik kanıt ister.
-
-    Durumlar açık yazılır (NORMAL / SAPMA / VERİ YETERSİZ / BAYAT /
-    YOK); kırmızı-yeşil tek anlam taşımaz.
     """
-    from politikdesk.analysis.pipeline import open_anomalies
-
-    try:
-        kayitlar = open_anomalies(limit=6)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("war_room_anomaly_failed", error=str(exc))
-        return ""
-
     if not kayitlar:
         return card(
             '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
@@ -228,11 +214,11 @@ def _anomaly_panel() -> str:
         birim = f" {k['unit']}" if k.get("unit") else ""
         oran = k.get("deviation_ratio")
         satirlar.append(
-            f'<div style="padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)">'
+            f'<div class="signal-row">'
             f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
             f'<span style="font-size:var(--text-sm);font-weight:var(--weight-semibold)">'
             f"{esc(k['label'])}</span>"
-            f'<span class="badge sm {ton}">SAPMA · {esc(str(k["severity"]).upper())}</span></div>'
+            f'<span class="badge sm {ton}">sapma · {esc(str(k["severity"]))}</span></div>'
             f'<div class="mono" style="font-size:var(--text-xs);margin-top:2px">'
             f"{esc(fmt.period_label(k['period']))} · "
             f"{esc(fmt.number(float(k['observed_value']), 2))}{esc(birim)}"
@@ -257,153 +243,558 @@ def _anomaly_panel() -> str:
     )
 
 
+# ═══════════════════════════════════════════════ Emerging Events
+
+
+def _emerging_events(events: list[dict[str, Any]]) -> str:
+    """Gündem skoruna göre yükselen olaylar.
+
+    `/feed`'in kopyası değil: orada olaylar okunmak ve hakkında
+    yazılmak için durur, burada **yükseliyor olmaları** için durur.
+    Bu yüzden sütunlar farklı — bağımsız grup sayısı burada birinci
+    sınıf bir sütundur (Roadmap 2.2: "12 kaynak doğruladı" ile
+    "4 bağımsız grup doğruladı" ayrılmalı).
+    """
+    if not events:
+        from politikdesk.web.ui import empty_state
+
+        return card(
+            empty_state(
+                "Henüz olay yok",
+                "Boru hattı her 5 dakikada bir toplar. İlk turu hemen "
+                "çalıştırmak için terminalde `pd ingest` yazın.",
+            ),
+            title="Yükselen olaylar",
+        )
+
+    yukselen = [e for e in events if (e.get("salience_score") or 0) >= RISING_THRESHOLD]
+    gosterilecek = (yukselen or events)[:12]
+
+    satirlar = []
+    for ev in gosterilecek:
+        sal = int(ev.get("salience_score") or 0)
+        bagimsiz = int(ev.get("independent_count") or 0)
+        satirlar.append(
+            f"<tr>"
+            f'<td class="num mono" data-label="Önem" '
+            f'style="width:52px;color:var(--color-accent);'
+            f'font-weight:var(--weight-semibold)">{sal}</td>'
+            f'<td data-label="Olay">'
+            f'<a href="/event/{int(ev["id"])}" class="plain" '
+            f'style="font-weight:var(--weight-medium)">{esc(ev["title"])}</a>'
+            f'<div class="subtle" style="font-size:var(--text-xs);margin-top:2px">'
+            f"{esc(fmt.plural_count(int(ev.get('article_count') or 0), 'kaynak'))} · "
+            f"{bagimsiz} bağımsız grup · "
+            f"{esc(fmt.plural_count(int(ev.get('claim_count') or 0), 'iddia'))}</div></td>"
+            f'<td data-label="Kanıt">{status_badge(ev.get("top_claim_status", "unverified"))}</td>'
+            f'<td data-label="Aşama">{event_badge(ev.get("status", "developing"))}</td>'
+            f"</tr>"
+        )
+
+    baslik = (
+        f"{fmt.plural_count(len(yukselen), 'olay')} · önem {RISING_THRESHOLD}+"
+        if yukselen
+        else f"{RISING_THRESHOLD}+ eşiğini aşan olay yok — en güncel {len(gosterilecek)}"
+    )
+
+    return card(
+        '<div class="table-wrap"><table class="table-cards"><thead><tr>'
+        '<th class="num">Önem</th><th>Olay</th><th>Kanıt</th><th>Aşama</th>'
+        "</tr></thead><tbody>" + "".join(satirlar) + "</tbody></table></div>"
+        '<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+        "Önem skoru bir <b>doğruluk</b> ölçüsü değildir: yayılma hızını ve "
+        "genişliğini ölçer, iddiaların doğruluğunu değil.</p>",
+        title="Yükselen olaylar",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">{esc(baslik)}</span>',
+    )
+
+
+# ═══════════════════════════════════════════════ Claims
+
+
+def _claims_panel(dagilim: list[tuple[str, int]]) -> str:
+    """İddia kanıt durumunun dağılımı (Roadmap Faz 5.1 · 8.1 "Claims").
+
+    Tek tek iddia listelemek yerine DAĞILIM gösterilir. Gerekçe: bu
+    ekranın sorusu "hangi iddia" değil, "iddia külliyatı ne durumda".
+    Tek tek iddia okunacak yer olay sayfasıdır, çünkü orada iddia
+    kanıtıyla birlikte durur — bu üründe iddia kanıtından ayrı
+    gösterilmez.
+
+    ⛔ `contradicted` her zaman sıfırdır ve bu bir veri bulgusu DEĞİL,
+    bilinen bir boşluktur (ADR-008: karşı kanıt yolu yok). Sıfırı
+    açıklamadan göstermek "hiç çelişki yok" diye okunur — ürünün
+    verebileceği en yanıltıcı sinyallerden biri.
+    """
+    from politikdesk.web.ui.components import STATUS_LABELS
+
+    toplam = sum(n for _, n in dagilim)
+    if not toplam:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            "Son 7 günde işlenmiş iddia yok.</p>",
+            title="İddia kanıt durumu",
+        )
+
+    satirlar = [
+        (
+            STATUS_LABELS.get(durum, durum),
+            float(n),
+            f"{fmt.number(n)} · {fmt.percent(n / toplam * 100, 1)}",
+        )
+        for durum, n in dagilim
+    ]
+
+    tek_kaynakli = dict(dagilim).get("single_source", 0)
+    oran = tek_kaynakli / toplam * 100
+
+    return card(
+        distribution(satirlar)
+        + f'<p style="margin:var(--space-4) 0 0;font-size:var(--text-sm)">'
+        f"<b>{esc(fmt.percent(oran, 0))}</b> tek kaynaklı — ikinci bir bağımsız "
+        f"kaynak beklemekte.</p>"
+        '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+        "<b>“Çelişkili” her zaman sıfırdır ve bu bir bulgu değildir:</b> karşı "
+        "kanıt yolu henüz kurulmadı (ADR-008). Sıfırı “hiç çelişki yok” diye "
+        "okumayın.</p>",
+        title="İddia kanıt durumu",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(toplam, 'iddia')} · 7 gün</span>",
+    )
+
+
+# ═══════════════════════════════════════════════ Source Health
+
+
+def _source_health_panel(
+    bakim: list[tuple[SourceQuality, list[QualityComponent]]],
+    susan_slug: set[str],
+) -> str:
+    """Bakım isteyen kaynaklar (Roadmap Faz 2.1/2.3 · 8.1 "Source Health").
+
+    ⛔ Buradaki skor bir GÜVENİLİRLİK yargısı değildir. Kaynağın
+    haberciliği hakkında hiçbir şey söylemez; yalnızca akışın teknik
+    sağlığını ölçer (Spec §8.5).
+
+    ⛔ Yapısal özellik alarm üretmez. Bir kaynağın Tier 4 olması bakım
+    istemez; 6 saattir veri vermemesi ister. Bu ayrımı `needs_attention`
+    yapıyor — ilk uygulama 24 sosyal kaynağı "sosyal oldukları için"
+    işaretliyordu ve o liste kimsenin bakmadığı bir liste olmuştu.
+
+    **Susan kaynaklar burada TEKRAR EDİLMEZ.** Onlar "Olmayanlar"
+    panelinde, kendi bağlamlarında duruyor; ikisi de en zayıf bileşene
+    göre sıralandığı için aynı dört kaynak ekranda iki kez çıkıyordu ve
+    bu panel pratikte diğerinin kopyası oluyordu. Ayırınca panel asıl
+    işini yapıyor: veri GELEN ama başarısızlık veya verim sorunu olan
+    kaynakları göstermek.
+    """
+    kalanlar = [(k, s) for k, s in bakim if k.slug not in susan_slug]
+
+    if not kalanlar:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            "Veri akan kaynaklarda eşiğin altına düşen işletimsel bileşen yok."
+            + (
+                " Susmuş kaynaklar “Olmayanlar” panelinde."
+                if susan_slug
+                else ""
+            )
+            + "</p>",
+            title="Kaynak sağlığı",
+        )
+
+    satirlar = []
+    for kalite, sebepler in kalanlar[:5]:
+        sebep_metni = " · ".join(f"{c.label}: {c.detail}" for c in sebepler)
+        # Rozet EN ZAYIF bileşenin adıdır, `coverage` değil. Önceki hâli
+        # "5/6 bileşen" yazıyordu ve bu skorun kaç bileşene dayandığını
+        # söyleyen bir sayıdır — ama bu panel skoru hiç göstermiyor, yani
+        # rozet hiçbir soruya cevap vermiyordu. Bileşen adı ise doğrudan
+        # eylem söyler: "tazelik" başka bir iş, "çekim başarısı" başka.
+        en_zayif = min(sebepler, key=lambda c: float(c.value or 0))
+        satirlar.append(
+            f'<div class="signal-row">'
+            f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
+            f'<span style="font-size:var(--text-sm);font-weight:var(--weight-medium)">'
+            f"{esc(kalite.name)}</span>"
+            f'<span class="badge sm warn">{esc(en_zayif.label.lower())}</span></div>'
+            f'<div class="subtle" style="font-size:var(--text-xs);margin-top:2px">'
+            f"{esc(sebep_metni)}</div>"
+            f"</div>"
+        )
+
+    kalan = len(kalanlar) - len(satirlar)
+    kuyruk = (
+        f'<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+        f"{fmt.plural_count(kalan, 'kaynak daha')} eşiğin altında.</p>"
+        if kalan > 0
+        else ""
+    )
+
+    return card(
+        "".join(satirlar)
+        + kuyruk
+        + '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+        "Bu ölçüm akışın <b>teknik</b> sağlığıdır; kaynağın haberciliği "
+        "hakkında hiçbir şey söylemez.</p>",
+        title="Kaynak sağlığı",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(len(kalanlar), 'kaynak')}</span>",
+    )
+
+
+# ═══════════════════════════════════════════════ Relations
+
+
+def _relations_panel(ozet: dict[str, Any] | None) -> str:
+    """Söylem değişiklikleri (Roadmap Faz 4.1 · 8.1 "Relations").
+
+    ⛔ ADR-010: yayın kapısı KAPALI. Dedektör kayıt üretiyor ama
+    ürettiği kayıtlar denetlendiğinde yanlış siyasi isnat çıkardığı
+    görüldü (konu eşleştirmesi yok, güven skoru sabit 0,85, aktör
+    alanına sözcük parçaları sızmış).
+
+    Bu panelin varlık sebebi tam olarak budur: kapalı kapıyı **boş bir
+    panel** olarak göstermek, "hiç kayma bulunmadı" diye okunurdu.
+    `shift_store.summary()` bilerek kapının ötesinden okur ve
+    `withheld` sayısını ayrı raporlar — ölçülemedi ≠ sıfır.
+    """
+    from politikdesk.political_memory import shift_store
+
+    if shift_store.PUBLISH_GATE_OPEN:
+        acik = int((ozet or {}).get("total", 0))
+        return card(
+            f'<p style="margin:0;font-size:var(--text-sm)">'
+            f"{esc(fmt.plural_count(acik, 'açık söylem değişikliği'))} kayıtlı.</p>"
+            '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            '<a href="/memory">Siyasi Hafıza</a> ekranında aktör bazında incelenir.</p>',
+            title="Söylem değişiklikleri",
+        )
+
+    cekilen = int((ozet or {}).get("withheld", 0))
+    return card(
+        '<div class="notice warn" style="margin:0">'
+        f'<span class="ic">{icon("warning", 16)}</span>'
+        "<div><p><b>Yayın kapısı kapalı.</b> Söylem değişikliği dedektörü "
+        f"çalışıyor ve {esc(fmt.plural_count(cekilen, 'kayıt'))} üretti, ama "
+        "bu kayıtlar denetlendiğinde yanlış siyasi isnat ürettiği görüldü: "
+        "konu eşleştirmesi yok ve güven skoru sabit.</p>"
+        "<p>Kayıtlar silinmedi — dedektör düzeltildiğinde aynı veriyle "
+        "yeniden ölçülebilsin diye saklanıyor. Okuma yolundan geçmiyor.</p>"
+        "</div></div>"
+        '<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+        "Bu sayı <b>bulunan kayma sayısı değildir</b>; yayına uygun "
+        "bulunmayan kayıt sayısıdır. Kapının açılma şartları ADR-010 §5'te.</p>",
+        title="Söylem değişiklikleri",
+        actions='<span class="badge sm warn">yayından çekildi</span>',
+    )
+
+
+# ═══════════════════════════════════════════════ Expected Events
+
+
+def _expected_publications(bekleyen: list[ExpectationSignal]) -> str:
+    """BEKLENEN RESMÎ YAYINLAR (Spec §9.5 · Roadmap Faz 1.2 / 3.2).
+
+    Kaynak Ulusal Veri Yayımlama Takvimi'dir — kurumların kendi ilan
+    ettiği program, tahmin değil. Ürünün "olacağı da bilmek" katmanı.
+    """
+    if not bekleyen:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            f"Önümüzdeki {HORIZON_HOURS} saatte takvimde resmî yayın görünmüyor.</p>",
+            title="Beklenen resmî yayınlar",
+        )
+
+    satirlar = []
+    for sinyal in bekleyen[:6]:
+        # SPK ve BDDK başlıkları 150 karakteri geçebiliyor ("Emeklilik ve
+        # Menkul Kıymet Yatırım Fonlarının Katılma Paylarına İlişkin…").
+        # Yan sütun TARANAN bir sütundur; dört satıra yayılan bir başlık
+        # onu okunan sütuna çevirir. Tam metin `title`'da durur, yani
+        # kısaltma bilgi kaybı değildir.
+        tam = " ".join(str(sinyal.title).split())
+        kisa = fmt.shorten(tam, 64)
+        donem = (
+            f'<div class="subtle" style="font-size:var(--text-xs)">'
+            f"{esc(fmt.period_label(sinyal.reference_period))}</div>"
+            if sinyal.reference_period
+            else ""
+        )
+        satirlar.append(
+            f'<div class="signal-row">'
+            f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
+            f'<span class="mono" style="font-size:var(--text-xs);color:var(--color-accent)">'
+            f"{esc(fmt.date_time(sinyal.expected_at))}</span>"
+            f'<span class="badge sm">{esc(sinyal.institution or "")}</span></div>'
+            f'<div style="font-size:var(--text-sm);margin-top:2px" title="{esc(tam)}">'
+            f"{esc(kisa)}</div>"
+            f"{donem}</div>"
+        )
+
+    kalan = len(bekleyen) - len(satirlar)
+    kuyruk = (
+        f'<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+        f'{fmt.plural_count(kalan, "yayın daha")} takvimde — '
+        f'<a href="/admin/calendar/">tümünü gör</a>.</p>'
+        if kalan > 0
+        else ""
+    )
+
+    return card(
+        "".join(satirlar) + kuyruk,
+        title="Beklenen resmî yayınlar",
+        actions=f'<span class="subtle" style="font-size:var(--text-xs)">'
+        f"{fmt.plural_count(len(bekleyen), 'yayın')} · {HORIZON_HOURS} saat</span>",
+    )
+
+
+# ═══════════════════════════════════════════════ SIGNATURE: Olmayanlar
+
+
+def _absent_panel(
+    geciken: list[ExpectationSignal],
+    kacirilan: list[ExpectationSignal],
+    susan: list[tuple[SourceQuality, QualityComponent]],
+) -> str:
+    """Beklenip GELMEYEN şeyler — bu ekranın imza öğesi.
+
+    Üç ayrı sessizlik türü tek blokta toplanır, çünkü kullanıcı
+    açısından üçü de aynı soruyu doğurur: *"bir şeyi kaçırıyor muyum?"*
+
+        geciken    → kurum ilan ettiği saatte yayımlamadı
+        kaçırılan  → kurum yayımladı, hiçbir kaynağımız haberleştirmedi
+        susan      → kaynak tazelik bütçesini aştı, hiç veri gelmiyor
+
+    İkincisi en rahatsız edicisidir ve tam da bu yüzden değerlidir:
+    kaynak kadrosundaki kör noktayı başka hiçbir gösterge bu kadar
+    doğrudan söylemez.
+
+    Boş durum bir başarı bildirimidir, bir hata değil — ama "her şey
+    yolunda" DEMEZ: yalnızca bu üç ölçümde boşluk olmadığını söyler.
+    """
+    bloklar: list[str] = []
+
+    def _blok(baslik: str, ton: str, maddeler: list[str], not_: str) -> str:
+        return (
+            f'<div style="margin-bottom:var(--space-4)">'
+            f'<p class="eyebrow" style="margin:0 0 var(--space-2);color:var(--color-{ton})">'
+            f"{esc(baslik)}</p>"
+            f'<ul style="margin:0;padding-left:18px;font-size:var(--text-sm);'
+            f'line-height:1.6">{"".join(maddeler)}</ul>'
+            f'<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            f"{not_}</p></div>"
+        )
+
+    if geciken:
+        bloklar.append(
+            _blok(
+                f"Gecikti — {fmt.plural_count(len(geciken), 'yayın')}",
+                "partial",
+                [
+                    f"<li>{esc(s.institution or '')} — {esc(s.title[:70])} "
+                    f'<span class="subtle">({esc(fmt.relative(s.expected_at))} '
+                    f"bekleniyordu)</span></li>"
+                    for s in geciken[:4]
+                ],
+                "Kurum kendi ilan ettiği saatte yayımlamadı.",
+            )
+        )
+
+    if kacirilan:
+        bloklar.append(
+            _blok(
+                f"Yayımlandı, biz görmedik — {fmt.plural_count(len(kacirilan), 'yayın')}",
+                "contra",
+                [
+                    f"<li>{esc(s.institution or '')} — {esc(s.title[:70])}</li>"
+                    for s in kacirilan[:4]
+                ],
+                "Kurum yayımladı ama hiçbir kaynağımız haberleştirmedi — "
+                "kaynak kadrosunda kör nokta olabilir.",
+            )
+        )
+
+    if susan:
+        bloklar.append(
+            _blok(
+                f"Susan kaynak — {fmt.plural_count(len(susan), 'kaynak')}",
+                "partial",
+                [
+                    f"<li>{esc(kalite.name)} "
+                    f'<span class="subtle">({esc(sebep.detail)})</span></li>'
+                    for kalite, sebep in susan[:4]
+                ],
+                "Tazelik bütçesi aşıldı; bu kaynaktan veri gelmiyor.",
+            )
+        )
+
+    if not bloklar:
+        govde = (
+            '<p style="margin:0;font-size:var(--text-sm)">Beklenip gelmeyen bir şey yok: '
+            "takvimdeki yayınlar zamanında geldi, yayımlanan her şey akışa girdi ve "
+            "hiçbir kaynak tazelik bütçesini aşmadı.</p>"
+            '<p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">'
+            "Bu, “her şey yolunda” demek değildir — yalnızca bu üç ölçümde boşluk "
+            "olmadığını söyler.</p>"
+        )
+    else:
+        govde = "".join(bloklar).rstrip()
+
+    return card(
+        govde,
+        cls="absent",
+        title="Olmayanlar",
+        actions='<span class="subtle" style="font-size:var(--text-xs)">'
+        "beklenip gelmeyenler</span>",
+    )
+
+
+# ═══════════════════════════════════════════════════════════ sayfa
+
+
 @router.get("/war-room", response_class=HTMLResponse)
 @router.get("/radar", response_class=HTMLResponse, include_in_schema=False)
 def war_room_page() -> str:
-    """Canlı Editoryal Kumanda Odası Görünümü."""
+    """Canlı sinyal yüzeyi."""
+    from politikdesk.analysis import expected_events
+    from politikdesk.analysis.pipeline import open_anomalies
+    from politikdesk.ingestion import source_quality
+    from politikdesk.political_memory import shift_store
+
     user_id = current_user_id()
-    try:
-        events = repository.feed(user_id=user_id, limit=30)
-    except Exception as exc:  # noqa: BLE001
-        log.warning("war_room_feed_failed", error=str(exc))
-        events = []
 
-    # İstatistikler & Öne Çıkanlar
-    strong_count = sum(1 for e in events if e.get("top_claim_status") == "strongly_corroborated")
-    breaking_events = [e for e in events if (e.get("salience_score") or 0) >= 55]
-
-    indicators_html = _indicator_strip()
-
-    # Breaking News Bar
-    breaking_cards = []
-    for ev in breaking_events[:3]:
-        sal = ev.get("salience_score", 0)
-        breaking_cards.append(
-            f'<div class="card" style="border-left:4px solid var(--color-accent);'
-            f'background:var(--color-surface-sunken);margin-bottom:var(--space-2);padding:var(--space-3);">'
-            f'<div class="row" style="justify-content:space-between;margin-bottom:4px;">'
-            f'<span style="font-size:var(--text-xs);font-weight:var(--weight-bold);color:var(--color-accent);'
-            f'display:flex;align-items:center;gap:4px;">{icon("zap", 12)} KRİTİK GÜNDEM ({sal}/90)</span>'
-            f'<span style="font-size:var(--text-xs);color:var(--color-fg-subtle);">'
-            f'{ev.get("article_count", 0)} Bağımsız Kaynak</span>'
-            f'</div>'
-            f'<a href="/event/{ev["id"]}" style="font-weight:var(--weight-semibold);font-size:var(--text-sm);'
-            f'color:var(--color-fg);text-decoration:none;line-height:1.4;display:block;">'
-            f'{esc(ev["title"])}</a>'
-            f'</div>'
-        )
-    breaking_section = "".join(breaking_cards) if breaking_cards else (
-        '<div style="color:var(--color-fg-subtle);font-size:var(--text-sm);padding:var(--space-2);">'
-        'Şu anda 55+ skora sahip kritik gündem kırılması bulunmuyor.</div>'
+    events = _safe("feed", lambda: repository.feed(user_id=user_id, limit=30), [])
+    sapmalar = _safe("anomalies", lambda: open_anomalies(limit=6), [])
+    bekleyen = _safe(
+        "expected", lambda: expected_events.upcoming(hours=HORIZON_HOURS, limit=8), []
     )
-
-    # Event Ticker Table / Stream
-    event_rows = []
-    for ev in events:
-        sal = ev.get("salience_score", 0)
-        top_status = ev.get("top_claim_status", "unverified")
-        src_count = ev.get("article_count", 0)
-        clm_count = ev.get("claim_count", 0)
-
-        badge = status_badge(top_status)
-        ev_type_badge = event_badge(ev.get("status", "developing"))
-
-        event_rows.append(
-            f'<tr style="border-bottom:1px solid var(--color-border);">'
-            f'<td style="padding:var(--space-3) var(--space-2);width:50px;text-align:center;">'
-            f'<span style="font-family:var(--font-mono);font-size:var(--text-xs);font-weight:var(--weight-bold);'
-            f'color:var(--color-accent);">{sal}</span></td>'
-            f'<td style="padding:var(--space-3) var(--space-2);">'
-            f'<a href="/event/{ev["id"]}" style="font-weight:var(--weight-semibold);color:var(--color-fg);'
-            f'text-decoration:none;font-size:var(--text-sm);">{esc(ev["title"])}</a>'
-            f'<div class="row" style="gap:var(--space-2);margin-top:4px;font-size:var(--text-xs);'
-            f'color:var(--color-fg-muted);">'
-            f'<span>{src_count} Kaynak</span> · <span>{clm_count} İddia</span>'
-            f'</div></td>'
-            f'<td style="padding:var(--space-3) var(--space-2);white-space:nowrap;">{badge}</td>'
-            f'<td style="padding:var(--space-3) var(--space-2);white-space:nowrap;">{ev_type_badge}</td>'
-            f'<td style="padding:var(--space-3) var(--space-2);text-align:right;white-space:nowrap;">'
-            f'<a class="btn sm ghost" href="/event/{ev["id"]}" title="İncele">{icon("arrow-right", 12)}</a>'
-            f'</td></tr>'
-        )
-
-    table_html = (
-        '<div class="responsive-table">'
-        '<table class="table-cards" style="width:100%;border-collapse:collapse;font-size:var(--text-sm);">'
-        '<thead><tr style="border-bottom:2px solid var(--color-border);text-align:left;'
-        'color:var(--color-fg-subtle);font-size:var(--text-xs);">'
-        '<th style="padding:var(--space-2);text-align:center;">SKOR</th>'
-        '<th style="padding:var(--space-2);">GÜNDEM BAŞLIĞI</th>'
-        '<th style="padding:var(--space-2);">KANIT DURUMU</th>'
-        '<th style="padding:var(--space-2);">AŞAMA</th>'
-        '<th style="padding:var(--space-2);text-align:right;">EYLEM</th>'
-        '</tr></thead><tbody>'
-        + "".join(event_rows)
-        + '</tbody></table></div>'
+    geciken = _safe("delayed", lambda: expected_events.delayed(limit=8), [])
+    # `official_calendar.missed_report` aynı bilgiyi sözlük olarak
+    # döndürüyor; `expected_events` sürümü seçildi çünkü bu ekrandaki
+    # diğer iki beklenti sinyali de oradan geliyor ve tek tip
+    # (`ExpectationSignal`) olmaları `_absent_panel`'i tek kod yolunda
+    # tutuyor.
+    kacirilan = _safe(
+        "missed", lambda: expected_events.observation_gaps(days=3, limit=5), []
     )
+    iddia_dagilimi = _safe("claims", repository.claim_status_distribution, [])
+    shift_ozet = _safe("relations", shift_store.summary, {})
 
+    # Tek ölçüm, iki panel: `needs_attention()` yedi günlük çekim
+    # günlüğünü tarar (~40 ms). İki kez çağırmak o maliyeti sebepsiz
+    # ikiye katlardı.
+    bakim = _safe("source_health", source_quality.needs_attention, [])
+    # "Susmuş" = tazelik bileşeni SIFIR. `not sebep.value` yazılıyor,
+    # `== 0.0` değil: bu dosyada kayan noktalı sabit bulunması yasak
+    # (`test_war_room_indicators_never_come_from_hardcoded_numbers`) ve
+    # yasak yerinde — gösterge sayılarının koda gömülmesini o test
+    # engelliyor.
+    susan = [
+        (kalite, sebep)
+        for kalite, sebepler in bakim
+        for sebep in sebepler
+        if sebep.key == "freshness" and not sebep.value
+    ]
+
+    yukselen = [e for e in events if (e.get("salience_score") or 0) >= RISING_THRESHOLD]
+    sessizlik = len(geciken) + len(kacirilan) + len(susan)
+
+    # Bölüm 8.1: en fazla 4 KPI. Dördü de bu ekranın tek sorusuna
+    # ("olağandışı olan ne, sırada ne var") doğrudan cevap verir —
+    # "toplam olay sayısı" gibi bağlamsız bir sayaç bilerek yok.
     kpis = (
-        f'<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));'
-        f'gap:var(--space-4);margin-bottom:var(--space-6);">'
-        f'{kpi("CANLI AKIŞ", f"{len(events)} Olay", delta_note="Son 24 saatte toplanan kümeler", icon_name="clock")}'
-        f'{kpi("GÜÇLÜ TEYİTLİ", f"{strong_count}", delta_note="T1 ve çoklu bağımsız kaynak teyidi", icon_name="check")}'
-        f'{kpi("KRİTİK GÜNDEM", f"{len(breaking_events)}", delta_note="Gündem skoru 55 ve üzeri olaylar", icon_name="zap")}'
-        f'{kpi("HABER BORU HATTI", "Aktif", delta_note="5 dk periyodik otomatik tarama", icon_name="shield")}'
-        f'</div>'
+        '<div class="kpis">'
+        + kpi(
+            "Açık sapma",
+            fmt.number(len(sapmalar)),
+            delta_note="ölçülen, yorumlanmamış",
+            icon_name="zap",
+        )
+        + kpi(
+            "Beklenen yayın",
+            fmt.number(len(bekleyen)),
+            delta_note=f"önümüzdeki {HORIZON_HOURS} saat",
+            icon_name="calendar",
+        )
+        + kpi(
+            "Beklenip gelmeyen",
+            fmt.number(sessizlik),
+            delta_note="geciken · kaçırılan · susan kaynak",
+            icon_name="warning",
+        )
+        + kpi(
+            "Yükselen olay",
+            fmt.number(len(yukselen)),
+            delta_note=f"önem {RISING_THRESHOLD} ve üzeri",
+            icon_name="trend-up",
+        )
+        + "</div>"
     )
 
     body = f"""
 {
         page_head(
-            "Haber Masası & Canlı Kumanda Odası",
-            lede="Tüm canlı veri kaynaklarının, kanıt zincirlerinin ve anlık gündem kırılmalarının eşzamanlı izleme radarı.",
-            badges='<span class="badge sm" style="background:var(--color-surface-sunken);color:var(--color-strong);display:inline-flex;align-items:center;gap:6px;"><span id="wr-live-dot" class="pulse-dot"></span> CANLI YAYIN</span>',
-            actions='<a class="btn sm" href="/feed" title="Klasik Çalışma Masası">' + icon("feed", 13) + '<span>Gündem Masası</span></a>',
+            "Kumanda odası",
+            lede="Olağandışı olan ne var, sırada ne var? Sapmalar, beklenen resmî "
+            "yayınlar ve beklenip gelmeyenler tek yüzeyde.",
+            badges='<span class="badge sm neutral">'
+            '<span id="wr-live-dot" class="pulse-dot"></span>canlı</span>',
+            actions='<a class="btn sm" href="/feed">'
+            + icon("feed", 13)
+            + "<span>Gündem masası</span></a>",
         )
     }
 
-{kpis}
-
-{indicators_html}
-
-<div class="split">
-  <div class="stack" style="flex:2">
-    {card(table_html, title="Anlık Gündem & Olay Akışı")}
-  </div>
-  <div class="stack" style="flex:1;position:sticky;top:calc(var(--topbar-h) + 24px)">
-    {card(breaking_section, title="Kritik Kırılmalar")}
-    {_anomaly_panel()}
-    {_expected_publications()}
-    {
+<div class="stack">
+  {kpis}
+  {_indicator_strip()}
+  <!-- Sol sütun OKUNUR (derinlik ister), sağ sütun TARANIR (tek bakışta
+       biter). Söylem değişiklikleri panelinin solda olmasının sebebi bu:
+       kapalı yayın kapısını anlatan iki paragraflık bir gerekçe, taranan
+       bir sütunda okunmaz. Sağ sütun `sticky` DEĞİL — bir dönem öyleydi
+       ve hiç devreye girmiyordu, çünkü sağ sütun soldan uzundu ve
+       yapışacak boşluk hiç oluşmuyordu. -->
+  <div class="split">
+    <div class="stack">
+      {_absent_panel(geciken, kacirilan, susan)}
+      {_anomaly_panel(sapmalar)}
+      {_emerging_events(events)}
+      {_claims_panel(iddia_dagilimi)}
+      {_relations_panel(shift_ozet)}
+    </div>
+    <div class="stack">
+      {_expected_publications(bekleyen)}
+      {_source_health_panel(bakim, {k.slug for k, _ in susan})}
+      {
         card(
-            # Bu listede YALNIZCA bu sayfada gerçekten çalışan kısayollar
-            # bulunur. Önceden J/K ve X de yazıyordu; o ikisi `web/feed.py`
-            # içindeki dinleyiciye bağlı ve bu sayfada hiçbir şey yapmıyordu.
+            # Liste ELLE YAZILMAZ; `ui/keys.py` sözleşmesinden gelir (Faz 8.3).
+            # Bu kart bir dönem J/K ve X'i de listeliyordu; o üçü `feed.py`
+            # dinleyicisine bağlıydı ve bu ekranda hiçbir şey yapmıyordu.
             # Çalışmayan bir kısayol listesi, kısayol listesi olmamasından
             # kötüdür: kullanıcı tuşa basar, hiçbir şey olmaz, arayüzün
-            # bozuk olduğunu düşünür.
-            '<div style="font-size:var(--text-xs);color:var(--color-fg-muted);line-height:1.6;">'
-            '<p style="margin:0 0 var(--space-2)"><b>Bu ekranda çalışan kısayollar:</b></p>'
-            '<p style="margin:0 0 4px"><kbd class="shortcut-key">Ctrl</kbd> + '
-            '<kbd class="shortcut-key">K</kbd> : Komuta paleti ve hızlı arama</p>'
-            '<p style="margin:0 0 var(--space-3)"><kbd class="shortcut-key">Esc</kbd> : '
-            "Açık pencereyi kapat</p>"
-            '<p style="margin:0">Olaylar arası klavye gezintisi '
-            '(<kbd class="shortcut-key">J</kbd> / <kbd class="shortcut-key">K</kbd>) ve hızlı '
-            'X taslağı (<kbd class="shortcut-key">X</kbd>) '
-            '<a href="/feed">Gündem Masası</a> ekranındadır.</p>'
-            "</div>",
-            title="Kumanda Kılavuzu",
+            # bozuk olduğunu sanır. Yönlendirme cümlesinde tuş ROZETİ
+            # kullanılmaz — rozet "burada çalışır" demektir
+            # (tests/test_keyboard_contract.py bunu ölçer).
+            keys.guide_card_body(
+                "/war-room",
+                elsewhere=(
+                    "Olaylar arası klavye gezintisi ve hızlı X taslağı "
+                    '<a href="/feed">Gündem masası</a> ekranındadır.'
+                ),
+            ),
+            title="Kumanda kılavuzu",
         )
     }
+    </div>
   </div>
 </div>
 """
 
     return page(
-        "Haber Masası / Kumanda Odası",
+        "Kumanda odası",
         body,
         active="/war-room",
-        crumbs=(("Kumanda Odası", "/war-room"),),
+        crumbs=(("Kumanda odası", None),),
         extra_js=ACTIVITY_JS + _war_room_js(),
     )

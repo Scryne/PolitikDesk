@@ -64,6 +64,21 @@ def esc_attr(value: object) -> str:
     return html.escape(s, quote=True)
 
 
+def script_json(value: Any) -> str:
+    """`<script>` bloğunun İÇİNE gömülecek JSON.
+
+    `json.dumps` tek başına yetmez: bir dize `"</script>"` içerirse
+    tarayıcı JSON'ı ayrıştırmadan ÖNCE etiketi kapatır ve kalan her şey
+    işaretlemeye döner. Bu, gömülü veriyle yaşanan klasik XSS yoludur ve
+    `esc()`'in kapsamadığı bir bağlamdır — script gövdesi HTML değil,
+    JavaScript'tir.
+
+    `<` karakterinin tamamı değil yalnızca `</` dizisi kaçırılır; JSON'da
+    `\\/` geçerli bir `/` kaçışıdır, yani ayrıştırılan değer aynı kalır.
+    """
+    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+
+
 def action_attrs(name: str | None, *args: Any, event: str = "click") -> str:
     """Eylem özniteliklerini üretir — satır içi işleyicinin yerine geçer (Faz 7).
 

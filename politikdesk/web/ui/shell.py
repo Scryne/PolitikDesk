@@ -20,9 +20,11 @@ beklenirse sayfa bir kare açık temada çizilir ve göz kırpar (FOUC).
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Final
 
-from politikdesk.web.ui.components import esc
+from politikdesk.web.ui import keys
+from politikdesk.web.ui.components import esc, script_json
 from politikdesk.web.ui.css import stylesheet
 from politikdesk.web.ui.icons import icon
 from politikdesk.web.ui.nonce import nonce_attr
@@ -297,18 +299,42 @@ def _topbar(crumbs: tuple[tuple[str, str | None], ...]) -> str:
     )
 
 
+# Paletin boşken gösterdiği gezinme listesi — `NAV`'dan TÜRETİLİR.
+#
+# Bu satır bir kopyayı siliyor: liste eskiden `_CMD_JS` içinde elle
+# yazılmış 11 nesneydi. Nav'a bir sayfa eklendiğinde palette görünmüyor,
+# nav'dan bir sayfa kalktığında palette kırık bağlantı olarak kalıyordu.
+# İkisi de sessiz arızadır — kimse "palette eksik" diye şikâyet etmez,
+# özelliğin var olduğunu bilmez.
+#
+# Sözleşme `web/search.py::SearchHit` ile aynı: {title, subtitle, href}.
+# `group` alanı paletin grup başlığıdır ve sunucu tarafındaki arama da
+# aynı başlıkları üretir; iki kaynak aynı ekranda buluştuğunda başlıklar
+# tutmazsa kullanıcı iki ayrı "Sayfalar" grubu görürdü.
+@lru_cache(maxsize=1)
+def _nav_items_js() -> str:
+    # Geç içe aktarma: `web.search` bu modülün `NAV`ını okur, bu modül de
+    # onun `page_hits`ini. Modül düzeyinde içe aktarılsaydı döngü olurdu.
+    from politikdesk.web.search import page_hits
+
+    items = [hit.as_dict() for hit in page_hits()]
+    return f"window.pdNavItems = {script_json(items)};\n"
+
+
 _CMD_PALETTE_HTML = """
 <div id="pd-cmd-dialog" class="cmd-backdrop" role="dialog" aria-modal="true" aria-label="Komuta Paleti">
   <div class="cmd-box">
     <div class="cmd-header">
       <span class="ic">""" + icon("search", 16) + """</span>
-      <input type="text" id="pd-cmd-input" class="cmd-input" placeholder="Sayfa, aktör veya komut ara... (Örn: Gündem, Şimşek, R8)" autocomplete="off" spellcheck="false">
-      <kbd class="shortcut-key" style="font-size:10px;">ESC</kbd>
+      <label class="sr" for="pd-cmd-input">Sayfa, olay, aktör, iddia, kaynak veya gösterge ara</label>
+      <input type="text" id="pd-cmd-input" class="cmd-input" autocomplete="off" spellcheck="false"
+             placeholder="Sayfa, olay, aktör, iddia, kaynak, gösterge ara…">
+      <kbd class="shortcut-key" style="font-size:10px;">Esc</kbd>
     </div>
-    <div id="pd-cmd-body" class="cmd-body"></div>
+    <div id="pd-cmd-body" class="cmd-body" role="listbox" aria-label="Arama sonuçları"></div>
     <div class="cmd-footer">
       <span>↑↓ ile gezin, ↵ ile seç</span>
-      <span>PolitikDesk Komuta Merkezi</span>
+      <span>En az 2 harf</span>
     </div>
   </div>
 </div>
@@ -322,19 +348,18 @@ _CMD_JS = """
   var btn = document.getElementById('pd-cmd-btn');
   if (!dialog || !input || !body) return;
 
-  var DEFAULT_ITEMS = [
-    { title: 'Gündem', href: '/feed', group: 'Çalışma Masası' },
-    { title: 'Kumanda Odası', href: '/war-room', group: 'Çalışma Masası' },
-    { title: 'Brifingler', href: '/briefing', group: 'Çalışma Masası' },
-    { title: 'Vaat Takibi', href: '/promises', group: 'Çalışma Masası' },
-    { title: 'Hesap Sor', href: '/accountability', group: 'Çalışma Masası' },
-    { title: 'Siyasi Hafıza', href: '/memory', group: 'Çalışma Masası' },
-    { title: 'Yayın Arşivi', href: '/archive', group: 'Çalışma Masası' },
-    { title: 'Boru Hattı', href: '/admin/', group: 'Denetim' },
-    { title: 'Denetim Kuyruğu', href: '/admin/review/', group: 'Denetim' },
-    { title: 'Metrikler', href: '/admin/metrics', group: 'Denetim' },
-    { title: 'Editoryal Kimlik', href: '/onboarding/profile', group: 'Ayarlar' }
-  ];
+  // Boş paletin gösterdiği gezinme listesi. SUNUCUDAN gelir
+  // (`window.pdNavItems`, `shell.NAV`'dan türetilir). Bir dönem burada
+  // elle yazılmış 11 satırlık bir kopya duruyordu; nav'a eklenen sayfa
+  // palette görünmüyordu ve kimse fark etmiyordu.
+  var DEFAULT_ITEMS = window.pdNavItems || [];
+
+  // Sunucudaki `search.fold` ile AYNI kural: dört "i" harfi (İ I ı i)
+  // tek harfe indirgenir. Aynı sorgunun istemcide ve sunucuda farklı
+  // eşleşmesi, kullanıcıya listenin "yanıp sönmesi" olarak görünürdü.
+  function pdFold(s){
+    return String(s).replace(/[İIı]/g, 'i').toLowerCase();
+  }
 
   function openDialog(){
     dialog.classList.add('open');
@@ -362,12 +387,19 @@ _CMD_JS = """
     if (e.target === dialog) closeDialog();
   });
 
+  function emptyMessage(text){
+    var box = document.createElement('div');
+    box.className = 'cmd-empty';
+    box.textContent = text;
+    body.replaceChildren(box);
+  }
+
   function renderItems(items){
-    body.innerHTML = '';
     if (!items.length) {
-      body.innerHTML = '<div style="padding:16px;text-align:center;color:var(--color-fg-subtle);font-size:var(--text-sm)">Sonuç bulunamadı.</div>';
+      emptyMessage('Eşleşen kayıt yok. Aktör, olay, iddia, kaynak veya gösterge adı deneyin.');
       return;
     }
+    var frag = document.createDocumentFragment();
     var currentGroup = '';
     items.forEach(function(item, idx){
       if (item.group && item.group !== currentGroup) {
@@ -375,68 +407,74 @@ _CMD_JS = """
         var grp = document.createElement('div');
         grp.className = 'cmd-group-label';
         grp.textContent = currentGroup;
-        body.appendChild(grp);
+        frag.appendChild(grp);
       }
       var a = document.createElement('a');
       a.className = 'cmd-item' + (idx === 0 ? ' selected' : '');
       a.href = item.href;
-      // innerHTML DEĞİL: `item.title` aktör aramasında veritabanından
-      // gelir ve o adlar NER ile DIŞ KAYNAKLI makale metninden çıkarılır.
-      // Kaynağı güvenilmez bir dizeyi innerHTML'e vermek saklı XSS'tir.
+      // innerHTML DEĞİL: `item.title` aktör ve iddia aramasında
+      // veritabanından gelir ve o metinler NER/LLM ile DIŞ KAYNAKLI
+      // makale gövdesinden çıkarılır. Kaynağı güvenilmez bir dizeyi
+      // innerHTML'e vermek saklı XSS'tir.
       var left = document.createElement('div');
       left.className = 'cmd-item-left';
       var titleEl = document.createElement('span');
       titleEl.textContent = item.title;
       left.appendChild(titleEl);
       a.appendChild(left);
-      if (item.hint) {
+      if (item.subtitle) {
         var hintEl = document.createElement('span');
         hintEl.className = 'cmd-item-hint';
-        hintEl.textContent = item.hint;
+        hintEl.textContent = item.subtitle;
         a.appendChild(hintEl);
       }
       a.addEventListener('click', closeDialog);
-      body.appendChild(a);
+      frag.appendChild(a);
     });
+    body.replaceChildren(frag);
   }
 
+  // Sunucudaki aramanın en son hangi harf dizisi için istendiği. Ağdan
+  // geç dönen bir yanıt, kullanıcının o sırada yazdığı YENİ sorgunun
+  // sonucunu ezmemeli — yoksa hızlı yazan biri kendi sorgusunun değil
+  // iki harf öncesinin sonuçlarını görür.
+  var inFlightFor = '';
   var searchTimer = null;
+
   input.addEventListener('input', function(){
-    var q = input.value.trim().toLowerCase();
-    if (!q) { renderItems(DEFAULT_ITEMS); return; }
-    var filtered = DEFAULT_ITEMS.filter(function(i){ return i.title.toLowerCase().indexOf(q) !== -1 || (i.group && i.group.toLowerCase().indexOf(q) !== -1); });
-    renderItems(filtered);
+    var q = input.value.trim();
+    if (!q) { inFlightFor = ''; renderItems(DEFAULT_ITEMS); return; }
+
+    // Anında geri bildirim: sayfa listesi istemcide filtrelenir, ağ
+    // beklenmez. Sunucu yanıtı gelince yerini tam sonuç listesine bırakır.
+    var needle = pdFold(q);
+    var local = DEFAULT_ITEMS.filter(function(i){
+      return pdFold(i.title).indexOf(needle) !== -1;
+    });
+    renderItems(local);
 
     clearTimeout(searchTimer);
-    if (q.length >= 2) {
-      searchTimer = setTimeout(function(){
-        // Anahtar adları `political_memory/service.py::search_actors`
-        // sözleşmesinden gelir: {actors: [{name, entity_type, ...}]}.
-        // Önceden bambaşka iki anahtar okunuyordu; ikisi de sözleşmede
-        // yoktu ve palet aktör aramasını SESSİZCE hiç göstermiyordu —
-        // ne hata veriyordu ne sonuç. Regresyon koruması:
-        // tests/test_ui_charts_and_security.py
-        fetch('/api/memory/actors?q=' + encodeURIComponent(q) + '&limit=8')
-          .then(function(r){ return r.json(); })
-          .then(function(data){
-            var dynamic = [];
-            if (data && data.actors) {
-              data.actors.forEach(function(act){
-                if (!act || !act.name) return;
-                dynamic.push({
-                  title: act.name,
-                  href: '/hafiza/' + encodeURIComponent(act.name),
-                  group: 'Aktörler',
-                  hint: act.entity_type === 'institution' ? 'Kurum' : 'Siyasi aktör'
-                });
-              });
-            }
-            if (dynamic.length) {
-              renderItems(filtered.concat(dynamic));
-            }
-          }).catch(function(){});
-      }, 150);
-    }
+    if (q.length < 2) { inFlightFor = ''; return; }
+    searchTimer = setTimeout(function(){
+      inFlightFor = q;
+      // Tek uç, tek sözleşme: {results: [{kind, group, title, subtitle, href}]}.
+      // Türe göre ayrı uç ve ayrı okuma kodu, D-02'deki sessiz arızanın
+      // yedi kopyası olurdu (gerekçe: politikdesk/web/search.py başlığı).
+      fetch('/api/search?q=' + encodeURIComponent(q))
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(data){
+          if (!data || inFlightFor !== q) return;
+          if (!data.results || !data.results.length) {
+            if (!local.length) emptyMessage('“' + q + '” ile eşleşen kayıt yok.');
+            return;
+          }
+          renderItems(data.results);
+        })
+        .catch(function(){
+          // Ağ düştüyse istemcide filtrelenmiş gezinme listesi ekranda
+          // KALIR; palet gezinme aracı olmaya devam eder.
+        });
+    }, 150);
   });
 
   input.addEventListener('keydown', function(e){
@@ -518,8 +556,23 @@ def page(
     # `_DISPATCH_JS` EN BAŞTA: kayıt defterini (`window.pdAction`) o kurar,
     # sonraki her blok ona eylem kaydeder. Sıra bozulursa kayıtlar
     # `undefined is not a function` ile düşer.
+    #
+    # Kısayol tablosu (Faz 8.3) `active` rotasından OTOMATİK gelir. Sayfa
+    # modülü kendi tablosunu yazmaz — yazabilseydi sözleşme yine ikiye
+    # bölünürdü. Tablo dağıtıcıdan ÖNCE gelir; dağıtıcı onu okur.
     scripts = "\n".join(
-        part for part in (_DISPATCH_JS, _THEME_JS, _DRAWER_JS, _CMD_JS, extra_js) if part
+        part
+        for part in (
+            _DISPATCH_JS,
+            keys.keymap_js(active),
+            keys.DISPATCH_JS,
+            _THEME_JS,
+            _DRAWER_JS,
+            _nav_items_js(),
+            _CMD_JS,
+            extra_js,
+        )
+        if part
     )
     # Bu isteğin nonce'u. Her iki `<script>` etiketi de AYNI değeri taşır ve
     # o değer yanıtın CSP başlığındakiyle birebir aynıdır.

@@ -133,25 +133,34 @@ def test_command_palette_never_writes_untrusted_names_as_html() -> None:
     assert "titleEl.textContent = item.title" in _CMD_JS
 
 
-def test_command_palette_reads_the_actual_search_actors_contract() -> None:
-    """Palet, `service.search_actors`'ın döndürdüğü anahtarları okumalı.
+def test_command_palette_reads_the_actual_search_contract() -> None:
+    """Palet, sunucunun GERÇEKTEN döndürdüğü anahtarları okumalı.
 
     Bir dönem `data.items` / `act.actor_name` okunuyordu; sözleşme
     `{actors: [{name, entity_type}]}` olduğu için palet aktör aramasını
     SESSİZCE hiç göstermiyordu — hata da vermiyordu, sonuç da yoktu.
-    """
-    import inspect
 
-    from politikdesk.political_memory import service as mem_service
+    Faz 8.2'de palet tek uca (`/api/search`) taşındı ve sözleşme
+    `{results: [{kind, group, title, subtitle, href}]}` oldu. Ayrı uç ve
+    ayrı okuma kodu, aynı sessiz arızanın yedi kopyası olurdu. Sözleşmenin
+    kendisi `tests/test_command_palette.py` içinde uçtan uca ölçülüyor;
+    burada ölçülen, JS'in o anahtarları okuduğudur.
+    """
+    from politikdesk.web.search import SearchHit
     from politikdesk.web.ui.shell import _CMD_JS
 
-    contract = inspect.getsource(mem_service.search_actors)
-    assert '"actors": actors' in contract
-    assert '"name"' in contract or "canonical_name as name" in contract
+    sozlesme = SearchHit("event", "x", "y", "/z").as_dict()
+    assert set(sozlesme) == {"kind", "group", "title", "subtitle", "href"}
 
-    assert "data.actors" in _CMD_JS
-    assert "act.name" in _CMD_JS
+    assert "/api/search?q=" in _CMD_JS
+    assert "data.results" in _CMD_JS
+    for anahtar in ("item.title", "item.subtitle", "item.href", "item.group"):
+        assert anahtar in _CMD_JS, f"Palet '{anahtar}' anahtarını okumuyor."
+
+    # Eski sözleşmenin anahtarları geri sızmamalı.
+    assert "data.actors" not in _CMD_JS
     assert "actor_name" not in _CMD_JS
+    assert "item.hint" not in _CMD_JS
 
 
 def test_quick_draft_never_interpolates_draft_body_into_markup() -> None:

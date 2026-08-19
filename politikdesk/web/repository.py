@@ -158,6 +158,44 @@ def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
     }
 
 
+def claim_status_distribution(*, days: int = 7) -> list[tuple[str, int]]:
+    """İddia kanıt durumlarının dağılımı (Roadmap Faz 5.1 · 8.1 "Claims").
+
+    Sıra `STATUS_ORDER`'dır, sayıya göre DEĞİL: skala güçlüden zayıfa
+    okunur ve o sıranın sabit kalması, iki farklı günde bakan kişinin
+    aynı yerde aynı şeyi bulmasını sağlar. Sayıya göre sıralasaydık
+    çubuklar her yenilemede yer değiştirirdi.
+
+    ⛔ `contradicted` sonuçta **görünmez** çünkü hiç üretilmiyor
+    (ADR-008: karşı kanıt yolu kurulmadı). Sıfır satırını çizmek yerine
+    arayüz bunu açıkça yazar — sıfır bir çubuk olarak gösterilseydi
+    "ölçüldü ve çıkmadı" diye okunurdu.
+    """
+    order = (
+        "strongly_corroborated",
+        "partially_corroborated",
+        "attribution_verified",
+        "single_source",
+        "unverified",
+        "contradicted",
+    )
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT c.evidence_status AS status, count(*) AS n
+              FROM claims c
+              JOIN events e ON e.id = c.event_id
+             WHERE {_VISIBLE}
+               AND e.last_update_at > now() - make_interval(days => %s)
+             GROUP BY 1
+            """,  # noqa: S608 — `_VISIBLE` sabit
+            (days,),
+        )
+        sayilar = {str(row["status"]): int(row["n"]) for row in cur.fetchall()}
+
+    return [(status, sayilar[status]) for status in order if sayilar.get(status)]
+
+
 def official_indicator_series(*, limit_per_metric: int = 6) -> list[dict[str, Any]]:
     """Kurumun KENDİ makine okunur yayınından gelen gösterge serileri.
 

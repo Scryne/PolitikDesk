@@ -447,3 +447,188 @@ eksikliği bildiriyor (kısayol penceresinin kapatma düğmesi). Bu bulgu
 **Faz 7 öncesinde de vardı** — eski konteyner kodunda ölçülerek doğrulandı;
 regresyon değildir. Kapsam dışı olduğu için düzeltilmedi. Düzeltmesi
 `feed.py`'deki kapatma düğmesine `title="Kapat"` eklemektir.
+
+---
+
+## 19 Ağustos 2026 — Faz 8: kumanda odası, komuta paleti, kısayol sözleşmesi
+
+Roadmap Faz 8'in üç maddesi (8.1 War Room 2.0 · 8.2 Command Palette ·
+8.3 Keyboard Contract). Üçünün ortak teşhisi aynıydı: **aynı bilgi
+depoda birden fazla yerde elle tutuluyordu.**
+
+| Ne | Kaç kopya | Kopyanın bedeli |
+|---|---|---|
+| Kısayol listesi | 3 (dinleyici · feed penceresi · war-room notu) | War-room J/K/X listeliyordu, o tuşlar orada ölüydü |
+| Paletin sayfa listesi | 2 (`shell.NAV` · `_CMD_JS` içinde 11 nesne) | Nav'a eklenen sayfa palette görünmüyordu |
+| Arama sözleşmesi | tür başına ayrı okuma kodu | D-02: palet aktör aramasını sessizce hiç göstermiyordu |
+
+Üçü de tek kaynağa indirildi ve **sözleşme testiyle** kilitlendi:
+`ui/keys.py`, `web/search.py`, `tests/test_keyboard_contract.py`,
+`tests/test_command_palette.py`.
+
+### 8.3 — kısayol sözleşmesi üç yönlüdür
+
+    beyan (keys.py)  ↔  uygulama (pdKey)  ↔  ekranda görünen (kbd)
+
+Testler her üç yönü de ölçüyor: beyan edilip uygulanmayan da,
+uygulanıp beyan edilmeyen de kırılıyor. Ekranda **rozet**
+(`shortcut-key`) "burada çalışır" anlamına gelir; kumanda odasındaki
+yönlendirme cümlesi bu yüzden rozet kullanmaz, düz metin + bağlantı
+kullanır.
+
+**Yol boyunca çıkan iki hata:**
+
+1. **Enter odaktaki düğmeyi çalıyordu.** Eski dinleyici yalnızca
+   `INPUT`/`TEXTAREA`'yı atlıyordu. Odaktaki bir düğmede Enter'a basmak
+   hem düğmeyi çalıştırıyor hem seçili olayın bağlantısına gidiyordu —
+   klavyeyle gezen biri için arayüz kullanılamaz demekti. Dağıtıcı artık
+   `BUTTON`/`A`/`SUMMARY` üzerinde Enter ve boşluğu geçiriyor.
+2. **Caps Lock'lu kullanıcıda kısayollar ölüyordu.** Tarayıcı `'J'`
+   gönderiyor, yalnız `'j'` dinleyen kısayol sessizce düşüyordu.
+   `test_letter_shortcuts_declare_both_cases` her harf için iki biçimin
+   de beyan edildiğini ölçüyor.
+
+### 8.2 — palet: yedi tür, tek uç, tek sözleşme
+
+`/api/search` → `{results: [{kind, group, title, subtitle, href}]}`.
+Sayfa · olay · aktör · iddia · gösterge · kaynak · ilişki.
+
+Türe göre ayrı uç açılmadı, çünkü o D-02 arızasının yedi kopyası
+olurdu. Kırmızı çizgiler sonuç listesine de uygulanıyor ve test
+ediliyor: kaynak sonucunda **siyasi konum etiketi yok** (alt satırın
+YAPISI ölçülüyor, sözcük kara listesi değil), olay sonucunda skor
+**"önem"** diye anılıyor, ilişki sonuçları **ADR-010 kapısına** tabi.
+
+**Türkçe eşleştirme kuralı yazıldı** (`search.fold`, JS'te `pdFold`).
+`casefold()` "İ"yi `i + birleşen nokta` yapıyor ve o dizede "iddia"
+BULUNAMIYOR; `lower()` ise "I"yı "i" yaparak Türkçede yanlış davranıyor.
+Palette doğru davranış yüksek geri çağırmadır, o yüzden dört harfin
+dördü (İ I ı i) tek harfe indirgeniyor. Veritabanı tarafına sorgu **ham**
+gidiyor — `ILIKE` bu indirgemeyi yapmaz ve "İBB" araması `%ibb%` olsaydı
+eşleşmezdi.
+
+### 8.1 — kumanda odası: haber listesi olmaktan çıktı
+
+BRIEF'e satır eklendi: **"Olağandışı olan ne var, sırada ne var?"**
+`/feed`'in sorusu değil ve olmaması bu ekranın var olma sebebi. Olay
+listesi kaldırılmadı, **ikinci sıraya** indi.
+
+Roadmap altı hücre istiyor; üçü (Claims · Source Health · Relations)
+yoktu, eklendi. Ama **eşit altı kutu olarak dizilmedi** — eşit ızgara,
+Bölüm 13.6'nın "bu kararı herhangi bir panel için de verir miydim?"
+sorusuna "evet" cevabı verir. Sol sütun okunur, sağ sütun taranır.
+
+**Signature: "Olmayanlar".** Paneller olanı gösterir; bu ürünün farkı
+beklentiyi bilmesidir. Geciken yayın · yayımlandı-biz-görmedik · susmuş
+kaynak tek blokta, sol üstte, kenarında cetvelle.
+
+**İlişkiler paneli kapalı kapıyı boş panel olarak göstermiyor.**
+`shift_store.list_all()` kapı kapalıyken boş liste döner; panel bunu
+"kayma bulunamadı" diye gösterseydi *ölçülemedi* ile *sıfır* arasındaki
+fark silinirdi. Panel `withheld` sayısını ve gerekçesini yazıyor.
+
+**İddia panelinde `contradicted` sıfırı açıklanıyor.** Sıfırı çubuk
+olarak çizmek "ölçüldü ve çıkmadı" diye okunurdu; oysa karşı kanıt yolu
+hiç kurulmadı (ADR-008).
+
+---
+
+## Görsel doğrulama döngüsü — 4 tur
+
+### Tur 1 → 2
+
+**İyi:** hiyerarşi çalışıyor, "Olmayanlar" en üstte ve cetvelle
+ayrışıyor; KPI'ların dördü de ekranın tek sorusuna cevap veriyor.
+
+**Kötü:**
+
+1. **`.grid` sınıfı CSS'te HİÇ TANIMLI DEĞİLDİ.** `class="grid"` iki
+   ekranda kullanılıyordu (`war_room.py`, `event.py`) ama hiçbir yerde
+   `display:grid` yoktu — satır içi `grid-template-columns` hiçbir şey
+   yapmıyordu. Altı gösterge kartı ve olay sayfasının 11 dışa aktarım
+   bağlantısı tam genişlikte alt alta yığılıyordu. Ekran görüntüsünde
+   "öyle tasarlanmış" gibi duran, ancak ölçünce görülen türden bir
+   kusur. Benden önce vardı; düzeltmesi iki ekranı birden düzeltti.
+2. Beklenen yayın başlıkları 150+ karakter (SPK), yan sütunu dört satıra
+   yayıyordu → `fmt.shorten` + tam metin `title` özniteliğinde.
+3. Saat `fmt.date_time(an)[-5:]` ile dilimleniyordu — kırılgan; doğrusu
+   zaten `fmt.date_time`.
+4. `reference_period` ham geliyordu: `20-08-2026`, `2026-08-19`. Ek B.1
+   Türkçe tarihi noktayla ister → `fmt.period_label` iki biçimi de
+   kapsayacak şekilde genişletildi.
+
+**Sonuç:** sayfa 3340px → 2766px.
+
+### Tur 2 → 3
+
+1. Gösterge şeridi `auto-fit` ızgarasında 6 kart 4 sütuna dizilince
+   ikinci satırda 2 kart kalıyor, sağda kart genişliğinde ölü alan
+   oluşuyordu → esnek satıra (`.indicator-strip`) çevrildi.
+2. Kaynak sağlığı rozetinde `coverage` yazıyordu ("5/6 bileşen") — o sayı
+   **skorun** kaç bileşene dayandığını söyler, ama panel skoru hiç
+   göstermiyor; rozet hiçbir soruya cevap vermiyordu. Yerine en zayıf
+   bileşenin adı ("tazelik", "içerik verimi") kondu: doğrudan eylem
+   söyler.
+3. Sağ sütundaki `position:sticky` hiç devreye girmiyordu — sağ sütun
+   soldan uzundu, yapışacak boşluk hiç oluşmuyordu. Çalışmayan bir stil
+   okuyanı yanıltır; kaldırıldı ve söylem paneli sola alınarak sütunlar
+   dengelendi.
+
+**Sonuç:** 2766px → 2328px.
+
+### Tur 3 → 4
+
+1. **Aynı dört kaynak ekranda iki kez.** "Olmayanlar" susan kaynakları,
+   "Kaynak sağlığı" da en zayıf bileşene göre sıraladığı için aynı
+   dördü listeliyordu; ikinci panel pratikte birincinin kopyasıydı.
+   Susanlar kaynak sağlığından çıkarıldı — panel artık asıl işini
+   yapıyor: veri GELEN ama başarı/verim sorunu olan kaynakları
+   göstermek.
+2. Uzun kaynak adı ("Anayasa Mahkemesi (@AYMBASKANLIGI)") rozeti alt
+   satıra atıyordu → `.signal-row .row` artık sarmıyor, ad kısalıyor.
+3. 1920'de şerit 5+1 diziliyor, tek kalan kart satırı doldurup
+   diğerlerinin iki katına çıkıyordu — aynı ölçekteki altı göstergeden
+   biri sırf sona düştüğü için daha önemli görünüyordu. Taban 280px:
+   1440'ta 3+3, 1920'de 4+2, tablette 2+2+2.
+
+**Yanlış alarm:** 1920'de içeriğin 1440'a sabitlenmediğini sandım;
+ölçünce sabitlendiği ve ortalandığı görüldü (kenarlarda 108px). Bölüm
+7.4 zaten sağlanıyormuş — ekran görüntüsünden göz kararı ölçü
+çıkarmanın neden yetmediğinin örneği.
+
+### Denetim betiğinde dört düzeltme
+
+- `scripts/ui_check.py` yalnızca **iki** viewport'un görüntüsünü
+  alıyordu; Bölüm 14.2 dördünü de istiyor ve çekilmeyen viewport
+  incelenmiyordu. Dördü de çekiliyor.
+- `--only` çıktısı `tek-*.png` diye kaydediliyordu; iki ekranı ardışık
+  denetleyen kişi ilkinin görüntüsünü ezer ve fark etmez. Ad yoldan
+  türetiliyor.
+- `BASE_URL` `localhost` → `127.0.0.1`. Bu makinede `localhost` önce
+  IPv6 deniyor ve her isteğe ~2 sn ekliyor; 48 istekte ~1,5 dakika.
+- `/war-room` denetim listesinde **yoktu** — 11 ekran denetleniyordu,
+  12'ncisi denetlenmiyordu. Eklendi.
+
+### Doğrulama
+
+| Kontrol | Sonuç |
+|---|---|
+| `ruff check .` | 0 hata |
+| `mypy` | 172 dosya, 0 hata |
+| `pytest` | **1509 geçti**, 0 atlandı (37'si yeni) |
+| `pip-audit` | bilinen açık yok |
+| `check_architecture` + `verify_arch_guard` | temiz |
+| `pd ui-check` (12 ekran × 4 viewport) | taşma yok, konsol hatası yok |
+| Kumanda odası, açık + koyu tema, 4 viewport | temiz |
+| CSP | `script-src 'self' 'nonce-…'`, **0 ihlal** (paletin dinamik DOM'u dâhil) |
+| Palet | Ctrl+K açıyor · 12 gezinme öğesi · "faiz" → 3 grup, 11 sonuç · ok tuşları ve Enter çalışıyor · tıklama `/event/8466`'ya gidiyor |
+| Kısayollar | J/K seçim gezintisi · `?` penceresi (9 satır) · `/` odak · arama kutusunda tuşlar kısayola KAÇMIYOR |
+| Enter regresyonu | odaktaki düğmede Enter sayfayı değiştirmiyor, düğmeyi çalıştırıyor |
+| `/war-room` keymap | boş — feed kısayolları orada ölü değil, **hiç yok** |
+
+### Faz 7'den kalan açık madde kapandı
+
+Faz 7 girdisi `/feed`'de kısayol penceresinin kapatma düğmesinde
+`aria-label`/`title` eksikliğini kapsam dışı bırakmıştı. Pencere bu fazda
+sözleşmeden yeniden üretilirken düğmeye `title="Kapat"` eklendi;
+`pd ui-check` 12 ekranın hiçbirinde etiketsiz ikon düğmesi bildirmiyor.

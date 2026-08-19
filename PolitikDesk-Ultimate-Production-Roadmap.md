@@ -697,7 +697,13 @@ Accuracy cloud baseline'ın altında belirlenen eşikten fazla düşerse product
 
 ## 7.1 CSP Nonce
 
-**Öncelik: P0**
+**Öncelik: P0 — TAMAMLANDI (19 Ağu 2026). Karar: `docs/ADR-011-CSP-NONCE-HARDENING.md`**
+
+`script-src 'self' 'nonce-…'`; tarayıcıda 12 ekranda **0 ihlal**.
+Nonce satır içi ÖZNİTELİK işleyicilerini kurtarmadığı için 50 `onclick`
+kaldırıldı ve yerine prototipsiz allowlist'li tek bir delegasyon
+dağıtıcısı kondu. `style-src 'unsafe-inline'` kasıtlı duruyor; kapatma
+koşulu ADR-011 §3.1'de.
 
 `unsafe-inline` kaldır.
 
@@ -751,9 +757,54 @@ olamaz.
 
 # PHASE 8 — UI / Command Center
 
+**TAMAMLANDI (19 Ağu 2026).** Üç maddenin ortak teşhisi aynı çıktı: aynı
+bilgi depoda birden fazla yerde **elle** tutuluyordu ve kopyaların hepsi
+sessizce kaymıştı.
+
+| Ne | Kaç kopya vardı | Kopyanın bedeli |
+|---|---|---|
+| Kısayol listesi | 3 | Kumanda odası J/K/X listeliyordu; o tuşlar orada ölüydü |
+| Paletin sayfa listesi | 2 | Nav'a eklenen sayfa palette görünmüyordu |
+| Arama sözleşmesi | tür başına ayrı okuma kodu | D-02: aktör araması sessizce hiç çalışmıyordu |
+
+Üçü tek kaynağa indirildi ve sözleşme testiyle kilitlendi
+(`ui/keys.py`, `web/search.py` + 37 yeni test). Ayrıntı ve görsel
+doğrulama turları: `design/decisions.md`, 19 Ağustos 2026 girdisi.
+
+**Yol boyunca çıkan üç gerçek kusur** (üçü de bu fazdan önce vardı):
+
+1. **`.grid` sınıfı CSS'te hiç tanımlı değildi.** İki ekran onu
+   kullanıyordu; `display:grid` olmadığı için satır içi
+   `grid-template-columns` hiçbir şey yapmıyor, kartlar tam genişlikte
+   yığılıyordu. Görüntüde "öyle tasarlanmış" gibi duruyordu.
+2. **Enter odaktaki düğmeyi çalıyordu.** Klavye dinleyicisi yalnızca
+   `INPUT`/`TEXTAREA`'yı atlıyordu; odaktaki bir düğmede Enter hem
+   düğmeyi çalıştırıyor hem seçili olaya gidiyordu.
+3. **`/war-room` denetim listesinde yoktu.** 11 ekran denetleniyordu,
+   12'ncisi denetlenmiyordu — ve denetlenmeyen sayfa bozulur.
+
 ## 8.1 War Room 2.0
 
-**Öncelik: P1**
+**Öncelik: P1 — TAMAMLANDI (19 Ağu 2026).**
+
+Roadmap'in altı hücresinin üçü (Claims · Source Health · Relations)
+eksikti; eklendi. **Eşit altı kutu olarak dizilmedi** — eşit ızgara,
+DESIGN.md Bölüm 13.6'nın "bu kararı herhangi bir panel için de verir
+miydim?" sorusuna "evet" cevabı verir. Sol sütun okunur, sağ sütun
+taranır.
+
+BRIEF'e satır eklendi: **"Olağandışı olan ne var, sırada ne var?"**
+Bu `/feed`'in sorusu değildir ve olmaması bu ekranın var olma sebebidir.
+Olay listesi kaldırılmadı, ikinci sıraya indi.
+
+Yedinci panel eklendi — ekranın imza öğesi **"Olmayanlar"**: geciken
+resmî yayın, yayımlandı-biz-görmedik, susmuş kaynak. Paneller olanı
+gösterir; bu ürünün farkı beklentiyi bilmesidir.
+
+İki kırmızı çizgi panellere yansıdı: ilişkiler paneli ADR-010 kapısını
+**boş panel olarak göstermiyor** (`withheld` sayısını ve gerekçesini
+yazıyor — *ölçülemedi ≠ sıfır*), iddia paneli `contradicted` sıfırının
+bir bulgu değil bilinen bir boşluk olduğunu söylüyor (ADR-008).
 
 War Room sadece haber listesi olmaktan çıkarılmalı.
 
@@ -775,6 +826,9 @@ Ana yüzey:
 
 ## 8.2 Command Palette
 
+**TAMAMLANDI (19 Ağu 2026).** Tek uç: `GET /api/search` →
+`{results: [{kind, group, title, subtitle, href}]}`.
+
 D-02 sonrası sözleşme:
 
 ```json
@@ -790,22 +844,58 @@ D-02 sonrası sözleşme:
 
 tek kaynaktan tanımlanmalı.
 
+`/api/memory/actors` sözleşmesi yerinde duruyor (siyasi hafıza ekranı
+kullanıyor) ve `tests/test_command_palette.py` ile kilitli. Palet artık
+onu değil birleşik ucu çağırıyor — türe göre ayrı uç açmak, D-02
+arızasının yedi kopyası olurdu.
+
+Paletin gezinme listesi `shell.NAV`'dan **türetiliyor**; JS içindeki
+11 satırlık elle yazılmış kopya kalktı ve geri sızmaması test ediliyor.
+
 ### Arama
+
+Yedi tür de canlı veride ulaşılabilir olarak ölçülüyor:
 
 - aktör
 - olay
 - claim
 - source
 - indicator
-- relation
+- relation *(ADR-010 kapısına tabi; kapı kapalıyken sonuç üretmez —
+  bu doğru davranıştır ve ayrıca test edilir)*
+- **sayfa** *(roadmap'te yoktu; paletin en sık kullanımı gezinmedir)*
+
+**Türkçe eşleştirme kuralı yazıldı.** `casefold()` "İ"yi
+`i + birleşen nokta` yapar ve o dizede "iddia" bulunamaz; `lower()` ise
+"I"yı "i" yaparak Türkçede yanlış davranır. Palette doğru davranış
+yüksek geri çağırmadır: dört harfin dördü (İ I ı i) tek harfe indirgenir.
+Veritabanına sorgu **ham** gider — `ILIKE` bu indirgemeyi yapmaz.
 
 ---
 
 ## 8.3 Keyboard Contract
 
+**TAMAMLANDI (19 Ağu 2026).** `politikdesk/web/ui/keys.py` + 13 test.
+
 J / K / X gibi kısayollar gerçekten hangi sayfada aktifse UI'da sadece orada gösterilmeli.
 
 Kısayol sözleşmesi test edilmeli.
+
+Sözleşme **üç yönlüdür** ve üçü de ölçülür:
+
+```text
+beyan (keys.py)  ↔  uygulama (pdKey)  ↔  ekranda görünen (kbd)
+```
+
+Beyan edilip uygulanmayan da, uygulanıp beyan edilmeyen de testi kırar.
+Ekranda `shortcut-key` rozeti "burada çalışır" anlamına gelir; kumanda
+odası bu yüzden yönlendirme cümlesinde rozet kullanmaz. `/war-room`
+keymap'i **boştur** — feed kısayolları orada ölü değil, hiç yok.
+
+Ek olarak iki sessiz arıza kapandı: odaktaki düğmede Enter artık sayfayı
+değiştirmiyor, ve harf kısayolları Caps Lock açıkken de çalışıyor
+(tarayıcı `'J'` gönderiyor; yalnız `'j'` dinleyen kısayol sessizce
+düşüyordu).
 
 ---
 

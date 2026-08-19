@@ -27,7 +27,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHOTS_DIR = REPO_ROOT / "design" / "shots"
 
-BASE_URL = "http://localhost:8000"
+# `localhost` DEĞİL `127.0.0.1`: bu makinede `localhost` önce IPv6 (`::1`)
+# denemesi yapıyor, sunucu yalnız IPv4 dinlediği için bağlantı reddediliyor
+# ve istemci IPv4'e düşene kadar her isteğe ~2 saniye ekleniyor. 12 ekran ×
+# 4 viewport = 48 istek, yani denetim turuna sebepsiz ~1,5 dakika.
+BASE_URL = "http://127.0.0.1:8000"
 
 # Bölüm 14.2'nin zorunlu viewport'ları.
 VIEWPORTS: tuple[tuple[str, int, int], ...] = (
@@ -37,10 +41,13 @@ VIEWPORTS: tuple[tuple[str, int, int], ...] = (
     ("genis", 1920, 1080),
 )
 
-# Depodaki her ekran (11 ekran · FAZ 12.2). Yeni sayfa açan buraya bir satır
+# Depodaki her ekran (12 ekran · FAZ 12.2, Faz 8.1'de kumanda odası eklendi:
+# denetlenmeyen sayfa bozulur ve o ekran denetim listesinde YOKTU). Yeni
+# sayfa açan buraya bir satır
 # ekler; eklemeyen sayfa denetlenmez ve denetlenmeyen sayfa bozulur.
 PAGES: tuple[tuple[str, str], ...] = (
     ("gundem", "/feed"),
+    ("kumanda-odasi", "/war-room"),
     ("brifingler", "/briefing"),
     ("editoryal-kimlik", "/onboarding/profile"),
     ("boru-hatti", "/admin/"),
@@ -130,7 +137,15 @@ def main() -> int:
     parser.add_argument("--base", default=BASE_URL)
     args = parser.parse_args()
 
-    pages = (("tek", args.only),) if args.only else PAGES
+    # `--only /war-room` çıktısı "tek-*.png" diye kaydediliyordu; iki farklı
+    # ekranı ardışık denetleyen kişi ilkinin görüntüsünü ikincisiyle ezer ve
+    # bunu fark etmez. Ad, yolun kendisinden türetilir.
+    pages: tuple[tuple[str, str], ...]
+    if args.only:
+        slug = args.only.strip("/").replace("/", "-") or "kok"
+        pages = ((slug, args.only),)
+    else:
+        pages = PAGES
     SHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
     problems: list[str] = []
@@ -182,7 +197,13 @@ def main() -> int:
                         "aria-label/title yok (Bolum 12)."
                     )
 
-                if args.shots and label in ("mobil", "masaustu"):
+                # DÖRT viewport'un dördü de çekilir. Betik bir dönem yalnız
+                # "mobil" ve "masaustu" çekiyordu; Bölüm 14.2 dördünü de
+                # istiyor ("her viewport için ayrı screenshot ve ayrı
+                # kritik") ve çekilmeyen viewport incelenmiyordu — tablet
+                # kırılması ile 1920'de sağda kalan boşluk tam olarak
+                # ölçüm dışı kalan iki şeydi.
+                if args.shots:
                     page.screenshot(
                         path=str(SHOTS_DIR / f"{name}-{label}-{args.theme}.png"),
                         full_page=True,

@@ -210,10 +210,35 @@ def angles() -> list[dict[str, str]]:
 # --------------------------------------------------------------- siyaset dikeyi
 @router.get("/memory/actors")
 def search_memory_actors(q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
-    """Siyasi hafıza aktörlerini filtreler ve sayfalar."""
+    """Siyasi hafıza aktörlerini filtreler ve sayfalar.
+
+    Sözleşme `{actors: [{name, entity_type, …}], total, …}` (D-02). Komuta
+    paleti artık bu ucu DEĞİL `/api/search`'ü çağırır; burası siyasi
+    hafıza ekranının kendi ucudur ve sözleşmesi
+    `tests/test_command_palette.py` ile kilitlidir.
+    """
     from politikdesk.political_memory import service as mem_service
 
     return mem_service.search_actors(query=q, limit=limit, offset=offset)
+
+
+@router.get("/search")
+def unified_search(q: str = "", limit: int = 40) -> dict[str, Any]:
+    """Komuta paletinin tek arama ucu (Roadmap Faz 8.2).
+
+    Yedi tür tek listede döner ve her sonuç aynı sözleşmeyi taşır
+    (`web/search.py::SearchHit`). Türe göre ayrı uç açılmamasının
+    gerekçesi o modülün başlığında: D-02'de palet, sözleşmede olmayan
+    iki anahtarı okuduğu için aktör aramasını sessizce hiç göstermiyordu
+    — ne hata ne sonuç. Tek sözleşme, o hatanın tek yerde ölçülmesini
+    sağlar.
+    """
+    from politikdesk.web import search as unified
+
+    # Tavan istemciye bırakılmaz: palet en fazla ~40 satır gösterir ve
+    # daha fazlasını istemek yalnızca veritabanını yorar.
+    hits = unified.search(q, limit=max(1, min(int(limit), 60)))
+    return {"query": q, "results": [hit.as_dict() for hit in hits]}
 
 
 @router.get("/claims/{claim_id}/matrix")

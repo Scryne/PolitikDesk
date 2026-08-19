@@ -677,7 +677,53 @@ input[type=checkbox],input[type=radio]{{
 .pulse-dot{{width:8px;height:8px;border-radius:var(--radius-full);background:var(--color-strong);
   display:inline-block;animation:pulse-glow 2s cubic-bezier(.4,0,.6,1) infinite}}
 @keyframes pulse-glow{{0%,100%{{opacity:1;transform:scale(1)}}50%{{opacity:.4;transform:scale(.85)}}}}
+/* Canlı akıştan yeni kayıt geldiğinde. Renk JS'ten satır içi stille
+   veriliyordu; token almıyordu ve koyu temada yanlış tona düşüyordu. */
+.pulse-dot.flash{{background:var(--color-accent)}}
 
+/* ── Kumanda odası sinyal satırı (Faz 8.1) ──────────────────────────
+   Sapma, kaynak ve beklenen yayın panelleri aynı ritmi paylaşır: bir
+   satır = bir sinyal. Ayırıcı olarak alt kenarlık; zebra şerit yasak
+   (Bölüm 8.3). Son satırın kenarlığı yok — kart zaten orada bitiyor ve
+   çift çizgi görüntüsü oluşurdu. */
+.signal-row{{padding:var(--space-2) 0;border-bottom:1px solid var(--color-border)}}
+.signal-row:last-of-type{{border-bottom:0;padding-bottom:0}}
+/* Satır başlığı: ad esner, rozet esnemez. `.row`'un `flex-wrap` değeri
+   uzun kaynak adlarında ("Anayasa Mahkemesi (@AYMBASKANLIGI)") rozeti
+   alt satıra atıyor ve sinyal listesinin ritmi bozuluyordu. */
+.signal-row .row{{flex-wrap:nowrap}}
+.signal-row .row>:first-child{{min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}}
+.signal-row .row>:last-child{{flex:none}}
+
+/* Gösterge şeridi — ızgara DEĞİL esnek satır.
+   `grid` + `auto-fit` ile 6 kart 4 sütuna dizilince ikinci satırda 2 kart
+   kalıyor ve sağda bir kart genişliğinde ölü alan oluşuyordu. Flex'te son
+   satırdaki kartlar `flex-grow` ile satırı doldurur; seri sayısının sütun
+   sayısına bölünmesi gerekmez ve kurum yeni bir seri yayımladığında
+   yerleşim bozulmaz. */
+.indicator-strip{{display:flex;flex-wrap:wrap;gap:var(--space-3)}}
+/* Taban 280px: altı seri 1440'ta 3+3, 1920'de 4+2, tablette 2+2+2 diziliyor.
+   220px'te 1920 ekranda 5+1 oluyordu ve tek başına kalan kart satırın
+   tamamına yayılıp diğerlerinin iki katı genişliğe çıkıyordu — aynı
+   ölçekteki altı göstergeden biri, sırf sona düştüğü için daha önemli
+   görünüyordu. */
+.indicator-strip>*{{flex:1 1 280px;min-width:0}}
+
+/* "Olmayanlar" — ekranın imza öğesi. Diğer kartlardan AYRIŞMASI gerekir
+   çünkü tek "yokluk" panelidir; ayrım gölgeyle değil (Bölüm 5.5) sol
+   kenardaki cetvelle yapılır — arayüzün kanıt cetveliyle aynı dil. */
+.card.absent{{border-left:3px solid var(--color-partial)}}
+.card.absent .card-head h3{{color:var(--color-fg)}}
+
+/* Sütun sayısını çağıran belirler (`grid-template-columns` satır içinde).
+   Bu kural EKSİKTİ: `class="grid"` iki ekranda kullanılıyordu ama
+   hiçbir yerde `display:grid` yoktu, dolayısıyla satır içi
+   `grid-template-columns` HİÇBİR ŞEY yapmıyordu. Kumanda odasının altı
+   gösterge kartı ve olay sayfasının kanıt ızgarası tam genişlikte alt
+   alta yığılıyordu — ekran görüntüsünde "öyle tasarlanmış" gibi
+   duran, ancak ölçünce görülen türden bir kusur. */
+.grid{{display:grid;gap:var(--space-4)}}
 .grid-auto{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:var(--space-4)}}
 
 .toast{{
@@ -777,8 +823,19 @@ input[type=checkbox],input[type=radio]{{
 .cmd-item:hover,.cmd-item.selected{{
   background:var(--color-surface-sunken);color:var(--color-accent);
 }}
-.cmd-item-left{{display:flex;align-items:center;gap:var(--space-2)}}
-.cmd-item-hint{{font-size:var(--text-xs);color:var(--color-fg-subtle)}}
+.cmd-item-left{{display:flex;align-items:center;gap:var(--space-2);min-width:0}}
+/* Uzun iddia metni paleti yatay olarak patlatmasın: başlık kısalır,
+   alt bilgi kısalmaz (asıl ayırt edici odur). */
+.cmd-item-left span{{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+.cmd-item-hint{{
+  font-size:var(--text-xs);color:var(--color-fg-subtle);
+  flex:none;margin-left:var(--space-3);max-width:45%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}}
+.cmd-empty{{
+  padding:var(--space-6) var(--space-4);text-align:center;
+  color:var(--color-fg-subtle);font-size:var(--text-sm);
+}}
 .cmd-footer{{
   display:flex;align-items:center;justify-content:space-between;padding:var(--space-2) var(--space-4);
   border-top:1px solid var(--color-border);background:var(--color-surface-sunken);

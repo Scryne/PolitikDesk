@@ -66,9 +66,52 @@ def test_war_room_endpoint() -> None:
     client = TestClient(app)
     res = client.get("/war-room")
     assert res.status_code == 200
-    assert "Haber Masası" in res.text
-    assert "Kumanda Odası" in res.text
+    assert "Kumanda odası" in res.text
     assert "wr-live-dot" in res.text
+
+
+def test_war_room_carries_all_six_roadmap_panels() -> None:
+    """Roadmap Faz 8.1'in altı hücresinin altısı da ekranda.
+
+    Eskiden bu ekran bir haber listesiydi; maddenin kendisi bunu kusur
+    olarak yazıyordu (*"War Room sadece haber listesi olmaktan
+    çıkarılmalı"*). Bir panelin sessizce düşmesi, ekranı adım adım o
+    eski hâline geri götürür — o yüzden altısı da ölçülür.
+    """
+    res = TestClient(app).get("/war-room")
+    assert res.status_code == 200
+    for panel in (
+        "Gösterge sapmaları",  # Indicators
+        "Yükselen olaylar",  # Emerging Events
+        "İddia kanıt durumu",  # Claims
+        "Kaynak sağlığı",  # Source Health
+        "Söylem değişiklikleri",  # Relations
+        "Beklenen resmî yayınlar",  # Expected Events
+        "Olmayanlar",  # signature
+    ):
+        assert panel in res.text, f"Kumanda odasında eksik panel: {panel}"
+
+
+def test_war_room_relations_panel_states_the_closed_gate() -> None:
+    """ADR-010: kapalı kapı BOŞ PANEL olarak gösterilemez.
+
+    `shift_store.list_all()` kapı kapalıyken boş liste döner. Panel bunu
+    "kayma bulunamadı" diye gösterseydi, sistem *ölçülemedi* ile *sıfır*
+    arasındaki farkı silerdi — bu depoda birden çok kez ödenmiş bir bedel.
+    """
+    from politikdesk.political_memory import shift_store
+
+    res = TestClient(app).get("/war-room")
+    if shift_store.PUBLISH_GATE_OPEN:
+        return
+    assert "Yayın kapısı kapalı" in res.text
+    assert "yayından çekildi" in res.text
+
+
+def test_war_room_never_calls_salience_a_truth_score() -> None:
+    """Spec §15/13: skorun göründüğü her yerde bu not bulunur."""
+    text = TestClient(app).get("/war-room").text
+    assert "Önem skoru bir <b>doğruluk</b> ölçüsü değildir" in text
 
 
 def test_war_room_indicators_never_come_from_hardcoded_numbers() -> None:

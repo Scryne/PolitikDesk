@@ -5,6 +5,7 @@ tokens.py       renk/spacing/radius/tipografi — TEK KAYNAK, ham hex yalnız bu
 css.py          stylesheet, tokens.py'den TÜRETİLİR
 icons.py        lucide satır içi SVG — tek set, emoji yok
 format.py       Türkçe sayı/tarih/para biçimlendirme (Ek B)
+keys.py         klavye kısayolu sözleşmesi — beyan ↔ uygulama ↔ görünen
 components.py   Bölüm 8 bileşen spesifikasyonları
 charts.py       satır içi SVG grafik (kütüphane yok)
 shell.py        sidebar + topbar + tema anahtarı; TÜM sayfalar bunu kullanır
@@ -14,7 +15,7 @@ Sayfa modülleri (`web/feed.py`, `admin/router.py`, …) yalnızca buradan
 içe aktarır; kendi stilini, ikonunu veya biçimlendirmesini tanımlamaz.
 """
 
-from politikdesk.web.ui import charts, format
+from politikdesk.web.ui import charts, format, keys
 from politikdesk.web.ui.components import (
     action_attrs,
     button,
@@ -60,6 +61,7 @@ __all__ = [
     "filtered_empty_state",
     "format",
     "icon",
+    "keys",
     "kpi",
     "notice",
     "page",

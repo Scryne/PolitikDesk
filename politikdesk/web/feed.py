@@ -29,6 +29,7 @@ from politikdesk.web.ui import (
     event_badge,
     filtered_empty_state,
     icon,
+    keys,
     kpi,
     page,
     page_head,
@@ -379,20 +380,18 @@ def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
     return "".join(_card(row) for row in visible)
 
 
+# Pencerenin İÇERİĞİ elle yazılmaz — `ui/keys.py` sözleşmesinden gelir
+# (Faz 8.3). Eskiden buradaki yedi satır, otuz satır aşağıdaki `keydown`
+# dinleyicisinden bağımsızdı; ikisinin uyumu kimseye emanet değil artık.
 _SHORTCUTS_MODAL = f"""
 <div id="shortcuts-modal" class="shortcuts-backdrop"{action_attrs("shortcuts-backdrop")}>
   <div class="shortcuts-modal">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
-      <h3 style="margin:0;font-size:var(--text-lg)">Klavye Kısayolları</h3>
-      <button class="btn sm ghost" type="button"{action_attrs("toggle-shortcuts")}>{icon("close", 14)}</button>
+      <h3 style="margin:0;font-size:var(--text-lg)">Klavye kısayolları</h3>
+      <button class="btn sm ghost icon" type="button" title="Kapat" aria-label="Kapat"
+              {action_attrs("toggle-shortcuts")}>{icon("close", 14)}</button>
     </div>
-    <div class="shortcut-row"><span>Sonraki olay</span><span class="shortcut-key">J</span></div>
-    <div class="shortcut-row"><span>Önceki olay</span><span class="shortcut-key">K</span></div>
-    <div class="shortcut-row"><span>X Tweeti hazırla / odaklan</span><span class="shortcut-key">X veya T</span></div>
-    <div class="shortcut-row"><span>Seçili tweeti / başlığı kopyala</span><span class="shortcut-key">C</span></div>
-    <div class="shortcut-row"><span>Olay detayını aç</span><span class="shortcut-key">Enter veya O</span></div>
-    <div class="shortcut-row"><span>Gündemde anlık arama</span><span class="shortcut-key">/</span></div>
-    <div class="shortcut-row"><span>Kısayol penceresini aç/kapat</span><span class="shortcut-key">?</span></div>
+    {keys.help_rows("/feed")}
   </div>
 </div>
 """
@@ -660,69 +659,79 @@ async function pdRefresh(){{
   }}
 }}
 
-// Klavye Gezintisi (J / K / X / C / Enter / / / ?)
-document.addEventListener('keydown', function(e) {{
-  var tag = document.activeElement.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+// ── Klavye kısayolları (Faz 8.3) ────────────────────────────────────
+//
+// Hangi TUŞUN hangi eylemi çağırdığı burada yazmaz; o `ui/keys.py`
+// sözleşmesinde ve kabuğun dağıtıcısında. Burada yalnızca eylemlerin
+// GÖVDESİ var. Ayrım bilinçli: tuş eşlemesi hem ekranda gösterilmesi
+// hem de testlerde ölçülmesi gereken bir sözleşme, gövde ise sayfanın
+// kendi işi.
+function pdCards() {{
+  return Array.from(document.querySelectorAll('#cards .feed-card'));
+}}
 
-  var cards = Array.from(document.querySelectorAll('#cards .feed-card'));
+function pdSelect(cards, index) {{
+  selectedIndex = index;
+  cards.forEach(function(c, i){{
+    if (i === selectedIndex) {{
+      c.classList.add('is-selected');
+      c.scrollIntoView({{behavior:'smooth', block:'center'}});
+    }} else {{
+      c.classList.remove('is-selected');
+    }}
+  }});
+}}
+
+function pdSelected() {{
+  var cards = pdCards();
+  if (selectedIndex < 0 || selectedIndex >= cards.length) return null;
+  return cards[selectedIndex];
+}}
+
+window.pdKey('next-event', function(){{
+  var cards = pdCards();
   if (!cards.length) return;
+  pdSelect(cards, Math.min(selectedIndex + 1, cards.length - 1));
+}});
 
-  if (e.key === 'j' || e.key === 'J' || e.key === 'ArrowDown') {{
-    e.preventDefault();
-    if (selectedIndex < cards.length - 1) selectedIndex++;
-    cards.forEach(function(c, i){{
-      if (i === selectedIndex) {{
-        c.classList.add('is-selected');
-        c.scrollIntoView({{behavior:'smooth', block:'center'}});
-      }} else {{
-        c.classList.remove('is-selected');
-      }}
-    }});
-  }} else if (e.key === 'k' || e.key === 'K' || e.key === 'ArrowUp') {{
-    e.preventDefault();
-    if (selectedIndex > 0) selectedIndex--;
-    cards.forEach(function(c, i){{
-      if (i === selectedIndex) {{
-        c.classList.add('is-selected');
-        c.scrollIntoView({{behavior:'smooth', block:'center'}});
-      }} else {{
-        c.classList.remove('is-selected');
-      }}
-    }});
-  }} else if (e.key === 'x' || e.key === 'X' || e.key === 't' || e.key === 'T') {{
-    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
-      e.preventDefault();
-      var selCard = cards[selectedIndex];
-      var btn = selCard.querySelector('.feed-tweet-box button');
-      if (btn) btn.click();
-    }}
-  }} else if (e.key === 'c' || e.key === 'C') {{
-    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
-      e.preventDefault();
-      var selCard = cards[selectedIndex];
-      var tweetArea = selCard.querySelector('.feed-tweet-textarea');
-      var titleLink = selCard.querySelector('h3 a');
-      if (tweetArea && tweetArea.value) {{
-        window.pdCopy(tweetArea.value, 'X Tweeti');
-      }} else if (titleLink) {{
-        window.pdCopy(titleLink.textContent, 'Başlık');
-      }}
-    }}
-  }} else if (e.key === 'Enter' || e.key === 'o' || e.key === 'O') {{
-    if (selectedIndex >= 0 && selectedIndex < cards.length) {{
-      var link = cards[selectedIndex].querySelector('h3 a');
-      if (link) link.click();
-    }}
-  }} else if (e.key === '/') {{
-    e.preventDefault();
-    var inp = document.getElementById('feed-search');
-    if (inp) {{ inp.focus(); inp.select(); }}
-  }} else if (e.key === '?') {{
-    e.preventDefault();
-    window.pdToggleShortcuts();
+window.pdKey('prev-event', function(){{
+  var cards = pdCards();
+  if (!cards.length) return;
+  pdSelect(cards, Math.max(selectedIndex - 1, 0));
+}});
+
+window.pdKey('draft-x', function(){{
+  var card = pdSelected();
+  if (!card) return;
+  var btn = card.querySelector('.feed-tweet-box button');
+  if (btn) btn.click();
+}});
+
+window.pdKey('copy-selected', function(){{
+  var card = pdSelected();
+  if (!card) return;
+  var tweetArea = card.querySelector('.feed-tweet-textarea');
+  var titleLink = card.querySelector('h3 a');
+  if (tweetArea && tweetArea.value) {{
+    window.pdCopy(tweetArea.value, 'X Tweeti');
+  }} else if (titleLink) {{
+    window.pdCopy(titleLink.textContent, 'Başlık');
   }}
 }});
+
+window.pdKey('open-event', function(){{
+  var card = pdSelected();
+  if (!card) return;
+  var link = card.querySelector('h3 a');
+  if (link) link.click();
+}});
+
+window.pdKey('focus-search', function(){{
+  var inp = document.getElementById('feed-search');
+  if (inp) {{ inp.focus(); inp.select(); }}
+}});
+
+window.pdKey('toggle-shortcuts', window.pdToggleShortcuts);
 
 window.pdAction('toggle-view', window.pdToggleView);
 window.pdAction('toggle-shortcuts', window.pdToggleShortcuts);

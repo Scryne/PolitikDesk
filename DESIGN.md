@@ -343,6 +343,7 @@ Yeni ekran açan, buraya bir satır ekler. Satırı olmayan ekran jenerik çıka
 | Ekran | 5 saniyede cevaplanacak tek soru |
 |---|---|
 | `/feed` | Şu an gündemde ne var ve hangisi hakkında güvenle yazabilirim? |
+| `/war-room` | Olağandışı olan ne var, sırada ne var? |
 | `/event/{id}` | Bu olayda ne biliyoruz, ne bilmiyoruz — ve nereden biliyoruz? |
 | `/draft/{id}` | Bu metni yayımlamama engel olan bir şey var mı? |
 | `/briefing` | Ben yokken ne oldu? |

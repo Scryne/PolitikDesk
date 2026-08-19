@@ -252,12 +252,30 @@ def metric_label(metric: str | None) -> str:
     return METRIC_LABELS.get(metric, metric)
 
 
+def shorten(text: str, limit: int) -> str:
+    """Uzun metni kelime sınırında keser.
+
+    Kesme noktası kelimenin ortasına DÜŞMEZ: yarım kalmış bir sözcük
+    ("Fonlarının Katılma Payl…") okuyan tarafta tahmin gerektirir ve
+    resmî yayın başlıklarında yanlış tahmin edilebilir.
+
+    Fazladan boşluklar da sadeleşir — kurum başlıklarında satır sonu ve
+    çift boşluk sık geçiyor ve tek satırlık bir hücrede iz bırakıyor.
+    """
+    temiz = " ".join(str(text).split())
+    if len(temiz) <= limit:
+        return temiz
+    kesik = temiz[:limit].rsplit(" ", 1)[0]
+    return f"{kesik or temiz[:limit]}…"
+
+
 def period_label(period: str | None) -> str:
     """SDMX dönem kodunu okunur Türkçeye çevirir.
 
     `2026-06` → `Haziran 2026` · `2026-Q2` → `2026 2. çeyrek` ·
-    `2026` → `2026`. Tanınmayan biçim olduğu gibi döner: bir dönem
-    etiketini yanlış çevirmek, çevirmemekten kötüdür.
+    `20-08-2026` → `20.08.2026` · `2026` → `2026`. Tanınmayan biçim
+    olduğu gibi döner: bir dönem etiketini yanlış çevirmek,
+    çevirmemekten kötüdür.
     """
     if not period:
         return EMPTY
@@ -268,6 +286,16 @@ def period_label(period: str | None) -> str:
         if year.isdigit() and quarter.isdigit():
             return f"{year} {quarter}. çeyrek"
         return text
+
+    # Günlük seriler (`2026-08-19`) ve Ulusal Veri Yayımlama Takvimi'nin
+    # referans dönemi (`20-08-2026`) üç parçalı gelir. Ek B.1: Türkçe
+    # tarih `GG.AA.YYYY`'dir; ham ISO tarihi ekrana çıkamaz.
+    parcalar = text.split("-")
+    if len(parcalar) == 3 and all(p.isdigit() for p in parcalar):
+        if len(parcalar[0]) == 4:  # YYYY-AA-GG → GG.AA.YYYY
+            return ".".join(reversed(parcalar))
+        if len(parcalar[0]) == 2:  # GG-AA-YYYY → yalnız ayırıcı değişir
+            return ".".join(parcalar)
 
     if "-" in text:
         year, _, month = text.partition("-")
