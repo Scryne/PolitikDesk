@@ -216,6 +216,35 @@ def search_memory_actors(q: str = "", limit: int = 50, offset: int = 0) -> dict[
     return mem_service.search_actors(query=q, limit=limit, offset=offset)
 
 
+@router.get("/claims/{claim_id}/matrix")
+def get_claim_matrix(claim_id: int) -> dict[str, Any]:
+    """İddianın kanıt matrisi (Roadmap Faz 5.2).
+
+    ⛔ Boyutlar tek bir "güven" sayısına ÇARPILMAZ. Karşı kanıt boyutu
+    `unavailable` döner, `0` değil — o boyut bu üründe ölçülmüyor ve
+    "0" göstermek kullanıcıya yanlışlıkla bir doğrulama sinyali verir
+    (gerekçe: `docs/ADR-008-KARSI-KANIT-YOLU.md`).
+    """
+    from politikdesk.evidence.matrix import build
+
+    m = build(claim_id)
+    if m is None:
+        raise HTTPException(status_code=404, detail="İddia bulunamadı.")
+    return m.as_dict()
+
+
+@router.get("/claims/matrix-coverage")
+def get_claim_matrix_coverage() -> dict[str, Any]:
+    """Matris boyutlarının canlı veride ne kadar dolabildiği.
+
+    Bir boyut tüm iddialarda boşsa onu arayüzde göstermek yanıltır;
+    bu uç o dürüstlük ölçüsünü verir.
+    """
+    from politikdesk.evidence.matrix import coverage_report
+
+    return coverage_report()
+
+
 @router.get("/memory/stance-shifts")
 def list_memory_stance_shifts(limit: int = 50) -> list[dict[str, Any]]:
     """Sistem genelinde tespit edilen söylem değişikliklerini listeler."""
