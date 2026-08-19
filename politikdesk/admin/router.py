@@ -210,6 +210,41 @@ def source_health() -> list[dict[str, Any]]:
     return repository.health_report()
 
 
+@router.get("/source-quality")
+def source_quality_endpoint(window_days: int = 7) -> list[dict[str, Any]]:
+    """Kaynak operasyonel kalite profili (Roadmap Faz 2.1).
+
+    ⛔ Bu skor kaynağın HABERCİLİĞİ hakkında hiçbir şey söylemez;
+    yalnızca akışın teknik sağlığını ve verdiği verinin türünü ölçer.
+    Ayrımın gerekçesi `ingestion/source_quality.py` başlığında ve
+    Spec §8.5'tedir.
+    """
+    from politikdesk.ingestion.source_quality import report
+
+    return [q.as_dict() for q in report(window_days=window_days)]
+
+
+@router.get("/source-quality/attention")
+def source_quality_attention(window_days: int = 7, threshold: float = 60.0) -> list[dict[str, Any]]:
+    """Bakım isteyen kaynaklar ve SEBEPLERİ.
+
+    Yapısal özellikler (tier, bağımsızlık grubu) sinyale girmez —
+    yalnızca düzeltilebilir bileşenler: tazelik, çekim başarısı, verim.
+    """
+    from politikdesk.ingestion.source_quality import needs_attention
+
+    return [
+        {
+            **q.as_dict(),
+            "reasons": [
+                {"key": c.key, "label": c.label, "value": c.value, "detail": c.detail}
+                for c in sebepler
+            ],
+        }
+        for q, sebepler in needs_attention(window_days=window_days, threshold=threshold)
+    ]
+
+
 @router.get("/pipeline-health")
 def pipeline_health_endpoint() -> list[dict[str, Any]]:
     """Aşama başına birikme durumu (F4-05, B-78).
@@ -270,6 +305,83 @@ _HEALTH_TONE = {
 
 def _tone(status: str) -> tuple[str, str]:
     return _HEALTH_TONE.get(status, ("neutral", status))
+
+
+def _source_quality_card() -> str:
+    """BAKIM İSTEYEN KAYNAKLAR (Roadmap Faz 2.1).
+
+    Kartın tek sorusu: *hangi akış bakım istiyor ve neden?*
+
+    ⛔ Burada "hangi kaynağa inanayım" sorusu YANITLANMAZ ve
+    yanıtlanmayacak. Skor içeriğe bakmaz; Spec §8.5 kaynağa siyasi konum
+    etiketi verilmesini yasaklar ve "kalite" adlı bir sayının editoryal
+    güvenilirliğe kayması o yasağın en kolay ihlal biçimidir.
+
+    Tam liste `/admin/source-quality` ucundadır; kart yalnızca
+    **düzeltilebilir** bulguları gösterir.
+    """
+    from politikdesk.ingestion.source_quality import needs_attention
+    from politikdesk.web.ui import card, cell, esc, table
+
+    try:
+        bulgular = needs_attention()
+    except Exception as exc:  # noqa: BLE001
+        log.warning("admin_source_quality_failed", error=str(exc))
+        return ""
+
+    if not bulgular:
+        return card(
+            '<p class="subtle" style="margin:0;font-size:var(--text-sm)">'
+            "Hiçbir kaynakta düzeltilebilir bir işletim bulgusu yok.</p>",
+            title="Kaynak bakım listesi",
+        )
+
+    satirlar = []
+    for q, sebepler in bulgular[:15]:
+        en_zayif = min(sebepler, key=lambda c: float(c.value or 0))
+        tone = "bad" if float(en_zayif.value or 0) < 25 else "warn"
+        satirlar.append(
+            "<tr>"
+            + cell(
+                f'<b>{esc(q.name)}</b><div class="cell-sub mono">{esc(q.slug)}</div>',
+                label="Kaynak",
+            )
+            + cell(f'<span class="tier">T{q.tier}</span>', label="Katman")
+            + cell(
+                f'<span class="badge {tone}">{esc(en_zayif.label)}</span>',
+                label="En zayıf bileşen",
+            )
+            + cell(f"{float(en_zayif.value or 0):g}", label="Değer", cls="num")
+            + cell(f'<span class="subtle">{esc(en_zayif.detail)}</span>', label="Ölçüm")
+            + cell(
+                esc(str(q.score)) if q.score is not None else "—",
+                label="Skor",
+                cls="num",
+            )
+            + "</tr>"
+        )
+
+    return card(
+        table(
+            (
+                ("Kaynak", ""),
+                ("Katman", ""),
+                ("En zayıf bileşen", ""),
+                ("Değer", "num"),
+                ("Ölçüm", ""),
+                ("Skor", "num"),
+            ),
+            satirlar,
+        )
+        + '<p class="subtle" style="margin:var(--space-4) 0 0;font-size:var(--text-xs)">'
+        "Bu skor <b>işletim</b> ölçüsüdür: akış çalışıyor mu, veri taze mi, "
+        "yapılandırılmış mı. Kaynağın haberciliği hakkında hiçbir şey söylemez "
+        "ve söylemeyecek (Spec §8.5). Yapısal özellikler (katman, bağımsızlık "
+        "grubu) bakım sinyaline girmez — bir kaynağın Tier 4 olması arıza değildir.</p>",
+        title=f"Kaynak bakım listesi · {len(bulgular)}",
+        actions='<span class="subtle" style="font-size:var(--text-xs)">'
+        "düzeltilebilir bulgular · 7 gün</span>",
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -457,11 +569,14 @@ def dashboard() -> str:
         )
     }
 
+  {_source_quality_card()}
+
   {
         card(
             '<p class="subtle mono" style="margin:0;font-size:var(--text-xs)">'
             "/admin/sources · /admin/articles · /admin/health · "
-            "/admin/pipeline-health · /admin/stats</p>",
+            "/admin/pipeline-health · /admin/source-quality · "
+            "/admin/source-quality/attention · /admin/stats</p>",
             title="JSON uçları",
         )
     }
