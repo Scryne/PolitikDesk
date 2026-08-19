@@ -303,7 +303,8 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 .card.flush{{padding:0;overflow:hidden}}
 .card-head{{display:flex;align-items:center;gap:var(--space-3);
   margin-bottom:var(--space-3)}}
-.card-head h3{{min-width:0}}
+/* Kart başlığı `h2.h3`tir (seviye semantik, boyut görsel — components.py). */
+.card-head h3,.card-head .h3{{min-width:0}}
 .card-head .actions{{margin-left:auto;display:flex;gap:var(--space-2);
   align-items:center;flex:none}}
 
@@ -494,6 +495,18 @@ thead th{{
 tbody td{{padding:12px;border-bottom:1px solid var(--color-border);
   vertical-align:top}}
 tbody tr:last-child td{{border-bottom:0}}
+
+/* Dokunma hedefi — WCAG 2.5.8 (AA) asgari 24x24 CSS px.
+   Ölçüldü (20 Ağu 2026, Lighthouse `target-size`): denetim kuyruğunda 100,
+   vaatler ekranında 8 bağlantı eşiğin altındaydı. Tablo hücresindeki olay
+   kimliği (`a.mono`) ve aktör bağlantıları küçük punto olduğu için satır
+   yüksekliği kadar tıklama alanı üretmiyordu — fare ile zor, dokunmatikte
+   isabetsiz. Yükseklik hücre dolgusunu değiştirmeden büyütülür: satır
+   ritmi bozulmaz, yalnızca tıklanabilir alan büyür. */
+tbody td a{{
+  display:inline-flex;align-items:center;
+  min-height:24px;
+}}
 tbody tr{{transition:background 100ms var(--ease-out)}}
 tbody tr:hover{{background:var(--color-surface-sunken)}}
 th.num,td.num{{text-align:right;font-variant-numeric:tabular-nums}}
@@ -714,7 +727,8 @@ input[type=checkbox],input[type=radio]{{
    çünkü tek "yokluk" panelidir; ayrım gölgeyle değil (Bölüm 5.5) sol
    kenardaki cetvelle yapılır — arayüzün kanıt cetveliyle aynı dil. */
 .card.absent{{border-left:3px solid var(--color-partial)}}
-.card.absent .card-head h3{{color:var(--color-fg)}}
+.card.absent .card-head h3,
+.card.absent .card-head .h3{{color:var(--color-fg)}}
 
 /* Sütun sayısını çağıran belirler (`grid-template-columns` satır içinde).
    Bu kural EKSİKTİ: `class="grid"` iki ekranda kullanılıyordu ama
@@ -765,7 +779,10 @@ input[type=checkbox],input[type=radio]{{
 .feed-compact .feed-card{{padding:var(--space-2) var(--space-3)}}
 .feed-compact .feed-card .claim-text{{display:none}}
 .feed-compact .feed-card details.quiet{{display:none}}
-.feed-compact .feed-main h3{{margin:2px 0 4px;font-size:var(--text-base)}}
+/* Kart başlığı `h2.h3`tir (semantik seviye ile görsel boyut ayrı —
+   bkz. feed.py). Seçici her ikisini de tutar ki sıkışık kip bozulmasın. */
+.feed-compact .feed-main h3,
+.feed-compact .feed-main .h3{{margin:2px 0 4px;font-size:var(--text-base)}}
 
 /* Kısayol Modalı */
 .shortcuts-backdrop{{

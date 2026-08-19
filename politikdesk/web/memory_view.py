@@ -153,9 +153,9 @@ def memory_directory_page() -> HTMLResponse:
               <span class="subtle" style="font-size:var(--text-xs)">{type_label}</span>
               {badge_html}
             </div>
-            <h3 style="margin:0 0 var(--space-2);font-size:var(--text-lg);color:var(--color-fg)">
+            <h2 class="h3" style="margin:0 0 var(--space-2);font-size:var(--text-lg);color:var(--color-fg)">
               {name_esc}
-            </h3>
+            </h2>
             <p class="subtle" style="margin:0;font-size:var(--text-sm)">
               Geçmiş beyanları, vaatleri ve teyit ağlarını incele
             </p>
@@ -445,7 +445,7 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     <div class="split">
       <div class="stack" style="gap:var(--space-4)">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:var(--space-2)">
-          <h3 style="font-size:var(--text-lg)">Kronolojik Zaman Tüneli</h3>
+          <h2 class="h3" style="font-size:var(--text-lg)">Kronolojik Zaman Tüneli</h2>
           {filter_tabs_html}
         </div>
         <div id="timeline-items" class="stack" style="gap:var(--space-2)">

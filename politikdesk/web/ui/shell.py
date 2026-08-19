@@ -231,10 +231,28 @@ ACTIVITY_JS: Final[str] = """
 
 
 def _sidebar(active: str) -> str:
+    """Kenar çubuğu.
+
+    **`aria-label` neden zorunlu (20 Ağustos 2026 erişilebilirlik ölçümü).**
+
+    Dar ekranda `css.py` etiketleri `.nav-item span{display:none}` ile
+    gizler. `display:none` öğeyi yalnızca görünmez yapmaz — onu
+    **erişilebilirlik ağacından tamamen siler.** İkonlar (doğru biçimde)
+    `aria-hidden="true"` taşıdığı için geriye hiçbir ad kalmıyordu:
+    ekran okuyucu 13 gezinme bağlantısının hepsini adsız "link" diye
+    okuyordu, yani uygulama klavye/ekran okuyucu ile gezilemezdi.
+
+    Lighthouse ölçtü: `/feed` erişilebilirlik skoru **93** (DESIGN.md
+    Bölüm 12 eşiği ≥95), `link-name` denetimi 13 öğede düştü.
+
+    `aria-label` görünür etiketin AYNISIDIR — bu WCAG 2.5.3 (Label in
+    Name) gereğidir: sesli komutla "Kumanda Odası" diyen kullanıcı ile
+    ekranda yazanı gören kullanıcı aynı adı kullanabilmeli.
+    """
     groups = []
     for title, items in NAV:
         links = "".join(
-            f'<a class="nav-item" href="{esc(href)}"'
+            f'<a class="nav-item" href="{esc(href)}" aria-label="{esc(label)}"'
             f"{' aria-current="page"' if href == active else ''}>"
             f"{icon(name, 16)}<span>{esc(label)}</span></a>"
             for href, label, name in items
@@ -252,7 +270,7 @@ def _sidebar(active: str) -> str:
 
     return f"""<aside class="side" id="pd-sidebar">
   <div class="side-head">
-    <a class="brand" href="/feed">
+    <a class="brand" href="/feed" aria-label="PolitikDesk — gündeme dön">
       <span class="brand-mark" aria-hidden="true">P</span>
       <span class="brand-text">
         <span class="brand-name">PolitikDesk</span><br>

@@ -295,8 +295,13 @@ def _card(row: dict[str, Any]) -> str:
         {draft_badge}
       </div>
     </div>
-    <h3 style="margin:8px 0 6px">
-      <a class="plain" href="/event/{row["id"]}">{esc(row["title"])}</a></h3>
+    <!-- `h2` + `.h3`: BAŞLIK SEVİYESİ semantik, BOYUT görsel karardır.
+         Kart başlıkları sayfanın `h1`inden sonraki ilk seviyedir; `h3`
+         yazmak `h2`yi atlıyordu (Lighthouse `heading-order` düştü, DESIGN.md
+         Bölüm 12: "başlık seviyeleri atlanmaz"). `.h3` sınıfı boyutu
+         değiştirmeden korur — özgüllüğü `h2` elementinden yüksektir. -->
+    <h2 class="h3" style="margin:8px 0 6px">
+      <a class="plain" href="/event/{row["id"]}">{esc(row["title"])}</a></h2>
     <p class="claim-text" style="margin:0 0 10px;font-size:var(--text-sm);
        color:var(--color-fg-muted)">{esc(_evidence_line(row))}</p>
     {_salience_panel(row)}
@@ -387,7 +392,7 @@ _SHORTCUTS_MODAL = f"""
 <div id="shortcuts-modal" class="shortcuts-backdrop"{action_attrs("shortcuts-backdrop")}>
   <div class="shortcuts-modal">
     <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-4)">
-      <h3 style="margin:0;font-size:var(--text-lg)">Klavye kısayolları</h3>
+      <h2 class="h3" style="margin:0;font-size:var(--text-lg)">Klavye kısayolları</h2>
       <button class="btn sm ghost icon" type="button" title="Kapat" aria-label="Kapat"
               {action_attrs("toggle-shortcuts")}>{icon("close", 14)}</button>
     </div>

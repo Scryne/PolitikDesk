@@ -225,9 +225,9 @@ def accountability_page() -> HTMLResponse:
               {icon("clock", 14)}Aktör Profili &rarr;
             </a>
           </div>
-          <h3 style="margin:var(--space-3) 0 var(--space-2);font-size:var(--text-lg)">
+          <h2 class="h3" style="margin:var(--space-3) 0 var(--space-2);font-size:var(--text-lg)">
             {event_title_esc}
-          </h3>
+          </h2>
           <p class="claim-text" style="font-size:var(--text-base);font-style:italic;color:var(--color-fg-muted);margin:0 0 var(--space-3)">
             “{promise_text_esc}”
           </p>

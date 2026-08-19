@@ -286,11 +286,19 @@ def page_head(
 
 
 def card(body: str, *, title: str = "", actions: str = "", cls: str = "") -> str:
-    """Panel kartı (Bölüm 5.5) — 1px border, GÖLGE YOK."""
+    """Panel kartı (Bölüm 5.5) — 1px border, GÖLGE YOK.
+
+    Başlık `h2` + `.h3` olarak üretilir: **seviye semantik, boyut görsel**
+    karardır. Kart, sayfanın `h1`inden sonraki ilk bölümdür; `h3` yazmak
+    `h2`yi atlıyordu ve Lighthouse `heading-order` denetimi altı ekranda
+    birden düşüyordu (20 Ağustos 2026 ölçümü, DESIGN.md Bölüm 12:
+    "başlık seviyeleri atlanmaz"). `.h3` sınıfı boyutu korur —
+    özgüllüğü (0,1,0) `h2` elementinden (0,0,1) yüksektir.
+    """
     head = ""
     if title or actions:
         head = (
-            f'<div class="card-head">{f"<h3>{esc(title)}</h3>" if title else ""}'
+            f'<div class="card-head">{f"<h2 class='h3'>{esc(title)}</h2>" if title else ""}'
             f"{f"<div class='actions'>{actions}</div>" if actions else ''}</div>"
         )
     return f'<section class="card {cls}">{head}{body}</section>'

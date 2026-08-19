@@ -722,3 +722,80 @@ Doğrulama: aynı tarayıcı sondası düzeltme sonrası **4 → 0** çalışan
 vektör. Gerçek olay sayfasında (`/event/1819`) 12 dış bağlantının tamamı
 sağlam, `href="#"` sayısı **0** — izin listesi meşru bağlantıları
 bozmuyor.
+
+---
+
+## 2026-08-20 · 12 ekran · erişilebilirlik turu
+
+**Bağlam:** 15 Ağustos kaydı "Lighthouse A11y: 100" diyordu. Bağımsız
+olarak yeniden ölçüldü — çünkü bir raporda yazan sayı, sistemin o an
+yaptığı şey değildir.
+
+### Ölçüm (önce)
+
+| Ekran | Skor | Düşen denetim |
+|---|---|---|
+| gündem | **93** | `link-name` (13), `heading-order` (1) |
+| denetim kuyruğu | **93** | `heading-order` (1), `target-size` (100) |
+| vaatler | 95 | `target-size` (8) |
+| diğer 9 ekran | 98 | `heading-order` (1) |
+
+Ortalama **97,7** · eşiğin (Bölüm 12: ≥95) altında **1** ekran.
+
+**İyi:** Sayfa iskeleti, `lang`, `h1` varlığı, ikonların `aria-hidden`
++ `focusable="false"` taşıması, yatay taşmanın 48 viewport ölçümünde
+sıfır olması — bunların hepsi zaten doğruydu.
+
+**Kötü:**
+
+1. **Kenar çubuğunun 13 bağlantısının hiçbirinin erişilebilir adı yoktu.**
+   `css.py:640` dar ekranda `.nav-item span{display:none}` uyguluyor;
+   `display:none` öğeyi görünmez yapmaz, **erişilebilirlik ağacından
+   siler**. İkonlar doğru biçimde `aria-hidden` olduğu için geriye
+   hiçbir ad kalmıyordu. Ekran okuyucu 13 kez "link" diyordu — uygulama
+   gezilemezdi. Bölüm 12'nin "ikon-only butonlarda `aria-label`" maddesi
+   ihlal edilmişti ve bu, **yalnızca daraltılmış durumda** ortaya çıktığı
+   için masaüstü bakışında görünmüyordu.
+2. **Kart başlıkları `h3`tü, `h2` atlanıyordu.** `components.py::card()`
+   tek bir yerde `h3` üretiyor ve altı ekranı birden düşürüyordu.
+3. **Tablo hücresi bağlantıları 24×24 px altındaydı** (WCAG 2.5.8):
+   denetim kuyruğunda 100, vaatler ekranında 8 öğe.
+
+**Uygulanan:**
+
+1. `_sidebar()` her bağlantıya görünür etiketin AYNISI olan `aria-label`
+   veriyor (WCAG 2.5.3 Label in Name — sesli komut ile ekranda yazan
+   aynı olmalı). Marka bağlantısı da adlandırıldı.
+2. `card()` artık `<h2 class="h3">` üretiyor. **Seviye semantik, boyut
+   görsel karardır.** `.h3` sınıfının özgüllüğü (0,1,0) `h2` elementinden
+   (0,0,1) yüksek olduğu için boyut korunur. Aynı dönüşüm feed kartı,
+   arşiv, hafıza ve hesap-sor ekranlarındaki satır içi `h3`lere de
+   uygulandı; `css.py`nin `h3` hedefleyen üç seçicisi `.h3`ü de tutacak
+   şekilde genişletildi.
+3. `tbody td a` için `min-height:24px` + `inline-flex`. Hücre dolgusu
+   değişmedi, yani **satır ritmi bozulmadı** — yalnızca tıklanabilir
+   alan büyüdü.
+
+### Görsel eşitlik — göz kararı değil, ölçüm
+
+`h3` → `h2.h3` dönüşümünün piksel değiştirmediği tarayıcıda ölçüldü:
+
+```
+eski  h3       size=16px lh=24px weight=600 ls=-0.08px
+yeni  h2.h3    size=16px lh=24px weight=600 ls=-0.08px   -> AYNI
+(düz  h2       size=20px lh=28px  -- .h3 olmasaydı bu olurdu)
+```
+
+### Ölçüm (sonra)
+
+**12/12 ekran 100** · ortalama **100,0** · eşiğin altında **0**.
+`ui_check` 48 viewport ölçümünde temiz: yatay taşma yok, konsol hatası yok.
+
+### Ders
+
+Bir erişilebilirlik skoru **tek seferlik bir ölçüm değil, korunması
+gereken bir özelliktir.** 15 Ağustos'ta 100 yazılmıştı ve doğru olabilir;
+ama arada Faz 8 kumanda odası eklendi, kenar çubuğu daraltma davranışı
+geldi ve skor sessizce düştü. Rapora yazılan sayı regresyonu durdurmaz.
+Bu yüzden skorun dayandığı özellikler artık testle kilitli:
+`tests/test_accessibility_20260820.py` (15 test).

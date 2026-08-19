@@ -159,9 +159,9 @@ def archive_page() -> HTMLResponse:
             </div>
           </div>
 
-          <h3 style="margin:0 0 var(--space-3);font-size:var(--text-lg)">
+          <h2 class="h3" style="margin:0 0 var(--space-3);font-size:var(--text-lg)">
             <a class="plain" href="/event/{event_id}">{title_esc}</a>
-          </h3>
+          </h2>
 
           <div style="background:var(--color-surface-sunken);border:1px solid var(--color-border);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);margin-bottom:var(--space-3);font-family:var(--font-body);font-size:var(--text-sm);line-height:1.6;white-space:pre-wrap">
 {body_esc}
