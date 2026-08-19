@@ -30,21 +30,51 @@ VALID_TOS = {"allowed", "restricted", "forbidden", "pending_review"}
 
 
 def test_source_count_never_exceeds_hard_limit() -> None:
-    """Spec §9.2 / D6: azami 21 ekonomi kaynağı (19 Ağu 2026, EVDS ile)."""
-    assert len(SOURCES) <= DATA["max_sources"] == 21, (
-        f"{len(SOURCES)} kaynak var. Sınır 21'dir ve gerekçesi "
+    """Spec §9.2 / D6: azami 22 ekonomi kaynağı (20 Ağu 2026, SBB ile).
+
+    Bu testin koruduğu sözleşme İKİ parçalıdır ve ikisi de gereklidir:
+      1. **Yapısal:** kaynak sayısı beyan edilen sınırı AŞAMAZ.
+      2. **Değer:** sınırın kendisi sabittir ve değiştirmek bu testi
+         kırar — yani sınır ancak bilinçli bir kararla değişir.
+    """
+    assert len(SOURCES) <= DATA["max_sources"] == 22, (
+        f"{len(SOURCES)} kaynak var. Sınır 22'dir ve gerekçesi "
         "config/sources.yml başlığındadır (F5-01)."
     )
 
 
-
 def test_source_count_matches_staged_rollout() -> None:
-    """F5-06: 15 -> 20 tam kapsamlı rollout; 19 Ağu 2026: EVDS ile 21.
+    """F5-06: 15 -> 20 tam kapsamlı rollout; 19 Ağu: EVDS 21; 20 Ağu: SBB 22.
 
     20 kaynak sınırı ile makro ekonomi, piyasalar, fintech, uzman blogları
     ve reel sektör çerçeveleme çeşitliliği en üst seviyeye çıkarıldı.
+    21 ve 22 MEDYA eklemesi değildir: ikisi de kurumun kendi yayınıdır
+    (EVDS veri servisi, SBB makro analiz) ve kanıt motorunun Tier 1
+    açığını kapatmak için alınmıştır.
     """
-    assert len(SOURCES) == 21
+    assert len(SOURCES) == 22
+
+
+def test_cap_has_no_silent_headroom() -> None:
+    """`max_sources` HER ZAMAN kaynak sayısına eşittir — boşluk bırakılmaz.
+
+    **Bu, "sınır 22'ye çıktı, artık yer var" yorumunu imkânsız kılar.**
+
+    Sınır kaynak sayısından büyük olsaydı, sonraki bir ekleme hiçbir testi
+    kırmadan sessizce geçerdi ve F5-01'in koruması ("kaynak eklemek
+    yanıltıcı derecede tatmin edicidir, kümeleme hatasını gizler") fiilen
+    kalkardı. Boşluk bırakmayarak her ekleme MECBUREN sınırı da
+    değiştirir; sınır değişikliği bu dosyayı kırar; kırılan test bir
+    insanın gerekçe yazmasını zorlar.
+
+    Yani 21 -> 22 bir kapasite gevşetmesi DEĞİL, tek bir doğrulanmış
+    kaynağın (SBB) alınmasıdır.
+    """
+    assert DATA["max_sources"] == len(SOURCES), (
+        f"Sınır {DATA['max_sources']}, kaynak sayısı {len(SOURCES)}. "
+        "Aradaki boşluk, bir sonraki kaynağın sessizce eklenmesine izin "
+        "verir. Sınır her zaman kaynak sayısına eşit tutulmalıdır."
+    )
 
 
 def test_slugs_are_unique() -> None:
@@ -77,14 +107,21 @@ def test_no_social_tier_source_in_mvp() -> None:
 
 
 def test_tier_distribution() -> None:
-    """5 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın.
+    """6 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın.
 
     19 Ağu 2026: Tier 1 dörtten beşe çıktı — TCMB EVDS eklendi.
+    20 Ağu 2026: beşten altıya — SBB eklendi.
+
+    **Artan tek katman Tier 1'dir ve bu bilinçlidir.** Ölçüm (20 Ağu 2026):
+    Tier 1 kanıt havuzunun %1,8'i; R2'nin istediği "Tier 1 birincil"
+    ayağı bu yüzden hiçbir iddiada sağlanamıyordu. Tier 3 (medya)
+    sayısına DOKUNULMADI — sorun çerçeveleme çeşitliliği değil, resmî
+    kanıt yoğunluğuydu.
     """
     counts: dict[int, int] = {}
     for s in SOURCES:
         counts[s["tier"]] = counts.get(s["tier"], 0) + 1
-    assert counts == {1: 5, 2: 2, 3: 14}, counts
+    assert counts == {1: 6, 2: 2, 3: 14}, counts
 
 
 

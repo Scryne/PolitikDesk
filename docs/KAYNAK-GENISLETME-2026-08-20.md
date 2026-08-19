@@ -3,9 +3,15 @@
 Bu belge bir dilek listesi değildir. Her öneri (a) ölçülmüş bir eksikliğe
 bağlıdır ve (b) erişilebilirliği **canlı olarak yoklanmıştır**.
 
-> ⛔ **Hiçbir kaynak eklenmedi.** `config/sources.yml` `max_sources: 21`
-> sert sınırını taşır (Spec §9.2 / D6) ve sınır kodla zorlanır. Sınırı
-> yükseltmek bir ürün kararıdır; bu belge kararı hazırlar, yerine geçmez.
+> ✅ **KARAR VERİLDİ VE UYGULANDI (20 Ağustos 2026).** Ürün sahibi
+> `max_sources` 21 → 22 kapasitesini onayladı; SBB envantere alındı.
+> Uygulama, ölçüm ve etki analizi:
+> **`docs/ADR-013-SBB-KAYNAK-GENISLETMESI.md`**
+>
+> Bu belge kararın gerekçesini ve alternatifleri kayda geçirir; sonuç
+> ADR-013'tedir. Özet: SBB Tier 1 kanıt bağını 75 → 82'ye çıkardı, ancak
+> 🟢 sayısı değişmedi (2 → 2) çünkü R2'nin ikinci ayağı (≥3 bağımsız grup)
+> açık kaldı. Darboğaz kaynak sayısından **hikâye eşleşmesine** kaydı.
 
 ---
 
@@ -168,7 +174,7 @@ sorumluluğudur, hiyerarşi değil. (Karşı görüş savunulabilir; karar
 verilmeden önce tartışılmalı, çünkü yanlış gruplama bağımsız sayımı
 şişirir.)
 
-**Gerekli karar:** `max_sources` 21 → 22. Bu Spec §9.2 / D6 kapsamındadır.
+**Karar:** `max_sources` 21 → 22 **onaylandı ve uygulandı** (ADR-013).
 
 ### 3.3 İkinci dalga (adaptör işi gerektirir)
 
@@ -210,8 +216,8 @@ tavanında kalır. Canlı ölçüm: **157 iddia** hâlihazırda
 
 | # | Eylem | Karar mercii | Hazırlık |
 |---|---|---|---|
-| 1 | `max_sources` 21 → 22, SBB ekle | Ürün (Spec §9.2/D6) | ✅ doğrulandı, yapılandırma hazır |
-| 2 | SBB `independence_group` tartışması | Ürün | ⚠ görüş gerekli |
+| 1 | ~~`max_sources` 21 → 22, SBB ekle~~ | Ürün (Spec §9.2/D6) | ✅ **UYGULANDI** (ADR-013) |
+| 2 | ~~SBB `independence_group` tartışması~~ | Ürün | ✅ **AYRI** olarak karara bağlandı (ADR-013 §2) |
 | 3 | YSK için HTML adaptörü | Mühendislik | seçim takvimine bağlı |
 | 4 | ÇSGB / BDDK / SPK / Rekabet | Mühendislik | 2. dalga |
 | 5 | Tier 4 kadrosunu büyütme | — | **önerilmiyor** |

@@ -22,6 +22,15 @@
 #    ancak regresyon yoksa devam (F5-05). Yürürlükteki kadro bu yolla
 #    kademe kademe çıktı. 19 Ağu 2026: EVDS için 20 -> 21 (gerekçe o
 #    kaynağın `notes` alanında; medya değil, kurumun veri servisi).
+#    20 Ağu 2026: SBB için 21 -> 22 (gerekçe o kaynağın `notes` alanında;
+#    yine medya değil, Tier 1 kurum yayını).
+#
+#    ⛔ SINIR = KAYNAK SAYISI. Bu dosyada boşluk BIRAKILMAZ ve bu bilinçli
+#    bir tasarımdır: `max_sources` her zaman mevcut kaynak sayısına eşittir,
+#    dolayısıyla bir kaynak eklemek MUTLAKA sınırı da değiştirmeyi gerektirir
+#    ve o değişiklik `tests/test_sources_config.py`'yi kırar. Yani hiçbir
+#    kaynak "sınırın altında yer vardı" diye sessizce eklenemez; her ekleme
+#    açık bir karardır. Denetim: `test_cap_has_no_silent_headroom`.
 #
 # ⛔ tos_status='forbidden' kaynaktan ingestion kod seviyesinde engellidir
 #    (politikdesk/ingestion/guard.py, F1-06).
@@ -36,7 +45,7 @@
 
 version: 3
 vertical: macro_economy
-max_sources: 21
+max_sources: 22
 
 
 sources:
@@ -115,6 +124,54 @@ sources:
       koleksiyonudur: /portal/v2/posts. `link` alanı arka uç konağını
       (api.hmb.gov.tr) gösterir; genel adres base_url + /duyuru/<slug>
       ile kurulur.
+
+  - slug: sbb
+    name: "Cumhurbaşkanlığı Strateji ve Bütçe Başkanlığı"
+    tier: 1
+    kind: official
+    independence_group: "official-sbb"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.sbb.gov.tr"
+    feed_url: "https://www.sbb.gov.tr/feed/"
+    adapter: rss
+    verified: true                      # ✅ 20 Ağu 2026, canlı: HTTP 200, 10 kalem
+    robots_txt: "User-agent: * / Disallow: /wp-admin/ — /feed/ AÇIK (20 Ağu 2026 ölçüldü)"
+    topics: [enflasyon, butce_ve_hazine, issizlik_ve_istihdam, buyume, kamu_borclanmasi]
+    produces_scheduled_events: false
+    notes: >-
+      SINIR 21'DEN 22'YE ÇIKTI (20 Ağu 2026). EVDS'deki gerekçenin aynısı
+      geçerlidir: bu bir MEDYA kaynağı değil, kurumun kendi yayınıdır.
+      Çerçeveleme çeşitliliği için değil, kanıt motorunun Tier 1 açığı için
+      eklendi.
+
+      ÖLÇÜLEN AÇIK (20 Ağu 2026 denetimi): Tier 1 kaynaklar kanıt havuzunun
+      yalnızca %1,8'ini üretiyor (75 kanıt bağı / 40 makale; Tier 3 ise 2.397
+      bağ). Sonuç: R2'nin istediği ">=3 bağımsız grup VE Tier 1 birincil"
+      bileşimini sağlayan iddia sayısı SIFIR ölçüldü. 42 iddia zaten >=3
+      bağımsız gruba ulaşmış durumda; eksik olan tek şey Tier 1 ayağı.
+
+      ⚠ BEKLENTİ DÜRÜST TUTULUYOR: bu kaynak o 42 iddiayı yeşile
+      ÇEVİRMEYECEK. Ölçüldü — 42'sinin tamamı siyasi haber (CHP istifası,
+      İBB davası, milli park kararı), SBB ise makro veri yorumu yayımlar.
+      SBB'nin katkısı ancak kendi konularında (enflasyon, ödemeler dengesi,
+      dış ticaret, işgücü) medya haberleriyle AYNI olaya kümelenirse
+      ortaya çıkar ve bu zaman alır.
+
+      BAĞIMSIZLIK GRUBU — AYRI, ama iddiası sınırlı:
+      `official-sbb` ayrı bir gruptur çünkü SBB'nin kendi yayın
+      sorumluluğu, kendi sitesi ve kendi analitik çıktısı vardır. Bu,
+      SBB'nin Cumhurbaşkanlığı'ndan siyaseten bağımsız olduğu iddiası
+      DEĞİLDİR; yalnızca "aynı yayının iki sitesi" olmadığının metadata
+      seviyesinde doğru temsilidir (Spec §8.2'nin engellemek istediği şey
+      Demirören tipi çakışmadır).
+
+      ⚠ KALAN RİSK: SBB ile `cb-kararname` (sources_legislation.yml) aynı
+      hiyerarşiye bağlıdır. Cumhurbaşkanlığı bir açıklama yapıp SBB onu
+      yinelerse ikisi AYRI bağımsız kaynak sayılır. Bugün gerçekleşmesi
+      olası değil (SBB veri yorumu, cb-kararname kararname yayımlar) ama
+      izlenmelidir; gerçekleşirse çözüm `same_institution_as: cb-kararname`
+      beyanıdır — mekanizma zaten mevcut, yeni kural gerekmez.
 
   - slug: tcmb-evds
     name: "TCMB Elektronik Veri Dağıtım Sistemi (EVDS)"

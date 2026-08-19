@@ -28,24 +28,52 @@ Kanıt: `docs/AUDIT-2026-08-20.md`, `design/decisions.md`.
 ## Faz B — Kanıt motorunu doyur ⭐ **EN YÜKSEK ÖNCELİK**
 
 **Neden birinci sırada.** Ölçüldü: 🟢 `strongly_corroborated` iddia
-sayısı **5.262'de 2**, ve R2'nin istediği bileşimi sağlayan iddia
+sayısı **5.376'da 2**, ve R2'nin istediği bileşimi sağlayan iddia
 sayısı **sıfır**. Ürünün amiral göstergesi çalışmıyor — kural kusuru
-değil, **girdi kıtlığı** (Tier 1, kanıt havuzunun %1,8'i).
+değil (kurallar bilinçli ve test edilmiş).
 
-Bu faz tamamlanmadan aşağıdaki hiçbir zekâ katmanı gerçek değer üretmez:
-hepsi kanıt derecesinin üstüne kurulur.
+### ⚠ B1 UYGULANDI VE DARBOĞAZ YER DEĞİŞTİRDİ (20 Ağu 2026)
 
-| # | İş | Değer | Veri gereksinimi | Karmaşıklık | Risk |
-|---|---|---|---|---|---|
-| B1 | SBB kaynağını ekle (`max_sources` 21→22) | R2 için Tier 1 birincil kaynak | yok — besleme canlı doğrulandı | **XS** | Spec §9.2 kararı gerekir |
-| B2 | YSK için HTML adaptörü | Seçim döneminin tek kritik kaynağı; şu an R7 tavanında | adaptör | M | seçim takvimine bağlı |
-| B3 | ÇSGB adaptörü | `asgari_ucret_ve_zamlar` konusunun birincil kaynağı yok | adaptör | M | — |
-| B4 | Tier 1 konu filtresini gözden geçir | TCMB %80, Resmî Gazete %76 eleniyor | yok | S | **editoryal kapsam kararı** |
-| B5 | `diversity_ratio` metriğini panoya bağla | Kıtlık erken görünür | mevcut | S | — |
+SBB eklendi (ADR-013). Ölçülen sonuç:
+
+| | BEFORE | AFTER |
+|---|---|---|
+| Tier 1 kanıt bağı | 75 | **82** |
+| Tier 1 kanıtı olan iddia | 70 | **77** |
+| 🟢 | 2 | **2** |
+| R2 uygun | 0 | **0** |
+
+SBB, R2'nin **birinci ayağını (Tier 1 birincil kaynak) sağladı** —
+7 iddiasının 6'sında `has_primary_source: true`. Ama **ikinci ayak
+açık kaldı**: `independent_count = 1`, çünkü SBB'nin makaleleri kendi
+olaylarında yalnız (6 olay oluştu, 0 atandı).
+
+Kök neden ölçüldü (ADR-013 §4): **aynı makro hikâye kaynaklar arasında
+ortak bir olayda buluşmuyor.** Medya, resmî veri açıklamasını değil
+çevresindeki yorumu işliyor; resmî yayın ile yorum arasındaki gecikme
+72 saatlik kümeleme penceresini aşabiliyor.
+
+> **Sonuç: kaynak eklemeye devam etmek 🟢 üretmez.** Faz B'nin ağırlığı
+> B2/B3'ten (yeni kaynak) B6/B7'ye (hikâye eşleşmesi) kaydı.
+
+| # | İş | Değer | Karmaşıklık | Risk |
+|---|---|---|---|---|
+| ~~B1~~ | ~~SBB ekle~~ | ✅ **UYGULANDI** — Tier 1 ayağı açıldı | XS | — |
+| **B6** | **Resmî yayın ↔ medya yorumu eşleştirme** | 🟢'nin ÖNÜNDEKİ ASIL ENGEL | **L** | kümeleme precision'ı riske atmadan |
+| **B7** | **Kümeleme zaman penceresini konuya göre esnet** | Aylık veri açıklamaları 72 sa'e sığmıyor | M | yanlış birleştirme riski — ölçülmeli |
+| B4 | Tier 1 konu filtresini gözden geçir | TCMB %80, Resmî Gazete %76 eleniyor | S | **editoryal kapsam kararı** |
+| B8 | `odemeler_dengesi` + `dis_ticaret` konuları | SBB'nin en ayırt edici 2 kalemi eleniyor | S | kapsam kararı |
+| B2 | YSK için HTML adaptörü | Seçim döneminin tek kritik kaynağı; R7 tavanında | M | seçim takvimine bağlı |
+| B3 | ÇSGB adaptörü | `asgari_ucret_ve_zamlar` birincil kaynağı yok | M | — |
+| B5 | `diversity_ratio` metriğini panoya bağla | Kıtlık erken görünür | S | — |
 
 > B4 dikkat ister: filtre ADR-012'de bilinçli olarak dar tutuldu.
 > Gevşetmek maliyeti ve gürültüyü artırır. Önce **ölçülmeli**: elenen
 > Tier 1 kalemlerin kaçı gerçekten kapsam dışı?
+>
+> B6/B7 daha da dikkat ister: kümelemeyi gevşetmek yanlış birleştirme
+> üretir ve bu, teyit yokluğundan **daha zararlıdır** (Spec §8.2). Her
+> değişiklik Golden Set precision'ına karşı ölçülmelidir (hedef ≥0,88).
 
 ---
 
@@ -137,5 +165,11 @@ kanıt derecesinin üstüne** kurulur.
 
 ## Tek cümlelik özet
 
-> Sistem sağlam, güvenli ve gözlemlenebilir. Eksik olan şey **kanıt
-> yoğunluğu**; sıradaki iş özellik eklemek değil, motoru doyurmaktır.
+> Sistem sağlam, güvenli ve gözlemlenebilir. Eksik olan şey kanıt
+> yoğunluğu değil — **hikâye eşleşmesi**: resmî kaynak da medya da aynı
+> gelişmeyi yazıyor, ama ortak bir olayda buluşmuyorlar. Sıradaki iş
+> kaynak eklemek değil, bu buluşmayı sağlamaktır (B6/B7).
+
+*20 Ağu 2026 güncellemesi: bu cümle SBB ölçümünden SONRA değişti. Önceki
+teşhis "kanıt yoğunluğu" idi ve kısmen doğruydu (Tier 1 payı %1,8'di);
+SBB o açığı kapattı ama 🟢 artmadı. Ölçüm teşhisi düzeltti.*
