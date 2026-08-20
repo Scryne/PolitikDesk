@@ -116,19 +116,47 @@ def test_link_related_writes_same_thread_relation(db_conn, fixtures) -> None:  #
 
 
 def test_linking_is_idempotent(db_conn, fixtures) -> None:  # noqa: ANN001
-    """İkinci koşum yeni satır üretmemeli — beat tekrar tekrar koşar."""
+    """İkinci koşum yeni satır üretmemeli — beat tekrar tekrar koşar.
+
+    **Sözleşme İDEMPOTANSTIR, bağ sayısı değil.** Eskiden bu test
+    `count == 1` diyordu ve o sayı, veritabanında fixture'ın vektörüne
+    benzeyen BAŞKA olay bulunmadığı varsayımına dayanıyordu.
+
+    `find_related` tüm `events` tablosunu tarar; fixture'ın sabit
+    vektörü (`[0.3001, …]`) gerçek gömme vektörlerine de benzeyebilir.
+    Üretim verisi büyüdükçe eşleşme sayısı 1'i aştı ve test, ürün kodu
+    doğru çalıştığı hâlde kırıldı (20 Ağu 2026: `assert 3 == 1`; log
+    iki koşumda da `count=3` diyordu, yani çift yazım YOKTU).
+
+    Doğru ölçüt: ikinci koşumdan sonra satır sayısı DEĞİŞMEMELİ.
+    Bu, veritabanının ne kadar dolu olduğundan bağımsızdır.
+    """
     _older, newer, _ = fixtures["events"]
-    link_related(newer)
+
     link_related(newer)
     db_conn.commit()
-
     with db_conn.cursor() as cur:
         cur.execute(
             "SELECT count(*) AS n FROM event_relations WHERE from_event_id = %s",
             (newer,),
         )
-        assert cur.fetchone()["n"] == 1
+        ilk = cur.fetchone()["n"]
     db_conn.commit()
+    assert ilk >= 1, "İlk koşum en az bir ilişki kurmalıydı"
+
+    link_related(newer)
+    db_conn.commit()
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "SELECT count(*) AS n FROM event_relations WHERE from_event_id = %s",
+            (newer,),
+        )
+        ikinci = cur.fetchone()["n"]
+    db_conn.commit()
+
+    assert ikinci == ilk, (
+        f"İkinci koşum {ikinci - ilk} yeni satır üretti — idempotans bozuk"
+    )
 
 
 # ==========================================================================
