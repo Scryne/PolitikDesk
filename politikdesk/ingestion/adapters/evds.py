@@ -141,6 +141,24 @@ class EvdsSeries:
     expected_name_contains: str
     verified: bool = False
     qualifier: str = ""
+    semantic: str = "measurement"
+    """Serinin epistemik türü: `measurement` mi, `expectation` mı?
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** `metric` bir gösterge
+    AİLESİDİR ve iki farklı epistemik nesneyi aynı ada çökertebiliyordu:
+    `TP.ENFBEK.PKA12ENF` "12 ay sonrası enflasyon BEKLENTİSİ"dir (piyasa
+    katılımcıları anketi) ama `metric="tufe_annual"` ile temsil ediliyor —
+    yani *gerçekleşmiş* yıllık TÜFE ile aynı ad.
+
+    Ölçüldü: gerçekleşmiş enflasyon iddiası, değeri ve dönemi tutarsa
+    beklenti serisiyle **doğrulanıyordu** (`_verified_against_official`
+    `True` dönüyordu). Bir anket beklentisi, olmuş bir olguyu doğrulayamaz.
+
+    Ayrım iddia tarafına konulamaz: iddia şeması semantik tip taşımıyor ve
+    LLM'e ürettirmek yeni epistemik yetki olurdu (Spec §8.1). Bu yüzden
+    KAYNAK tarafında beyan edilir ve R3 yalnızca `measurement` serilerini
+    kabul eder.
+    """
 
     @property
     def response_key(self) -> str:
@@ -230,6 +248,10 @@ TRACKED: tuple[EvdsSeries, ...] = (
         expected_name_contains="enflasyon beklenti",
         verified=True,
         qualifier="piyasa katılımcıları anketi, aylık",
+        # ⛔ BEKLENTİ — gerçekleşmiş veri DEĞİL. R3 bu seriyi resmî
+        # doğrulama olarak KABUL ETMEZ: bir anket beklentisi olmuş bir
+        # olguyu doğrulayamaz. Gösterge şeridinde görünmeye devam eder.
+        semantic="expectation",
     ),
     EvdsSeries(
         code="TP.KAVRAMSAL.HAMM2.INDX",
@@ -540,6 +562,8 @@ class EvdsAdapter(FailureRecorder):
                     # büyüklüğü TEK SERİ gibi çizer.
                     "series_code": spec.code,
                     "series_label": spec.label,
+                    # Epistemik tür: R3 yalnızca `measurement` kabul eder.
+                    "semantic": spec.semantic,
                     "source": "TCMB EVDS",
                     "source_url": url,
                     "retrieved_at": datetime.now(UTC).isoformat(),

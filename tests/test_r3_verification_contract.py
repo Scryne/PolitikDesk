@@ -181,6 +181,107 @@ def test_verification_scans_all_supporting_official_values() -> None:
     assert _verified_against_official(cur, 1, dict(TUIK_ISSIZLIK)) is True
 
 
+# ══════════════════════════ semantik izolasyon: ölçüm ≠ beklenti
+#
+# `metric` bir gösterge AİLESİDİR. `TP.ENFBEK.PKA12ENF` "12 ay sonrası
+# enflasyon BEKLENTİSİ"dir (piyasa anketi) ama `metric="tufe_annual"`
+# taşır — yani gerçekleşmiş yıllık TÜFE ile aynı ad.
+#
+# Karşı-olgusal ölçüldü: düzeltme öncesi, gerçekleşmiş enflasyon iddiası
+# değeri ve dönemi tutunca bu beklenti serisiyle DOĞRULANIYORDU.
+
+# Gerçek üretim kaydı (articles.official_value, 20 Ağu 2026).
+EVDS_BEKLENTI = {
+    "metric": "tufe_annual",
+    "value": 23.95,
+    "unit": "%",
+    "period": "2026-07",
+    "series_code": "TP.ENFBEK.PKA12ENF",
+}
+# Sistemde henüz yok; gerçekleşmiş TÜFE serisi eklenirse böyle görünür.
+EVDS_GERCEKLESMIS = {**EVDS_BEKLENTI, "series_code": "TP.FG.J0", "semantic": "measurement"}
+
+
+def test_claim_is_not_verified_against_an_expectation_series() -> None:
+    """**Bir anket beklentisi, olmuş bir olguyu doğrulayamaz.**
+
+    R3'ün verdiği 🟢 ürünün en güçlü etiketidir; beklentiyle doğrulamak
+    tam anlamıyla lastik damga olurdu.
+    """
+    iddia = {k: v for k, v in EVDS_BEKLENTI.items() if k != "series_code"}
+    assert _dogrula(EVDS_BEKLENTI, iddia) is False
+
+
+def test_expectation_series_is_rejected_even_without_a_semantic_field() -> None:
+    """Eski kayıtlar `semantic` alanı taşımaz — `series_code` yetmeli.
+
+    Veritabanında hâlihazırda duran kayıt bu biçimdedir; migration
+    gerekmeden kapsanmalıdır.
+    """
+    assert "semantic" not in EVDS_BEKLENTI
+    iddia = {k: v for k, v in EVDS_BEKLENTI.items() if k != "series_code"}
+    assert _dogrula(EVDS_BEKLENTI, iddia) is False
+
+
+def test_expectation_series_is_rejected_when_semantic_field_says_so() -> None:
+    """Yeni kayıtlarda beyan doğrudan okunur."""
+    kayit = {**EVDS_BEKLENTI, "semantic": "expectation"}
+    iddia = {k: v for k, v in kayit.items() if k not in ("series_code", "semantic")}
+    assert _dogrula(kayit, iddia) is False
+
+
+def test_measurement_series_still_verifies() -> None:
+    """Semantik kısıt DOĞRU serileri düşürmemeli."""
+    iddia = {k: v for k, v in EVDS_GERCEKLESMIS.items() if k not in ("series_code", "semantic")}
+    assert _dogrula(EVDS_GERCEKLESMIS, iddia) is True
+
+
+def test_expectation_is_filtered_before_ambiguity_check() -> None:
+    """Beklenti elenince geriye tek ölçüm serisi kalır — belirsizlik yok.
+
+    Yani semantik kısıt, seri belirsizliği kısıtını gereksiz yere
+    tetiklemez; ikisi birlikte doğru çalışır.
+    """
+    cur = _TekSatirCursor(EVDS_BEKLENTI, EVDS_GERCEKLESMIS)
+    iddia = {k: v for k, v in EVDS_GERCEKLESMIS.items() if k not in ("series_code", "semantic")}
+    assert _verified_against_official(cur, 1, iddia) is True
+
+
+def test_tuik_records_without_series_code_are_treated_as_measurements() -> None:
+    """TÜİK SDMX kayıtları `series_code` taşımaz ve hepsi gerçekleşmiş veridir.
+
+    Burada fail-open bilinçlidir: aksi hâlde üretimdeki iki R3 🟢'si
+    sebepsiz kırılırdı.
+    """
+    assert "series_code" not in TUIK_ISSIZLIK
+    assert "semantic" not in TUIK_ISSIZLIK
+    assert _dogrula(TUIK_ISSIZLIK, dict(TUIK_ISSIZLIK)) is True
+
+
+def test_expectation_series_list_is_derived_from_source_config() -> None:
+    """Liste elle tutulmaz; kaynak yapılandırmasından türetilir."""
+    from politikdesk.evidence.pipeline import _non_measurement_series
+    from politikdesk.ingestion.adapters.evds import TRACKED
+
+    kodlar = _non_measurement_series()
+    assert "TP.ENFBEK.PKA12ENF" in kodlar
+    beklenen = {s.code for s in TRACKED if s.semantic != "measurement"}
+    assert kodlar == beklenen
+    # Ölçüm serileri listede OLMAMALI.
+    assert "TP.DK.USD.A.YTL" not in kodlar
+
+
+def test_evds_expectation_series_declares_its_semantic() -> None:
+    """Kaynak tarafı ne yayımladığını BEYAN etmeli (kod sözleşmesi)."""
+    from politikdesk.ingestion.adapters.evds import TRACKED
+
+    beklenti = [s for s in TRACKED if s.code == "TP.ENFBEK.PKA12ENF"]
+    assert beklenti, "Beklenti serisi yapılandırmadan kalkmış"
+    assert beklenti[0].semantic == "expectation"
+    # Geri kalan her seri varsayılan olarak ölçümdür.
+    assert all(s.semantic == "measurement" for s in TRACKED if s.code != "TP.ENFBEK.PKA12ENF")
+
+
 # ═══════════════════════════════════ seri belirsizliği: fail-closed
 #
 # Bir metrik birden çok resmî SERİYE karşılık gelebilir. EVDS'te

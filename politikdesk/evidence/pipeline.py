@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import lru_cache
 from typing import Any
 
 from politikdesk.db import connection
@@ -94,6 +95,7 @@ def _verified_against_official(
         official
         for row in cur.fetchall()
         if (official := row["official_value"] or {})
+        and _is_measurement(official)
         and official.get("metric") == metric
         and official.get("period") == period
         and _same_number(official.get("value"), value)
@@ -119,6 +121,54 @@ def _verified_against_official(
     # değeri birden çok seriyle eşleşen iddia yok).
     kimlikler = {str(o.get("series_code") or "") for o in eslesenler}
     return len(kimlikler) == 1
+
+
+@lru_cache(maxsize=1)
+def _non_measurement_series() -> frozenset[str]:
+    """Ölçüm OLMAYAN resmî seri kodları (beklenti, anket, tahmin).
+
+    Kaynak yapılandırmasından türetilir — burada elle liste tutulmaz.
+    Tembel içe aktarma: kanıt motoru adaptör modülünü yalnızca gerektiğinde
+    yükler.
+    """
+    from politikdesk.ingestion.adapters.evds import TRACKED
+
+    return frozenset(s.code for s in TRACKED if s.semantic != "measurement")
+
+
+def _is_measurement(official: dict[str, Any]) -> bool:
+    """Bu resmî kayıt bir ÖLÇÜM mü, yoksa beklenti/tahmin mi?
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** `metric` bir gösterge
+    ailesidir ve iki farklı epistemik nesneyi aynı ada çökertebiliyor:
+    `TP.ENFBEK.PKA12ENF` "12 ay sonrası enflasyon BEKLENTİSİ"dir (piyasa
+    katılımcıları anketi) ama `metric="tufe_annual"` taşır — yani
+    *gerçekleşmiş* yıllık TÜFE ile aynı ad.
+
+    Karşı-olgusal ölçüldü: gerçekleşmiş enflasyon iddiası, değeri ve
+    dönemi tutarsa bu beklenti serisiyle **doğrulanıyordu**. Bir anket
+    beklentisi olmuş bir olguyu doğrulayamaz — R3'ün verdiği 🟢 ürünün
+    en güçlü etiketidir ve bu, tam anlamıyla lastik damga olurdu.
+
+    Ayrım neden KAYNAK tarafında: iddia şeması semantik tip taşımıyor ve
+    LLM'e ürettirmek yeni epistemik yetki olurdu (Spec §8.1). Kaynak ise
+    ne yayımladığını deterministik olarak bilir.
+
+    İki yoldan çözülür — ikisi de gerekli:
+      * `semantic` alanı varsa doğrudan okunur (yeni kayıtlar).
+      * Yoksa `series_code` kaynak yapılandırmasına sorulur. Bu, **zaten
+        veritabanında duran** eski kayıtları da kapsar; migration gerekmez.
+
+    Beyanı olmayan ve tanınmayan kayıtlar ÖLÇÜM sayılır: TÜİK SDMX
+    kayıtları `series_code` taşımaz ve hepsi gerçekleşmiş veridir.
+    Burada fail-open bilinçlidir — aksi hâlde bugün doğru çalışan iki R3
+    doğrulaması sebepsiz kırılırdı.
+    """
+    declared = official.get("semantic")
+    if declared:
+        return str(declared) == "measurement"
+    code = official.get("series_code")
+    return not (code and str(code) in _non_measurement_series())
 
 
 # `TL` ve `TRY` aynı para birimidir: EVDS seri tanımı `TRY` yazar, Türkçe
