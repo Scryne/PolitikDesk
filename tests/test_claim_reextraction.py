@@ -357,3 +357,188 @@ def test_database_rejects_duplicate_claim_signature(db_conn, fixtures):  # noqa:
             (event_id,),
         )
     db_conn.rollback()
+
+
+# ════════════════════ denemenin SONUCU kaydedilir (migration 0021)
+#
+# Denetimde ölçüldü: tavana vurmuş ve hâlâ iddiasız 430 olay (%21).
+# Bunların ne kadarının MEŞRU ("metinde iddia yok") ne kadarının GERÇEK
+# KAYIP (şema/ayrıştırma arızası) olduğu veriyle cevaplanamıyordu —
+# iki yol da aynı sayaca yazıyor, fark yalnızca dönen logda kalıyordu.
+
+
+def _outcome(db_conn, event_id: int) -> str | None:  # noqa: ANN001
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT claims_last_outcome FROM events WHERE id = %s", (event_id,))
+        return cur.fetchone()["claims_last_outcome"]
+
+
+def test_successful_extraction_is_recorded_as_ok(db_conn, fixtures):  # noqa: ANN001
+    from politikdesk.nlp.claims_pipeline import _record_attempt
+
+    event_id = fixtures["events"][0]
+    with db_conn.cursor() as cur:
+        _record_attempt(cur, event_id, "ok")
+    db_conn.commit()
+
+    assert _outcome(db_conn, event_id) == "ok"
+
+
+def test_legitimate_empty_extraction_is_distinguishable_from_failure(db_conn, fixtures):  # noqa: ANN001
+    """**Turun asıl kazanımı:** `empty` ile arıza artık AYRI kayıtlar.
+
+    İkisi de olayı iddiasız bırakır ve ikisi de sayacı ilerletir, ama
+    epistemik anlamları zıttır: `empty` doğru cevaptır, `SchemaValidationError`
+    kayıptır. Ayrım olmadan "%21 iddiasız" sayısı yorumlanamaz.
+    """
+    from politikdesk.nlp.claims_pipeline import _record_attempt
+
+    bos, arizali = fixtures["events"][0], fixtures["events"][1]
+    with db_conn.cursor() as cur:
+        _record_attempt(cur, bos, "empty")
+        _record_attempt(cur, arizali, "SchemaValidationError")
+    db_conn.commit()
+
+    assert _outcome(db_conn, bos) == "empty"
+    assert _outcome(db_conn, arizali) == "SchemaValidationError"
+    assert _outcome(db_conn, bos) != _outcome(db_conn, arizali)
+
+
+def test_outcome_does_not_disturb_the_attempt_counter(db_conn, fixtures):  # noqa: ANN001
+    """Sonuç kaydı F4-05'in tavan mantığını GEVŞETMEZ."""
+    from politikdesk.nlp.claims_pipeline import _record_attempt
+
+    event_id = fixtures["events"][2]
+    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours", attempts=1)
+    with db_conn.cursor() as cur:
+        _record_attempt(cur, event_id, "SchemaValidationError")
+    db_conn.commit()
+
+    with db_conn.cursor() as cur:
+        cur.execute("SELECT claims_attempt_count n FROM events WHERE id = %s", (event_id,))
+        assert cur.fetchone()["n"] == 2, "arıza da bir denemedir; sayaç ilerlemeli"
+
+
+def test_new_material_resets_counter_and_overwrites_outcome(db_conn, fixtures):  # noqa: ANN001
+    """Yeni makale geldiyse eski denemenin sonucu artık geçerli değildir."""
+    from politikdesk.nlp.claims_pipeline import _record_attempt
+
+    event_id = fixtures["events"][0]
+    with db_conn.cursor() as cur:
+        _record_attempt(cur, event_id, "SchemaValidationError")
+    db_conn.commit()
+    # Olaya yeni makale katıldı: last_update_at, denemeden SONRAYA taşınır.
+    _stamp(db_conn, event_id, attempted_ago="2 hours", updated_ago="1 hour", attempts=3)
+
+    with db_conn.cursor() as cur:
+        _record_attempt(cur, event_id, "ok")
+    db_conn.commit()
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "SELECT claims_attempt_count n, claims_last_outcome o FROM events WHERE id = %s",
+            (event_id,),
+        )
+        row = cur.fetchone()
+    assert row["n"] == 1, "yeni malzeme sayacı sıfırlar (F4-05)"
+    assert row["o"] == "ok"
+
+
+# ═══════ sağlayıcı arızası deneme hakkını YAKMAZ (20 Ağu 2026 denetimi)
+#
+# F4-05'in tavanı şu varsayıma dayanıyordu: "geçici bir sağlayıcı arızası
+# bu pencerede düzelir; düzelmiyorsa sorun metinde." Varsayım ÖLÇÜLDÜ ve
+# yanlış çıktı: tavana vurup iddiasız kalmış 430 olaydan 25'lik rastgele
+# örneğin **%92'si** bugün yeniden denendiğinde iddia ÜRETTİ. Kayıp
+# metinden değil, saatlerce süren 429 fırtınasından geliyordu.
+
+
+def test_provider_failure_does_not_burn_the_attempt_budget(db_conn, fixtures):  # noqa: ANN001
+    """**Asıl regresyon.** 429 üç hakkı da yakıyordu ve olay bırakılıyordu."""
+    from politikdesk.nlp.claims_pipeline import _record_transient
+
+    event_id = fixtures["events"][0]
+    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours", attempts=2)
+
+    with db_conn.cursor() as cur:
+        _record_transient(cur, event_id, "LLMHTTPError")
+    db_conn.commit()
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "SELECT claims_attempt_count n, claims_last_outcome o FROM events WHERE id = %s",
+            (event_id,),
+        )
+        row = cur.fetchone()
+    assert row["n"] == 2, "sağlayıcı arızası hak yakmamalı — metin hakkında bilgi vermiyor"
+    assert row["o"] == "LLMHTTPError", "yine de KAYDEDİLMELİ, yoksa ölçülemez"
+
+
+def test_event_stays_in_queue_after_a_provider_failure(db_conn, fixtures):  # noqa: ANN001
+    """Sağlayıcı düzeldiğinde olay hâlâ sırada olmalı."""
+    from politikdesk.nlp.claims_pipeline import _record_transient
+
+    event_id = fixtures["events"][1]
+    _stamp(db_conn, event_id, attempted_ago="1 hour", updated_ago="2 hours", attempts=2)
+    with db_conn.cursor() as cur:
+        _record_transient(cur, event_id, "ReadTimeout")
+    db_conn.commit()
+
+    assert event_id in pending_events(limit=500), (
+        "Sağlayıcı arızasından sonra olay kuyruktan düştü — kalıcı kayıp yolu açık."
+    )
+
+
+def test_provider_failure_still_advances_the_timestamp(db_conn, fixtures):  # noqa: ANN001
+    """Damga ilerlemezse patlayan olay her turu baştan tıkar (F4-05)."""
+    from politikdesk.nlp.claims_pipeline import _record_transient
+
+    event_id = fixtures["events"][2]
+    _stamp(db_conn, event_id, attempted_ago="5 hours", updated_ago="9 hours", attempts=1)
+    with db_conn.cursor() as cur:
+        _record_transient(cur, event_id, "LLMHTTPError")
+    db_conn.commit()
+
+    with db_conn.cursor() as cur:
+        cur.execute(
+            "SELECT now() - claims_attempted_at < interval '1 minute' AS taze "
+            "FROM events WHERE id = %s",
+            (event_id,),
+        )
+        assert cur.fetchone()["taze"] is True
+
+
+@pytest.mark.parametrize(
+    ("exc", "gecici"),
+    [
+        ("LLMHTTPError", True),  # 429 / 503 — sağlayıcı
+        ("BudgetExceeded", True),  # bütçe tavanı — metin değil
+        ("ReadTimeout", True),
+        ("ConnectError", True),
+        ("SoftTimeLimitExceeded", True),
+        ("SchemaValidationError", False),  # modelin BU METNE yanıtı
+        ("LLMRefusal", False),  # modelin BU METNİ reddi
+        ("ValueError", False),
+    ],
+)
+def test_failure_classification(exc: str, gecici: bool) -> None:
+    """Taşıma arızası ile içerik arızası ayrımı — tavanın konusu ikincisidir."""
+    from politikdesk.llm.errors import (
+        BudgetExceeded,
+        LLMHTTPError,
+        LLMRefusal,
+        SchemaValidationError,
+    )
+    from politikdesk.nlp.claims_pipeline import _is_transient
+
+    ornekler: dict[str, BaseException] = {
+        "LLMHTTPError": LLMHTTPError(429, "Too Many Requests"),
+        "BudgetExceeded": BudgetExceeded("gunluk", 1.0, 0.5),
+        "ReadTimeout": type("ReadTimeout", (Exception,), {})(),
+        "ConnectError": type("ConnectError", (Exception,), {})(),
+        "SoftTimeLimitExceeded": type("SoftTimeLimitExceeded", (Exception,), {})(),
+        "SchemaValidationError": SchemaValidationError("gecersiz JSON"),
+        "LLMRefusal": LLMRefusal("policy"),
+        "ValueError": ValueError("x"),
+    }
+    assert _is_transient(ornekler[exc]) is gecici

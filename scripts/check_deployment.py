@@ -39,8 +39,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGE_DIR = REPO_ROOT / "politikdesk"
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
 
-# Denetlenecek zorunlu servis konteynerleri
-CONTAINERS = ("pd-api", "pd-worker", "pd-beat")
+# Denetlenecek zorunlu servis konteynerleri.
+#
+# `pd-worker-llm` 20 Ağustos 2026'da eklendi: LLM görevleri ayrı bir
+# kuyrukta koşar, yoksa 6–100 saniyelik çıkarım çağrıları saniyelik
+# veritabanı görevlerini açlığa düşürüyordu. Bu kapı onu da denetler —
+# aksi hâlde LLM işçisi bayat kodla koşarken kapı yeşil görünürdü ve
+# B-77'nin (beat eski imajla koşuyordu, 13 saat sessiz durma) aynısı
+# tekrarlanırdı.
+CONTAINERS = ("pd-api", "pd-worker", "pd-worker-llm", "pd-beat")
 
 # Konteyner içinde koşan hash betiği
 _HASH_SNIPPET = """

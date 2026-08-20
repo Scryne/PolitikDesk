@@ -6,6 +6,7 @@ doğru kurulmasıdır.
 
 from __future__ import annotations
 
+import random
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -19,8 +20,30 @@ SLUG = "pytest-context-src"
 DIM = 1024
 
 
-def _vec(seed: float) -> str:
-    return "[" + ",".join(f"{seed:.6f}" for _ in range(DIM)) + "]"
+def _direction(rng: random.Random) -> list[float]:
+    """Rastgele bir yön — sabit vektör DEĞİL.
+
+    **Neden (20 Ağustos 2026 denetimi).** Fixture eskiden her boyutu aynı
+    sayı olan bir vektör kuruyordu (`[0.3, 0.3, ...]`). İki sabit pozitif
+    vektörün kosinüs benzerliği **her zaman tam 1.0'dır**: yön aynıdır,
+    yalnızca uzunluk değişir. Yani bu turun `[0.30…]`'u ile ÖNCEKİ bir
+    koşumdan kalan `[0.30…]` birbirinden ayırt edilemiyordu.
+
+    Sonuç: `find_related` benzerliği 1.0 olan bir yığın aday buluyor,
+    `LIMIT` bu turun fixture'ını dışarıda bırakıyor ve test **veritabanı
+    hacmine bağlı** olarak düşüyordu. Ölçüldü: veritabanında aynı yöne
+    bakan, geçmiş koşumlardan kalmış dokuz olay vardı ve `link_related`
+    beş ilişkinin BEŞİNİ de onlarla kurdu — fixture'la hiçbirini.
+
+    Rastgele bir yön fixture'ı kendi koşumuna hapseder: 1024 boyutta iki
+    bağımsız rastgele yönün kosinüsü ~0'dır, dolayısıyla ne geçmiş
+    artıklar ne de gerçek üretim olayları yarışabilir.
+    """
+    return [rng.uniform(-1.0, 1.0) for _ in range(DIM)]
+
+
+def _fmt(values: list[float]) -> str:
+    return "[" + ",".join(f"{v:.6f}" for v in values) + "]"
 
 
 @pytest.fixture()
@@ -38,14 +61,24 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
         )
         source_id = cur.fetchone()["id"]
 
+        # Bu koşuma ÖZGÜ yönler. `random.Random()` tohumsuz kurulur:
+        # her koşum farklı yöne bakar, böylece bir önceki koşumdan artık
+        # kalsa bile bu turun fixture'ıyla yarışamaz.
+        rng = random.Random()
+        yakin = _direction(rng)
+        # "Aynı seri": aynı yön, ölçülemeyecek kadar küçük sapmayla.
+        yakin_komsu = [v + rng.uniform(-1e-4, 1e-4) for v in yakin]
+        # "Alakasız": bağımsız yön — 1024 boyutta kosinüs ~0.
+        uzak = _direction(rng)
+
         # İki olay birbirine çok yakın (aynı seri), üçüncü uzak.
         specs = [
-            ("pytest enflasyon haziran", 0.30, now - timedelta(days=60)),
-            ("pytest enflasyon temmuz", 0.3001, now - timedelta(days=30)),
-            ("pytest alakasiz olay", -0.9, now - timedelta(days=45)),
+            ("pytest enflasyon haziran", yakin, now - timedelta(days=60)),
+            ("pytest enflasyon temmuz", yakin_komsu, now - timedelta(days=30)),
+            ("pytest alakasiz olay", uzak, now - timedelta(days=45)),
         ]
         event_ids = []
-        for title, seed, at in specs:
+        for title, vec, at in specs:
             cur.execute(
                 """
                 INSERT INTO events (title, vertical, centroid_embedding,
@@ -53,7 +86,7 @@ def fixtures(db_conn):  # noqa: ANN001, ANN201
                 VALUES (%s, 'macro_economy', %s::vector, %s, %s, 1)
                 RETURNING id
                 """,
-                (title, _vec(seed), at, at),
+                (title, _fmt(vec), at, at),
             )
             event_ids.append(cur.fetchone()["id"])
     db_conn.commit()

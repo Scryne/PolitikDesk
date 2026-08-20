@@ -73,6 +73,28 @@ class Stage:
     sql: str
     hint: str
     params: tuple[Any, ...] | Callable[[], tuple[Any, ...]] = ()
+    backlog_limit: int | None = None
+    """Aşamanın kendi alarm penceresinde eritemeyeceği birikme sayısı.
+
+    **Neden gerekti (20 Ağustos 2026 denetimi).** Yaş ölçütü bu aşamada
+    bilerek devre dışı (aşağıdaki `claims` notuna bakın) ve birikme
+    yalnızca *bilgi* olarak gösteriliyordu. Sonuç: işçi ayakta,
+    `claims_attempted_at` her 10 dakikada ilerliyor, aşama **yeşil** —
+    ama kuyruk büyüyor ve bunu söyleyen hiçbir sinyal yok.
+
+    Ölçüldü (12 saatlik pencere): olay VARIŞI ~29/saat, iddia çıkarımı
+    İŞLEMİ ~15/saat. Aktif saatlerde birikme saatte ~14 büyüyor; ölçüm
+    anında 958 olay bekliyordu ve aşama yeşil görünüyordu.
+
+    Sayı keyfî DEĞİL, aşamanın kendi tasarımından türer:
+
+        backlog_limit = (görevin tasarlanan saatlik hızı) x threshold_hours
+
+    Bunu aşan birikme, aşama **tam tasarım hızında** koşsa bile kendi
+    alarm penceresi içinde erimez. Yani "yavaş" demez — *"bu kuyruk
+    kapanmıyor"* der. Modülün kendi kuralı korunur: yanlış alarm veren
+    alarm kapatılır, bu yüzden eşik gerçek kapasiteye bağlanmıştır.
+    """
 
     def get_params(self) -> tuple[Any, ...]:
         if callable(self.params):
@@ -192,8 +214,13 @@ STAGES: tuple[Stage, ...] = (
                    END AS oldest_hours
         """,
         params=(MAX_CLAIM_ATTEMPTS,),
-        hint="LLM bütçesi dolmuş olabilir (`/admin/metrics` bütçe kutusu) "
-        "ya da sağlayıcı hata veriyor",
+        # Görev 10 dakikada bir 5 olay işler = tasarım hızı 30 olay/saat.
+        # 30 x threshold_hours(6) = 180. Bunu aşan kuyruk, aşama tam
+        # tasarım hızında koşsa bile 6 saatte erimez.
+        backlog_limit=180,
+        hint="LLM bütçesi dolmuş olabilir (`/admin/metrics` bütçe kutusu), "
+        "sağlayıcı 429 veriyor olabilir ya da varış hızı işlem hızını "
+        "geçmiş olabilir (worker eşzamanlılığı)",
     ),
     Stage(
         key="evidence",
@@ -390,6 +417,31 @@ def _classify(age_hours: float | None, threshold: float) -> StageStatus:
     return "green"
 
 
+def _classify_backlog(backlog: int, limit: int | None) -> StageStatus:
+    """Birikme sayısı → renk. Sınır tanımlı değilse ölçüt uygulanmaz."""
+    if limit is None:
+        return "green"
+    if backlog >= limit:
+        return "red"
+    if backlog >= limit * AMBER_RATIO:
+        return "amber"
+    return "green"
+
+
+_SEVERITY: dict[StageStatus, int] = {"green": 0, "amber": 1, "red": 2}
+
+
+def _worst(*statuses: StageStatus) -> StageStatus:
+    """En kötü durum kazanır — bir ölçüt yeşilse diğerini GİZLEMEZ.
+
+    Yaş ve birikme aynı aşamanın iki AYRI arıza biçimini yakalar:
+    yaş "kuyruk ilerlemiyor", birikme "kuyruk kapanmıyor" der. İkincisi
+    işçi ayaktayken de doğru olabilir ve tam olarak bu yüzden gözden
+    kaçıyordu.
+    """
+    return max(statuses, key=lambda s: _SEVERITY[s])
+
+
 def stage_report() -> list[StageReport]:
     """Her aşama için birikme ve yaş; en kötü durum başta değil, boru
     hattı sırasında döner — okuyan kişi nerede koptuğunu görsün."""
@@ -410,7 +462,10 @@ def stage_report() -> list[StageReport]:
                 StageReport(
                     key=stage.key,
                     label=stage.label,
-                    status=_classify(oldest_hours, stage.threshold_hours),
+                    status=_worst(
+                        _classify(oldest_hours, stage.threshold_hours),
+                        _classify_backlog(backlog, stage.backlog_limit),
+                    ),
                     backlog=backlog,
                     oldest_hours=oldest_hours,
                     threshold_hours=stage.threshold_hours,

@@ -52,6 +52,29 @@ app.conf.update(
     # Worker çökerse görev yeniden teslim edilsin (`acks_late` ile birlikte
     # anlamlıdır: onay iş bitince verilir, çöken worker'ın işi kaybolmaz).
     task_reject_on_worker_lost=True,
+    # ── Kuyruk ayrımı: yavaş LLM işi hızlı işi AÇLIĞA düşürmesin ──
+    #
+    # 20 Ağustos 2026 denetiminde ölçüldü: "Tarihsel bağlam" aşaması
+    # 16,8 saatlik birikmeyle KIRMIZIYA döndü, oysa görev elle
+    # çalıştırıldığında 35 olayı saniyeler içinde bitirdi. Kod arızası
+    # yoktu; beat görevi düzenli gönderiyordu. Sorun kuyruktaydı:
+    #
+    #   worker `--concurrency 2` ile koşuyor ve iddia çıkarımı çağrıları
+    #   6–100 saniye sürüyor (sağlayıcı 429 verince fallback'e düşüyor).
+    #   İki slot da LLM'e gidince, saniyeler süren SAF VERİTABANI
+    #   görevleri (bağlam, siyasi ilişkiler) sırada bekliyordu.
+    #
+    # ⛔ Bu, eşzamanlılık artırma DEĞİLDİR. `docker-compose.yml`'de
+    # ölçülüp yazıldığı gibi darboğaz worker değil ücretsiz katman
+    # kotasıdır (2→4 eşzamanlılık: verim sabit, gecikme +%40). Buradaki
+    # ayrım LLM çağrı hızını ARTIRMAZ — `llm` kuyruğu yine iki slotla
+    # koşar. Yalnızca LLM olmayan işin o slotları beklemesini önler.
+    task_routes={
+        "politikdesk.extract_claims_pending": {"queue": "llm"},
+        "politikdesk.generate_briefing": {"queue": "llm"},
+    },
+    # Yönlendirilmeyen her görev buraya düşer.
+    task_default_queue="celery",
 )
 
 

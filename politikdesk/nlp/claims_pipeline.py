@@ -61,6 +61,49 @@ class ClaimStats:
 # düzelir; düzelmiyorsa sorun metinde, tekrar denemekte değil.
 MAX_CLAIM_ATTEMPTS = 3
 
+
+def _is_transient(exc: BaseException) -> bool:
+    """Arıza METİNDE mi, SAĞLAYICIDA mı?
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** Yukarıdaki tavanın
+    dayandığı varsayım ölçülüp YANLIŞ bulundu: *"geçici bir sağlayıcı
+    arızası bu pencerede düzelir."* Düzelmiyor — sağlayıcı saatlerce
+    429 döndürdüğünde üç deneme hakkının üçü de arızaya gider ve olay,
+    metniyle ilgili hiçbir şey öğrenilmeden KALICI olarak bırakılır.
+
+    Ölçüm (25 olayluk rastgele örnek, tavana vurmuş ve iddiasız kalmış
+    430 olaydan): olayların **%92'si bugün yeniden denendiğinde iddia
+    ÜRETTİ.** Yani "bu metinden iddia çıkmıyor" sonucu büyük çoğunlukta
+    yanlıştı; kayıp, metnin değil sağlayıcının arızasıydı.
+
+    | Sonuç | Örnekte |
+    |---|---:|
+    | İddia üretti (gerçek kayıp) | 23 (%92) |
+    | SchemaValidationError | 1 (%4) |
+    | Meşru "iddia yok" | 1 (%4) |
+
+    Ayrım zaten kodda vardı ama tek bir istisnaya kilitliydi:
+    `LLMNotConfigured` bilerek deneme SAYILMIYOR ("anahtar gelince bu
+    olaylar denenmelidir"). Aynı gerekçe taşıma katmanının tamamı için
+    geçerlidir: 429/503/zaman aşımı, metin hakkında hiçbir şey söylemez.
+
+    `SchemaValidationError` ve `LLMRefusal` bilerek DIŞARIDA: ikisi de
+    modelin *bu metne* verdiği yanıttır ve tavanın asıl konusu odur.
+    """
+    from politikdesk.llm.errors import BudgetExceeded, LLMHTTPError
+
+    if isinstance(exc, LLMHTTPError | BudgetExceeded | TimeoutError):
+        return True
+    # httpx/celery istisnaları modül bağımlılığı eklemeden ad ile tanınır:
+    # bu katman `politikdesk.llm` dışına bağımlılık büyütmemeli.
+    return type(exc).__name__ in {
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ConnectError",
+        "RemoteProtocolError",
+        "SoftTimeLimitExceeded",
+    }
+
 # Deneme sayacı dolmuş olay, olaya yeni makale katılırsa yeniden denenir
 # (`last_update_at > claims_attempted_at`). Yeni malzeme yeni bir sonuç
 # ihtimali demektir; aynı metni tekrar sormak değildir.
@@ -122,16 +165,54 @@ def pending_events(limit: int = 10) -> list[int]:
         return [r["id"] for r in cur.fetchall()]
 
 
-def _record_attempt(cur: Any, event_id: int) -> None:
-    """Deneme damgasını basar.
+def _record_transient(cur: Any, event_id: int, outcome: str) -> None:
+    """Sağlayıcı arızası: damga basılır ama DENEME HAKKI YAKILMAZ.
 
-    Sayaç, olaya yeni makale katıldığında sıfırlanır: `last_update_at`
-    ilerlediyse önceki denemelerin konusu olan metin artık eksiktir.
+    İki şey ayrı ayrı gereklidir ve ikisi de bilinçlidir:
+
+    * `claims_attempted_at` **ilerletilir** — yoksa kalıcı patlayan bir
+      olay her turu baştan tıkar ve arkasındakiler hiç sıraya gelmez
+      (F4-05'in orijinal gerekçesi, hâlâ geçerli).
+    * `claims_attempt_count` **ilerletilmez** — sağlayıcı arızası metin
+      hakkında hiçbir şey söylemez; hakkı ona harcamak, ölçülen %92'lik
+      kaybın tam sebebidir.
+
+    Sağlayıcı düzeldiğinde olay hâlâ kuyruktadır ve normal sırada denenir.
     """
     cur.execute(
         """
         UPDATE events
         SET claims_attempted_at = now(),
+            claims_last_outcome = %s
+        WHERE id = %s
+        """,
+        (outcome, event_id),
+    )
+
+
+def _record_attempt(cur: Any, event_id: int, outcome: str) -> None:
+    """Deneme damgasını basar ve denemenin NE İLE bittiğini kaydeder.
+
+    Sayaç, olaya yeni makale katıldığında sıfırlanır: `last_update_at`
+    ilerlediyse önceki denemelerin konusu olan metin artık eksiktir.
+
+    `outcome` (migration 0021) üç değerden biridir:
+      * `ok`     — iddia üretildi
+      * `empty`  — metinde çıkarılabilir iddia yok (MEŞRU sonuç)
+      * `<İstisnaAdı>` — şema/ayrıştırma/ağ arızası (GERÇEK kayıp)
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** Tavana vurmuş ve hâlâ
+    iddiasız 430 olay ölçüldü (%21). `empty` ile arıza aynı sayaca
+    yazdığı için bunların ne kadarının gerçek kayıp olduğu veriyle
+    cevaplanamıyordu; fark yalnızca dönen konteyner logundaydı.
+    `llm_calls` de yardım etmiyor: HTTP başarılı olduğu için orada
+    `succeeded = true` yazıyor, geçersiz JSON bir üst katmanda anlaşılıyor.
+    """
+    cur.execute(
+        """
+        UPDATE events
+        SET claims_attempted_at = now(),
+            claims_last_outcome = %s,
             claims_attempt_count = CASE
                 WHEN claims_attempted_at IS NULL
                   OR last_update_at > claims_attempted_at THEN 1
@@ -139,7 +220,7 @@ def _record_attempt(cur: Any, event_id: int) -> None:
             END
         WHERE id = %s
         """,
-        (event_id,),
+        (outcome, event_id),
     )
 
 
@@ -422,7 +503,7 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
                 # Denemeyi, sonucu ne olursa olsun kaydet: sıfır iddia
                 # dönmesi de bir sonuçtur. Aynı işlemde yazılır ki iddia
                 # yazımı geri sarılırsa deneme damgası da geri sarılsın.
-                _record_attempt(cur, event_id)
+                _record_attempt(cur, event_id, "ok" if final else "empty")
                 conn.commit()
 
                 if not final:
@@ -453,7 +534,16 @@ def run(limit: int = 10, client: Any = None) -> ClaimStats:
             # arkasındaki olaylar hiç sıraya gelmez.
             try:
                 with connection() as conn, conn.cursor() as cur:
-                    _record_attempt(cur, event_id)
+                    # İstisna SINIFININ adı yazılır, mesajı değil: mesaj
+                    # olaya özgü metin taşıyabilir, sınıf adı ise gruplanabilir
+                    # ve arıza sınıfını ölçmek için gereken tek şey odur.
+                    #
+                    # Sağlayıcı arızası deneme hakkını YAKMAZ — arıza metinde
+                    # değil taşımada; ölçüldü, kalıcı kaybın sebebi buydu.
+                    if _is_transient(exc):
+                        _record_transient(cur, event_id, type(exc).__name__)
+                    else:
+                        _record_attempt(cur, event_id, type(exc).__name__)
                     conn.commit()
             except Exception:  # noqa: BLE001 — damga yazılamadıysa tur sürsün
                 log.warning("claim_attempt_stamp_failed", event_id=event_id)

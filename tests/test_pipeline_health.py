@@ -102,12 +102,17 @@ def test_claims_stage_age_is_worker_liveness_not_oldest_backlog_item() -> None:
     assert "AS backlog" in claims_stage.sql
 
 
-def test_claims_stage_stays_green_when_worker_is_alive_despite_old_backlog() -> None:
-    """Arşiv kuyruğu dolu ama işçi çalışıyorsa aşama YEŞİL olmalı."""
+def test_claims_stage_age_axis_tracks_worker_liveness_only() -> None:
+    """YAŞ ekseni yalnızca "işçi koşuyor mu?"yu ölçer — kuyruk boyunu DEĞİL.
+
+    Arşiv kuyruğu dolu ama işçi çalışıyorsa yaş ekseni yeşildir ve bu
+    doğrudur: kopma yoktur. Kuyruğun kapanıp kapanmadığı AYRI bir
+    eksenin işidir (`backlog_limit`) — aşağıdaki testlere bakın.
+    """
     from politikdesk.pipeline_health import _classify
 
     claims_stage = next(s for s in STAGES if s.key == "claims")
-    # İşçi 16 dakika önce koştu; 651 olay bekliyor olsa da bu bir kopma değil.
+    # İşçi 16 dakika önce koştu: kopma yok.
     assert _classify(0.27, claims_stage.threshold_hours) == "green"
     # İşçi 7 saattir hiç denemediyse gerçekten kopmuştur.
     assert _classify(7.0, claims_stage.threshold_hours) == "red"
@@ -203,3 +208,74 @@ def test_check_and_log_runs_cleanly(monkeypatch) -> None:  # noqa: ANN001
     assert len(logged) == 1
     assert logged[0]["key"] == "claims"
     assert logged[0]["status"] == "red"
+
+
+# ═══════════════ birikme ekseni: "kuyruk KAPANIYOR mu?" (20 Ağu 2026)
+#
+# Denetimde ölçülen kör nokta: yaş ekseni bu aşamada bilerek devre dışı
+# (işçi canlılığını ölçer) ve birikme yalnızca BİLGİ olarak gösteriliyordu.
+# Sonuç: işçi ayakta, aşama yeşil, kuyruk büyüyor ve bunu söyleyen hiçbir
+# sinyal yok. Ölçüldü: varış ~29 olay/saat, işlem ~15 olay/saat; birikme
+# aktif saatlerde saatte ~14 büyüyor ve 958'e ulaşmıştı.
+
+
+def test_claims_stage_declares_a_backlog_limit() -> None:
+    """Birikme eşiği KEYFİ değil, aşamanın tasarım hızından türer.
+
+    Görev 10 dakikada bir 5 olay işler = 30 olay/saat. Alarm penceresi
+    6 saat. 30 x 6 = 180: bunu aşan kuyruk, aşama tam tasarım hızında
+    koşsa bile kendi penceresinde erimez.
+    """
+    claims_stage = next(s for s in STAGES if s.key == "claims")
+    assert claims_stage.backlog_limit == 180
+
+
+def test_growing_queue_is_red_even_while_the_worker_is_alive() -> None:
+    """**Asıl regresyon.** İşçi canlıyken de kuyruk kapanmayabilir.
+
+    Bu iki koşul birlikte gerçekleşti ve aşama YEŞİL göründü; bu test
+    o davranış geri gelirse kırmızıya döner.
+    """
+    from politikdesk.pipeline_health import _classify, _classify_backlog, _worst
+
+    stage = next(s for s in STAGES if s.key == "claims")
+    yas = _classify(0.11, stage.threshold_hours)  # işçi 7 dk önce koştu
+    birikme = _classify_backlog(958, stage.backlog_limit)  # ölçülen gerçek kuyruk
+
+    assert yas == "green", "işçi canlı — yaş ekseni doğru şekilde yeşil"
+    assert birikme == "red", "958 olay 6 saatte erimez"
+    assert _worst(yas, birikme) == "red", "yeşil eksen kırmızıyı GİZLEYEMEZ"
+
+
+@pytest.mark.parametrize(
+    ("backlog", "expected"),
+    [
+        (0, "green"),
+        (89, "green"),  # sınırın yarısının altı
+        (90, "amber"),  # yarısı — bakılmalı
+        (179, "amber"),
+        (180, "red"),  # pencerede erimez
+        (958, "red"),  # ölçüm anındaki gerçek değer
+    ],
+)
+def test_backlog_classification(backlog: int, expected: str) -> None:
+    from politikdesk.pipeline_health import _classify_backlog
+
+    assert _classify_backlog(backlog, 180) == expected
+
+
+def test_stages_without_a_limit_are_unaffected() -> None:
+    """Ölçüt yalnızca sınır TANIMLI aşamalara uygulanır.
+
+    Diğer aşamaların yaş ekseni sağlıklı çalışıyor; onlara sayı eşiği
+    dayatmak, modülün kendi kuralını ("yanlış alarm veren alarm
+    kapatılır") çiğnerdi.
+    """
+    from politikdesk.pipeline_health import _classify_backlog
+
+    assert _classify_backlog(10_000, None) == "green"
+    for stage in STAGES:
+        if stage.key != "claims":
+            assert stage.backlog_limit is None, (
+                f"{stage.key}: sayı eşiği ölçülmeden eklenmemeli"
+            )

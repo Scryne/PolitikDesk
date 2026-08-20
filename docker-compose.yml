@@ -170,9 +170,16 @@ services:
     # ölçümde 741 olay) yalnızca kota büyütülerek veya daha az çağrı
     # gerektiren bir çıkarım tasarımıyla erir; eşzamanlılıkla erimez.
     # Ölçmeden artırmayın.
+    #
+    # `-Q celery`: YALNIZCA LLM olmayan iş. LLM görevleri `llm` kuyruğuna
+    # yönlendirilir (`worker.py::task_routes`) ve ayrı bir worker onları
+    # alır. Gerekçe: 20 Ağu 2026'da "Tarihsel bağlam" 16,8 saatlik
+    # birikmeyle kırmızıya döndü; elle koşturulduğunda 35 olayı saniyeler
+    # içinde bitirdi. Kod arızası yoktu — iki slot da 6–100 saniyelik LLM
+    # çağrılarındaydı ve saniyelik DB görevleri sırada bekliyordu.
     command:
       ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
-       "--concurrency", "2"]
+       "--concurrency", "2", "-Q", "celery"]
     environment:
       <<: [*db-env, *redis-env, *release-env]
       PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
@@ -190,6 +197,41 @@ services:
     volumes:
       # Model (~2,2 GB) konteyner yeniden kurulunca tekrar inmesin.
       - hfcache:/opt/hf-cache
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["workers"]
+
+  # LLM işçisi: YALNIZCA `llm` kuyruğu (iddia çıkarımı, brifing).
+  #
+  # ⛔ Bu bir EŞZAMANLILIK ARTIRIMI DEĞİLDİR. Yukarıda ölçülüp yazıldığı
+  # gibi darboğaz worker değil ücretsiz katman kotasıdır; bu yüzden LLM
+  # tarafı yine `--concurrency 2` ile koşar. Değişen tek şey, o iki slotun
+  # artık LLM OLMAYAN işle paylaşılmaması.
+  #
+  # `PD_EXTRAS` YOK: embedding modeli (~2,2 GB) bu süreçte hiç
+  # yüklenmez — embed görevi `celery` kuyruğunda kalır. Ölçüldü:
+  # pd-worker 2,2 GiB, bu servis ~0,2 GiB.
+  worker-llm:
+    build:
+      context: .
+      args:
+        <<: *build-args
+    container_name: pd-worker-llm
+    restart: unless-stopped
+    command:
+      ["celery", "-A", "politikdesk.worker.app", "worker", "-l", "info",
+       "--concurrency", "2", "-Q", "llm"]
+    environment:
+      <<: [*db-env, *redis-env, *release-env]
+      PD_DATABASE_URL: postgresql://${PD_DB_USER:-politikdesk}:${PD_DB_PASS:-politikdesk}@db:5432/${PD_DB_NAME:-politikdesk}
+      PD_REDIS_URL: redis://:${PD_REDIS_PASSWORD:-politikdesk}@redis:6379/0
+      TZ: ${TZ:-Europe/Istanbul}
+    env_file:
+      - path: .env
+        required: false
     depends_on:
       db:
         condition: service_healthy
