@@ -181,6 +181,58 @@ def test_verification_scans_all_supporting_official_values() -> None:
     assert _verified_against_official(cur, 1, dict(TUIK_ISSIZLIK)) is True
 
 
+# ═══════════════════════════════════ seri belirsizliği: fail-closed
+#
+# Bir metrik birden çok resmî SERİYE karşılık gelebilir. EVDS'te
+# `exchange_rate` altında hem USD hem EUR serisi vardır ve ikisi de aynı
+# `unit` (TRY) ve `period` ile gelir; ayıran tek alan `series_code`'dur.
+# İddia şemasında böyle bir alan YOKTUR.
+
+
+def test_claim_is_verified_when_its_value_identifies_exactly_one_series() -> None:
+    """Değer tek seriyi belirliyorsa doğrulama SAĞLAMDIR.
+
+    USD 47,8293 ile EUR 55,366 farklı sayılardır; iddia 47,8293 diyorsa
+    USD serisini kastettiği değerin kendisinden bellidir.
+    """
+    evds_eur = {**EVDS_KUR, "value": 55.366, "series_code": "TP.DK.EUR.A.YTL"}
+    iddia_usd = {k: v for k, v in EVDS_KUR.items() if k != "series_code"}
+    cur = _TekSatirCursor(EVDS_KUR, evds_eur)
+    assert _verified_against_official(cur, 1, iddia_usd) is True
+
+
+def test_claim_is_not_verified_when_its_value_matches_two_different_series() -> None:
+    """**Belirsizlik doğrulama değildir.**
+
+    İki seri aynı `metric`+`unit`+`period` ile AYNI değeri taşıyorsa,
+    iddianın hangisini kastettiği bilinemez. Rastgele birini seçmek
+    yerine fail-closed davranılır.
+    """
+    usd = {**EVDS_KUR, "series_code": "TP.DK.USD.A.YTL"}
+    eur = {**EVDS_KUR, "series_code": "TP.DK.EUR.A.YTL"}  # aynı değer
+    iddia = {k: v for k, v in EVDS_KUR.items() if k != "series_code"}
+    cur = _TekSatirCursor(usd, eur)
+    assert _verified_against_official(cur, 1, iddia) is False
+
+
+def test_duplicate_records_without_series_code_still_verify() -> None:
+    """`series_code` taşımayan iki AYNI kayıt belirsizlik değildir.
+
+    TÜİK kayıtlarında `series_code` yoktur; aynı gözlemin iki kez kanıt
+    kümesine girmesi doğrulamayı düşürmemeli.
+    """
+    cur = _TekSatirCursor(dict(TUIK_ISSIZLIK), dict(TUIK_ISSIZLIK))
+    assert _verified_against_official(cur, 1, dict(TUIK_ISSIZLIK)) is True
+
+
+def test_ambiguity_check_does_not_weaken_other_constraints() -> None:
+    """Seri kısıtı diğer kısıtları GEVŞETMEZ."""
+    usd = {**EVDS_KUR, "series_code": "TP.DK.USD.A.YTL"}
+    iddia = {k: v for k, v in EVDS_KUR.items() if k != "series_code"}
+    assert _verified_against_official(_TekSatirCursor(usd), 1, {**iddia, "period": "2026-01-01"}) is False
+    assert _verified_against_official(_TekSatirCursor(usd), 1, {**iddia, "unit": "USD"}) is False
+
+
 def test_wrong_series_value_does_not_verify_when_unit_or_value_differs() -> None:
     """EUR ve USD serisi aynı `metric`+`unit`+`period` taşır (gerçek veri).
 

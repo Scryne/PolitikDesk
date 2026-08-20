@@ -90,16 +90,35 @@ def _verified_against_official(
     )
     unit = normalized_value.get("unit")
 
-    for row in cur.fetchall():
-        official = row["official_value"] or {}
-        if (
-            official.get("metric") == metric
-            and official.get("period") == period
-            and _same_number(official.get("value"), value)
-            and _units_compatible(official.get("unit"), unit)
-        ):
-            return True
-    return False
+    eslesenler = [
+        official
+        for row in cur.fetchall()
+        if (official := row["official_value"] or {})
+        and official.get("metric") == metric
+        and official.get("period") == period
+        and _same_number(official.get("value"), value)
+        and _units_compatible(official.get("unit"), unit)
+    ]
+    if not eslesenler:
+        return False
+
+    # Belirsizlik doğrulama DEĞİLDİR (20 Ağustos 2026 denetimi).
+    #
+    # Bir metrik birden çok resmî SERİYE karşılık gelebilir: EVDS'te
+    # `exchange_rate` altında hem `TP.DK.USD.A.YTL` hem `TP.DK.EUR.A.YTL`
+    # vardır ve ikisi de aynı `unit` (TRY) ve aynı `period` ile gelir.
+    # Ayıran tek alan `series_code`'dur ve iddia şemasında böyle bir alan
+    # YOKTUR (LLM'e ürettirmek yeni epistemik yetki olurdu — Spec §8.1).
+    #
+    # İddianın değeri TEK bir seriyle eşleşiyorsa, değerin kendisi seriyi
+    # belirler ve doğrulama sağlamdır. Ama İKİ farklı seriyle birden
+    # eşleşiyorsa hangisinin kastedildiği bilinemez; o zaman doğrulamak,
+    # rastgele birini seçmek demektir. Fail-closed davranır.
+    #
+    # Ölçüldü: bu kısıt bugün hiçbir doğrulamayı düşürmüyor (üretimde
+    # değeri birden çok seriyle eşleşen iddia yok).
+    kimlikler = {str(o.get("series_code") or "") for o in eslesenler}
+    return len(kimlikler) == 1
 
 
 # `TL` ve `TRY` aynı para birimidir: EVDS seri tanımı `TRY` yazar, Türkçe

@@ -92,7 +92,19 @@ kapsam büyüdükçe (yeni SDMX serileri, sayım metrikleri) an meselesiydi.
   `metric`+`period`+`value` ikilisini farklı birimle taşıyan kayıt yok.
 * Gerçekçi yolu var (§3) → kapatıldı.
 
-### 4.2 Seri belirsizliği — **DORMANT, KAPATILMADI (tasarım kararı gerekir)**
+### 4.2 Seri belirsizliği — **DORMANT → İKİNCİ TURDA KAPATILDI**
+
+> **20 Ağustos 2026, ikinci tur:** aşağıdaki analiz yapıldıktan sonra
+> seri belirsizliği ayrı bir denetimle ele alındı ve **minimal
+> fail-closed invariantla kapatıldı** (metrik taksonomisi
+> genişletilmeden). Ölçüm ve karar:
+> **`docs/ARASTIRMA-SERI-GRANULARITESI-2026-08-20.md`**
+>
+> Özet: iddianın değeri **tek** seriyle eşleşiyorsa değer seriyi belirler
+> ve doğrulama sağlamdır; **iki farklı** seriyle eşleşiyorsa hangisinin
+> kastedildiği bilinemez ve doğrulama reddedilir.
+
+Aşağıdaki ilk tur analizi kayıt için korunmuştur:
 
 Gerçek veride `exchange_rate` **iki farklı seriyi** (EUR, USD) aynı
 `metric` + `unit` + `period` altında taşıyor. Ayıran tek şey
