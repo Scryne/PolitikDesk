@@ -88,15 +88,67 @@ def _verified_against_official(
         """,
         (claim_id,),
     )
+    unit = normalized_value.get("unit")
+
     for row in cur.fetchall():
         official = row["official_value"] or {}
         if (
             official.get("metric") == metric
             and official.get("period") == period
             and _same_number(official.get("value"), value)
+            and _units_compatible(official.get("unit"), unit)
         ):
             return True
     return False
+
+
+# `TL` ve `TRY` aynı para birimidir: EVDS seri tanımı `TRY` yazar, Türkçe
+# haber metni `TL` der. Bunları ayrı saymak MEŞRU bir doğrulamayı
+# engellerdi. Liste bilerek kısadır — her yeni eşleme bir karardır.
+_UNIT_ALIASES: dict[str, str] = {"tl": "try"}
+
+
+def _normalize_unit(raw: Any) -> str | None:
+    """Birimi karşılaştırılabilir biçime indirir. Yok/boş ise `None`."""
+    if raw is None:
+        return None
+    text = str(raw).strip().casefold()
+    if not text:
+        return None
+    return _UNIT_ALIASES.get(text, text)
+
+
+def _units_compatible(official_unit: Any, claim_unit: Any) -> bool:
+    """R3 birim kısıtı — İKİ TARAFTA DA birim varsa eşleşmek ZORUNDA.
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** Karşılaştırma
+    `metric` + `period` + `value` üçlüsüne bakıyordu; `unit` hiç
+    okunmuyordu. Ölçüldü: `metric`, `period` ve `value` aynı iken
+    `unit` `%` ↔ `kisi` olduğunda fonksiyon **`True`** dönüyordu — yani
+    "yüzde 48,9" ile "48,9 kişi" aynı resmî değer sayılıyordu.
+
+    Bugün aktif bir arıza DEĞİLDİ (ölçüldü: üretimdeki iki R3 🟢'sinin
+    dört alanı da eşleşiyor ve aynı `metric`+`period`+`value` ikilisini
+    farklı birimle taşıyan resmî kayıt yok). Ama yol gerçekti:
+
+      * `other` bir yakalama-hepsi metriğidir ve **53 iddia** kullanıyor;
+        bu iddiaların birimleri `TL`, `%`, `USD` diye karışıktır.
+      * EVDS'in `other` ve `reserves` satırları birimi **BOŞ** bırakıyor.
+      * Kapsam büyüdükçe (yeni SDMX serileri, sayım metrikleri) aynı
+        `metric`+`period`+`value` üçlüsünün iki farklı birimle görünmesi
+        an meselesiydi.
+
+    **Eksik birim FAIL-OPEN bırakıldı ve bu bilinçlidir.** Gerçek veride
+    `reserves` ve `other` resmî kayıtlarının birimi boştur; eksik birimde
+    reddetmek, bugün doğru çalışan doğrulamaları sebepsiz kırardı.
+    Kısıt "birim yoksa kontrol edilemez" der — "birim yoksa yanlıştır"
+    demez. Aynı ayrım `_entity_check`'in `inconclusive` sonucunda da var.
+    """
+    left = _normalize_unit(official_unit)
+    right = _normalize_unit(claim_unit)
+    if left is None or right is None:
+        return True
+    return left == right
 
 
 def _same_number(left: Any, right: Any) -> bool:
