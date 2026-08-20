@@ -73,7 +73,38 @@ class TrackedIndicator:
     metric: str  # politikdesk/nlp/claims.py::VALID_METRICS
     unit: str
     dimensions: dict[str, str]
+    code: str
+    """Serinin KİMLİĞİ — `official_value.series_code` olarak yayımlanır.
+
+    **Neden gerekli (20 Ağustos 2026 denetimi).** ADR-013 belirsizlikte
+    fail-closed davranır: bir iddianın değeri birden çok resmî SERİYLE
+    eşleşiyorsa hangisinin kastedildiği bilinemez ve doğrulama düşer.
+    O invariant `series_code` üzerinden çalışır.
+
+    TÜİK kayıtları bu alanı taşımıyordu; hepsi `""` kimliğine çöküyordu.
+    Karşı-olgusal ölçüldü (`_verified_against_official` gerçek çağrı):
+    kimliksiz İKİ ayrı ölçüm aynı `metric`+`value`+`period`+`unit` ile
+    geldiğinde `{""}` tek elemanlı küme sanılıyor ve R3 **`True`**
+    dönüyordu — belirsizlik doğrulama sayılıyordu.
+
+    Bugün aktif arıza değildi (üç TÜİK göstergesinin metrikleri ayrı).
+    Ama TÜFE serileriyle TÜİK gösterge sayısı 3'ten 5'e çıkıyor ve
+    yüzey büyüyor; kimlik burada beyan edilerek ADR-013 invariantı
+    TÜİK tarafında da anlamlı hâle getirilir.
+    """
     qualifier: str = ""  # başlıkta görünen ayrım (ör. "mevsim etkisinden arındırılmış")
+    semantic: str = "measurement"
+    """Serinin epistemik türü: `measurement` mi, `expectation` mı?
+
+    ADR-014 ayrımı EVDS tarafında beyan ediliyordu; TÜİK kayıtları
+    beyansız geliyor ve `_is_measurement` onları **fail-open** ölçüm
+    sayıyordu. Bu varsayım bugün doğru, ama TÜİK kataloğunda beklenti
+    serileri de var (`DF_TUKETICI_EGILIM_SDMX` — tüketici eğilimi
+    anketi, 20 Ağustos 2026'da canlı katalogda ölçüldü). Böyle bir seri
+    ileride eklenirse sessizce "ölçüm" sayılırdı.
+
+    Beyan burada zorunlu kılınır; R3 yalnızca `measurement` kabul eder.
+    """
 
 
 # Yalnızca KESİN eşleşenler. Yeni gösterge eklerken kod listesi okunmadan
@@ -91,6 +122,7 @@ TRACKED: tuple[TrackedIndicator, ...] = (
             "SEX": "_T",
             "SEASONAL_ADJUST": "S",
         },
+        code="TUIK:DF_ISGUCU_AYLIK_TEMEL_ISGUCU_C:GOSTERGE_8",
         qualifier="mevsim etkisinden arındırılmış, 15+",
     ),
     TrackedIndicator(
@@ -105,6 +137,7 @@ TRACKED: tuple[TrackedIndicator, ...] = (
             "SEX": "_T",
             "SEASONAL_ADJUST": "S",
         },
+        code="TUIK:DF_ISGUCU_AYLIK_TEMEL_ISGUCU_C:GOSTERGE_7",
         qualifier="mevsim etkisinden arındırılmış, 15+",
     ),
     TrackedIndicator(
@@ -119,7 +152,64 @@ TRACKED: tuple[TrackedIndicator, ...] = (
             "SEX": "_T",
             "SEASONAL_ADJUST": "S",
         },
+        code="TUIK:DF_ISGUCU_AYLIK_TEMEL_ISGUCU_C:GOSTERGE_6",
         qualifier="mevsim etkisinden arındırılmış, 15+",
+    ),
+    # ------------------------------------------------------------------
+    # GERÇEKLEŞMİŞ TÜFE (ADR-015). ADR-014 "TÜİK SDMX'te TÜFE YOK" diye
+    # kayda geçmişti; 20 Ağustos 2026'da canlı katalog yeniden sayıldı ve
+    # bu YANLIŞ çıktı. Eski `probe_tuik.py` akışları `id`de "UFE" arıyordu
+    # — "DF_TUFE_..." bu filtreye UYAR — ama çıktıyı 12 satırda kesiyordu.
+    # Görüntü kısıtı belgeye "seri yok" diye geçmişti.
+    #
+    # DF_TUFE_SDMX_TT10 = "Tüketici fiyat endeksi ve değişim oranları".
+    # `all` sorgusu YALNIZCA 5 seri döndürür (DEGISIM 1..5); yani seri
+    # tek bir boyutla tekilleşir. Kod listesi CL_DEGISIM'den okundu:
+    #     1 = Endeks                    2 = Bir önceki aya göre (%)
+    #     3 = Önceki yıl Aralık'a göre  4 = Bir önceki yılın aynı ayına
+    #     5 = Oniki aylık ortalamalara göre (%)
+    #
+    # 4 ve 5 AYRI şeylerdir (2026-07'de 31,75'e karşı 31,90). Kastedilen
+    # "yıllık enflasyon" 4'tür; 5 İZLENMEZ, yani onunla doğrulama olmaz.
+    #
+    # BASE_PER ve YAYIM_DONEMI bilerek PİNLENMEZ: ikisi de defter tutma
+    # boyutudur (bugün 2025 / 2026_01) ve endeks yeniden baz alındığında
+    # değişir. Pinlenselerdi baz değişiminde seri sessizce kaybolurdu.
+    # Pinlenmedikleri için TÜİK iki bazı aynı anda yayımlarsa filtreye iki
+    # seri uyar ve adaptör fail-closed davranır — tahmin etmez.
+    TrackedIndicator(
+        dataflow="DF_TUFE_SDMX_TT10",
+        version="1.0",
+        label="Yıllık TÜFE",
+        metric="tufe_annual",
+        unit="%",
+        dimensions={
+            "REF_AREA": "TR",
+            "FREQ": "M",
+            "SINIFLAMA_DUZEYI": "TUFE",
+            "DEGISIM": "4",
+            "COICOP_2018": "0",
+            "INDICATOR": "F_TFE",
+        },
+        code="TUIK:DF_TUFE_SDMX_TT10:DEGISIM_4",
+        qualifier="bir önceki yılın aynı ayına göre değişim",
+    ),
+    TrackedIndicator(
+        dataflow="DF_TUFE_SDMX_TT10",
+        version="1.0",
+        label="Aylık TÜFE",
+        metric="tufe_monthly",
+        unit="%",
+        dimensions={
+            "REF_AREA": "TR",
+            "FREQ": "M",
+            "SINIFLAMA_DUZEYI": "TUFE",
+            "DEGISIM": "2",
+            "COICOP_2018": "0",
+            "INDICATOR": "F_TFE",
+        },
+        code="TUIK:DF_TUFE_SDMX_TT10:DEGISIM_2",
+        qualifier="bir önceki aya göre değişim",
     ),
 )
 
@@ -133,6 +223,30 @@ def tr_lower(text: str) -> str:
     `nlp/claims.py::fold_text` ile aynı deyim.
     """
     return text.replace("İ", "i").replace("I", "ı").lower()
+
+
+def format_value(value: float) -> str:
+    """Sayıyı BAŞLIK için yazar — `official_value`'daki basamağı KAYBETMEDEN.
+
+    **Neden `.1f` değil (20 Ağustos 2026 denetimi).** Başlık eskiden tek
+    ondalıkla yazılıyordu. İşgücü oranları için bu görünmezdi (7,6 · 48,9
+    zaten tek ondalık), ama TÜFE iki ondalıkla yayımlanır ve `.1f`
+    **sayıyı değiştiriyordu**: 31,75 → "31,8" · 1,78 → "1,8" · 0,99 → "1,0".
+
+    Bu sessiz bir R3 arızası olurdu. Zincir şöyle işler: adaptör başlığı
+    yazar → LLM başlıktan iddiayı çıkarır → R3 o iddiayı aynı makalenin
+    `official_value`'suyla karşılaştırır. Başlık "31,8" derken
+    `official_value` 31.75 taşısaydı, model 31,8 çıkarır ve `_same_number`
+    (tolerans 1e-6) **eşleşmezdi** — yani yeni TÜFE serisi hiçbir zaman
+    doğrulama üretemezdi. 208/210 🟢'leri tam bu zincirle oluşmuştu.
+
+    İki ondalığa kadar yazar, gereksiz sıfırı atar, ama en az bir ondalık
+    bırakır: mevcut başlıklar (7,6 · 48,9 · 8,0) BİREBİR korunur.
+    """
+    text = f"{value:.2f}".rstrip("0")
+    if text.endswith("."):
+        text += "0"
+    return text.replace(".", ",")
 
 
 def format_period(period: str) -> str:
@@ -279,7 +393,7 @@ class TuikSdmxAdapter(FailureRecorder):
         # girer ve iddia imzası `metric:value:period` olduğu için AYNI
         # yayımın iki farklı imzaya düşmesine yol açabilir.
         value = round(float(raw_value), 2)
-        pretty_value = f"{value:.1f}".replace(".", ",")
+        pretty_value = format_value(value)
         title = (
             f"{indicator.label} ({indicator.qualifier}), {format_period(period)}: %{pretty_value}"
             if indicator.unit == "%"
@@ -311,6 +425,15 @@ class TuikSdmxAdapter(FailureRecorder):
                     "value": value,
                     "unit": indicator.unit,
                     "period": period,
+                    # Köken: ADR-013'ün belirsizlik invariantı bu alanla
+                    # çalışır. Kimliksiz kayıtlar `""`e çöker ve iki ayrı
+                    # seri TEK seri sanılırdı (ölçüldü).
+                    "series_code": indicator.code,
+                    "series_label": indicator.label,
+                    # Epistemik tür: R3 yalnızca `measurement` kabul eder
+                    # (ADR-014). TÜİK tarafında artık fail-open değil,
+                    # açık beyan.
+                    "semantic": indicator.semantic,
                 },
                 "dataflow": indicator.dataflow,
                 "dimensions": indicator.dimensions,

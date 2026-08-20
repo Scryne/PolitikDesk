@@ -98,9 +98,13 @@ sources:
           grant_type=password & client_id=nsi-ws-consumer & api_key=<KEY>
       Protokol, uygulamanın JS paketine gömülü markdown belgeden çıkarıldı.
       Adaptör (adapters/tuik_sdmx.py) seçilmiş göstergelerin son gözlemini
-      yayın birimine çevirir; şu an işsizlik/istihdam/katılma oranları.
-      DİKKAT: TÜFE bu API'de YOK — 'TR' ajansı yalnızca ÜRETİCİ fiyat
-      endekslerini, işgücü ve GSYH serilerini yayımlıyor.
+      yayın birimine çevirir; şu an işsizlik/istihdam/katılma oranları ve
+      TÜFE (yıllık + aylık).
+      DÜZELTME (20 Ağu 2026, ADR-015): bu not eskiden "TÜFE bu API'de YOK"
+      diyordu ve YANLIŞTI. Canlı katalog yeniden sayıldı — 421 akıştan
+      11'i TÜFE'dir (DF_TUFE_SDMX_TT01..TT10). Yanlış kayıt, akışları
+      12 satırda kesen bir görüntü kısıtından doğmuştu.
+      Gerçekleşmiş yıllık TÜFE: DF_TUFE_SDMX_TT10, DEGISIM=4.
       Veri Yayımlama Takvimi F2-18'in girdisidir ve hâlâ açıktır.
 
   - slug: hazine

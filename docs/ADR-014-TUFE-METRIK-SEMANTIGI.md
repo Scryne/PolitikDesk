@@ -156,11 +156,26 @@ Kanıt motoru iki kez koşuldu; `claims_scored: 0` — **idempotent**.
 
 ## Kalan riskler
 
-1. **Gerçekleşmiş yıllık TÜFE resmî serisi yok.** `tufe_annual` artık
+1. ~~**Gerçekleşmiş yıllık TÜFE resmî serisi yok.**~~ `tufe_annual` artık
    hiçbir resmî kayıtla doğrulanamaz — çünkü tek kaydı beklentiydi ve
    artık reddediliyor. Bu **doğru** davranıştır (yanlış doğrulamadansa
    doğrulamamak), ama boşluk kayda geçti: TÜİK SDMX ucunda TÜFE **yok**
    (`config/sources.yml` notunda kayıtlı).
+
+   > ⚠ **DÜZELTİLDİ — ADR-015 (20 Ağustos 2026).** Bu maddenin dayandığı
+   > "TÜİK SDMX'te TÜFE yok" önermesi **YANLIŞTI**. Canlı katalog
+   > bağımsız olarak yeniden sayıldığında 421 akıştan 11'inin TÜFE
+   > olduğu görüldü (`DF_TUFE_SDMX_TT01..TT10`). Yanlış kayıt bir
+   > ölçüm hatasından doğmuştu: `scripts/probe_tuik.py` eşleşen akışları
+   > 12 satırda kesiyordu ve `DF_TUFE_SDMX_TT10` kesilen kısımda kalıyordu.
+   > Boşluk ADR-015 ile kapatıldı.
+   >
+   > Aynı turda bu ADR'deki bir ölçüm hatası daha düzeltildi: claim 8716
+   > `tufe_annual` değil **`ufe_annual`** metriği taşıyor (üretimde
+   > doğrulandı). Yani beklenti kaydıyla "yalnızca değerler farklı olduğu
+   > için" çarpışmıyor değildi — metrikleri de farklıydı. Bu, ADR-014'ün
+   > **kararını değiştirmez** (beklenti serisinin reddi bağımsız olarak
+   > doğrudur), yalnızca gerekçedeki bir ayrıntıyı düzeltir.
 2. **`ENGINE_VERSION` bilerek artırılmadı.** Ölçüldü: beklenti serisiyle
    doğrulanmış iddia **0**, dolayısıyla geriye dönük yeniden puanlama
    gereksiz. Artırmak 6.433 iddianın tamamını yeniden hesaplatırdı.

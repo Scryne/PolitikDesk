@@ -37,7 +37,15 @@ from politikdesk.ingestion.tuik_auth import TuikAuthError, TuikTokenProvider
 DATAFLOW_URL = "https://nsiws.tuik.gov.tr/rest/dataflow/TR/all/latest"
 
 # MVP konularına karşılık gelen akışlar (docs/mvp-konu-kapsami.md).
-INTERESTING = ("UFE", "ISGUCU", "GSYH")
+#
+# ⚠ Bu liste akış `id`sinde aranır ve TÜRKÇE ADLARDA ARANMAZ. Eskiden
+# eşleşenler 12 satırda kesiliyordu ve kesilen kısım "yok" sanıldı:
+# DF_TUFE_SDMX_TT10 ("Tüketici fiyat endeksi ve değişim oranları")
+# aslında "UFE" filtresine UYUYORDU ("T-UFE"), ama listenin sonunda
+# kaldığı için hiç görünmedi. Sonuç `sources.yml` notuna ve ADR-014'e
+# "TÜİK'te TÜFE YOK" diye geçti ve üç tur boyunca doğru kabul edildi.
+# Kesme kaldırıldı; sayım artık tam.
+INTERESTING = ("TUFE", "UFE", "ISGUCU", "GSYH")
 
 
 def probe() -> int:
@@ -75,6 +83,8 @@ def probe() -> int:
         )
         print()
         print("MVP konularina yakin akislar:")
+        # KESME YOK. Eksik sayim, olmayan bir seriyi "yok" diye kayda
+        # gecirmisti; tam liste kisa zaten (~30 satir).
         shown = 0
         for flow_id, inner in flows:
             if not any(k in flow_id.upper() for k in INTERESTING):
@@ -82,13 +92,13 @@ def probe() -> int:
             name = re.search(r'<common:Name xml:lang="tr">(.*?)</common:Name>', inner, re.DOTALL)
             print(f"  {flow_id:44} {(name.group(1).strip() if name else '')[:58]}")
             shown += 1
-            if shown >= 12:
-                break
 
         print()
-        print("NOT: TUFE (tuketici fiyat endeksi) bu listede YOKTUR — 'TR'")
-        print("ajansi yalnizca URETICI fiyat endekslerini (UFE) ve isgucu/GSYH")
-        print("serilerini yayimliyor. Enflasyonun TUFE ayagi bu API'den gelmez.")
+        print(f"[OK] {shown} akis eslesti (kesme yok).")
+        print()
+        print("TUFE (tuketici fiyat endeksi) BU API'DE VARDIR — DF_TUFE_SDMX_TT01..TT10.")
+        print("Gerceklesmis yillik TUFE: DF_TUFE_SDMX_TT10, DEGISIM=4")
+        print("('bir onceki yilin ayni ayina gore degisim orani (%)' — CL_DEGISIM).")
         return 0
 
 

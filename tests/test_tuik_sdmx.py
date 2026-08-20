@@ -75,6 +75,7 @@ UNEMPLOYMENT = TrackedIndicator(
     metric="unemployment_rate",
     unit="%",
     dimensions={"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"},
+    code="TUIK:DF_TEST:GOSTERGE_8",
     qualifier="mevsim etkisinden arındırılmış, 15+",
 )
 
@@ -109,6 +110,12 @@ def test_picks_the_series_that_matches_every_dimension() -> None:
         "value": 7.6,
         "unit": "%",
         "period": "2026-06",
+        # Köken ve epistemik tür kanıt motorunun sözleşmesidir:
+        # `series_code` ADR-013 belirsizlik invariantını, `semantic`
+        # ADR-014 ölçüm/beklenti ayrımını besler.
+        "series_code": "TUIK:DF_TEST:GOSTERGE_8",
+        "series_label": "İşsizlik oranı",
+        "semantic": "measurement",
     }
 
 
@@ -336,3 +343,95 @@ def test_token_expiry_triggers_invalidation_and_retry() -> None:
     items = adapter.fetch()
     assert len(items) == 1
     assert invalidated is True
+
+
+# ═══════════════════════════ gerçekleşmiş TÜFE serisi (ADR-015)
+
+
+def test_realized_cpi_series_are_tracked() -> None:
+    """TÜFE serileri izleniyor ve METRİKLERİ doğru.
+
+    ADR-014 "TÜİK SDMX'te TÜFE YOK" diye kayda geçmişti; 20 Ağustos 2026'da
+    canlı katalog yeniden sayıldığında DF_TUFE_SDMX_TT10 bulundu.
+    """
+    from politikdesk.ingestion.adapters.tuik_sdmx import TRACKED
+
+    tufe = {i.metric: i for i in TRACKED if i.dataflow == "DF_TUFE_SDMX_TT10"}
+    assert set(tufe) == {"tufe_annual", "tufe_monthly"}
+    # Yıllık = "bir önceki yılın aynı ayına göre" (CL_DEGISIM kodu 4).
+    assert tufe["tufe_annual"].dimensions["DEGISIM"] == "4"
+    # Aylık = "bir önceki aya göre" (kod 2).
+    assert tufe["tufe_monthly"].dimensions["DEGISIM"] == "2"
+    for indicator in tufe.values():
+        assert indicator.unit == "%"
+
+
+def test_every_tracked_series_declares_measurement_semantics() -> None:
+    """**Yeni seri yanlış semantikle eklenemez.**
+
+    TÜİK kataloğunda beklenti serileri de var (`DF_TUKETICI_EGILIM_SDMX`
+    — tüketici eğilimi anketi). Böyle bir seri beyansız eklenirse R3 onu
+    sessizce ÖLÇÜM sayardı (ADR-014'ün fail-open'ı). Beyan zorunludur.
+    """
+    from politikdesk.ingestion.adapters.tuik_sdmx import TRACKED
+
+    for indicator in TRACKED:
+        assert indicator.semantic == "measurement", (
+            f"{indicator.code}: ölçüm olmayan seri izleniyorsa "
+            "`semantic` açıkça beyan edilmeli"
+        )
+
+
+def test_tracked_series_codes_are_unique() -> None:
+    """Kimlikler ADR-013 belirsizlik invariantını besler; çakışamaz."""
+    from politikdesk.ingestion.adapters.tuik_sdmx import TRACKED
+
+    kodlar = [i.code for i in TRACKED]
+    assert len(set(kodlar)) == len(kodlar)
+    assert all(kodlar)
+
+
+def test_official_value_carries_series_identity_and_semantics() -> None:
+    """Kanıt motorunun okuduğu alanlar üretiliyor mu?"""
+    body = _document(
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-06", "7.6"),
+    )
+    nv = _adapter(body).fetch()[0].extra["normalized_value"]
+    assert nv["series_code"] == "TUIK:DF_TEST:GOSTERGE_8"
+    assert nv["semantic"] == "measurement"
+
+
+# ═══════════════════════════ başlık, resmî değeri KAYBETMEZ
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (7.6, "7,6"),  # mevcut başlıklar birebir korunur
+        (48.9, "48,9"),
+        (8.0, "8,0"),
+        (31.75, "31,75"),  # TÜFE iki ondalıkla yayımlanır
+        (1.78, "1,78"),
+        (0.99, "0,99"),  # `.1f` bunu "1,0" yapıyordu
+    ],
+)
+def test_title_value_keeps_the_published_precision(value: float, expected: str) -> None:
+    """`.1f` TÜFE'yi DEĞİŞTİRİYORDU: 31,75 -> "31,8".
+
+    Zincir: başlık -> LLM iddiayı çıkarır -> R3 aynı makalenin
+    `official_value`'suyla karşılaştırır. Başlık yuvarlarsa iddia
+    31,8 olur, `official_value` 31.75 kalır ve doğrulama HİÇ kurulamaz.
+    """
+    from politikdesk.ingestion.adapters.tuik_sdmx import format_value
+
+    assert format_value(value) == expected
+
+
+def test_title_and_official_value_agree_on_the_number() -> None:
+    """Başlıktaki sayı ile `official_value` AYNI sayı olmalı."""
+    body = _document(
+        _series({"ISGUCU_GOSTERGE": "8", "SEX": "_T", "SEASONAL_ADJUST": "S"}, "2026-07", "31.75"),
+    )
+    item = _adapter(body).fetch()[0]
+    assert "%31,75" in item.title
+    assert item.extra["normalized_value"]["value"] == 31.75

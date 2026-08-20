@@ -350,3 +350,105 @@ def test_wrong_series_value_does_not_verify_when_unit_or_value_differs() -> None
     evds_eur = {**EVDS_KUR, "value": 55.366, "series_code": "TP.DK.EUR.A.YTL"}
     iddia_usd_degeri = {k: v for k, v in EVDS_KUR.items() if k != "series_code"}
     assert _dogrula(evds_eur, iddia_usd_degeri) is False
+
+
+# ═════════════════════ gerçekleşmiş TÜFE: TÜİK SDMX resmî serisi (ADR-015)
+#
+# ADR-014 "gerçekleşmiş yıllık TÜFE resmî serisi YOK" diye kayda geçmişti
+# ve bunu TÜİK SDMX'te TÜFE bulunmamasına dayandırıyordu. 20 Ağustos 2026'da
+# canlı katalog yeniden sayıldı: DF_TUFE_SDMX_TT10 ("Tüketici fiyat endeksi
+# ve değişim oranları") VARDIR. Eski sayım, akış listesini 12 satırda kesen
+# bir görüntü kısıtı yüzünden seriyi görmemişti.
+#
+# Bu bölüm, o serinin R3'e bağlanmasının beklenti serisini yeniden
+# doğrulama yoluna sokmadığını kilitler.
+
+# TÜİK SDMX gerçek üretim kaydı biçimi (canlı uçtan ölçüldü, 2026-07).
+TUIK_TUFE_YILLIK = {
+    "metric": "tufe_annual",
+    "value": 31.75,
+    "unit": "%",
+    "period": "2026-07",
+    "series_code": "TUIK:DF_TUFE_SDMX_TT10:DEGISIM_4",
+    "semantic": "measurement",
+}
+
+
+def test_realized_cpi_from_tuik_verifies_a_matching_claim() -> None:
+    """Gerçekleşmiş TÜFE artık resmî kanıt üretebilir.
+
+    ADR-014 sonrası `tufe_annual` hiçbir resmî kayıtla doğrulanamıyordu:
+    tek kaydı beklentiydi ve reddediliyordu. Bu, doğru ama eksik bir
+    durumdu — gerçek bir boşluktu ve bu test kapandığını kilitler.
+    """
+    iddia = {"metric": "tufe_annual", "value": 31.75, "unit": "%", "period": "2026-07"}
+    assert _dogrula(TUIK_TUFE_YILLIK, iddia) is True
+
+
+def test_expectation_and_realized_cpi_collide_but_only_measurement_verifies() -> None:
+    """**Turun en önemli güvenlik testi.**
+
+    Beklenti serisi aylık yayımlanır (`2026-07`) ve gerçekleşmiş yıllık
+    TÜFE de aynı ay damgasını taşır; dönem hizası TESADÜF DEĞİL yapısaldır
+    (ADR-014). Değerler yakınsadığı gün ikisi aynı iddia için birlikte
+    kanıt kümesine girer.
+
+    Beklenti ELENMELİ, ölçüm KALMALI — ve elenen kayıt belirsizlik
+    sayılıp doğrulamayı DÜŞÜRMEMELİ.
+    """
+    beklenti = {**EVDS_BEKLENTI, "value": 31.75}  # ölçümle AYNI değer
+    iddia = {"metric": "tufe_annual", "value": 31.75, "unit": "%", "period": "2026-07"}
+
+    cur = _TekSatirCursor(beklenti, TUIK_TUFE_YILLIK)
+    assert _verified_against_official(cur, 1, iddia) is True
+
+    # Sıra önemsizdir.
+    cur = _TekSatirCursor(TUIK_TUFE_YILLIK, beklenti)
+    assert _verified_against_official(cur, 1, iddia) is True
+
+    # Ölçüm ÇEKİLİRSE geriye yalnızca beklenti kalır ve doğrulama düşer.
+    assert _dogrula(beklenti, iddia) is False
+
+
+def test_two_different_tuik_measurement_series_are_ambiguous() -> None:
+    """İki AYRI TÜİK ölçüm serisi aynı değeri taşırsa fail-closed.
+
+    Denetimde ölçülen fail-open buydu: TÜİK kayıtları `series_code`
+    taşımıyordu, hepsi `""` kimliğine çöküyordu ve iki AYRI seri TEK seri
+    sanılıyordu (`len({""}) == 1`). Adaptör artık kimlik yayımlıyor.
+    """
+    aylik = {
+        **TUIK_TUFE_YILLIK,
+        "metric": "tufe_monthly",
+        "series_code": "TUIK:DF_TUFE_SDMX_TT10:DEGISIM_2",
+    }
+    # Aynı metriğe düşen iki ayrı seri, aynı değerle:
+    baska_seri = {**TUIK_TUFE_YILLIK, "series_code": "TUIK:DF_TUFE_SDMX_TT03:DEGISIM_4"}
+    iddia = {"metric": "tufe_annual", "value": 31.75, "unit": "%", "period": "2026-07"}
+
+    cur = _TekSatirCursor(TUIK_TUFE_YILLIK, baska_seri)
+    assert _verified_against_official(cur, 1, iddia) is False
+
+    # Farklı METRİKteki seri zaten kanıt kümesine giremez; doğrulamayı
+    # düşürmemeli.
+    cur = _TekSatirCursor(TUIK_TUFE_YILLIK, aylik)
+    assert _verified_against_official(cur, 1, iddia) is True
+
+
+def test_realized_cpi_still_obeys_period_and_unit_constraints() -> None:
+    """Yeni seri mevcut kısıtları GEVŞETMEZ."""
+    iddia = {"metric": "tufe_annual", "value": 31.75, "unit": "%", "period": "2026-07"}
+    assert _dogrula({**TUIK_TUFE_YILLIK, "period": "2026-06"}, iddia) is False
+    assert _dogrula({**TUIK_TUFE_YILLIK, "unit": "kisi"}, iddia) is False
+    assert _dogrula({**TUIK_TUFE_YILLIK, "value": 31.8}, iddia) is False
+
+
+def test_annual_and_twelve_month_average_cpi_are_not_interchangeable() -> None:
+    """`DEGISIM=4` ile `DEGISIM=5` AYNI ŞEY DEĞİLDİR.
+
+    Canlı uçta 2026-07 için 4 → 31,75 ve 5 → 31,90 ölçüldü. "Oniki aylık
+    ortalamalara göre değişim" izlenmez; 31,90 diyen bir iddia
+    doğrulanmamalıdır.
+    """
+    iddia = {"metric": "tufe_annual", "value": 31.90, "unit": "%", "period": "2026-07"}
+    assert _dogrula(TUIK_TUFE_YILLIK, iddia) is False
