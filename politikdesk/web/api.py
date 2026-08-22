@@ -693,3 +693,95 @@ def export_event_dossier(
     return PlainTextResponse("\n".join(md_lines), media_type="text/markdown; charset=utf-8")
 
 
+# ------------------------------------------------------------------- söylem ve karar karşılaştırması (Stance Diff)
+@router.get("/stance/diff")
+def get_stance_diff(
+    actor_name: str | None = None,
+    shift_type: str | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Siyasi beyanlar ile TBMM tutanakları ve Resmî Gazete kararları arasındaki söylem değişimini döner."""
+    from politikdesk.political_memory.shift_store import for_actor, list_all
+
+    if actor_name:
+        shifts = for_actor(actor_name, limit=limit)
+    else:
+        shifts = list_all(limit=limit, shift_type=shift_type)
+
+    return {"count": len(shifts), "shifts": shifts}
+
+
+# ------------------------------------------------------------------- makro anomali uyarıları
+@router.get("/anomalies/alerts")
+def get_anomaly_alerts() -> dict[str, Any]:
+    """Aktif makro ekonomik anomali uyarılarını listeler."""
+    from politikdesk.config import get_settings
+
+    if not get_settings().enable_anomaly_alerts:
+        raise HTTPException(
+            status_code=403,
+            detail="Makro anomali bildirim özelliği devre dışı (PD_ENABLE_ANOMALY_ALERTS=false).",
+        )
+
+    from politikdesk.analysis.anomaly_alerts import collect_recent_anomalies
+
+    alerts = collect_recent_anomalies()
+    return {
+        "count": len(alerts),
+        "alerts": [a.as_dict() for a in alerts],
+    }
+
+
+class AnomalyDispatchTestRequest(BaseModel):
+    webhook_url: str
+    format_type: Literal["generic", "discord", "slack"] = "generic"
+    series_key: str | None = None
+
+
+@router.post("/anomalies/dispatch-test")
+def test_dispatch_anomaly(payload: AnomalyDispatchTestRequest) -> dict[str, Any]:
+    """Test veya canlı anomali uyarısını webhook ucuna iletir."""
+    from datetime import UTC, datetime
+
+    from politikdesk.config import get_settings
+
+    if not get_settings().enable_anomaly_alerts:
+        raise HTTPException(
+            status_code=403,
+            detail="Makro anomali bildirim özelliği devre dışı (PD_ENABLE_ANOMALY_ALERTS=false).",
+        )
+
+    from politikdesk.analysis.anomaly_alerts import (
+        MacroAnomalyAlert,
+        collect_recent_anomalies,
+        dispatch_anomaly_alert,
+    )
+
+    alerts = collect_recent_anomalies()
+    target_alert = (
+        next((a for a in alerts if a.series_key == payload.series_key), None)
+        if payload.series_key
+        else None
+    )
+    if not target_alert:
+        target_alert = (
+            alerts[0]
+            if alerts
+            else MacroAnomalyAlert(
+                alert_id="test-demo",
+                series_key="demo_series",
+                series_label="Demo Test Göstergesi",
+                current_value=45.2,
+                previous_value=40.0,
+                change_pct=13.0,
+                severity="high",
+                score=3.2,
+                detected_at=datetime.now(UTC).isoformat(),
+                summary="PolitikDesk test anomali bildirimi.",
+            )
+        )
+
+    ok = dispatch_anomaly_alert(
+        target_alert, payload.webhook_url, format_type=payload.format_type
+    )
+    return {"success": ok, "alert": target_alert.as_dict()}

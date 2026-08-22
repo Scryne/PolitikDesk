@@ -256,6 +256,10 @@ class Settings(BaseSettings):
     cluster_t_high: float = Field(default=0.92, ge=0, le=1)
     cluster_t_low: float = Field(default=0.88, ge=0, le=1)
 
+    # --- Makro Anomali Uyarıları & Webhook (Faz 3 / Roadmap §7 kısıtı) ---
+    # Varsayılan olarak kapalıdır; doğrulanmamış dış bildirim yollarını kilitler.
+    enable_anomaly_alerts: bool = Field(default=False)
+
     @model_validator(mode="before")
     @classmethod
     def _ignore_empty_string_env_values(cls, data: Any) -> Any:

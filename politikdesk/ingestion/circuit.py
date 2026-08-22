@@ -51,6 +51,7 @@ class CircuitBreaker:
     failure_threshold: int = 3
     recovery_timeout: float = 60.0
     half_open_max_probes: int = 1
+    half_open_probe_timeout: float = 30.0
 
     _state: CircuitState = CircuitState.CLOSED
     _failure_count: int = 0
@@ -76,6 +77,12 @@ class CircuitBreaker:
             self._active_probes = 0
             self._last_state_change = now
             log.info("circuit_half_open_probe_allowed", host=self.host)
+        elif self._state == CircuitState.HALF_OPEN and (
+            now - self._last_state_change >= self.half_open_probe_timeout
+        ):
+            self._active_probes = 0
+            self._last_state_change = now
+            log.info("circuit_half_open_probe_timed_out_reset", host=self.host)
 
     def can_execute(self) -> bool:
         """İsteğin yürütülüp yürütülemeyeceğini döner."""

@@ -199,9 +199,15 @@ _RELATIONS = """
 _ACTOR_KIND: Final[dict[str, str]] = {"institution": "Kurum", "person": "Siyasi aktör"}
 
 
+def _escape_like(text: str) -> str:
+    """Postgres LIKE / ILIKE kalıplarındaki özel karakterleri kaçırır."""
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def _db_hits(q: str) -> list[SearchHit]:
     """Altı türün tamamı — tek bağlantı, tür başına tek sorgu."""
-    like = f"%{q}%"
+    escaped = _escape_like(q)
+    like = f"%{escaped}%"
     hits: list[SearchHit] = []
 
     with connection() as conn, conn.cursor() as cur:

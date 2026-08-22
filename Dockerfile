@@ -18,6 +18,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
+# Güvenlik sertleştirmesi: non-root appuser oluştur (UID 1000)
+RUN useradd -u 1000 -m -d /home/appuser -s /bin/bash appuser \
+ && mkdir -p /opt/hf-cache /home/appuser/.cache \
+ && chown -R appuser:appuser /opt/hf-cache /home/appuser
+
 # Bağımlılık katmanı önce — kod değişince yeniden kurulmasın
 COPY pyproject.toml README.md ./
 COPY politikdesk/__init__.py ./politikdesk/__init__.py
@@ -42,6 +47,10 @@ COPY config ./config
 # panosunda amber, 24 saatte 1 kalem. Denetleyicisi
 # `scripts/check_deployment.py` (varlik denetimi).
 COPY certs ./certs
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

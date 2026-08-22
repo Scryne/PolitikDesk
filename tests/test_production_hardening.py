@@ -461,7 +461,7 @@ def test_copyright_excerpt_limit_enforced() -> None:
 # 9. SSRF Koruması & IPv4-Mapped IPv6 / Loopback / Metadata Engeli
 # =============================================================================
 def test_ssrf_ipv4_mapped_ipv6_and_metadata_prevention() -> None:
-    # 1. IPv4-mapped IPv6 loopback ve private IP'ler engellenmeli
+    # 1. IPv4-mapped IPv6 loopback, private ve CGNAT IP'ler engellenmeli
     with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
         validate_url("http://[::ffff:127.0.0.1]/status", resolve_dns=False)
 
@@ -471,7 +471,33 @@ def test_ssrf_ipv4_mapped_ipv6_and_metadata_prevention() -> None:
     with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
         validate_url("http://[::ffff:10.0.0.1]/internal", resolve_dns=False)
 
-    # 2. Standart localhost, trailing dot ve private IP'ler
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://[::ffff:100.64.0.1]/internal", resolve_dns=False)
+
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://[::ffff:100.127.255.254]/internal", resolve_dns=False)
+
+    # 2. RFC 6598 CGNAT (100.64.0.0/10) aralığı engellenmeli
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://100.64.0.1:8080/metrics", resolve_dns=False)
+
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://100.100.100.100/admin", resolve_dns=False)
+
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://100.127.255.254/api", resolve_dns=False)
+
+    # 3. IPv6 ULA, link-local ve loopback
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://[fc00::1]/admin", resolve_dns=False)
+
+    with pytest.raises(UnsafeUrlError, match="Özel/ayrılmış IP"):
+        validate_url("http://[fe80::1]/admin", resolve_dns=False)
+
+    with pytest.raises(UnsafeUrlError):
+        validate_url("http://[::1]/admin", resolve_dns=False)
+
+    # 4. Standart localhost, trailing dot ve private IP'ler
     with pytest.raises(UnsafeUrlError):
         validate_url("http://localhost:8000/api", resolve_dns=False)
 
@@ -481,13 +507,14 @@ def test_ssrf_ipv4_mapped_ipv6_and_metadata_prevention() -> None:
     with pytest.raises(UnsafeUrlError):
         validate_url("http://127.0.0.1:3000/admin", resolve_dns=False)
 
-    # 3. Ondalık (decimal) IP biçimleri (2130706433 = 127.0.0.1)
+    # 5. Ondalık (decimal) IP biçimleri (2130706433 = 127.0.0.1)
     with pytest.raises(UnsafeUrlError):
         validate_url("http://2130706433/internal", resolve_dns=False)
 
-    # 4. Geçerli genel internet URL'si kabul edilmeli
-    valid = validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False)
-    assert valid == "https://evds2.tcmb.gov.tr/service"
+    # 6. Geçerli genel internet URL'leri ve public IP'ler kabul edilmeli
+    assert validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False) == "https://evds2.tcmb.gov.tr/service"
+    assert validate_url("https://8.8.8.8/dns-query", resolve_dns=False) == "https://8.8.8.8/dns-query"
+    assert validate_url("https://1.1.1.1/dns-query", resolve_dns=False) == "https://1.1.1.1/dns-query"
 
 
 # =============================================================================

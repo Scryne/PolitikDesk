@@ -219,6 +219,29 @@ def _validate_value(value: dict[str, Any]) -> list[str]:
     return problems
 
 
+_CLAIM_VERB_NORM: dict[str, str] = {
+    "edildi": "et",
+    "edilmistir": "et",
+    "edildigini": "et",
+    "etti": "et",
+    "etmistir": "et",
+    "ettigini": "et",
+    "onaylandi": "onayla",
+    "onaylanmistir": "onayla",
+    "onaylandigini": "onayla",
+    "aciklandi": "acikla",
+    "aciklanmistir": "acikla",
+    "aciklandigini": "acikla",
+    "duyuruldu": "duyur",
+    "duyurulmustur": "duyur",
+    "duyuruldugunu": "duyur",
+    "bildirildi": "bildir",
+    "bildirilmistir": "bildir",
+    "kararlastirildi": "kararlastir",
+    "kararlastirilmistir": "kararlastir",
+}
+
+
 # ------------------------------------------------------- tekilleştirme
 def claim_signature(claim: ExtractedClaim) -> str:
     """F2-09: aynı iddianın iki kez kaydedilmesini engelleyen imza.
@@ -237,8 +260,19 @@ def claim_signature(claim: ExtractedClaim) -> str:
         v = claim.normalized_value
         return f"num:{v.get('metric')}:{v.get('value')}:{v.get('period')}"
 
-    tokens = sorted(set(re.findall(r"\w+", fold_text(claim.claim_text))))
-    return f"{claim.claim_type}:{' '.join(tokens)}"
+    raw_tokens = re.findall(r"\w+", fold_text(claim.claim_text))
+    tokens = []
+    for t in raw_tokens:
+        t_clean = (
+            t.replace("ı", "i")
+            .replace("ğ", "g")
+            .replace("ü", "u")
+            .replace("ş", "s")
+            .replace("ö", "o")
+            .replace("ç", "c")
+        )
+        tokens.append(_CLAIM_VERB_NORM.get(t_clean, t))
+    return f"{claim.claim_type}:{' '.join(sorted(set(tokens)))}"
 
 
 def dedupe_claims(claims: list[ExtractedClaim]) -> list[ExtractedClaim]:

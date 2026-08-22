@@ -76,7 +76,7 @@ ALLOWED_CERTAINTY: Final[frozenset[str]] = frozenset(CERTAINTY.values())
 # Resmî istatistik kaynakları — R3'ün "kurumun kendi yayını" istisnası
 # (`evidence/rules.py::OFFICIAL_STATISTICAL_SOURCES` ile aynı küme).
 OFFICIAL_SLUGS: Final[frozenset[str]] = frozenset(
-    {"tuik", "tcmb", "tcmb-evds", "hazine", "resmi-gazete", "resmigazete"}
+    {"tuik", "tcmb", "tcmb-evds", "hazine", "sbb", "resmi-gazete", "resmigazete"}
 )
 
 

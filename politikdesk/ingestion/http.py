@@ -93,19 +93,71 @@ class UnsafeUrlError(ValueError):
     """URL güvenli değil (iç ağ, desteklenmeyen şema, çözülemeyen host, geçersiz format)."""
 
 
+_CGNAT_NETWORK = ipaddress.ip_network("100.64.0.0/10")
+
+
 def _is_private(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
-    if (
-        ip.is_private
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        return _is_private(ip.ipv4_mapped)
+    return (
+        not ip.is_global
+        or ip.is_private
         or ip.is_loopback
         or ip.is_link_local
         or ip.is_reserved
         or ip.is_multicast
         or ip.is_unspecified
-    ):
-        return True
-    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
-        return _is_private(ip.ipv4_mapped)
-    return False
+        or (isinstance(ip, ipaddress.IPv4Address) and ip in _CGNAT_NETWORK)
+    )
+
+
+def _parse_ip(host: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    """Metin halindeki IP adresini (ondalık, onaltılık, sekizlik ve standart biçimler) çözümler."""
+    # 1. Standart IPv4 / IPv6
+    try:
+        return ipaddress.ip_address(host)
+    except ValueError:
+        pass
+
+    # 2. Tek tamsayı IP (ör. 2130706433, 0x7f000001, 017700000001)
+    try:
+        if host.startswith(("0x", "0X")):
+            val = int(host, 16)
+            if 0 <= val <= 0xFFFFFFFF:
+                return ipaddress.IPv4Address(val)
+        elif host.startswith("0") and len(host) > 1 and host.isdigit():
+            val = int(host, 8)
+            if 0 <= val <= 0xFFFFFFFF:
+                return ipaddress.IPv4Address(val)
+        elif host.isdigit():
+            val = int(host, 10)
+            if 0 <= val <= 0xFFFFFFFF:
+                return ipaddress.IPv4Address(val)
+    except (ValueError, OverflowError):
+        pass
+
+    # 3. Dotted parçalı IP (ör. 0177.0.0.1, 0x7f.0.0.1)
+    parts = host.split(".")
+    if len(parts) == 4:
+        try:
+            octets = []
+            for p in parts:
+                if p.startswith(("0x", "0X")):
+                    val = int(p, 16)
+                elif p.startswith("0") and len(p) > 1 and p.isdigit():
+                    val = int(p, 8)
+                elif p.isdigit():
+                    val = int(p, 10)
+                else:
+                    return None
+                if not (0 <= val <= 255):
+                    return None
+                octets.append(val)
+            return ipaddress.IPv4Address(bytes(octets))
+        except (ValueError, OverflowError):
+            pass
+
+    return None
 
 
 def validate_url(url: str, *, resolve_dns: bool = True) -> str:
@@ -131,17 +183,8 @@ def validate_url(url: str, *, resolve_dns: bool = True) -> str:
     ):
         raise UnsafeUrlError(f"Yerel/özel adrese erişilemez: {host}")
 
-    # Doğrudan IP verilmişse (IPv4, IPv6 veya ondalık integer IP)
-    ip: ipaddress.IPv4Address | ipaddress.IPv6Address | None = None
-    try:
-        ip = (
-            ipaddress.IPv4Address(int(host))
-            if host.isdigit()
-            else ipaddress.ip_address(host)
-        )
-    except ValueError:
-        ip = None
-
+    # Doğrudan IP verilmişse (IPv4, IPv6, ondalık/hex/octal integer veya karma IP)
+    ip = _parse_ip(host)
     if ip is not None and _is_private(ip):
         raise UnsafeUrlError(f"Özel/ayrılmış IP adresine erişilemez: {host}")
 
@@ -269,6 +312,7 @@ else
     if oldest and #oldest >= 2 then
         oldest_ts = tonumber(oldest[2])
     end
+    redis.call('EXPIRE', key, ttl)
     local wait_time = math.max(0.01, window - (now - oldest_ts) + 0.01)
     return {0, wait_time}
 end
@@ -515,11 +559,12 @@ class HttpClient:
         url: str,
         *,
         data: dict[str, str] | None = None,
+        json: Any | None = None,
         headers: dict[str, str] | None = None,
         source_slug: str = "",
         follow_redirects: bool | None = None,
     ) -> httpx.Response:
-        """Kibarca POST — kimlik doğrulama uçları için (F5-02).
+        """Kibarca POST — kimlik doğrulama uçları ve API webhook'ları için.
 
         `robots.txt` DENETLENMEZ ve bu bilinçlidir: robots bir tarama
         (crawl) sözleşmesidir, kimliğimizle çağırdığımız bir API ucunu
@@ -529,6 +574,7 @@ class HttpClient:
             "POST",
             url,
             data=data,
+            json=json,
             headers=headers,
             source_slug=source_slug,
             follow_redirects=follow_redirects,
@@ -540,6 +586,7 @@ class HttpClient:
         url: str,
         *,
         data: dict[str, str] | None = None,
+        json: Any | None = None,
         headers: dict[str, str] | None = None,
         source_slug: str = "",
         follow_redirects: bool | None = None,
@@ -561,6 +608,8 @@ class HttpClient:
             self._limiter.acquire(host)
             try:
                 req_kwargs: dict[str, Any] = {"data": data, "headers": headers}
+                if json is not None:
+                    req_kwargs["json"] = json
                 if follow_redirects is not None:
                     req_kwargs["follow_redirects"] = follow_redirects
                 response = self._perform(method, url, **req_kwargs)

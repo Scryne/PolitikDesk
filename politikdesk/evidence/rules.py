@@ -50,7 +50,9 @@ ClaimType = Literal["fact", "number", "attribution", "prediction", "promise"]
 Stance = Literal["supports", "contradicts", "partial"]
 
 # Spec §9.2 — R3'ün "kurumun kendi yayını" istisnası bu kaynaklarla sınırlı.
-OFFICIAL_STATISTICAL_SOURCES = frozenset({"tuik", "tcmb", "hazine", "resmi-gazete", "resmigazete"})
+OFFICIAL_STATISTICAL_SOURCES = frozenset(
+    {"tuik", "tcmb", "tcmb-evds", "hazine", "sbb", "resmi-gazete", "resmigazete"}
+)
 
 # R8: Beyan ve tutanak birincil kayıt kaynakları (Spec v3.4 §8.3 / B-92)
 OFFICIAL_RECORD_SOURCES = frozenset(
@@ -298,6 +300,8 @@ def _apply_r7_ceiling(result: StatusResult, supporting: list[EvidenceArticle]) -
     Sayı kaç olursa olsun 🟢/🟡 olamaz: sosyal medyada bir iddianın çok
     kez tekrarlanması onu doğrulamaz.
     """
+    if result.status == "contradicted":
+        return result
     if not supporting or any(a.tier <= 3 for a in supporting):
         return result
     if _STATUS_RANK[result.status] <= _STATUS_RANK["single_source"]:

@@ -41,22 +41,40 @@ load_env_file()
 
 
 def _get_test_dsn() -> str | None:
-    """Test veritabanı DSN'ini belirler ve güvenlik kontrollerini uygular."""
+    """Test veritabanı DSN'ini belirler ve katı fail-closed güvenlik kontrollerini uygular.
+
+    Invariant: TEST DATABASE != PRODUCTION DATABASE (Spec §11.1).
+    Testler hiçbir koşulda üretim veya canlı veritabanına bağlanamaz.
+    """
+    env = (os.environ.get("PD_ENV") or "").lower().strip()
+    if env in {"production", "prod", "prd", "live"}:
+        pytest.fail(
+            f"KRİTİK GÜVENLİK İHLALİ: PD_ENV='{env}' iken test paketi çalıştırılamaz! "
+            "Üretim ortamı test izolasyonu kuralı ihlal edildi (Fail-Closed)."
+        )
+
     test_dsn = os.environ.get("PD_TEST_DATABASE_URL")
     prod_dsn = os.environ.get("PD_DATABASE_URL")
+    forbidden_keywords = ("prod", "production", "live", "primary")
 
     # 1. PD_TEST_DATABASE_URL varsa öncelikli olarak kullanılır
     if test_dsn:
+        lower_test = test_dsn.lower()
+        if any(k in lower_test for k in forbidden_keywords):
+            pytest.fail(
+                "KRİTİK GÜVENLİK İHLALİ: PD_TEST_DATABASE_URL bir üretim/canlı veritabanına işaret ediyor! "
+                "Testlerin çalışması derhal durduruldu."
+            )
         # Uygulama kodlarının (politikdesk.db) da test veritabanına bağlanması için ortam değişkeni güncellenir
         os.environ["PD_DATABASE_URL"] = test_dsn
         return test_dsn
 
-    # 2. Sadece PD_DATABASE_URL varsa güvenlik kontrolleri
+    # 2. PD_TEST_DATABASE_URL yoksa ve PD_DATABASE_URL mevcutsa
     if prod_dsn:
         lower_dsn = prod_dsn.lower()
-        if "prod" in lower_dsn or "production" in lower_dsn:
+        if any(k in lower_dsn for k in forbidden_keywords):
             pytest.fail(
-                "GÜVENLİK İHLALİ: Test suite üretim veritabanına (production DSN) bağlanmaya çalıştı! "
+                "KRİTİK GÜVENLİK İHLALİ: Test suite üretim/canlı veritabanına (production DSN) bağlanmaya çalıştı! "
                 "Testlerin çalışması durduruldu."
             )
         return prod_dsn

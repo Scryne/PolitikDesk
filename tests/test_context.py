@@ -202,12 +202,16 @@ def test_scheduled_event_matches_the_event_at_that_time(db_conn, fixtures) -> No
         cur.execute("SELECT first_reported_at FROM events WHERE id = %s", (newer,))
         expected_at = cur.fetchone()["first_reported_at"]
         # Olayın kaynak koşulunu sağlaması için bir makale gerekir.
+        # Dinamik URL/hash: testler ardışık veya farklı sırayla koştuğunda tekillik çakışmasını önler.
+        now = fixtures.get("now") or datetime.now(UTC)
+        dyn_url = f"https://pytest.test/ctx/{newer}_{int(now.timestamp())}"
+        dyn_hash = f"h-ctx-{newer}_{int(now.timestamp())}"
         cur.execute(
             """
             INSERT INTO articles (source_id, canonical_url, title, content_hash, event_id)
-            VALUES (%s, 'https://pytest.test/ctx/1', 'pytest makale', 'h-ctx-1', %s)
+            VALUES (%s, %s, 'pytest makale', %s, %s)
             """,
-            (fixtures["source_id"], newer),
+            (fixtures["source_id"], dyn_url, dyn_hash, newer),
         )
     db_conn.commit()
 
