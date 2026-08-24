@@ -26,3 +26,4 @@
 1. **21 Ağustos 2026 Gözlem Boşluğu:** 21 Ağustos 2026 tarihinde planlanan günlük snapshot işletimsel olarak kaydedilmemiştir. Ölçüm bütünlüğü ilkesi (Spec §11) gereğince geriye dönük tahminî/sentetik veri üretilmemiş, gün açıkça *Eksik Gözlem* olarak işaretlenmiştir.
 2. **Protokol Süresi:** 7 günlük kesintisiz akış ve gözlem penceresi (G4′-1), bu veri kaybı nedeniyle eksik gün telafi edilecek şekilde 1 gün uzatılmalıdır (Hedef kapanış: 23 Ağustos 2026).
 | Gün 7 | 2026-08-23 07:31 UTC | `933365232a86` | 83/90 aktif | 🟡 7 kaynakta hata | %18.45 (15137/82047) | 10142 art / 2771 evt | 16/22 | `0022_scheduled_events_fk_cascade` | Unclustered: 0, Pending Drafts: 2 |
+| Gün 9 | 2026-08-24 15:33 UTC | `678e06b94505` | 94/101 aktif | 🟡 7 kaynakta hata | %17.63 (15284/86680) | 11541 art / 3247 evt | 18/24 | `0022_scheduled_events_fk_cascade` | Unclustered: 231, Pending Drafts: 2 |
