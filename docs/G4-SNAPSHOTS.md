@@ -28,3 +28,4 @@
 | Gün 7 | 2026-08-23 07:31 UTC | `933365232a86` | 83/90 aktif | 🟡 7 kaynakta hata | %18.45 (15137/82047) | 10142 art / 2771 evt | 16/22 | `0022_scheduled_events_fk_cascade` | Unclustered: 0, Pending Drafts: 2 |
 | Gün 9 | 2026-08-24 15:33 UTC | `678e06b94505` | 94/101 aktif | 🟡 7 kaynakta hata | %17.63 (15284/86680) | 11541 art / 3247 evt | 18/24 | `0022_scheduled_events_fk_cascade` | Unclustered: 231, Pending Drafts: 2 |
 | Gün 10 | 2026-08-25 16:30 UTC | `8dd21ec200d2` | 94/101 aktif | 🟡 7 kaynakta hata | %17.17 (15330/89301) | 12371 art / 3497 evt | 19/25 | `0023_data_lifecycle_and_gundem_v2` | Unclustered: 285, Pending Drafts: 2 |
+| Gün 10 | 2026-08-25 20:55 UTC | `8dd21ec200d2` | 94/101 aktif | 🟡 7 kaynakta hata | %16.62 (15391/92580) | 12775 art / 3687 evt | 21/27 | `0024_trgm_search_indexes` | Unclustered: 1, Pending Drafts: 2 |
