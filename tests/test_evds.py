@@ -121,8 +121,10 @@ def test_unverified_series_produces_no_value_and_is_reported() -> None:
     döndürmesidir: etiket "politika faizi" der, sayı başka şeydir.
     """
     dogrulanmamis = replace(SPEC, verified=False)
-    adapter = _adapter(FakeResponse(_payload([{"Tarih": "18-08-2026", "TP_TEST_SERI": "50"}])),
-                       series=(dogrulanmamis,))
+    adapter = _adapter(
+        FakeResponse(_payload([{"Tarih": "18-08-2026", "TP_TEST_SERI": "50"}])),
+        series=(dogrulanmamis,),
+    )
 
     assert adapter.fetch() == []
     hatalar = adapter.drain_failures()
@@ -159,8 +161,7 @@ def test_every_shipped_series_was_verified_against_the_live_endpoint() -> None:
         "verified=True yapmak dogrulamayi atlamaktir."
     )
     assert len(TRACKED) >= 5, (
-        "Roadmap 1.1 cikis olcutu en az 5 gosterge istiyor; "
-        f"su an {len(TRACKED)} seri var."
+        f"Roadmap 1.1 cikis olcutu en az 5 gosterge istiyor; su an {len(TRACKED)} seri var."
     )
 
 
@@ -343,8 +344,17 @@ def test_every_value_carries_full_provenance() -> None:
     (item,) = _adapter(FakeResponse(govde)).fetch()
     deger = item.extra["normalized_value"]
 
-    for alan in ("metric", "value", "unit", "period", "series_code", "series_label",
-                 "source", "source_url", "retrieved_at"):
+    for alan in (
+        "metric",
+        "value",
+        "unit",
+        "period",
+        "series_code",
+        "series_label",
+        "source",
+        "source_url",
+        "retrieved_at",
+    ):
         assert deger.get(alan), f"koken alani eksik: {alan}"
 
     assert deger["source"] == "TCMB EVDS"

@@ -55,10 +55,10 @@ def test_drain_pipeline_script_runs(monkeypatch) -> None:
     monkeypatch.setattr("politikdesk.nlp.repository.pending_embedding", lambda limit: [])
     monkeypatch.setattr("politikdesk.nlp.repository.pending_entities", lambda limit: [])
     monkeypatch.setattr("politikdesk.clustering.pipeline.run", lambda limit: MagicMock(processed=0))
-    monkeypatch.setattr("politikdesk.evidence.pipeline.run", lambda limit: MagicMock(claims_scored=0))
     monkeypatch.setattr(
-        "politikdesk.context.related.run", lambda limit: {"events_processed": 0}
+        "politikdesk.evidence.pipeline.run", lambda limit: MagicMock(claims_scored=0)
     )
+    monkeypatch.setattr("politikdesk.context.related.run", lambda limit: {"events_processed": 0})
     monkeypatch.setattr(
         "politikdesk.political_memory.orchestrator.process_pending_political_relations",
         lambda limit: {"events_processed": 0},

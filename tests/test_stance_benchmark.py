@@ -141,8 +141,9 @@ def test_schema_has_no_confidence_field() -> None:
 
 # ═══════════════════════════════ 4. metrikler
 def test_accuracy_and_macro_f1_are_computed() -> None:
-    r = _rapor([("supports", "supports"), ("contradicts", "contradicts"),
-                ("supports", "contradicts")])
+    r = _rapor(
+        [("supports", "supports"), ("contradicts", "contradicts"), ("supports", "contradicts")]
+    )
     m = metrics(r)
     assert m["accuracy"] == pytest.approx(2 / 3, abs=0.01)
     assert 0.0 <= m["macro_f1"] <= 1.0
@@ -164,8 +165,9 @@ def test_metrics_do_not_crash_on_zero_valid_output() -> None:
 
 def test_false_contradiction_rate_counts_only_non_contradiction_gold() -> None:
     """Bu ürün için en tehlikeli hata: var olmayan bir çatışma üretmek."""
-    r = _rapor([("supports", "contradicts"), ("supports", "supports"),
-                ("contradicts", "contradicts")])
+    r = _rapor(
+        [("supports", "contradicts"), ("supports", "supports"), ("contradicts", "contradicts")]
+    )
     assert metrics(r)["false_contradiction_rate"] == pytest.approx(0.5)
 
 
@@ -196,8 +198,7 @@ def test_latency_percentiles_are_reported() -> None:
 # ═══════════════════════════════ 5. köken ve yeniden üretilebilirlik
 def test_metrics_carry_full_provenance() -> None:
     m = metrics(_rapor([("supports", "supports")]))
-    for alan in ("provider", "model", "runtime", "concurrency",
-                 "prompt_version", "schema_version"):
+    for alan in ("provider", "model", "runtime", "concurrency", "prompt_version", "schema_version"):
         assert m.get(alan) is not None, alan
 
 
@@ -220,10 +221,20 @@ def test_rate_limit_hits_are_reported_separately_from_latency() -> None:
 # ═══════════════════════════════ 6. altın küme
 def test_gold_dataset_covers_required_categories() -> None:
     kategoriler = {g["category"] for g in GOLD}
-    for gerekli in ("negation", "turkish_morphology", "turkish_abbrev",
-                    "numeric_contradiction", "temporal_contradiction",
-                    "hallucination_bait", "conditional", "reported_speech",
-                    "quotation", "missing_context", "unrelated", "partial"):
+    for gerekli in (
+        "negation",
+        "turkish_morphology",
+        "turkish_abbrev",
+        "numeric_contradiction",
+        "temporal_contradiction",
+        "hallucination_bait",
+        "conditional",
+        "reported_speech",
+        "quotation",
+        "missing_context",
+        "unrelated",
+        "partial",
+    ):
         assert gerekli in kategoriler, gerekli
 
 
@@ -311,8 +322,10 @@ def test_shadow_run_declares_write_disabled() -> None:
 
     agac = ast.parse(kaynak)
     yazma = [
-        n for n in ast.walk(agac)
-        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        n
+        for n in ast.walk(agac)
+        if isinstance(n, ast.Constant)
+        and isinstance(n.value, str)
         and any(k in n.value.upper() for k in ("INSERT INTO", "UPDATE ", "DELETE FROM"))
     ]
     assert not yazma, "Golge kosumda yazma SQL'i var"
@@ -322,8 +335,14 @@ def test_shadow_run_records_provenance_per_pair() -> None:
     from eval import shadow_stance_run as sr
 
     kaynak = inspect.getsource(sr.main)
-    for alan in ("claim_id", "evidence_id", "provider", "model",
-                 "prompt_version", "schema_version"):
+    for alan in (
+        "claim_id",
+        "evidence_id",
+        "provider",
+        "model",
+        "prompt_version",
+        "schema_version",
+    ):
         assert f'"{alan}"' in kaynak, alan
 
 

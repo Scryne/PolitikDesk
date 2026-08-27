@@ -39,6 +39,13 @@ from politikdesk.config import load_env_file  # noqa: E402
 
 load_env_file()
 
+# Test ortamında varsayılan olarak API kimlik doğrulaması kapalıdır (boş);
+# ilgili güvenlik testleri monkeypatch ile token enjekte eder.
+os.environ["PD_API_TOKEN"] = ""
+from politikdesk.config import get_settings  # noqa: E402
+
+get_settings.cache_clear()
+
 
 def _get_test_dsn() -> str | None:
     """Test veritabanı DSN'ini belirler ve katı fail-closed güvenlik kontrollerini uygular.

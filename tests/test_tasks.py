@@ -192,6 +192,7 @@ EXPECTED_SCHEDULE_ENTRIES = {
     "cluster-every-3-minutes",
     "claims-every-10-minutes",
     "evidence-every-5-minutes",
+    "auto-generate-drafts-every-2-minutes",
     "context-every-30-minutes",
     "political-relations-every-15-minutes",
     "official-calendar-twice-daily",
@@ -279,7 +280,6 @@ def test_worker_app_imports_and_contains_full_beat_schedule() -> None:
     assert set(worker_app.conf.beat_schedule) == EXPECTED_SCHEDULE_ENTRIES
 
 
-
 # ═════════════════════════ sosyal/çekirdek ayrımı (18 Ağustos 2026 denetimi)
 def test_core_ingestion_excludes_bridge_backed_social_sources() -> None:
     """`ingest_all` sosyal kaynakları ÇEKMEMELİ.
@@ -302,11 +302,23 @@ def test_core_ingestion_excludes_bridge_backed_social_sources() -> None:
 
     def _row(slug: str, adapter: str) -> SourceRow:
         return SourceRow(
-            id=1, slug=slug, name=slug, tier=1, kind="official",
-            independence_group=None, access_method="rss", tos_status="allowed",
-            adapter=adapter, base_url=None, feed_url=None, extra_feeds=None,
-            keyword_filter=None, topics=None, is_active=True,
-            is_wire_reference=False, vertical=None,
+            id=1,
+            slug=slug,
+            name=slug,
+            tier=1,
+            kind="official",
+            independence_group=None,
+            access_method="rss",
+            tos_status="allowed",
+            adapter=adapter,
+            base_url=None,
+            feed_url=None,
+            extra_feeds=None,
+            keyword_filter=None,
+            topics=None,
+            is_active=True,
+            is_wire_reference=False,
+            vertical=None,
         )
 
     tcmb = _row("tcmb", "rss")

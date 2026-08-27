@@ -292,7 +292,10 @@ def test_http_client_default_resolve_dns_blocks_private_dns_targets(monkeypatch)
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 80))]
 
     monkeypatch.setattr(socket, "getaddrinfo", mock_getaddrinfo_public)
-    assert validate_url("http://example.com/feed", resolve_dns=client.resolve_dns) == "http://example.com/feed"
+    assert (
+        validate_url("http://example.com/feed", resolve_dns=client.resolve_dns)
+        == "http://example.com/feed"
+    )
 
 
 def test_rate_limiter_redis_atomic_lua_coordination() -> None:

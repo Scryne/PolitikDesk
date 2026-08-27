@@ -367,7 +367,7 @@ def empty_state(title: str, body: str, *, action: str = "", icon_name: str = "in
     "Veri bulunamadı" yasak: ne olacağını ve nasıl başlanacağını söyle.
     """
     return (
-        f'<div class="empty">{icon(icon_name, 32)}<h3>{esc(title)}</h3>'
+        f'<div class="empty">{icon(icon_name, 32)}<h2 class="h3">{esc(title)}</h2>'
         f"<p>{esc(body)}</p>{action}</div>"
     )
 
@@ -380,7 +380,7 @@ def filtered_empty_state(query_note: str, reset_href: str) -> str:
     """
     return (
         f'<div class="empty">{icon("filter-off", 32)}'
-        f"<h3>Eşleşen kayıt yok</h3>"
+        f'<h2 class="h3">Eşleşen kayıt yok</h2>'
         f"<p>{esc(query_note)}</p>"
         f'<a class="btn" href="{esc(reset_href)}">Filtreleri temizle</a></div>'
     )
@@ -390,7 +390,7 @@ def error_state(title: str, body: str, *, retry: str = "", code: str = "") -> st
     """Hata (10.4): ne oldu → neden → nasıl çözülür. Teknik kod küçük ve altta."""
     code_html = f'<p class="mono subtle">{esc(code)}</p>' if code else ""
     return (
-        f'<div class="empty">{icon("warning", 32)}<h3>{esc(title)}</h3>'
+        f'<div class="empty">{icon("warning", 32)}<h2 class="h3">{esc(title)}</h2>'
         f"<p>{esc(body)}</p>{retry}{code_html}</div>"
     )
 
@@ -566,6 +566,7 @@ def search_input(
     id_: str,
     placeholder: str = "Ara…",
     *,
+    value: str = "",
     action: str | None = None,
     cls: str = "",
 ) -> str:
@@ -575,11 +576,11 @@ def search_input(
     `input` olayını dinler ve eylemi `fn(öğe, olay)` olarak çağırır; arama
     metni `öğe.value`'dan okunur.
     """
+    val_attr = f' value="{esc(value)}"' if value else ""
     return (
         f'<div class="search-wrap {cls}">'
         f'{icon("search", 14)}'
-        f'<input type="search" id="{esc(id_)}" placeholder="{esc(placeholder)}"'
+        f'<input type="search" id="{esc(id_)}" placeholder="{esc(placeholder)}"{val_attr}'
         f"{action_attrs(action, event='input')}>"
         f"</div>"
     )
-

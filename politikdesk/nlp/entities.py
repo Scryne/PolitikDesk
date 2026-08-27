@@ -332,3 +332,33 @@ def has_common_key_entity(a: list[ExtractedEntity], b: list[ExtractedEntity]) ->
     key_a = {e.canonical_name for e in a if e.is_key_entity}
     key_b = {e.canonical_name for e in b if e.is_key_entity}
     return bool(key_a & key_b)
+
+
+def resolve_entity(text: str) -> ExtractedEntity | None:
+    """Verilen metni (unvan, takma ad, kısaltma) kanonik varlığa çözümler."""
+    if not text or not text.strip():
+        return None
+
+    # 1. Siyasi aktörlerde ara
+    actor_canonical = _POLITICAL_ACTORS_INDEX.resolve(text)
+    if actor_canonical:
+        return ExtractedEntity(
+            canonical_name=actor_canonical,
+            entity_type="person",
+            matched_text=text,
+            is_key_entity=actor_canonical in POLITICAL_KEY_ENTITIES,
+        )
+
+    # 2. Kurumlarda ara
+    inst_canonical = _DEFAULT_INDEX.resolve(text)
+    if inst_canonical:
+        return ExtractedEntity(
+            canonical_name=inst_canonical,
+            entity_type="institution",
+            matched_text=text,
+            is_key_entity=(
+                inst_canonical in KEY_ENTITIES
+                or inst_canonical in POLITICAL_KEY_ENTITIES
+            ),
+        )
+    return None

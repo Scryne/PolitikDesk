@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from politikdesk.analysis.taxonomy import classify_category, classify_region
 from politikdesk.db import connection
 from politikdesk.ingestion.models import NormalizedArticle
 from politikdesk.observability import get_logger
@@ -134,6 +135,11 @@ def insert_article(
     is_manual_import: bool = False,
 ) -> int | None:
     """Makaleyi kaydeder. `canonical_url` çakışırsa None döner (tekrar)."""
+    category = classify_category(
+        article.title, article.excerpt, topic_tags=list(article.topics), vertical=article.vertical
+    )
+    region = classify_region(article.title, article.excerpt)
+
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
@@ -141,8 +147,13 @@ def insert_article(
                 source_id, canonical_url, title, excerpt, lead_paragraph,
                 published_at, content_hash, simhash, lang, raw_purge_at,
                 near_duplicate_of_id, simhash_distance, independence_key,
-                topics, is_manual_import, official_value, vertical
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s)
+                topics, is_manual_import, official_value, vertical,
+                cycle_id, category, region
+            ) VALUES (
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,
+                (SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1),
+                %s,%s
+            )
             ON CONFLICT (canonical_url) DO NOTHING
             RETURNING id
             """,
@@ -166,11 +177,14 @@ def insert_article(
                 if article.official_value
                 else None,
                 article.vertical,
+                category,
+                region,
             ),
         )
         row = cur.fetchone()
         conn.commit()
         return row["id"] if row else None
+
 
 
 def _to_signed_bigint(value: int) -> int:

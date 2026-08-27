@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from politikdesk.analysis.taxonomy import classify_category, classify_region
 from politikdesk.clustering.assigner import ArticleFeatures, Assignment, EventCandidate
 from politikdesk.clustering.centroid import add_member
 from politikdesk.db import connection, fetch_one
@@ -96,7 +97,7 @@ def candidate_events(
     within_hours: int = 96,
     ef_search: int = DEFAULT_EF_SEARCH,
 ) -> list[EventCandidate]:
-    """Spec §11.4 adım 1: son 96 saat, aynı dikey, en yakın 20 olay."""
+    """Spec §11.4 adım 1: son 96 saat, aynı dikey, aktif döngü, en yakın 20 olay."""
     literal = to_pgvector(article.embedding)
     with connection() as conn, conn.cursor() as cur:
         set_ef_search(cur, ef_search)
@@ -106,6 +107,10 @@ def candidate_events(
                    1 - (centroid_embedding <=> %s::vector) AS similarity
             FROM events
             WHERE vertical = %s
+              AND (
+                cycle_id IS NULL
+                OR cycle_id = (SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1)
+              )
               AND merged_into_id IS NULL
               AND centroid_embedding IS NOT NULL
               AND last_update_at > now() - make_interval(hours => %s)
@@ -197,12 +202,22 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
     yazılır. Boş bırakmak yerine tohum başlığı kullanılır — aksi halde
     denetim kuyruğu (F2-04) okunamaz hale gelir.
     """
+    cat = classify_category(
+        row["title"], row.get("excerpt"), vertical=article.vertical
+    )
+    reg = classify_region(
+        row["title"], row.get("excerpt"), entities=list(article.entities)
+    )
+
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO events (title, summary, vertical, centroid_embedding,
-                                first_reported_at, last_update_at, article_count)
-            VALUES (%s, %s, %s, %s::vector, %s, %s, 1)
+                                first_reported_at, last_update_at, article_count,
+                                cycle_id, category, region)
+            VALUES (%s, %s, %s, %s::vector, %s, %s, 1,
+                    (SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1),
+                    %s, %s)
             RETURNING id
             """,
             (
@@ -212,6 +227,8 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
                 to_pgvector(article.embedding),
                 article.published_at,
                 article.published_at,
+                cat,
+                reg,
             ),
         )
         event_id = int(fetch_one(cur)["id"])
@@ -234,6 +251,7 @@ def create_event(article: ArticleFeatures, row: dict[str, Any]) -> int | None:
 
     log.info("event_created", event_id=event_id, article_id=article.article_id)
     return event_id
+
 
 
 def _attach_article(

@@ -30,7 +30,13 @@ import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
 
-EXPECTED_CONTAINERS = ("pd-db", "pd-redis", "pd-api", "pd-worker", "pd-beat")
+# Windows konsolunda UTF-8 / cp1254 kodlama hatalarını önle
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+EXPECTED_CONTAINERS = ("pd-db", "pd-redis", "pd-api", "pd-worker", "pd-worker-llm", "pd-beat")
 API_URL = "http://127.0.0.1:8000/health/live"
 HTTP_TIMEOUT = 10
 
@@ -104,10 +110,19 @@ def check_pipeline() -> list[str]:
     ana makinede psycopg ve doğru DSN'e sahip olmasını gerektirmez, ve
     API'nin *kendisinin* veritabanını görebildiğini de kanıtlar.
     """
+    from politikdesk.config import get_settings
+
+    headers = {}
+    token = get_settings().api_token
+    if token:
+        headers["X-API-Token"] = token
+        headers["Authorization"] = f"Bearer {token}"
+
+    req = urllib.request.Request(
+        "http://localhost:8000/admin/pipeline-health", headers=headers
+    )
     try:
-        with urllib.request.urlopen(  # noqa: S310
-            "http://localhost:8000/admin/pipeline-health", timeout=HTTP_TIMEOUT
-        ) as response:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as response:  # noqa: S310
             stages = json.loads(response.read())
     except Exception as exc:  # noqa: BLE001
         return [f"Aşama sağlığı okunamadı ({type(exc).__name__})"]
@@ -145,10 +160,20 @@ def run(quiet: bool = False) -> int:
     with destination.open("a", encoding="utf-8") as fh:
         fh.write(report + "\n")
 
-    if not quiet or not healthy:
-        # Konsol cp1254 olabilir; kodlanamayan karakter nöbetçiyi düşürmesin.
-        sys.stdout.reconfigure(errors="replace")  # type: ignore[union-attr]
-        print(report)
+    if not healthy:
+        try:
+            from politikdesk.sre_alerts import send_alert_notification
+
+            summary_detail = "\n".join(f"• {p}" for p in problems)
+            send_alert_notification(
+                title="Sistem Sağlık Nöbetçisi Sorun Tespit Etti",
+                detail=summary_detail,
+                severity="CRITICAL" if container_problems or (not container_problems and api_problems) else "WARNING",
+                source="watchdog",
+                action="pd status / pd logs / pd start komutlarını çalıştırın",
+            )
+        except Exception:
+            pass
 
     return 0 if healthy else 1
 
@@ -156,7 +181,27 @@ def run(quiet: bool = False) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="scripts.watchdog", description=__doc__)
     parser.add_argument("--quiet", action="store_true", help="Yalnızca sorun varsa konsola yaz")
+    parser.add_argument("--test-alert", action="store_true", help="Harici webhook kanalına test alarmı gönder")
     args = parser.parse_args(argv)
+
+    if args.test_alert:
+        from politikdesk.sre_alerts import send_alert_notification
+
+        print("Webhook alarm testi gonderiliyor...")
+        sent = send_alert_notification(
+            title="PolitikDesk Test Alarmı",
+            detail="Bu bildirim, harici webhook yapılandırmasını doğrulamak için gönderilen test alarmıdır.",
+            severity="INFO",
+            source="watchdog_test",
+            action="Yapılandırma doğrulanmıştır, ek işlem gerekmez.",
+            force=True,
+        )
+        if sent:
+            print("[OK] Test alarmi basariyla iletildi.")
+            return 0
+        print("[UYARI] Webhook gonderilemedi veya PD_ALERT_WEBHOOK_URL tanimli degil.")
+        return 0
+
     return run(quiet=args.quiet)
 
 

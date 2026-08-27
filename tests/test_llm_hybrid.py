@@ -281,6 +281,12 @@ def test_hybrid_both_fail_raises_and_records_failure() -> None:
 # ------------------------------------------------------------- 4. Maliyet & Fiyatlandırma
 def test_local_model_pricing_is_free() -> None:
     """Yerel Ollama modellerinin maliyeti kesinlikle $0.0 olmalı."""
-    assert estimate_cost_usd("qwen2.5:7b-instruct-q5_K_M", input_tokens=5000, output_tokens=1000) == 0.0
+    assert (
+        estimate_cost_usd("qwen2.5:7b-instruct-q5_K_M", input_tokens=5000, output_tokens=1000)
+        == 0.0
+    )
     assert estimate_cost_usd("qwen2.5:14b-instruct", input_tokens=5000, output_tokens=1000) == 0.0
-    assert estimate_cost_usd("meta/llama-3.3-70b-instruct", input_tokens=5000, output_tokens=1000) == 0.0
+    assert (
+        estimate_cost_usd("meta/llama-3.3-70b-instruct", input_tokens=5000, output_tokens=1000)
+        == 0.0
+    )

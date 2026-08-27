@@ -17,10 +17,20 @@ from politikdesk.web.export_formats import (
 
 
 def test_export_formats_generators() -> None:
-    ev = {"id": 42, "title": "TCMB Politika Faizini %50 Seviyesinde Sabit Bıraktı", "salience_score": 75}
+    ev = {
+        "id": 42,
+        "title": "TCMB Politika Faizini %50 Seviyesinde Sabit Bıraktı",
+        "salience_score": 75,
+    }
     claims = [
-        {"claim_text": "Para Politikası Kurulu faizi değiştirmeme kararı aldı.", "evidence_status": "strongly_corroborated"},
-        {"claim_text": "Enflasyon beklentilerinde belirgin bir düşüş gözlendi.", "evidence_status": "partially_corroborated"},
+        {
+            "claim_text": "Para Politikası Kurulu faizi değiştirmeme kararı aldı.",
+            "evidence_status": "strongly_corroborated",
+        },
+        {
+            "claim_text": "Enflasyon beklentilerinde belirgin bir düşüş gözlendi.",
+            "evidence_status": "partially_corroborated",
+        },
     ]
     articles = [
         {"source_name": "TCMB Resmî", "tier": 1},
@@ -167,12 +177,9 @@ def test_indicator_strip_reads_the_timeseries_store_not_only_latest_article() ->
     from politikdesk.web import repository
 
     kaynak = inspect.getsource(repository.official_indicator_series)
-    assert "indicator_observations" in kaynak, (
-        "Sunum katmani zaman serisi deposunu kullanmiyor."
-    )
+    assert "indicator_observations" in kaynak, "Sunum katmani zaman serisi deposunu kullanmiyor."
     assert "superseded_at IS NULL" in kaynak, (
-        "Revize edilmis gozlemler elenmiyor: ekranda yururlukten kalkmis "
-        "sayi gorunebilir."
+        "Revize edilmis gozlemler elenmiyor: ekranda yururlukten kalkmis sayi gorunebilir."
     )
     # Yedek yol korunmalı: seri olarak tanımlanmamış TÜİK metrikleri
     # (employment_rate gibi) hâlâ tek gözlemle de olsa görünmeli.
@@ -268,4 +275,3 @@ def _source_of(module: object) -> str:
     import inspect
 
     return inspect.getsource(module)  # type: ignore[arg-type]
-

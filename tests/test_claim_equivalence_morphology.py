@@ -13,7 +13,9 @@ def test_turkish_verb_morphology_equivalence() -> None:
     sig2 = claim_signature(c2)
     sig3 = claim_signature(c3)
 
-    assert sig1 == sig2 == sig3, f"Morfoloji varyasyonları farklı imza üretti: {sig1} vs {sig2} vs {sig3}"
+    assert sig1 == sig2 == sig3, (
+        f"Morfoloji varyasyonları farklı imza üretti: {sig1} vs {sig2} vs {sig3}"
+    )
 
 
 def test_turkish_approval_verbs_equivalence() -> None:

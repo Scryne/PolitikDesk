@@ -169,6 +169,3 @@ def test_empty_env_variables_fallback_to_defaults() -> None:
     assert s.briefing_morning_hour == 8
     assert s.smtp_port == 587
     assert s.draft_max_chars == 600
-
-
-

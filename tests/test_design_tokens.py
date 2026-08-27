@@ -385,8 +385,6 @@ def test_every_registered_icon_is_used() -> None:
     unused = [
         name
         for name in icons.names()
-        if not name.startswith("status-")
-        and f'"{name}"' not in blob
-        and f"'{name}'" not in blob
+        if not name.startswith("status-") and f'"{name}"' not in blob and f"'{name}'" not in blob
     ]
     assert not unused, f"Kullanilmayan ikon: {unused}. Ya kullan ya sil."

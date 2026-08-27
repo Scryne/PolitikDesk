@@ -187,9 +187,7 @@ def test_linking_is_idempotent(db_conn, fixtures) -> None:  # noqa: ANN001
         ikinci = cur.fetchone()["n"]
     db_conn.commit()
 
-    assert ikinci == ilk, (
-        f"İkinci koşum {ikinci - ilk} yeni satır üretti — idempotans bozuk"
-    )
+    assert ikinci == ilk, f"İkinci koşum {ikinci - ilk} yeni satır üretti — idempotans bozuk"
 
 
 # ==========================================================================

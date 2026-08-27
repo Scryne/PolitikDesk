@@ -57,6 +57,7 @@ ACTIONS: dict[str, str] = {
     "llm_budget_alert": "LLM bütçe eşiği aşıldı veya tavana ulaşıldı",
     "backup_created": "Veritabanı yedeği alındı",
     "backup_restored": "Veritabanı yedekten geri yüklendi",
+    "recovery_drill_passed": "Felaket kurtarma tatbikatı başarıyla tamamlandı",
 }
 
 

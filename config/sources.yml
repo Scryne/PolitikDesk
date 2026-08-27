@@ -45,7 +45,7 @@
 
 version: 3
 vertical: macro_economy
-max_sources: 22
+max_sources: 25
 
 
 sources:
@@ -554,6 +554,55 @@ sources:
     produces_scheduled_events: false
     notes: >-
       Finansal teknolojiler, dijital ödeme sistemleri ve TCMB/BDDK regülasyon analizi.
+
+  # ---------------------------------------------------------------- Tier 1 Küresel Merkez Bankaları (Faz B)
+  - slug: fed
+    name: "US Federal Reserve — Press Releases"
+    tier: 1
+    kind: official
+    independence_group: "official-fed"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.federalreserve.gov"
+    feed_url: "https://www.federalreserve.gov/feeds/press_all.xml"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 20 öğe, 287ms
+    topics: [politika_faizi, kur_ve_rezervler, enflasyon, buyume]
+    produces_scheduled_events: true
+    notes: >-
+      ABD Merkez Bankası (Fed) FOMC faiz kararları, tutanaklar ve makroekonomik duyurular.
+
+  - slug: ecb
+    name: "European Central Bank — Monetary Policy"
+    tier: 1
+    kind: official
+    independence_group: "official-ecb"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.ecb.europa.eu"
+    feed_url: "https://www.ecb.europa.eu/rss/press.html"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 15 öğe, 506ms
+    topics: [politika_faizi, enflasyon, buyume, kur_ve_rezervler]
+    produces_scheduled_events: true
+    notes: >-
+      Avrupa Merkez Bankası (ECB) para politikası ve faiz kararları akışı.
+
+  - slug: boe
+    name: "Bank of England — News & Policy"
+    tier: 1
+    kind: official
+    independence_group: "official-boe"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.bankofengland.co.uk"
+    feed_url: "https://www.bankofengland.co.uk/rss/news"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 50 öğe, 409ms
+    topics: [politika_faizi, enflasyon, kamu_borclanmasi, kur_ve_rezervler]
+    produces_scheduled_events: true
+    notes: >-
+      İngiltere Merkez Bankası (BoE) faiz kararları, enflasyon raporları ve finansal istikrar duyuruları.
 
 
 

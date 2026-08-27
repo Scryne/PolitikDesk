@@ -26,6 +26,7 @@ client = TestClient(app)
 # 1. SSRF ADVERSARIAL SECOND PASS MATRIX
 # =============================================================================
 
+
 @pytest.mark.parametrize(
     "url,reason",
     [
@@ -96,9 +97,16 @@ def test_adversarial_ssrf_all_vectors_blocked(url: str, reason: str) -> None:
 
 def test_ssrf_valid_public_urls_allowed() -> None:
     """Meşru internet adresleri ve genel IP'ler kabul edilmelidir."""
-    assert validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False) == "https://evds2.tcmb.gov.tr/service"
-    assert validate_url("https://8.8.8.8/dns-query", resolve_dns=False) == "https://8.8.8.8/dns-query"
-    assert validate_url("https://1.1.1.1/dns-query", resolve_dns=False) == "https://1.1.1.1/dns-query"
+    assert (
+        validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False)
+        == "https://evds2.tcmb.gov.tr/service"
+    )
+    assert (
+        validate_url("https://8.8.8.8/dns-query", resolve_dns=False) == "https://8.8.8.8/dns-query"
+    )
+    assert (
+        validate_url("https://1.1.1.1/dns-query", resolve_dns=False) == "https://1.1.1.1/dns-query"
+    )
 
 
 def test_http_client_event_hook_enforces_ssrf_on_all_requests() -> None:
@@ -112,6 +120,7 @@ def test_http_client_event_hook_enforces_ssrf_on_all_requests() -> None:
 # =============================================================================
 # 2. AUTH + CSRF STATE-CHANGING ENDPOINT MATRIX
 # =============================================================================
+
 
 def test_auth_token_exact_status_code_matrix(monkeypatch: pytest.MonkeyPatch) -> None:
     """Kimlik doğrulama matrisi kesin HTTP durum kodları ile doğrulanmalıdır."""
@@ -204,6 +213,7 @@ def test_csrf_state_changing_methods_matrix() -> None:
 # 3. CSP NONCE & XSS SANITIZATION
 # =============================================================================
 
+
 def test_csp_nonce_rotation_and_entropy() -> None:
     """CSP nonce'u her istekte yenilenmeli ve yeterli entropiye (>=16 bayt) sahip olmalıdır."""
     r1 = client.get("/")
@@ -250,13 +260,14 @@ def test_xss_sanitization_neutralizes_all_adversarial_vectors() -> None:
     assert "&#x27;" in esc("'test'")
 
     # 3. Attribute escaping
-    assert '&quot;&gt;&lt;script&gt;' in esc_attr('"><script>alert(1)</script>')
+    assert "&quot;&gt;&lt;script&gt;" in esc_attr('"><script>alert(1)</script>')
     assert "&#x27;" in esc_attr("x' onmouseover='alert(1)")
 
 
 # =============================================================================
 # 4. SQL INJECTION & LIKE WILDCARD ESCAPING
 # =============================================================================
+
 
 def test_sql_like_wildcard_escaping_comprehensive() -> None:
     """_escape_like fonksiyonu %, _ ve \\ karakterlerini tam olarak kaçırmalıdır."""
@@ -271,6 +282,7 @@ def test_sql_like_wildcard_escaping_comprehensive() -> None:
 # =============================================================================
 # 5. EVIDENCE ENGINE & AST ARCHITECTURE GUARD FALSIFICATION
 # =============================================================================
+
 
 def test_ast_architecture_guard_adversarial_falsification(tmp_path: Path) -> None:
     """AST mimari koruyucu, evidence/ altına LLM importu sızarsa fail-closed olmalıdır."""
@@ -314,6 +326,7 @@ def test_ast_architecture_guard_adversarial_falsification(tmp_path: Path) -> Non
 # =============================================================================
 # 6. EPISTEMIC SAFETY (ADR-010 & PUBLISH_GATE_OPEN)
 # =============================================================================
+
 
 def test_epistemic_safety_publish_gate_closed_by_default() -> None:
     """ADR-010 uyarınca PUBLISH_GATE_OPEN kesinlikle False olmalıdır."""

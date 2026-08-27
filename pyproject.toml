@@ -69,6 +69,7 @@ packages = ["politikdesk"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+exclude = ["scratch", "backups", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
@@ -77,6 +78,8 @@ ignore = ["B008"]  # FastAPI Depends() varsayılan argümanda kullanılır
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["E501"]
 "eval/*" = ["E501"]
+"scripts/*" = ["E501"]
+"scratch/*" = ["E501"]
 "politikdesk/web/*" = ["E501"]
 "politikdesk/web/ui/*" = ["E501"]
 "politikdesk/briefing/*" = ["E501"]
@@ -86,6 +89,7 @@ ignore = ["B008"]  # FastAPI Depends() varsayılan argümanda kullanılır
 testpaths = ["tests"]
 markers = [
     "db: Postgres bağlantısı gerektiren testler (DATABASE_URL ayarlı olmalı)",
+    "security: Güvenlik ve red-team testleri",
 ]
 filterwarnings = [
     "error::DeprecationWarning",

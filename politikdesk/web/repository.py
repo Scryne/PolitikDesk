@@ -11,6 +11,7 @@ tek `SELECT` ile gelir (F3-06 DoD).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from politikdesk.db import connection
@@ -20,14 +21,20 @@ from politikdesk.observability import get_logger
 log = get_logger(__name__)
 
 
-def _visible(alias: str = "e") -> str:
+def _visible(alias: str = "e", *, cycle_id: int | None = None) -> str:
     """Feed'de gösterilecek olayların koşulu.
 
     Gizlenen iki durum: birleştirilmiş olay (kopya) ve denetimde
-    reddedilmiş olay. `needs_review` GÖSTERİLİR ama rozetiyle —
-    belirsizliği gizlemek P4'e aykırıdır.
+    reddedilmiş olay. `needs_review` GÖSTERİLİR ama rozetiyle.
+    Aktif üretim döngüsü (cycle_id) izolasyonu enforce edilir.
     """
-    return f"{alias}.merged_into_id IS NULL AND COALESCE({alias}.review_flag,'') <> 'rejected'"
+    base = f"{alias}.merged_into_id IS NULL AND COALESCE({alias}.review_flag,'') <> 'rejected'"
+    if cycle_id is not None:
+        return f"{base} AND {alias}.cycle_id = {int(cycle_id)}"
+    return (
+        f"{base} AND ({alias}.cycle_id = (SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1) "
+        f"OR {alias}.cycle_id IS NULL)"
+    )
 
 
 _VISIBLE = _visible()
@@ -43,24 +50,94 @@ def _topic_priorities(user_id: int) -> list[str]:
     return list(row["topic_priorities"] or []) if row else []
 
 
-def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[dict[str, Any]]:
-    """Salience sıralı olay kartları (F3-02).
+def feed(
+    user_id: int,
+    *,
+    limit: int = 40,
+    offset: int = 0,
+    vertical: str | None = None,
+    sort: str = "important",
+    category: str | None = None,
+    topic: str | None = None,
+    region: str | None = None,
+    time_range: str | None = None,
+    source_id: int | None = None,
+    query: str | None = None,
+    cycle_id: int | None = None,
+) -> list[dict[str, Any]]:
+    """Gündem V2 — Live Intelligence Feed sorgu motoru (Faz 21).
 
-    Kişisel bileşen (0-10) **burada** hesaplanır ve saklanmaz
-    (Spec §8.4/B, migration 0003). Sıralama gösterilen skora göredir;
-    saklanan `salience_score` yalnızca global kısımdır.
+    Sıralama Modları:
+      * 'important' (varsayılan): Gösterilen önem skoru (global + kişisel) azalan
+      * 'newest': İlk keşif / yayın zamanı azalan (en yeni düşenler)
+      * 'updated': Son güncelleme zamanı azalan (son gelişenler)
     """
     priorities = _topic_priorities(user_id)
-    vertical_clause = "AND e.vertical = %s" if vertical and vertical != "all" else ""
-    params: list[Any] = [limit] if not vertical_clause else [vertical, limit]
+
+    clauses = [_visible("e", cycle_id=cycle_id)]
+    params: list[Any] = []
+
+    if vertical and vertical != "all":
+        clauses.append("e.vertical = %s")
+        params.append(vertical)
+
+    if category and category != "all":
+        clauses.append("e.category = %s")
+        params.append(category)
+
+    if region and region != "all":
+        clauses.append("e.region = %s")
+        params.append(region)
+
+    if topic and topic != "all":
+        clauses.append("(%s = ANY(e.topic_tags) OR EXISTS (SELECT 1 FROM articles a_top WHERE a_top.event_id = e.id AND %s = ANY(a_top.topics)))")
+        params.extend([topic, topic])
+
+    if time_range and time_range != "all":
+        if time_range == "15m":
+            clauses.append("e.last_update_at > now() - interval '15 minutes'")
+        elif time_range == "1h":
+            clauses.append("e.last_update_at > now() - interval '1 hour'")
+        elif time_range == "6h":
+            clauses.append("e.last_update_at > now() - interval '6 hours'")
+        elif time_range == "24h":
+            clauses.append("e.last_update_at > now() - interval '24 hours'")
+        elif time_range == "7d":
+            clauses.append("e.last_update_at > now() - interval '7 days'")
+
+    if source_id:
+        clauses.append("EXISTS (SELECT 1 FROM articles a_src WHERE a_src.event_id = e.id AND a_src.source_id = %s)")
+        params.append(source_id)
+
+    if query and query.strip():
+        q_str = f"%{query.strip()}%"
+        clauses.append(
+            "(e.title ILIKE %s OR COALESCE(e.summary,'') ILIKE %s OR "
+            "EXISTS (SELECT 1 FROM claims c_q WHERE c_q.event_id = e.id AND c_q.claim_text ILIKE %s))"
+        )
+        params.extend([q_str, q_str, q_str])
+
+    where_sql = " AND ".join(clauses)
+
+    if sort == "newest":
+        order_sql = "COALESCE(e.first_reported_at, e.created_at) DESC, e.last_update_at DESC"
+    elif sort == "updated":
+        order_sql = "e.last_update_at DESC, e.first_reported_at DESC"
+    else:  # important
+        order_sql = "e.salience_score DESC NULLS LAST, e.last_update_at DESC"
+
+    params.extend([limit, offset])
 
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"""
-            SELECT e.id, e.title, e.status, e.salience_score, e.salience_breakdown,
+            SELECT e.id, e.title, e.summary, e.status, e.salience_score, e.salience_breakdown,
                    e.topic_tags, e.article_count, e.independent_count,
                    e.has_primary_source, e.review_flag, e.vertical,
-                   e.first_reported_at, e.last_update_at,
+                   COALESCE(e.category, 'ekonomi') AS category,
+                   COALESCE(e.region, 'turkiye') AS region,
+                   e.cycle_id,
+                   e.first_reported_at, e.last_update_at, e.created_at,
                    (SELECT count(DISTINCT COALESCE(s.independence_group, s.slug))
                       FROM articles a JOIN sources s ON s.id = a.source_id
                      WHERE a.event_id = e.id) AS independence_groups,
@@ -74,16 +151,9 @@ def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[
                      WHERE c.event_id = e.id
                        AND c.evidence_status IN ('unverified','single_source','contradicted')
                    ) AS weak_claim_count,
-                   -- Çelişkili iddia AYRI sayılır: "zayıf" kümesinin içinde
-                   -- kaybolmamalı. Bir olayda çelişki varsa kartın taşıması
-                   -- gereken sinyal odur, teyit oranı değil.
                    (SELECT count(*) FROM claims c
                      WHERE c.event_id = e.id AND c.evidence_status = 'contradicted'
                    ) AS contradicted_count,
-                   -- Üretim kapısının iki koşulundan ikincisi (guards.py:
-                   -- "no_evidence"). Kartın "kanıta bağlı" etiketi bundan
-                   -- türer; üçüncü koşul (isimli kişi hakkında doğrulanmamış
-                   -- iddia) NER gerektirir ve olay sayfasında sorulur.
                    (SELECT count(*) FROM evidence ev JOIN claims c ON c.id = ev.claim_id
                      WHERE c.event_id = e.id) AS evidence_count,
                    (SELECT jsonb_build_object(
@@ -98,13 +168,16 @@ def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[
                     WHERE d.event_id = e.id AND d.is_grounded = true
                     ORDER BY d.created_at DESC LIMIT 1) AS latest_draft
             FROM events e
-            WHERE {_VISIBLE} {vertical_clause}
-            ORDER BY e.salience_score DESC NULLS LAST, e.last_update_at DESC
-            LIMIT %s
-            """,  # noqa: S608 — _VISIBLE sabit bir dize
+            WHERE {where_sql}
+            ORDER BY {order_sql}
+            LIMIT %s OFFSET %s
+            """,
             params,
         )
         rows = [dict(r) for r in cur.fetchall()]
+
+    from datetime import UTC, datetime, timedelta
+    now_utc = datetime.now(UTC)
 
     for row in rows:
         personal = personal_adjustment(list(row["topic_tags"] or []), priorities)
@@ -112,20 +185,66 @@ def feed(user_id: int, *, limit: int = 40, vertical: str | None = None) -> list[
         row["global_salience"] = int(row["salience_score"] or 0)
         row["displayed_salience"] = row["global_salience"] + personal
 
-    # İki geçişli sıralama: önce tazelik (azalan), sonra KARARLI biçimde
-    # gösterilen skor (azalan). Tek geçişte tarihi ters çevirmek mümkün
-    # değil (datetime negatiflenemez) ve eşit skorlu olaylarda eskisi
-    # üste çıkardı.
-    rows.sort(key=lambda r: r["last_update_at"], reverse=True)
-    rows.sort(key=lambda r: r["displayed_salience"], reverse=True)
+        # Dinamik "is_new" hesaplaması: son 45 dakika içinde ilk kez görüldüyse
+        first_dt = row.get("first_reported_at") or row.get("created_at")
+        if first_dt and (now_utc - first_dt) < timedelta(minutes=45):
+            row["is_new"] = True
+        else:
+            row["is_new"] = False
+
+    if sort == "important":
+        # İki geçişli sıralama: önce tazelik (azalan), sonra KARARLI biçimde
+        # gösterilen skor (azalan).
+        rows.sort(key=lambda r: r["last_update_at"], reverse=True)
+        rows.sort(key=lambda r: r["displayed_salience"], reverse=True)
+    elif sort == "newest":
+        rows.sort(key=lambda r: r.get("first_reported_at") or r["last_update_at"], reverse=True)
+    elif sort == "updated":
+        rows.sort(key=lambda r: r["last_update_at"], reverse=True)
+
     return rows
+
+
+def count_new_events(
+    since_ts: str,
+    *,
+    vertical: str | None = None,
+    category: str | None = None,
+    region: str | None = None,
+    cycle_id: int | None = None,
+) -> int:
+    """Belirli bir zaman damgasından sonra gelen yeni aktif olay sayısını döner."""
+    if not since_ts:
+        return 0
+    since_val: Any = since_ts
+    if isinstance(since_ts, str):
+        try:
+            clean_str = since_ts.strip().replace(" ", "+")
+            since_val = datetime.fromisoformat(clean_str)
+        except Exception:
+            since_val = since_ts
+    clauses = [_visible("e", cycle_id=cycle_id), "e.first_reported_at > %s"]
+    params: list[Any] = [since_val]
+    if vertical and vertical != "all":
+        clauses.append("e.vertical = %s")
+        params.append(vertical)
+    if category and category != "all":
+        clauses.append("e.category = %s")
+        params.append(category)
+    if region and region != "all":
+        clauses.append("e.region = %s")
+        params.append(region)
+
+    where_sql = " AND ".join(clauses)
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT count(*) FROM events e WHERE {where_sql}", params)
+        row = cur.fetchone()
+        return int(row["count"] or 0) if row else 0
 
 
 def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
     """ "Sen yokken ne oldu" şeridi (F3-18).
-
-    Tek satır: son girişten bu yana N önemli olay. Eşik salience 30'dur —
-    her yeni olayı "önemli" saymak şeridi gürültüye çevirirdi.
+    Aktif döngüdeki yeni önemli olayları sayar.
     """
     if not since:
         return {"available": False}
@@ -140,8 +259,8 @@ def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
                      WHERE {_visible("e2")} AND e2.first_reported_at > %s
                      ORDER BY e2.salience_score DESC NULLS LAST LIMIT 1) AS top_title
             FROM events e
-            WHERE {_VISIBLE} AND e.first_reported_at > %s
-            """,  # noqa: S608
+            WHERE {_visible("e")} AND e.first_reported_at > %s
+            """,
             (since, since),
         )
         row = cur.fetchone()
@@ -156,6 +275,7 @@ def since_last_visit(user_id: int, since: str | None) -> dict[str, Any]:
         "top_title": row["top_title"],
         "top_salience": int(row["top_salience"] or 0),
     }
+
 
 
 def claim_status_distribution(*, days: int = 7) -> list[tuple[str, int]]:

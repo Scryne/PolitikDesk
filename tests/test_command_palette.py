@@ -177,11 +177,9 @@ def test_source_results_carry_no_political_label() -> None:
                 continue
             bulundu += 1
             for parca in hit.subtitle.split(" · "):
-                assert (
-                    parca in izinli
-                    or parca.startswith("yayın grubu: ")
-                    or parca == "pasif"
-                ), f"Kaynak alt satırında beklenmeyen parça: {parca!r}"
+                assert parca in izinli or parca.startswith("yayın grubu: ") or parca == "pasif", (
+                    f"Kaynak alt satırında beklenmeyen parça: {parca!r}"
+                )
     assert bulundu, "Hiç kaynak sonucu bulunamadı; test anlamsız kalır."
 
 

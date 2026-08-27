@@ -75,7 +75,9 @@ def test_dispatch_anomaly_alert_success() -> None:
 
     with patch("politikdesk.ingestion.http.HttpClient.post") as mock_post:
         mock_post.return_value = MagicMock(status_code=204)
-        success = dispatch_anomaly_alert(alert, "https://discord.com/api/webhooks/test/123", format_type="discord")
+        success = dispatch_anomaly_alert(
+            alert, "https://discord.com/api/webhooks/test/123", format_type="discord"
+        )
         assert success is True
         mock_post.assert_called_once()
 
@@ -151,7 +153,9 @@ def test_test_dsn_fail_closed_on_prod_keyword(monkeypatch: pytest.MonkeyPatch) -
     from tests.conftest import _get_test_dsn
 
     monkeypatch.setenv("PD_ENV", "test")
-    monkeypatch.setenv("PD_TEST_DATABASE_URL", "postgresql://user:pass@prod-db.politikdesk.internal:5432/pd_live")
+    monkeypatch.setenv(
+        "PD_TEST_DATABASE_URL", "postgresql://user:pass@prod-db.politikdesk.internal:5432/pd_live"
+    )
     with pytest.raises(pytest.fail.Exception, match="KRİTİK GÜVENLİK İHLALİ"):
         _get_test_dsn()
 
@@ -199,5 +203,3 @@ def test_api_anomalies_dispatch_test_blocks_cgnat_ssrf(monkeypatch: pytest.Monke
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is False
-
-

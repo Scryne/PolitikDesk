@@ -8,7 +8,7 @@ F1-12 DoD: `raw_purge_at` geçmiş kayıtlarda `lead_paragraph` NULL oluyor;
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from celery.schedules import crontab
 
@@ -189,6 +189,14 @@ def cluster_pending(self, limit: int = CLUSTER_BATCH_SIZE) -> dict[str, int]:  #
 
     try:
         res = run(limit).as_dict()
+        if res.get("processed", 0) > 0:
+            try:
+                from politikdesk.events_stream import publish_feed_event
+
+                publish_feed_event("feed_update", {"processed": res.get("processed", 0)})
+            except Exception:
+                pass
+
         if res.get("processed", 0) >= limit and getattr(self.request, "id", None):
             self.apply_async(args=[limit], countdown=1)
         return res
@@ -201,22 +209,6 @@ def cluster_pending(self, limit: int = CLUSTER_BATCH_SIZE) -> dict[str, int]:  #
     name="politikdesk.extract_claims_pending",
     bind=True,
     max_retries=2,
-    # Küresel varsayılan (600/900 sn) BU GÖREV İÇİN YETERSİZDİR — ölçüldü.
-    #
-    # 20 Ağustos 2026, son 24 saatin 3.928 çağrısı (`llm_calls`):
-    #     ortalama 22,1 sn · p95 80,8 sn · azami 335,3 sn   (TEK çağrı)
-    #
-    # Görev `CLAIM_BATCH_EVENTS` (5) olay işler ve olay başına en az bir
-    # çağrı yapar; sağlayıcı 429 döndürdüğünde geri çekilme ve ikinci
-    # modele düşüş bunu ikiye katlar. Kuyruğun kuyruk ucunda bir parti
-    # 5 × 335 sn ≈ 28 dakikaya kadar çıkabilir.
-    #
-    # 600 sn'lik varsayılan bırakılsaydı parti düzenli olarak kesilir ve
-    # her kesilme, yarım kalan olayın LLM çağrılarını çöpe atardı — yani
-    # sistemin EN KIT kaynağı olan ücretsiz katman kotası boşa giderdi.
-    #
-    # İş kaybı yok: `claims_pipeline.run` her olaydan sonra `commit`
-    # eder, dolayısıyla kesilme yalnızca o anki olayı geri alır.
     soft_time_limit=1800,
     time_limit=2100,
 )
@@ -232,6 +224,14 @@ def extract_claims_pending(self, limit: int = CLAIM_BATCH_EVENTS) -> dict[str, i
 
     try:
         res = run(limit).as_dict()
+        if res.get("claims_saved", 0) > 0:
+            try:
+                from politikdesk.events_stream import publish_feed_event
+
+                publish_feed_event("claims_update", {"claims_saved": res.get("claims_saved", 0)})
+            except Exception:
+                pass
+
         if (
             res.get("events_processed", 0) >= limit
             and not res.get("budget_exceeded")
@@ -256,6 +256,11 @@ def score_evidence(self, limit: int = EVIDENCE_BATCH_SIZE) -> dict[str, int]:  #
         res = run(limit).as_dict()
         if res.get("claims_scored", 0) >= limit and getattr(self.request, "id", None):
             self.apply_async(args=[limit], countdown=1)
+
+        # Yeni kanıtlar puanlandıysa bekleyen teyitli olaylar için otomatik taslak üretimini tetikle
+        if res.get("claims_scored", 0) > 0 and getattr(self.request, "id", None):
+            auto_generate_drafts.apply_async(countdown=2)
+
         return res
     except Exception as exc:  # noqa: BLE001
         log.error("score_evidence_failed", error=type(exc).__name__, detail=str(exc)[:300])
@@ -484,6 +489,32 @@ def check_llm_budget() -> dict[str, object]:
     return BudgetGuard().alert_if_needed()
 
 
+@app.task(
+    name="politikdesk.auto_generate_drafts",
+    bind=True,
+    max_retries=2,
+    soft_time_limit=300,
+    time_limit=600,
+)
+def auto_generate_drafts(
+    self,
+    limit: int | None = None,
+    angle: str | None = None,
+) -> dict[str, Any]:
+    """Teyitli yeni olaylar için arka planda otomatik tweet üretir ve Telegram'a iletir."""
+    from politikdesk.editorial.auto_draft import process_pending_auto_drafts
+
+    try:
+        return process_pending_auto_drafts(limit=limit, angle=angle)
+    except Exception as exc:  # noqa: BLE001
+        log.error(
+            "auto_generate_drafts_task_failed",
+            error=type(exc).__name__,
+            detail=str(exc)[:300],
+        )
+        raise self.retry(exc=exc, countdown=120) from exc
+
+
 app.conf.beat_schedule = {
     # Spec §11.3: her 5 dakikada bir toplama (çekirdek kaynaklar)
     "ingest-every-5-minutes": {
@@ -522,6 +553,11 @@ app.conf.beat_schedule = {
     "evidence-every-5-minutes": {
         "task": "politikdesk.score_evidence",
         "schedule": 300.0,
+    },
+    # Teyitli olaylar için otomatik tweet üretimi ve Telegram bildirimi
+    "auto-generate-drafts-every-2-minutes": {
+        "task": "politikdesk.auto_generate_drafts",
+        "schedule": 120.0,
     },
     "context-every-30-minutes": {
         "task": "politikdesk.link_historical_context",

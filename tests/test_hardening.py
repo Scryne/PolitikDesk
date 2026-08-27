@@ -666,5 +666,3 @@ def test_production_mode_requires_api_token(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(ValidationError, match="PD_API_TOKEN zorunludur"):
         Settings(_env_file=None)  # type: ignore[call-arg]
-
-

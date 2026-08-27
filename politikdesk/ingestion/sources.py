@@ -60,8 +60,8 @@ class SourceConfig:
 
 
 VALID_VERTICALS = {"macro_economy", "legislation", "social"}
-MAX_GLOBAL_SOURCES = 100
-MAX_VERTICAL_SOURCES = 25
+MAX_GLOBAL_SOURCES = 120
+MAX_VERTICAL_SOURCES = 30
 
 
 

@@ -33,6 +33,7 @@ def client():  # noqa: ANN201
     with TestClient(app) as test_client:
         yield test_client
 
+
 # ═════════════════════════════════════════════ gezinme bağlantılarının adı
 #
 # `css.py` dar ekranda `.nav-item span{display:none}` uygular. `display:none`
@@ -147,9 +148,7 @@ def test_ekranlarda_baslik_seviyesi_atlanmiyor(client, path: str) -> None:  # no
 
     assert seviyeler[0] == 1, f"{path}: sayfa `h1` ile başlamıyor ({seviyeler[:3]})"
     for onceki, sonraki in zip(seviyeler, seviyeler[1:], strict=False):
-        assert sonraki <= onceki + 1, (
-            f"{path}: h{onceki} -> h{sonraki} seviye atlıyor"
-        )
+        assert sonraki <= onceki + 1, f"{path}: h{onceki} -> h{sonraki} seviye atlıyor"
 
 
 @pytest.mark.db

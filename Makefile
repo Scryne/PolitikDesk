@@ -164,6 +164,12 @@ briefing:
 metrics:
 	python -m scripts.ingest metrics
 
+auto-draft:
+	python -c "from politikdesk.editorial.auto_draft import process_pending_auto_drafts; r = process_pending_auto_drafts(); print(f'Otomatik taslak sonucu: {r}')"
+
+telegram-test:
+	python scripts/test_telegram_alert.py
+
 genbench:
 	python -m scripts.generation_benchmark --events 3
 

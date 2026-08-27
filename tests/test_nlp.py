@@ -339,3 +339,36 @@ def test_b63_source_entity_signal() -> None:
     res_tcmb = extract("Faiz Kararı Basın Duyurusu", "Kurul faizi sabit tuttu.", source_slug="tcmb")
     names_tcmb = {e.canonical_name for e in res_tcmb}
     assert "Türkiye Cumhuriyet Merkez Bankası" in names_tcmb
+
+
+def test_resolve_entity_with_titles_and_aliases() -> None:
+    """Unvan, takma ad ve kısaltmaların kanonik aktör/kurumlara çözümlenmesi."""
+    from politikdesk.nlp.entities import resolve_entity
+
+    # 1. Bakan ve Unvan çözümlemesi
+    e_simsek = resolve_entity("Bakan Şimşek")
+    assert e_simsek is not None
+    assert e_simsek.canonical_name == "Mehmet Şimşek"
+    assert e_simsek.entity_type == "person"
+
+    # 2. TCMB Başkanı
+    e_karahan = resolve_entity("TCMB Başkanı")
+    assert e_karahan is not None
+    assert e_karahan.canonical_name == "Fatih Karahan"
+    assert e_karahan.entity_type == "person"
+
+    # 3. Parti Lideri
+    e_ozel = resolve_entity("CHP Lideri")
+    assert e_ozel is not None
+    assert e_ozel.canonical_name == "Özgür Özel"
+    assert e_ozel.entity_type == "person"
+
+    # 4. Kurum Kısaltması
+    e_tcmb = resolve_entity("TCMB")
+    assert e_tcmb is not None
+    assert e_tcmb.canonical_name == "Türkiye Cumhuriyet Merkez Bankası"
+    assert e_tcmb.entity_type == "institution"
+
+    # 5. Tanımsız metin
+    assert resolve_entity("Rastgele Bir Metin") is None
+    assert resolve_entity("") is None

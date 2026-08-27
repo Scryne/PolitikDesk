@@ -60,6 +60,9 @@ _OPTIONAL_EMPTY_STRING_FIELDS: Final[frozenset[str]] = frozenset(
         "smtp_user",
         "smtp_password",
         "smtp_from",
+        "telegram_bot_token",
+        "telegram_chat_id",
+        "auto_draft_angle",
     }
 )
 
@@ -259,6 +262,17 @@ class Settings(BaseSettings):
     # --- Makro Anomali Uyarıları & Webhook (Faz 3 / Roadmap §7 kısıtı) ---
     # Varsayılan olarak kapalıdır; doğrulanmamış dış bildirim yollarını kilitler.
     enable_anomaly_alerts: bool = Field(default=False)
+    # SRE / Watchdog bildirimleri için harici webhook URL (Discord, Telegram, Slack)
+    alert_webhook_url: str = ""
+
+    # --- Otomatik Tweet Üretimi (Auto-Draft) & Telegram Bildirimleri ---
+    auto_draft_enabled: bool = Field(default=True)
+    auto_draft_min_salience: int = Field(default=30, ge=0, le=100)
+    auto_draft_angle: str = Field(default="inform")
+    auto_draft_max_events_per_cycle: int = Field(default=5, ge=1, le=50)
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    telegram_notify_drafts: bool = Field(default=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -298,6 +312,9 @@ class Settings(BaseSettings):
         "llm_generation_json_mode",
         "llm_model_extraction",
         "llm_model_generation",
+        "telegram_bot_token",
+        "telegram_chat_id",
+        "auto_draft_angle",
         mode="before",
     )
     @classmethod

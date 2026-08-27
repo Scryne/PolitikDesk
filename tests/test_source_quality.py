@@ -96,7 +96,7 @@ def test_no_political_labels_leak_into_component_names() -> None:
 
 # ═══════════════════════════════ 2. ölçülemeyen ≠ sıfır
 def test_no_runs_means_unmeasured_not_zero_reliability() -> None:
-    """"Hiç turu yok" ile "hep başarısız" aynı şey değildir.
+    """ "Hiç turu yok" ile "hep başarısız" aynı şey değildir.
 
     Sıfır verilseydi yeni eklenen her kaynak, daha ilk turunu koşmadan
     "güvenilmez" görünürdü.
@@ -115,9 +115,9 @@ def test_unmeasured_components_are_excluded_from_the_average() -> None:
     assert eksik.coverage == "5/6"
     # Ölçülemeyen bileşen 0 sayılsaydı skor düşerdi; dışlandığı için düşmez.
     assert eksik.score is not None
-    ortalama_olculen = sum(
-        float(c.value or 0) for c in eksik.measured_components
-    ) / len(eksik.measured_components)
+    ortalama_olculen = sum(float(c.value or 0) for c in eksik.measured_components) / len(
+        eksik.measured_components
+    )
     assert eksik.score == pytest.approx(round(ortalama_olculen, 1))
 
 
@@ -202,7 +202,7 @@ def test_attention_signal_ignores_structural_properties() -> None:
 
 
 def test_attention_entries_carry_their_reason() -> None:
-    """"Şu kaynak kötü" değil, "şu bileşeni şu değerde" denebilmeli."""
+    """ "Şu kaynak kötü" değil, "şu bileşeni şu değerde" denebilmeli."""
     imza = inspect.signature(sq.needs_attention)
     assert "threshold" in imza.parameters
     kaynak = inspect.getsource(sq.needs_attention)

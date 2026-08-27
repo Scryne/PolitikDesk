@@ -71,8 +71,14 @@ def test_schema_declares_the_five_dimensional_identity() -> None:
     sema = (
         Path(__file__).resolve().parent.parent / "migrations" / "0018_stance_shifts.sql"
     ).read_text(encoding="utf-8")
-    for sutun in ("actor_name", "shift_type", "topic_or_metric",
-                  "earlier_event_id", "later_event_id", "signature"):
+    for sutun in (
+        "actor_name",
+        "shift_type",
+        "topic_or_metric",
+        "earlier_event_id",
+        "later_event_id",
+        "signature",
+    ):
         assert sutun in sema, sutun
 
 
@@ -126,7 +132,7 @@ def test_service_read_path_delegates_to_the_store() -> None:
 
 
 def test_graph_query_by_event_covers_both_directions() -> None:
-    """"Bu olay hangi kaymaların parçası?" — kalıcılaştırmanın açtığı kapı."""
+    """ "Bu olay hangi kaymaların parçası?" — kalıcılaştırmanın açtığı kapı."""
     kaynak = inspect.getsource(ss.for_event)
     assert "earlier_event_id = %s" in kaynak
     assert "later_event_id = %s" in kaynak

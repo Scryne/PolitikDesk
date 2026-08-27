@@ -33,8 +33,8 @@ SBB = next((s for s in SOURCES if s["slug"] == "sbb"), None)
 # ══════════════════════════════════════════════ 1–4 · envanter sözleşmesi
 
 
-def test_max_sources_is_22() -> None:
-    assert DATA["max_sources"] == 22
+def test_max_sources_is_25() -> None:
+    assert DATA["max_sources"] == 25
 
 
 def test_sbb_is_in_production_inventory() -> None:
@@ -78,9 +78,7 @@ def test_sbb_independence_group_is_distinct() -> None:
 # ═══════════════════════════════════════ 5–6 · gruplama davranış sözleşmesi
 
 
-def _makale(
-    article_id: int, slug: str, tier: int, kind: str, group: str | None
-) -> EvidenceArticle:
+def _makale(article_id: int, slug: str, tier: int, kind: str, group: str | None) -> EvidenceArticle:
     return EvidenceArticle(
         article_id=article_id,
         source_slug=slug,
@@ -129,7 +127,7 @@ def test_cap_cannot_be_silently_exceeded() -> None:
 
     Boşluk olsaydı bir sonraki kaynak hiçbir testi kırmadan eklenirdi.
     """
-    assert DATA["max_sources"] == len(SOURCES) == 22
+    assert DATA["max_sources"] == len(SOURCES) == 25
 
 
 def test_loader_rejects_exceeding_the_cap(tmp_path: Path) -> None:
@@ -145,13 +143,21 @@ def test_loader_rejects_exceeding_the_cap(tmp_path: Path) -> None:
                 "max_sources": 1,
                 "sources": [
                     {
-                        "slug": "a", "name": "A", "tier": 1, "kind": "official",
-                        "access_method": "rss", "tos_status": "allowed",
+                        "slug": "a",
+                        "name": "A",
+                        "tier": 1,
+                        "kind": "official",
+                        "access_method": "rss",
+                        "tos_status": "allowed",
                         "independence_group": "g-a",
                     },
                     {
-                        "slug": "b", "name": "B", "tier": 1, "kind": "official",
-                        "access_method": "rss", "tos_status": "allowed",
+                        "slug": "b",
+                        "name": "B",
+                        "tier": 1,
+                        "kind": "official",
+                        "access_method": "rss",
+                        "tos_status": "allowed",
                         "independence_group": "g-b",
                     },
                 ],
@@ -182,9 +188,7 @@ def test_r2_threshold_unchanged() -> None:
 
 def test_sbb_alone_cannot_make_a_claim_green() -> None:
     """Tek başına SBB -> 🟢 OLAMAZ. Tier 1 olmak yetmez; 3 bağımsız grup şart."""
-    sonuc = compute_status(
-        _iddia(), _kanit([_makale(1, "sbb", 1, "official", "official-sbb")])
-    )
+    sonuc = compute_status(_iddia(), _kanit([_makale(1, "sbb", 1, "official", "official-sbb")]))
     assert sonuc.status != "strongly_corroborated", (
         f"Tek SBB makalesi iddiayı yeşile çevirdi ({sonuc.rule}) — R2 delinmiş"
     )
@@ -194,19 +198,19 @@ def test_sbb_plus_one_media_cannot_make_a_claim_green() -> None:
     """SBB + 1 medya = 2 grup < 3. Yeşil olmamalı."""
     sonuc = compute_status(
         _iddia(),
-        _kanit([
-            _makale(1, "sbb", 1, "official", "official-sbb"),
-            _makale(2, "karar", 3, "media", "media-karar"),
-        ]),
+        _kanit(
+            [
+                _makale(1, "sbb", 1, "official", "official-sbb"),
+                _makale(2, "karar", 3, "media", "media-karar"),
+            ]
+        ),
     )
     assert sonuc.status != "strongly_corroborated"
 
 
 def test_sbb_plus_social_cannot_make_a_claim_green() -> None:
     """Tier 4 teyit sayılmaz: SBB + 5 sosyal hesap yine de yeşil değildir."""
-    sosyal = [
-        _makale(10 + i, f"x-hesap-{i}", 4, "social", f"social-{i}") for i in range(5)
-    ]
+    sosyal = [_makale(10 + i, f"x-hesap-{i}", 4, "social", f"social-{i}") for i in range(5)]
     sonuc = compute_status(
         _iddia(),
         _kanit([_makale(1, "sbb", 1, "official", "official-sbb"), *sosyal]),
@@ -225,11 +229,13 @@ def test_three_media_without_tier1_is_not_green() -> None:
     """
     sonuc = compute_status(
         _iddia(),
-        _kanit([
-            _makale(1, "birgun-politika", 3, "media", "media-birgun"),
-            _makale(2, "karar", 3, "media", "media-karar"),
-            _makale(3, "gazetepencere", 3, "media", "media-pencere"),
-        ]),
+        _kanit(
+            [
+                _makale(1, "birgun-politika", 3, "media", "media-birgun"),
+                _makale(2, "karar", 3, "media", "media-karar"),
+                _makale(3, "gazetepencere", 3, "media", "media-pencere"),
+            ]
+        ),
     )
     assert sonuc.status != "strongly_corroborated", (
         "Tier 1 olmadan yeşil üretildi — `has_primary_source` koşulu delinmiş"
@@ -251,10 +257,10 @@ def test_sbb_enables_r2_when_it_genuinely_corroborates() -> None:
         _makale(2, "karar", 3, "media", "media-karar"),
     ]
 
-    sbbsiz = compute_status(_iddia(), _kanit([*medya, _makale(3, "dunya", 3, "media", "media-dunya")]))
-    assert sbbsiz.status != "strongly_corroborated", (
-        "Üç medya + Tier 1 yok -> yeşil olmamalıydı"
+    sbbsiz = compute_status(
+        _iddia(), _kanit([*medya, _makale(3, "dunya", 3, "media", "media-dunya")])
     )
+    assert sbbsiz.status != "strongly_corroborated", "Üç medya + Tier 1 yok -> yeşil olmamalıydı"
 
     sbb_ile = compute_status(
         _iddia(), _kanit([*medya, _makale(3, "sbb", 1, "official", "official-sbb")])
@@ -307,6 +313,5 @@ def test_wrong_grouping_would_inflate_and_is_therefore_guarded() -> None:
     assert SBB is not None
     gruplar = [s["independence_group"] for s in SOURCES if s["slug"] == "sbb"]
     assert gruplar == ["official-sbb"], (
-        "SBB birden fazla grupla tanımlanmış — kanıt motoru onu birden çok "
-        "bağımsız kaynak sayar"
+        "SBB birden fazla grupla tanımlanmış — kanıt motoru onu birden çok bağımsız kaynak sayar"
     )

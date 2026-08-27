@@ -143,8 +143,7 @@ STAGES: tuple[Stage, ...] = (
         # clustering/repository.py::pending_clustering — üç koşul da aynı
         sql="""
             SELECT count(*) AS backlog,
-                   EXTRACT(EPOCH FROM (now() - min(
-                       COALESCE(published_at, first_seen_at)))) / 3600
+                   EXTRACT(EPOCH FROM (now() - min(first_seen_at))) / 3600
                      AS oldest_hours
             FROM articles
             WHERE event_id IS NULL
@@ -191,11 +190,18 @@ STAGES: tuple[Stage, ...] = (
         # Birikme sayısı bilgi olarak korunur: panoda "651 bekliyor"
         # görmek anlamlıdır, alarmı tetikleyen o değildir.
         sql="""
-            WITH pending AS (
+            WITH active_cycle AS (
+                SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1
+            ),
+            pending AS (
                 SELECT e.id
                 FROM events e
                 WHERE e.merged_into_id IS NULL
                   AND e.article_count > 0
+                  AND (
+                        e.cycle_id = (SELECT id FROM active_cycle)
+                     OR e.cycle_id IS NULL
+                  )
                   AND (
                         e.claims_attempted_at IS NULL
                      OR e.last_update_at > e.claims_attempted_at
@@ -208,8 +214,12 @@ STAGES: tuple[Stage, ...] = (
             SELECT (SELECT count(*) FROM pending) AS backlog,
                    CASE WHEN (SELECT count(*) FROM pending) = 0 THEN NULL
                         ELSE EXTRACT(EPOCH FROM (now() - COALESCE(
-                                 (SELECT max(claims_attempted_at) FROM events),
-                                 (SELECT min(created_at) FROM events)
+                                 (SELECT max(claims_attempted_at) FROM events
+                                  WHERE cycle_id = (SELECT id FROM active_cycle)
+                                     OR cycle_id IS NULL),
+                                 (SELECT min(created_at) FROM events
+                                  WHERE cycle_id = (SELECT id FROM active_cycle)
+                                     OR cycle_id IS NULL)
                              ))) / 3600
                    END AS oldest_hours
         """,
@@ -251,7 +261,7 @@ STAGES: tuple[Stage, ...] = (
         # context/related.py::run — aynı ilişkilendirilmemiş olay yüklemi (F2-17)
         sql="""
             SELECT count(*) AS backlog,
-                   EXTRACT(EPOCH FROM (now() - min(e.last_update_at))) / 3600
+                   EXTRACT(EPOCH FROM (now() - min(e.created_at))) / 3600
                      AS oldest_hours
             FROM events e
             WHERE e.merged_into_id IS NULL
@@ -263,7 +273,7 @@ STAGES: tuple[Stage, ...] = (
                 SELECT 1 FROM audit_log a
                 WHERE a.target = 'events/' || e.id
                   AND a.action = 'context_evaluated'
-                  AND a.created_at >= e.last_update_at
+                  AND a.created_at >= e.created_at
               )
         """,
         hint="beat'te `context-every-30-minutes` zamanlaması var mı? `make workers`",
@@ -275,7 +285,7 @@ STAGES: tuple[Stage, ...] = (
         # political_memory/orchestrator.py::process_pending_political_relations (S3)
         sql="""
             SELECT count(*) AS backlog,
-                   EXTRACT(EPOCH FROM (now() - min(e.last_update_at))) / 3600
+                   EXTRACT(EPOCH FROM (now() - min(e.created_at))) / 3600
                      AS oldest_hours
             FROM events e
             WHERE e.merged_into_id IS NULL
@@ -290,14 +300,14 @@ STAGES: tuple[Stage, ...] = (
                   SELECT 1 FROM event_relations r
                   WHERE r.from_event_id = e.id
                     AND r.engine_version = %s
-                    AND r.updated_at >= e.last_update_at
+                    AND r.updated_at >= e.created_at
               )
               AND NOT EXISTS (
                   SELECT 1 FROM audit_log a
                   WHERE a.target = 'events/' || e.id
                     AND a.action = 'political_relations_evaluated'
                     AND a.payload->>'engine_version' = %s
-                    AND a.created_at >= e.last_update_at
+                    AND a.created_at >= e.created_at
               )
         """,
         params=(RELATION_ENGINE_VERSION, RELATION_ENGINE_VERSION),
@@ -374,6 +384,29 @@ HEARTBEATS: tuple[Heartbeat, ...] = (
             "WHERE action = 'purge_expired_bodies'"
         ),
         hint="beat'te `purge-daily` zamanlaması var mı?",
+    ),
+    Heartbeat(
+        key="backup",
+        label="Yedekleme",
+        threshold_hours=36,  # günlük yedek; 36 saati aşarsa alarm
+        sql=(
+            "SELECT max(created_at) AS last_at FROM audit_log "
+            "WHERE action = 'backup_created'"
+        ),
+        hint=(
+            "Windows zamanlanmış görevi 'PolitikDesk-GunlukYedek' veya "
+            "`python -m scripts.backup create` çalışıyor mu?"
+        ),
+    ),
+    Heartbeat(
+        key="recovery_drill",
+        label="Kurtarma tatbikatı (DR)",
+        threshold_hours=168,  # haftalık tatbikat (7 gün); aşılırsa alarm
+        sql=(
+            "SELECT max(created_at) AS last_at FROM audit_log "
+            "WHERE action = 'recovery_drill_passed'"
+        ),
+        hint="Haftalık DR tatbikatı çalıştırılmalı: `python -m scripts.backup drill`",
     ),
 )
 

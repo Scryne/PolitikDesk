@@ -66,7 +66,9 @@ def verify_all_feeds(
             if cfg.adapter == "resmi_gazete":
                 from politikdesk.ingestion.adapters.resmi_gazete import ResmiGazeteAdapter
 
-                adapter = ResmiGazeteAdapter(slug=cfg.slug, base_url=cfg.base_url or "https://www.resmigazete.gov.tr")
+                adapter = ResmiGazeteAdapter(
+                    slug=cfg.slug, base_url=cfg.base_url or "https://www.resmigazete.gov.tr"
+                )
                 items_list = adapter.fetch()
                 elapsed_ms = int((time.perf_counter() - started) * 1000)
                 status_code = 200 if items_list else 204

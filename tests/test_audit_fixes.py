@@ -389,10 +389,15 @@ def test_def01_claims_pipeline_extracts_with_article_vertical() -> None:
         patch("politikdesk.nlp.claims_pipeline.pending_events", return_value=[100]),
         patch("politikdesk.nlp.claims_pipeline._articles_of", return_value=mock_articles),
         patch("politikdesk.nlp.claims_pipeline.connection", return_value=mock_conn),
-        patch("politikdesk.nlp.claims_pipeline.extract_claims", return_value=mock_extract_result) as mock_extract,
+        patch(
+            "politikdesk.nlp.claims_pipeline.extract_claims", return_value=mock_extract_result
+        ) as mock_extract,
         patch("politikdesk.nlp.claims.group_claims_by_source", return_value=[]),
         patch("politikdesk.nlp.claims_pipeline._persist", return_value=[]),
-        patch("politikdesk.nlp.opinion_classifier.classify_content_kind", return_value=MagicMock(kind="news")),
+        patch(
+            "politikdesk.nlp.opinion_classifier.classify_content_kind",
+            return_value=MagicMock(kind="news"),
+        ),
     ):
         claims_pipeline.run(limit=1, client=MagicMock())
         assert mock_extract.called
@@ -500,7 +505,10 @@ def test_def04_promises_and_archive_views_render_event_route() -> None:
     ]
 
     with (
-        patch("politikdesk.web.promises_view.mem_service.get_promise_tracker", return_value=mock_promise),
+        patch(
+            "politikdesk.web.promises_view.mem_service.get_promise_tracker",
+            return_value=mock_promise,
+        ),
         patch("politikdesk.users.touch_last_seen"),
     ):
         resp = promises_page()
@@ -540,7 +548,9 @@ def test_def07_stemmer_suffix_tuples_are_unique() -> None:
     """DEF-07: cross_source_matcher ve relation_engine suffix tablolarında mükerrer kayıt yoktur."""
     from politikdesk.nlp import cross_source_matcher
 
-    assert len(cross_source_matcher._COMMON_SUFFIXES) == len(set(cross_source_matcher._COMMON_SUFFIXES))
+    assert len(cross_source_matcher._COMMON_SUFFIXES) == len(
+        set(cross_source_matcher._COMMON_SUFFIXES)
+    )
 
 
 def test_imp01_manual_adapter_http_client_enforces_ssrf_dns() -> None:
@@ -601,3 +611,19 @@ def test_imp04_metric_value_status_defensive() -> None:
     mv_ok = MetricValue(name="time_to_understanding", value=5.0, sample_size=10)
     assert mv_ok.status == "ok"
 
+
+def test_ops01_watchdog_expected_containers_parity() -> None:
+    """OPS-01: scripts.watchdog EXPECTED_CONTAINERS pd-worker-llm'i kapsar ve check_deployment ile uyumludur."""
+    from scripts.check_deployment import CONTAINERS as DEPLOYMENT_CONTAINERS
+    from scripts.watchdog import EXPECTED_CONTAINERS
+
+    assert "pd-worker-llm" in EXPECTED_CONTAINERS
+    assert "pd-worker" in EXPECTED_CONTAINERS
+    assert "pd-beat" in EXPECTED_CONTAINERS
+    assert "pd-api" in EXPECTED_CONTAINERS
+    assert "pd-db" in EXPECTED_CONTAINERS
+    assert "pd-redis" in EXPECTED_CONTAINERS
+
+    # check_deployment'in denetlediği tüm uygulama konteynerleri watchdog tarafından da beklenir
+    for c in DEPLOYMENT_CONTAINERS:
+        assert c in EXPECTED_CONTAINERS

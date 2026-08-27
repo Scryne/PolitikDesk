@@ -22,13 +22,14 @@ from politikdesk.nlp.speaker import extract_speaker
 @pytest.mark.parametrize(
     ("metin", "beklenen"),
     [
-        ("Bakan Mehmet Şimşek, vergi uyumunu artırmayı amaçladıklarını söyledi.",
-         "Bakan Mehmet Şimşek"),
+        (
+            "Bakan Mehmet Şimşek, vergi uyumunu artırmayı amaçladıklarını söyledi.",
+            "Bakan Mehmet Şimşek",
+        ),
         ("Özgür Özel, kurultayın yapılacağını belirtti.", "Özgür Özel"),
         ("Tuncer Bakırhan, 'Bu ucuzluktur' dedi.", "Tuncer Bakırhan"),
         ("TÜİK, işsizlik oranını %7,6 olarak açıkladı.", "TÜİK"),
-        ("Numan Kurtulmuş stated that the word will be about brotherhood.",
-         "Numan Kurtulmuş"),
+        ("Numan Kurtulmuş stated that the word will be about brotherhood.", "Numan Kurtulmuş"),
         ("Erdoğan said he will be a candidate.", "Erdoğan"),
         ("Sinan Burhan: 'KURULTAY GELECEĞİ BELİRLEYECEK'.", "Sinan Burhan"),
     ],
@@ -50,9 +51,7 @@ def test_turkish_dotted_capitals_are_matched() -> None:
 # ═══════════════════════════ susması gereken durumlar
 def test_no_speaker_returns_none_not_a_guess() -> None:
     """`None` dürüst bir cevaptır: 'bu cümlede kesin kalıp yok'."""
-    assert extract_speaker(
-        "Kabul edilmeyince, parti değiştirecek haberleri sızdırılıyor."
-    ) is None
+    assert extract_speaker("Kabul edilmeyince, parti değiştirecek haberleri sızdırılıyor.") is None
 
 
 def test_empty_input_is_safe() -> None:
@@ -61,17 +60,17 @@ def test_empty_input_is_safe() -> None:
 
 
 def test_action_verbs_do_not_establish_authorship() -> None:
-    """"Gitti"/"yaptı" bir beyan sahipliği kurmaz; yalnızca aktarma fiilleri kurar."""
+    """ "Gitti"/"yaptı" bir beyan sahipliği kurmaz; yalnızca aktarma fiilleri kurar."""
     assert extract_speaker("Ahmet Yılmaz, Ankara'ya gitti.") is None
 
 
 def test_conjunction_is_not_a_name() -> None:
-    """"Ancak Bakan, ... dedi" cümlesinde konuşan "Ancak" olmamalı."""
+    """ "Ancak Bakan, ... dedi" cümlesinde konuşan "Ancak" olmamalı."""
     assert extract_speaker("Ancak bakan, konuyu değerlendireceğini söyledi.") is None
 
 
 def test_headline_prefix_is_not_a_speaker() -> None:
-    """"Cumhurbaşkanlığı Açıklaması:" bir ad değil, başlık önekidir."""
+    """ "Cumhurbaşkanlığı Açıklaması:" bir ad değil, başlık önekidir."""
     assert extract_speaker("Cumhurbaşkanlığı Açıklaması: Erzurum Kongresi") is None
 
 
@@ -113,10 +112,13 @@ def test_publication_matching_is_turkish_case_insensitive() -> None:
 
 def test_person_speaker_survives_publication_filter() -> None:
     """Bir bakanın X hesabı kaynak olsa da bakan meşru bir konuşandır."""
-    assert extract_speaker(
-        "Özgür Özel, kurultayın yapılacağını söyledi.",
-        known_publications=frozenset({"Halk TV", "Sözcü"}),
-    ) == "Özgür Özel"
+    assert (
+        extract_speaker(
+            "Özgür Özel, kurultayın yapılacağını söyledi.",
+            known_publications=frozenset({"Halk TV", "Sözcü"}),
+        )
+        == "Özgür Özel"
+    )
 
 
 # ═══════════════════════════ mimari kısıtlar
@@ -189,10 +191,7 @@ def test_memory_query_orders_speaker_matches_first_with_nulls_last() -> None:
 def test_migration_documents_why_not_status_reason() -> None:
     import pathlib
 
-    yol = (
-        pathlib.Path(sp.__file__).resolve().parents[2]
-        / "migrations" / "0020_claim_speaker.sql"
-    )
+    yol = pathlib.Path(sp.__file__).resolve().parents[2] / "migrations" / "0020_claim_speaker.sql"
     sql = yol.read_text(encoding="utf-8")
     assert "ADD COLUMN IF NOT EXISTS speaker" in sql
     assert "status_reason" in sql

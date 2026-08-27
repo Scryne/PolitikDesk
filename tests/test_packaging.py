@@ -178,7 +178,9 @@ def test_makefile_and_pd_cmd_commands_are_synced() -> None:
     assert pd_cmd_path.is_file(), "pd.cmd bulunamadı."
 
     # Makefile .PHONY hedefleri
-    phony_match = re.search(r"^\.PHONY:\s*(.+)$", makefile_path.read_text(encoding="utf-8"), re.MULTILINE)
+    phony_match = re.search(
+        r"^\.PHONY:\s*(.+)$", makefile_path.read_text(encoding="utf-8"), re.MULTILINE
+    )
     assert phony_match, "Makefile içinde .PHONY satırı bulunamadı."
     make_targets = set(phony_match.group(1).split())
 
@@ -222,10 +224,6 @@ def test_makefile_and_pd_cmd_commands_are_synced() -> None:
 
     assert not missing_in_make, f"Makefile içinde eksik temel komut(lar): {missing_in_make}"
     assert not missing_in_pd, f"pd.cmd içinde eksik temel komut(lar): {missing_in_pd}"
-
-
-
-
 
 
 # ══════════════════════════════════════ test ortamının belirliliği (18 Ağu 2026)

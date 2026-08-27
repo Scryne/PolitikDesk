@@ -347,15 +347,24 @@ def test_run_source_pencere_verilmezse_kendi_yukler(monkeypatch: pytest.MonkeyPa
         return DedupWindow(hashes={}, simhashes=[], texts={})
 
     monkeypatch.setattr(pipeline_mod.repository, "load_dedup_window", sahte_yukle)
-    monkeypatch.setattr(
-        pipeline_mod.repository, "insert_article", lambda *a, **k: 1
-    )
+    monkeypatch.setattr(pipeline_mod.repository, "insert_article", lambda *a, **k: 1)
 
     kaynak = SourceRow(
-        id=1, slug="k", name="K", tier=2, kind="news", independence_group=None,
-        access_method="rss", tos_status="allowed", adapter="rss",
-        base_url="https://example.com", feed_url="https://example.com/rss",
-        extra_feeds=[], keyword_filter=[], topics=[], is_active=True,
+        id=1,
+        slug="k",
+        name="K",
+        tier=2,
+        kind="news",
+        independence_group=None,
+        access_method="rss",
+        tos_status="allowed",
+        adapter="rss",
+        base_url="https://example.com",
+        feed_url="https://example.com/rss",
+        extra_feeds=[],
+        keyword_filter=[],
+        topics=[],
+        is_active=True,
         is_wire_reference=False,
     )
     kalemler = [

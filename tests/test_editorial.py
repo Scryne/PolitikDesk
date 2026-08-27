@@ -1195,4 +1195,3 @@ def test_stance_security_and_truncation(tmp_path: Path) -> None:
     assert "</user_editorial_stance>" in block_mal
     # İçerideki enjeksiyon kapatma etiketi nötralize edilmiş olmalı
     assert "[tag_sanitized]" in block_mal
-

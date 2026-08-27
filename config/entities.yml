@@ -331,15 +331,40 @@ political_actors:
   - cumhurbaşkanı erdoğan
   - cumhurbaskani erdogan
   - cumhurbaşkanı recep tayyip erdoğan
+  - ak parti genel başkanı erdoğan
   - erdoğan
   - erdogan
   Özgür Özel:
   - özgür özel
   - ozgur ozel
   - chp genel başkanı özgür özel
+  - chp genel başkanı
+  - chp lideri
   - chp lideri özel
   - chp lideri ozgur ozel
   - özgür özel'in
+  Ekrem İmamoğlu:
+  - ekrem i̇mamoğlu
+  - ekrem imamoglu
+  - i̇mamoğlu
+  - imamoglu
+  - ibb başkanı
+  - ibb başkanı ekrem i̇mamoğlu
+  - i̇stanbul büyükşehir belediye başkanı ekrem i̇mamoğlu
+  Mansur Yavaş:
+  - mansur yavaş
+  - mansur yavas
+  - abb başkanı
+  - abb başkanı mansur yavaş
+  - ankara büyükşehir belediye başkanı mansur yavaş
+  Fatih Karahan:
+  - fatih karahan
+  - dr. fatih karahan
+  - tcmb başkanı
+  - tcmb başkanı fatih karahan
+  - merkez bankası başkanı
+  - merkez bankası başkanı fatih karahan
+  - başkan karahan
   Devlet Bahçeli:
   - devlet bahçeli
   - devlet bahceli
@@ -438,7 +463,12 @@ political_actors:
   Mehmet Şimşek:
   - mehmet şimşek
   - mehmet simsek
+  - bakan şimşek
+  - bakan simsek
+  - hazine bakanı
+  - maliye bakanı
   - hazine ve maliye bakanı mehmet şimşek
+  - hazine ve maliye bakanı
   Yusuf Tekin:
   - yusuf tekin
   - millî eğitim bakanı yusuf tekin

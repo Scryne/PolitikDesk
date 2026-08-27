@@ -11,10 +11,10 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -29,10 +29,13 @@ from politikdesk.observability import configure_logging, configure_sentry, get_l
 from politikdesk.web.accountability_view import router as accountability_router
 from politikdesk.web.api import router as web_api_router
 from politikdesk.web.archive_view import router as archive_router
+from politikdesk.web.auth_view import router as auth_router
 from politikdesk.web.briefing import router as briefing_router
+from politikdesk.web.comparison_view import router as comparison_router
 from politikdesk.web.draft import router as draft_router
 from politikdesk.web.event import router as event_router
 from politikdesk.web.feed import router as feed_router
+from politikdesk.web.graph_view import router as graph_router
 from politikdesk.web.memory_view import router as memory_router
 from politikdesk.web.metrics_dashboard import router as metrics_router
 from politikdesk.web.onboarding import router as onboarding_router
@@ -94,31 +97,93 @@ app.include_router(briefing_router)
 app.include_router(onboarding_router)
 app.include_router(metrics_router)
 app.include_router(accountability_router)
+app.include_router(comparison_router)
 app.include_router(memory_router)
+app.include_router(graph_router)
 app.include_router(promises_router)
 app.include_router(archive_router)
+app.include_router(auth_router)
 app.include_router(web_api_router)
 
 
-@app.get("/metrics", include_in_schema=False)
-def metrics_redirect():  # noqa: ANN201
-    from fastapi.responses import RedirectResponse
+@app.get("/metrics", response_class=Response, include_in_schema=False)
+def prometheus_metrics() -> Response:
+    """Prometheus / OpenMetrics standart telemetri ucu."""
+    from politikdesk.api.metrics_exporter import generate_prometheus_metrics
 
-    return RedirectResponse(url="/admin/metrics", status_code=307)
+    return Response(
+        content=generate_prometheus_metrics(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
+
+
+@app.get("/livez", response_class=JSONResponse, include_in_schema=False)
+def liveness_probe() -> JSONResponse:
+    """Liveness probe (K8s/Docker): Süreç ayakta mı?"""
+    return JSONResponse(content={"status": "alive", "version": __version__})
+
+
+@app.get("/readyz", response_class=JSONResponse, include_in_schema=False)
+def readiness_probe() -> JSONResponse:
+    """Readiness probe (K8s/Docker): Veritabanı ve Redis hazır mı?"""
+    from politikdesk.db import connection
+
+    db_ok = False
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT 1;")
+            cur.fetchone()
+            db_ok = True
+    except Exception as e:
+        log.warning("readiness_db_failed", error=str(e))
+
+    redis_ok = False
+    try:
+        from politikdesk.sre_metrics import get_redis_client
+        client = get_redis_client()
+        if client and client.ping():
+            redis_ok = True
+    except Exception as e:
+        log.warning("readiness_redis_failed", error=str(e))
+
+    if db_ok and redis_ok:
+        return JSONResponse(
+            content={"status": "ready", "database": "ok", "redis": "ok"},
+            status_code=200,
+        )
+    return JSONResponse(
+        content={
+            "status": "not_ready",
+            "database": "ok" if db_ok else "unavailable",
+            "redis": "ok" if redis_ok else "unavailable",
+        },
+        status_code=503,
+    )
 
 
 # ─────────────────────────── kimlik doğrulama (I01 — denetim düzeltmesi)
 #
 # `PD_API_TOKEN` ayarlıysa tüm istekler bu belirteci taşımalıdır.
-# Sağlık uçları (`/health/*`) ve statik varlıklar (`/static/*`) muaftır —
+# Sağlık uçları (`/health/*`, `/livez`, `/readyz`) ve statik varlıklar (`/static/*`) muaftır —
 # Docker/K8s probları ve tarayıcı CSS/font istekleri belirteç taşımaz.
 #
 # Belirteç boşsa (varsayılan) middleware hiçbir şey yapmaz: geliştirme
 # ortamında kimlik doğrulama gereksizdir ve eklenmesi mevcut akışları
 # bozardı. Üretimde `.env`'ye `PD_API_TOKEN=<uzun-rastgele-dize>` yazmak
 # yeterlidir.
-_AUTH_EXEMPT = ("/health/", "/version", "/static/", "/favicon.ico", "/robots.txt")
+_AUTH_EXEMPT = (
+    "/health/",
+    "/livez",
+    "/readyz",
+    "/version",
+    "/metrics",
+    "/static/",
+    "/favicon.ico",
+    "/robots.txt",
+    "/login",
+    "/logout",
+)
 
 
 class _TokenAuthMiddleware(BaseHTTPMiddleware):
@@ -140,8 +205,26 @@ class _TokenAuthMiddleware(BaseHTTPMiddleware):
             provided = auth_header[7:].strip() or None
         if not provided:
             provided = request.headers.get("x-api-token", "").strip() or None
+        if not provided:
+            provided = (
+                request.cookies.get("pd_token")
+                or request.cookies.get("token")
+                or request.query_params.get("token")
+                or None
+            )
+
+        is_browser = "text/html" in request.headers.get("accept", "")
+        is_api = path.startswith("/api/") or path.startswith("/ingest/")
 
         if provided is None:
+            if is_browser and not is_api:
+                full_path = request.url.path
+                if request.url.query:
+                    full_path += f"?{request.url.query}"
+                return RedirectResponse(
+                    url=f"/login?next={quote(full_path)}",
+                    status_code=303,
+                )
             return JSONResponse(
                 status_code=401,
                 content={
@@ -151,11 +234,30 @@ class _TokenAuthMiddleware(BaseHTTPMiddleware):
                 },
             )
         if not secrets.compare_digest(provided, token):
+            if is_browser and not is_api:
+                full_path = request.url.path
+                if request.url.query:
+                    full_path += f"?{request.url.query}"
+                return RedirectResponse(
+                    url=f"/login?next={quote(full_path)}",
+                    status_code=303,
+                )
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Geçersiz belirteç."},
             )
-        return await call_next(request)
+        response = await call_next(request)
+        if request.query_params.get("token") and provided == token:
+            response.set_cookie(
+                key="pd_token",
+                value=token,
+                httponly=True,
+                samesite="lax",
+                secure=request.url.scheme == "https",
+                max_age=30 * 86400,
+                path="/",
+            )
+        return response
 
 
 class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
@@ -176,7 +278,7 @@ class _CSRFProtectionMiddleware(BaseHTTPMiddleware):
     """
 
     _SAFE_METHODS = ("GET", "HEAD", "OPTIONS", "TRACE")
-    _NO_ORIGIN_ALLOWED_PREFIXES = ("/api/", "/ingest/", "/health/", "/static/")
+    _NO_ORIGIN_ALLOWED_PREFIXES = ("/api/", "/ingest/", "/health/", "/static/", "/login", "/logout")
 
     async def dispatch(self, request: Request, call_next):  # noqa: ANN201
         if request.method in self._SAFE_METHODS:

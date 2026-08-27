@@ -119,9 +119,7 @@ def test_csp_nonce_ile_html_nonce_ayni_yanitta_eslesir(client: TestClient, path:
     nonces = _script_nonces(resp.text)
     assert nonces, f"{path}: hiç satır içi betik bulunamadı — sayfa iskeleti değişmiş olabilir."
     assert None not in nonces, f"{path}: nonce'suz satır içi betik var — tarayıcı onu bloklar."
-    assert set(nonces) == {header_nonce.group(1)}, (
-        f"{path}: HTML nonce'u başlıktakiyle eşleşmiyor."
-    )
+    assert set(nonces) == {header_nonce.group(1)}, f"{path}: HTML nonce'u başlıktakiyle eşleşmiyor."
 
 
 def test_iki_farkli_istegin_nonce_lari_capraz_gecerli_degildir(client: TestClient) -> None:

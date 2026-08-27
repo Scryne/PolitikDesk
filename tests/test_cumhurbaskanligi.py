@@ -95,9 +95,17 @@ def test_cumhurbaskanligi_categorization_and_provenance() -> None:
 def test_classify_tccb_item_unit_cases() -> None:
     """TCCB sınıflandırıcı farklı başlıkları doğru kategoriye eşler."""
     assert classify_tccb_item("Bakan Yardımcısı Atama Kararları")[0] == "atama_ve_kadro"
-    assert classify_tccb_item("Devlet Memurları Disiplin Yönetmeliği ve Kararnamesi")[0] == "kararname"
-    assert classify_tccb_item("Cumhurbaşkanı ve Fransa Devlet Başkanı İkili Görüşmesi")[0] == "diplomasi"
-    assert classify_tccb_item("Haftalık Basın Bilgilendirme Toplantısı Notları")[0] == "basin_aciklamasi"
+    assert (
+        classify_tccb_item("Devlet Memurları Disiplin Yönetmeliği ve Kararnamesi")[0] == "kararname"
+    )
+    assert (
+        classify_tccb_item("Cumhurbaşkanı ve Fransa Devlet Başkanı İkili Görüşmesi")[0]
+        == "diplomasi"
+    )
+    assert (
+        classify_tccb_item("Haftalık Basın Bilgilendirme Toplantısı Notları")[0]
+        == "basin_aciklamasi"
+    )
 
 
 def test_cumhurbaskanligi_empty_and_malformed() -> None:

@@ -63,11 +63,7 @@ def fold(text: str) -> str:
     çevirmiyor. Karşılaştırma iki yazımı da aynı saymalı — aksi hâlde
     doğrulama, doğru kodları eler.
     """
-    sade = (
-        text.replace("İ", "i")
-        .replace("I", "i")
-        .replace("ı", "i")
-    )
+    sade = text.replace("İ", "i").replace("I", "i").replace("ı", "i")
     decomposed = unicodedata.normalize("NFKD", sade)
     temiz = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
     return " ".join(temiz.split())

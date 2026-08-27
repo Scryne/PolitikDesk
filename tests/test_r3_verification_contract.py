@@ -330,7 +330,10 @@ def test_ambiguity_check_does_not_weaken_other_constraints() -> None:
     """Seri kısıtı diğer kısıtları GEVŞETMEZ."""
     usd = {**EVDS_KUR, "series_code": "TP.DK.USD.A.YTL"}
     iddia = {k: v for k, v in EVDS_KUR.items() if k != "series_code"}
-    assert _verified_against_official(_TekSatirCursor(usd), 1, {**iddia, "period": "2026-01-01"}) is False
+    assert (
+        _verified_against_official(_TekSatirCursor(usd), 1, {**iddia, "period": "2026-01-01"})
+        is False
+    )
     assert _verified_against_official(_TekSatirCursor(usd), 1, {**iddia, "unit": "USD"}) is False
 
 

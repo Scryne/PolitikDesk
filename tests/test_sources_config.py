@@ -30,29 +30,28 @@ VALID_TOS = {"allowed", "restricted", "forbidden", "pending_review"}
 
 
 def test_source_count_never_exceeds_hard_limit() -> None:
-    """Spec §9.2 / D6: azami 22 ekonomi kaynağı (20 Ağu 2026, SBB ile).
+    """Spec §9.2 / D6: azami 25 ekonomi kaynağı (23 Ağu 2026, Fed/ECB/BoE ile).
 
     Bu testin koruduğu sözleşme İKİ parçalıdır ve ikisi de gereklidir:
       1. **Yapısal:** kaynak sayısı beyan edilen sınırı AŞAMAZ.
       2. **Değer:** sınırın kendisi sabittir ve değiştirmek bu testi
          kırar — yani sınır ancak bilinçli bir kararla değişir.
     """
-    assert len(SOURCES) <= DATA["max_sources"] == 22, (
-        f"{len(SOURCES)} kaynak var. Sınır 22'dir ve gerekçesi "
-        "config/sources.yml başlığındadır (F5-01)."
+    assert len(SOURCES) <= DATA["max_sources"] == 25, (
+        f"{len(SOURCES)} kaynak var. Sınır 25'tir ve gerekçesi "
+        "config/sources.yml başlığındadır (F5-01 / Faz B)."
     )
 
 
 def test_source_count_matches_staged_rollout() -> None:
-    """F5-06: 15 -> 20 tam kapsamlı rollout; 19 Ağu: EVDS 21; 20 Ağu: SBB 22.
+    """F5-06: 15 -> 20; 19 Ağu: EVDS 21; 20 Ağu: SBB 22; 23 Ağu: Fed/ECB/BoE 25.
 
     20 kaynak sınırı ile makro ekonomi, piyasalar, fintech, uzman blogları
     ve reel sektör çerçeveleme çeşitliliği en üst seviyeye çıkarıldı.
-    21 ve 22 MEDYA eklemesi değildir: ikisi de kurumun kendi yayınıdır
-    (EVDS veri servisi, SBB makro analiz) ve kanıt motorunun Tier 1
-    açığını kapatmak için alınmıştır.
+    21, 22 ve 23–25 MEDYA eklemesi değildir: Tier 1 birincil resmi
+    merkez bankaları ve veri servisleridir.
     """
-    assert len(SOURCES) == 22
+    assert len(SOURCES) == 25
 
 
 def test_cap_has_no_silent_headroom() -> None:
@@ -107,23 +106,16 @@ def test_no_social_tier_source_in_mvp() -> None:
 
 
 def test_tier_distribution() -> None:
-    """6 resmî (omurga) + 2 ajans/uluslararası + 14 bağımsız yayın.
+    """9 resmî (omurga + küresel MB) + 2 ajans/uluslararası + 14 bağımsız yayın.
 
     19 Ağu 2026: Tier 1 dörtten beşe çıktı — TCMB EVDS eklendi.
     20 Ağu 2026: beşten altıya — SBB eklendi.
-
-    **Artan tek katman Tier 1'dir ve bu bilinçlidir.** Ölçüm (20 Ağu 2026):
-    Tier 1 kanıt havuzunun %1,8'i; R2'nin istediği "Tier 1 birincil"
-    ayağı bu yüzden hiçbir iddiada sağlanamıyordu. Tier 3 (medya)
-    sayısına DOKUNULMADI — sorun çerçeveleme çeşitliliği değil, resmî
-    kanıt yoğunluğuydu.
+    23 Ağu 2026: altıdan dokuza — Fed, ECB, BoE eklendi.
     """
     counts: dict[int, int] = {}
     for s in SOURCES:
         counts[s["tier"]] = counts.get(s["tier"], 0) + 1
-    assert counts == {1: 6, 2: 2, 3: 14}, counts
-
-
+    assert counts == {1: 9, 2: 2, 3: 14}, counts
 
 
 def test_every_source_has_a_distinct_independence_group() -> None:
@@ -274,7 +266,7 @@ def test_vertical_source_limit_enforced() -> None:
     leg_path = Path(__file__).resolve().parent.parent / "config" / "sources_legislation.yml"
     if leg_path.is_file():
         cfgs, _ = load_config(leg_path)
-        assert len(cfgs) <= MAX_VERTICAL_SOURCES == 25
+        assert len(cfgs) <= MAX_VERTICAL_SOURCES == 30
 
 
 def test_global_source_limit_enforced() -> None:
@@ -283,8 +275,7 @@ def test_global_source_limit_enforced() -> None:
 
     all_cfgs = load_all_configs()
     assert len(all_cfgs) <= MAX_GLOBAL_SOURCES
-    assert MAX_GLOBAL_SOURCES == 100
-
+    assert MAX_GLOBAL_SOURCES == 120
 
 
 def test_duplicate_slug_across_verticals_rejected(tmp_path: Path) -> None:
@@ -362,7 +353,6 @@ def test_legislation_sources_configured() -> None:
     assert len(set(groups)) == len(groups)
 
 
-
 def test_verify_feeds_runner() -> None:
     """verify_feeds aracı yapılandırma dosyalarını başarıyla denetlemeli."""
     from scripts.verify_feeds import verify_all_feeds
@@ -407,4 +397,3 @@ def test_sync_to_database_deactivates_obsolete_sources(monkeypatch) -> None:  # 
     res = sync_to_database(dummy_cfg)
     assert res["deactivated"] == 2
     assert mock_cur.execute.call_count >= 2
-

@@ -199,7 +199,8 @@ def sync_series(*, history_days: int = HISTORY_DAYS) -> SyncStats:
                 continue
             try:
                 url = adapter.data_url(spec)
-                yanit = adapter.http.get(url, headers={"key": key}, source_slug=adapter.slug)  # type: ignore[union-attr]
+                assert adapter.http is not None
+                yanit = adapter.http.get(url, headers={"key": key}, source_slug=adapter.slug)
                 gozlemler = adapter._parse_payload(yanit.text, spec)  # noqa: SLF001
             except Exception as exc:  # noqa: BLE001 — bir seri diğerini düşürmez
                 log.warning(

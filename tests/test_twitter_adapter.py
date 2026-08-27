@@ -418,7 +418,9 @@ def test_twitter_adapter_both_bridge_and_oembed_fail() -> None:
     resp_fail.text = "Service Unavailable"
     mock_http.get.return_value = resp_fail
 
-    adapter = TwitterAdapter("x-test", handle="testaccount", http=mock_http, max_consecutive_failures=2)
+    adapter = TwitterAdapter(
+        "x-test", handle="testaccount", http=mock_http, max_consecutive_failures=2
+    )
     items = adapter.fetch()
 
     assert len(items) == 0
@@ -511,7 +513,6 @@ def test_twitter_list_sources_config_validation() -> None:
         "x-list-1635155394849914880",
     }
 
-
     for el in expected_lists:
         assert el in slugs, f"{el} sources konfigürasyonunda bulunamadı!"
 
@@ -600,7 +601,9 @@ def test_thread_aggregator_does_not_merge_unrelated_replies() -> None:
 
     items = aggregate_threads([t1, t2, t3_unrelated, t4_flood1, t5_flood2])
 
-    assert len(items) == 3, f"Beklenen 3 ayrı grup (flood1, harici yanıt, flood2), fakat {len(items)} geldi"
+    assert len(items) == 3, (
+        f"Beklenen 3 ayrı grup (flood1, harici yanıt, flood2), fakat {len(items)} geldi"
+    )
     # Grup 1: t1 + t2
     assert items[0].extra["is_thread"] is True
     assert items[0].extra["tweet_count"] == 2
@@ -611,6 +614,3 @@ def test_thread_aggregator_does_not_merge_unrelated_replies() -> None:
     # Grup 3: t4 + t5
     assert items[2].extra["is_thread"] is True
     assert items[2].extra["tweet_count"] == 2
-
-
-

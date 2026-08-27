@@ -137,7 +137,6 @@ def test_record_relation_and_fetch_with_enhanced_fields() -> None:
             conn.commit()
 
 
-
 def test_sparkline_svg_rendering() -> None:
     """Satır içi mini sparkline SVG grafiği doğrulaması."""
     from politikdesk.web.ui.charts import sparkline
@@ -190,4 +189,3 @@ def test_political_memory_models_module_import() -> None:
         explanation="Doğrulandı",
     )
     assert res.is_valid is True
-

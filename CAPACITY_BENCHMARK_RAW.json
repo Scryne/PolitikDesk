@@ -1,0 +1,230 @@
+{
+  "timestamp": "2026-08-24T18:22:17.953614+00:00",
+  "tiers": [
+    {
+      "concurrency": 10,
+      "total_requests": 200,
+      "successful_requests": 200,
+      "duration_seconds": 0.41,
+      "rps": 488.29,
+      "latencies_ms": {
+        "p50": 16.86,
+        "p90": 21.99,
+        "p95": 30.1,
+        "p99": 85.39,
+        "mean": 18.68,
+        "max": 86.25
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "error_rate_pct": 0.0,
+      "timeout_rate_pct": 0.0,
+      "telemetry_before": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      },
+      "telemetry_after": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      }
+    },
+    {
+      "concurrency": 25,
+      "total_requests": 500,
+      "successful_requests": 500,
+      "duration_seconds": 1.103,
+      "rps": 453.38,
+      "latencies_ms": {
+        "p50": 49.94,
+        "p90": 58.89,
+        "p95": 136.61,
+        "p99": 144.0,
+        "mean": 54.28,
+        "max": 147.6
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "error_rate_pct": 0.0,
+      "timeout_rate_pct": 0.0,
+      "telemetry_before": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      },
+      "telemetry_after": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      }
+    },
+    {
+      "concurrency": 50,
+      "total_requests": 1000,
+      "successful_requests": 1000,
+      "duration_seconds": 2.117,
+      "rps": 472.28,
+      "latencies_ms": {
+        "p50": 103.06,
+        "p90": 112.05,
+        "p95": 137.38,
+        "p99": 149.43,
+        "mean": 103.8,
+        "max": 151.32
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "error_rate_pct": 0.0,
+      "timeout_rate_pct": 0.0,
+      "telemetry_before": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      },
+      "telemetry_after": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      }
+    },
+    {
+      "concurrency": 100,
+      "total_requests": 1500,
+      "successful_requests": 1500,
+      "duration_seconds": 3.143,
+      "rps": 477.29,
+      "latencies_ms": {
+        "p50": 205.59,
+        "p90": 218.89,
+        "p95": 245.8,
+        "p99": 250.04,
+        "mean": 202.63,
+        "max": 252.63
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "error_rate_pct": 0.0,
+      "timeout_rate_pct": 0.0,
+      "telemetry_before": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      },
+      "telemetry_after": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      }
+    },
+    {
+      "concurrency": 200,
+      "total_requests": 2000,
+      "successful_requests": 2000,
+      "duration_seconds": 3.892,
+      "rps": 513.85,
+      "latencies_ms": {
+        "p50": 370.37,
+        "p90": 413.7,
+        "p95": 455.3,
+        "p99": 467.46,
+        "mean": 369.05,
+        "max": 472.67
+      },
+      "errors": 0,
+      "timeouts": 0,
+      "error_rate_pct": 0.0,
+      "timeout_rate_pct": 0.0,
+      "telemetry_before": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      },
+      "telemetry_after": {
+        "db_connections": {
+          "total": 10,
+          "active": 1,
+          "idle": 8
+        },
+        "redis": {
+          "used_memory_human": "2.41M",
+          "used_memory_rss_human": "10.23M",
+          "celery_queue_len": 0,
+          "celery_llm_queue_len": 0
+        }
+      }
+    }
+  ]
+}

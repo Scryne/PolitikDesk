@@ -68,7 +68,7 @@ def test_html_body_raises_instead_of_returning_zero_entries() -> None:
     görünüyor.
     """
     with pytest.raises(CalendarFetchError, match="HTML"):
-        parse_payload('<!DOCTYPE html>\n<html><body>JS gerekli</body></html>')
+        parse_payload("<!DOCTYPE html>\n<html><body>JS gerekli</body></html>")
 
 
 def test_empty_and_malformed_bodies_raise() -> None:
@@ -99,12 +99,24 @@ def test_entries_sharing_one_source_id_are_kept_separate() -> None:
     hiç bekleyen yayını görünmüyordu.
     """
     bekleyen = [
-        _row(adi="Tüketici Güven Endeksi", donemi="Aralık 2026",
-             gTarih="2026-12-21T10:00:00", kayit_id=0),
-        _row(adi="Dış Ticaret İstatistikleri", donemi="Kasım 2026",
-             gTarih="2026-12-31T10:00:00", kayit_id=0),
-        _row(adi="İşgücü İstatistikleri", donemi="Kasım 2026",
-             gTarih="2026-12-30T10:00:00", kayit_id=0),
+        _row(
+            adi="Tüketici Güven Endeksi",
+            donemi="Aralık 2026",
+            gTarih="2026-12-21T10:00:00",
+            kayit_id=0,
+        ),
+        _row(
+            adi="Dış Ticaret İstatistikleri",
+            donemi="Kasım 2026",
+            gTarih="2026-12-31T10:00:00",
+            kayit_id=0,
+        ),
+        _row(
+            adi="İşgücü İstatistikleri",
+            donemi="Kasım 2026",
+            gTarih="2026-12-30T10:00:00",
+            kayit_id=0,
+        ),
     ]
     entries = parse_payload(_payload([], bekleyen))
 
@@ -145,10 +157,12 @@ def test_publications_differing_only_by_period_get_distinct_ids() -> None:
 
 
 def test_missing_period_falls_back_to_the_date_for_identity() -> None:
-    a = build_external_id("TÜİK", "Günlük İstatistik", None,
-                          datetime(2026, 8, 19, tzinfo=CALENDAR_TZ))
-    b = build_external_id("TÜİK", "Günlük İstatistik", None,
-                          datetime(2026, 8, 20, tzinfo=CALENDAR_TZ))
+    a = build_external_id(
+        "TÜİK", "Günlük İstatistik", None, datetime(2026, 8, 19, tzinfo=CALENDAR_TZ)
+    )
+    b = build_external_id(
+        "TÜİK", "Günlük İstatistik", None, datetime(2026, 8, 20, tzinfo=CALENDAR_TZ)
+    )
     assert a != b
 
 
@@ -207,8 +221,14 @@ def test_entries_are_sorted_by_expected_time() -> None:
 def test_institution_filter_is_applied_and_deliberately_narrow() -> None:
     """Filtresiz 31 kurumun 4.085 kaydı girerdi ve takvim okunamaz olurdu."""
     entries = parse_payload(
-        _payload([], [_row(kurum="TÜİK"), _row(kurum="KTB", adi="Turizm"),
-                      _row(kurum="UAB", adi="Ulaştırma")])
+        _payload(
+            [],
+            [
+                _row(kurum="TÜİK"),
+                _row(kurum="KTB", adi="Turizm"),
+                _row(kurum="UAB", adi="Ulaştırma"),
+            ],
+        )
     )
     assert [e.institution for e in entries] == ["TÜİK"]
 
@@ -275,9 +295,7 @@ def test_upsert_is_idempotent_and_preserves_matched_events(db_conn) -> None:  # 
             )
     finally:
         with db_conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM scheduled_events WHERE external_id LIKE 'pytest-takvim:%'"
-            )
+            cur.execute("DELETE FROM scheduled_events WHERE external_id LIKE 'pytest-takvim:%'")
 
 
 @pytest.mark.db
@@ -303,14 +321,13 @@ def test_expected_on_answers_the_roadmap_question(db_conn) -> None:  # noqa: ANN
 
         # Kurum filtresi
         assert not [
-            r for r in expected_on(gun.date(), institution="TÜİK")
+            r
+            for r in expected_on(gun.date(), institution="TÜİK")
             if r["title"] == "pytest Günlük Yayın"
         ]
     finally:
         with db_conn.cursor() as cur:
-            cur.execute(
-                "DELETE FROM scheduled_events WHERE external_id LIKE 'pytest-takvim:%'"
-            )
+            cur.execute("DELETE FROM scheduled_events WHERE external_id LIKE 'pytest-takvim:%'")
 
 
 def test_calendar_module_does_not_import_llm() -> None:

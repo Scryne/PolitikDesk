@@ -17,6 +17,7 @@ import re
 import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Final
 
 # Spec §8.2: simhash Hamming mesafesi <= 6 -> yakın tekrar / ajans kopyası
 SIMHASH_BITS = 64
@@ -61,6 +62,42 @@ _STOPWORDS = frozenset(
 )
 
 
+_NUM_RE = re.compile(r"\b\d+(?:[\.,]\d+)?\b")
+
+_CANONICAL_ACRONYMS: Final[tuple[tuple[str, str], ...]] = (
+    ("türkiye cumhuriyet merkez bankası", "tcmb"),
+    ("turkiye cumhuriyet merkez bankasi", "tcmb"),
+    ("türkiye istatistik kurumu", "tuik"),
+    ("turkiye istatistik kurumu", "tuik"),
+    ("tüik", "tuik"),
+    ("hazine ve maliye bakanlığı", "hmb"),
+    ("hazine ve maliye bakanligi", "hmb"),
+    ("bankacılık düzenleme ve denetleme kurumu", "bddk"),
+    ("bankacilik duzenleme ve denetleme kurumu", "bddk"),
+    ("sermaye piyasası kurulu", "spk"),
+    ("sermaye piyasasi kurulu", "spk"),
+    ("enerji piyasası düzenleme kurumu", "epdk"),
+    ("enerji piyasasi duzenleme kurumu", "epdk"),
+    ("avrupa merkez bankası", "ecb"),
+    ("avrupa merkez bankasi", "ecb"),
+    ("abd merkez bankası", "fed"),
+    ("abd merkez bankasi", "fed"),
+    ("birleşmiş milletler", "un"),
+    ("birlesmis milletler", "un"),
+)
+
+_MONTH_TOKENS: Final[frozenset[str]] = frozenset(
+    {
+        "ocak", "şubat", "subat", "mart", "nisan", "mayıs", "mayis",
+        "haziran", "temmuz", "ağustos", "agustos", "eylül", "eylul",
+        "ekim", "kasım", "kasim", "aralık", "aralik",
+    }
+)
+
+
+_CANONICAL_SHORT_TOKENS: Final[frozenset[str]] = frozenset({"un", "ab", "ec", "wb", "imf"})
+
+
 def tokenize(text: str) -> list[str]:
     """Metni parmak izi için token'lara ayırır.
 
@@ -71,9 +108,14 @@ def tokenize(text: str) -> list[str]:
     """
     normalized = unicodedata.normalize("NFC", text)
     # Türkçe büyük İ -> i, I -> ı eşlemesi
-    normalized = normalized.replace("İ", "i").replace("I", "ı")
-    tokens = _TOKEN_RE.findall(normalized.casefold())
-    return [t for t in tokens if len(t) > 2 and t not in _STOPWORDS]
+    normalized = normalized.replace("İ", "i").replace("I", "ı").casefold()
+    for full_name, acronym in _CANONICAL_ACRONYMS:
+        normalized = normalized.replace(full_name, acronym)
+    tokens = _TOKEN_RE.findall(normalized)
+    return [
+        t for t in tokens
+        if (len(t) > 2 or t in _CANONICAL_SHORT_TOKENS) and t not in _STOPWORDS
+    ]
 
 
 def _shingles(tokens: list[str], size: int = 2) -> list[str]:
@@ -159,6 +201,21 @@ def is_near_duplicate(
       1. simhash Hamming mesafesi <= 6           (hızlı, kaba)
       2. ortak n-gram içerme oranı >= 0.60       (kısa metinde güvenilir)
     """
+    if text_a and text_b:
+        toks_a = tokenize(text_a)
+        toks_b = tokenize(text_b)
+        # Kısa metinlerde (< 25 token) şablon çatışması koruması:
+        # Sayılar veya aylar farklıysa (örn: 15 milyar vs 12 milyar, Ocak vs Şubat) tekrar değildir.
+        if len(toks_a) < 25 and len(toks_b) < 25:
+            nums_a = set(_NUM_RE.findall(text_a))
+            nums_b = set(_NUM_RE.findall(text_b))
+            if nums_a and nums_b and nums_a != nums_b:
+                return False
+            months_a = set(toks_a) & _MONTH_TOKENS
+            months_b = set(toks_b) & _MONTH_TOKENS
+            if months_a and months_b and months_a != months_b:
+                return False
+
     if a and b and hamming_distance(a, b) <= max_distance:
         return True
 
@@ -216,25 +273,27 @@ def classify(
         for article_id, other_simhash in existing_simhashes:
             if not other_simhash:
                 continue
+            other_text = existing_texts.get(article_id) if existing_texts else None
+            if not is_near_duplicate(
+                simhash,
+                other_simhash,
+                max_distance=max_distance,
+                text_a=text,
+                text_b=other_text,
+            ):
+                continue
             distance = hamming_distance(simhash, other_simhash)
-            if distance <= max_distance and (best is None or distance < best[1]):
+            if best is None or distance < best[1]:
                 best = (article_id, distance)
 
     if best is not None:
         return DuplicateVerdict(kind="near", matched_article_id=best[0], distance=best[1])
 
-    # İkinci sinyal: n-gram içermesi (Spec §8.2). simhash kaçırdığında devreye
-    # girer — kopyalayan site metne kendi cümlesini eklediğinde tipik durum.
     if text and existing_texts:
-        candidate = ngram_set(text)
-        if len(candidate) >= MIN_TOKENS_FOR_NGRAM:
-            for article_id, other_text in existing_texts.items():
-                other_ngrams = ngram_set(other_text)
-                if len(other_ngrams) < MIN_TOKENS_FOR_NGRAM:
-                    continue
-                if containment(candidate, other_ngrams) >= NGRAM_CONTAINMENT_THRESHOLD:
-                    return DuplicateVerdict(
-                        kind="near", matched_article_id=article_id, distance=None
-                    )
+        for article_id, other_text in existing_texts.items():
+            if is_near_duplicate(0, 0, text_a=text, text_b=other_text):
+                return DuplicateVerdict(
+                    kind="near", matched_article_id=article_id, distance=None
+                )
 
     return DuplicateVerdict(kind="new")

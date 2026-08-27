@@ -207,6 +207,25 @@ def angles() -> list[dict[str, str]]:
     ]
 
 
+@router.get("/events/{event_id}/card.svg")
+def event_card_svg_endpoint(event_id: int) -> Response:
+    """Olay ve teyitli iddialar için 1200x675 SVG doğruluk infografiği döner."""
+    from politikdesk.editorial.infographics import render_event_card_svg
+
+    svg_content = render_event_card_svg(event_id)
+    if not svg_content:
+        raise HTTPException(status_code=404, detail="Olay veya teyitli kanıt kartı bulunamadı.")
+
+    return Response(
+        content=svg_content,
+        media_type="image/svg+xml",
+        headers={
+            "Content-Disposition": f'inline; filename="politikdesk-event-{event_id}.svg"',
+            "Cache-Control": "public, max-age=300",
+        },
+    )
+
+
 # --------------------------------------------------------------- siyaset dikeyi
 @router.get("/memory/actors")
 def search_memory_actors(q: str = "", limit: int = 50, offset: int = 0) -> dict[str, Any]:
@@ -284,6 +303,25 @@ def get_actor_shifts(actor_name: str) -> list[dict[str, Any]]:
     from politikdesk.political_memory import service as mem_service
 
     return mem_service.get_actor_stance_shifts(actor_name=actor_name)
+
+
+@router.get("/memory/compare")
+def get_memory_comparison(
+    actor: str = "Mehmet Şimşek",
+    topic: str | None = None,
+    year: int = 2025,
+    limit: int = 50,
+) -> dict[str, Any]:
+    """Siyasi aktörün zamansal söylem karşılaştırma verisini döner."""
+    from politikdesk.political_memory.comparison import compare_actor_statements
+
+    res = compare_actor_statements(
+        actor_name=actor,
+        topic=topic if topic else None,
+        split_year=year,
+        limit=max(1, min(limit, 100)),
+    )
+    return res.to_dict()
 
 
 @router.get("/memory/{actor}")
@@ -368,6 +406,88 @@ def get_accountability_case_detail(from_id: int, to_id: int) -> dict[str, Any]:
         }
 
 
+@router.get("/feed")
+def get_feed_items(
+    sort: str = "important",
+    category: str | None = None,
+    topic: str | None = None,
+    region: str | None = None,
+    time_range: str | None = None,
+    source_id: int | None = None,
+    q: str | None = None,
+    limit: int = 40,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Gündem V2 — Live Intelligence Feed JSON ucu (Faz 21)."""
+    user_id = current_user_id()
+    items = repository.feed(
+        user_id=user_id,
+        limit=max(1, min(limit, 100)),
+        offset=max(0, offset),
+        sort=sort,
+        category=category,
+        topic=topic,
+        region=region,
+        time_range=time_range,
+        source_id=source_id,
+        query=q,
+    )
+    return {
+        "items": items,
+        "count": len(items),
+        "sort": sort,
+        "filters": {
+            "category": category,
+            "topic": topic,
+            "region": region,
+            "time_range": time_range,
+            "source_id": source_id,
+            "query": q,
+        },
+    }
+
+
+@router.get("/feed/check-new")
+def check_new_feed_items(
+    since: str,
+    category: str | None = None,
+    region: str | None = None,
+    vertical: str | None = None,
+) -> dict[str, Any]:
+    """İstemcinin son yenilemesinden bu yana gelen yeni aktif gelişme sayısını döner."""
+    count = repository.count_new_events(
+        since_ts=since,
+        category=category,
+        region=region,
+        vertical=vertical,
+    )
+    return {"new_count": count, "since": since}
+
+
+@router.get("/feed/taxonomy")
+def get_feed_taxonomy() -> dict[str, Any]:
+    """Gündem V2 kanonik kategori ve bölge sözlüğü."""
+    from politikdesk.analysis.taxonomy import CATEGORIES, REGIONS
+
+    return {
+        "categories": [{"key": k, "label": lbl} for k, lbl in CATEGORIES],
+        "regions": [{"key": k, "label": lbl} for k, lbl in REGIONS],
+        "sort_modes": [
+            {"key": "important", "label": "Önemli"},
+            {"key": "newest", "label": "En Yeni"},
+            {"key": "updated", "label": "Son Güncellenen"},
+        ],
+        "time_ranges": [
+            {"key": "all", "label": "Tümü"},
+            {"key": "15m", "label": "Son 15 dakika"},
+            {"key": "1h", "label": "Son 1 saat"},
+            {"key": "6h", "label": "Son 6 saat"},
+            {"key": "24h", "label": "Son 24 saat"},
+            {"key": "7d", "label": "Son 7 gün"},
+        ],
+    }
+
+
 @router.get("/archive")
 def get_archive(limit: int = 50) -> list[dict[str, Any]]:
     """Arşivlenmiş editoryal yayınlar ve kanıt kütüğü (Spec §14.4)."""
@@ -379,6 +499,7 @@ def get_archive(limit: int = 50) -> list[dict[str, Any]]:
 @router.get("/events/stream")
 def live_events_stream() -> StreamingResponse:
     """Editoryal anlık bildirimler için Server-Sent Events (SSE) akışı (Spec v3.5 §14)."""
+
     from politikdesk.feature_flags import is_live_notifications_enabled
     from politikdesk.web.live_events import hub, sse_event_stream
 
@@ -471,9 +592,14 @@ def get_event_blindspot(event_id: int) -> dict[str, Any]:
 
 
 def render_evidence_card_svg(
-    ev: dict[str, Any], claims: list[dict[str, Any]], articles: list[dict[str, Any]]
+    ev: dict[str, Any],
+    claims: list[dict[str, Any]],
+    articles: list[dict[str, Any]],
+    *,
+    ratio: str = "16:9",
 ) -> str:
-    """Olayın kanıt kartını görsel SVG olarak derler (DESIGN.md token sistemiyle tam uyumlu)."""
+    """Olayın kanıt kartını görsel SVG olarak derler (16:9 veya 1:1 formatında, DESIGN.md token sistemiyle tam uyumlu)."""
+    import hashlib
     from html import escape
 
     from politikdesk.web.ui.tokens import DARK
@@ -494,9 +620,6 @@ def render_evidence_card_svg(
         "unverified": DARK["color-unverified"],
         "attribution_verified": DARK["color-accent"],
     }
-    # Etiketler `export_formats.STATUS_LABELS`'tan gelir. Daha önce burada
-    # ve markdown dalında iki kopya daha vardı; üç kopyanın er geç
-    # ayrışacağı bir tabloyu üç yerde tutmanın hiçbir gerekçesi yok.
     status_label_map = STATUS_LABELS
 
     ev_title = escape(str(ev.get("title", "Olay")))
@@ -505,70 +628,113 @@ def render_evidence_card_svg(
     badge_color = status_color_map.get(top_status, DARK["color-unverified"])
     badge_text = status_label_map.get(top_status, "BELİRSİZ")
 
-    claim_svg_elements = []
-    y_pos = 175
-    for c in claims[:3]:
-        c_status = c.get("evidence_status", "unverified")
-        c_color = status_color_map.get(c_status, DARK["color-unverified"])
-        raw_text = str(c.get("claim_text", ""))
-        c_text = escape(raw_text[:95] + ("..." if len(raw_text) > 95 else ""))
-        c_tag = status_label_map.get(c_status, "BİLGİ")
-        claim_svg_elements.append(
-            f'<g transform="translate(40, {y_pos})">'
-            f'<circle cx="8" cy="8" r="5" fill="{c_color}" />'
-            f'<text x="24" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{c_color}">[{c_tag}]</text>'
-            f'<text x="135" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="{fg}">{c_text}</text>'
-            f'</g>'
-        )
-        y_pos += 40
+    provenance_raw = f"{ev.get('id')}:{ev.get('title')}:{salience}:{len(claims)}:{len(articles)}"
+    sha_fingerprint = hashlib.sha256(provenance_raw.encode("utf-8")).hexdigest()[:12].upper()
 
     src_names = [escape(str(a.get("source_name") or a.get("slug") or "Kaynak")) for a in articles[:4]]
     src_str = " · ".join(src_names) if src_names else "Resmî ve Bağımsız Kaynaklar"
     if len(articles) > 4:
         src_str += f" (+{len(articles)-4} kaynak)"
 
-    card_height = max(420, y_pos + 85)
+    ind_groups = int(ev.get("independence_groups") or 0)
+    ind_groups_str = f"{ind_groups} Farklı Yayın Grubu" if ind_groups >= 2 else "Tek Yayın Grubu"
 
-    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 {card_height}" width="800" height="{card_height}">
+    is_square = ratio in ("1:1", "square")
+    width = 800
+    height = 800 if is_square else 450
+
+    claim_count_limit = 5 if is_square else 3
+    claim_svg_elements = []
+    y_pos = 180 if is_square else 165
+    step_y = 52 if is_square else 44
+
+    for c in claims[:claim_count_limit]:
+        c_status = c.get("evidence_status", "unverified")
+        c_color = status_color_map.get(c_status, DARK["color-unverified"])
+        raw_text = str(c.get("claim_text", "")).strip()
+        max_len = 80 if is_square else 75
+        c_text = escape(raw_text[:max_len] + ("…" if len(raw_text) > max_len else ""))
+        c_tag = status_label_map.get(c_status, "BİLGİ")
+        claim_svg_elements.append(
+            f'<g transform="translate(40, {y_pos})">'
+            f'<rect x="0" y="0" width="720" height="{step_y - 10}" rx="8" fill="{surface}" fill-opacity="0.6" stroke="{border}" stroke-width="1" />'
+            f'<circle cx="20" cy="17" r="5" fill="{c_color}" />'
+            f'<text x="36" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{c_color}">[{c_tag}]</text>'
+            f'<text x="175" y="21" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="{fg}">{c_text}</text>'
+            f'</g>'
+        )
+        y_pos += step_y
+
+    extra_section = ""
+    if is_square:
+        extra_section = f"""
+  <g transform="translate(40, 520)">
+    <rect x="0" y="0" width="720" height="150" rx="10" fill="{surface}" stroke="{border}" stroke-width="1" />
+    <text x="24" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" letter-spacing="1" fill="{accent}">TEYİT HAVUZU VE METRİK DAĞILIMI</text>
+    <text x="24" y="65" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="{fg}">• Bağımsızlık Durumu: <tspan font-weight="700" fill="{badge_color}">{ind_groups_str}</tspan></text>
+    <text x="24" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="{fg}">• Kaynak Dağılımı: <tspan fill="{fg_muted}">{src_str}</tspan></text>
+    <text x="24" y="125" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="{fg_subtle}">• Doğrulama İmzası: <tspan font-family="ui-monospace, monospace" fill="{fg_muted}">SHA256:{sha_fingerprint}</tspan></text>
+  </g>
+"""
+
+    footer_y = height - 32
+
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="{width}" height="{height}">
   <defs>
     <linearGradient id="cardGrad" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="{surface}" />
       <stop offset="100%" stop-color="{bg}" />
     </linearGradient>
+    <linearGradient id="badgeGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="{badge_color}" stop-opacity="0.25" />
+      <stop offset="100%" stop-color="{badge_color}" stop-opacity="0.08" />
+    </linearGradient>
   </defs>
-  <rect width="800" height="{card_height}" rx="16" fill="url(#cardGrad)" stroke="{border}" stroke-width="1.5" />
+  <rect width="{width}" height="{height}" rx="16" fill="url(#cardGrad)" stroke="{border}" stroke-width="1.5" />
+
+  <!-- Üst Başlık & Mühür -->
   <g transform="translate(40, 36)">
-    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="{accent}">POLİTİKDESK · KANIT VE İSTİHBARAT KARTI</text>
-    <rect x="580" y="-14" width="140" height="26" rx="6" fill="{badge_color}" fill-opacity="0.15" stroke="{badge_color}" stroke-width="1" />
-    <text x="650" y="3" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{badge_color}">{badge_text}</text>
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="{accent}">POLİTİKDESK · DOĞRULANMIŞ İSTİHBARAT KARTI</text>
+    <rect x="560" y="-14" width="160" height="28" rx="6" fill="url(#badgeGrad)" stroke="{badge_color}" stroke-width="1" />
+    <text x="640" y="4" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{badge_color}">{badge_text}</text>
   </g>
-  <g transform="translate(40, 80)">
-    <text font-family="system-ui, -apple-system, sans-serif" font-size="17" font-weight="700" fill="{fg}">
-      <tspan x="0" dy="0">{ev_title[:75]}</tspan>
-      {"<tspan x='0' dy='24'>" + ev_title[75:150] + "</tspan>" if len(ev_title) > 75 else ""}
+
+  <!-- Olay Başlığı & KPI Şeridi -->
+  <g transform="translate(40, 78)">
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="{fg}">
+      <tspan x="0" dy="0">{ev_title[:70]}</tspan>
+      {"<tspan x='0' dy='22'>" + ev_title[70:140] + "</tspan>" if len(ev_title) > 70 else ""}
     </text>
-    <text x="0" y="55" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="{fg_muted}">Gündem Skoru: {salience}/90 · Toplam {len(articles)} Kaynak · {len(claims)} Doğrulanmış İddia</text>
+    <text x="0" y="48" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="{fg_muted}">Gündem Ağırlığı: <tspan font-weight="700" fill="{fg}">{salience}/90</tspan> · <tspan fill="{fg}">{len(articles)} Kaynak</tspan> · <tspan fill="{fg}">{ind_groups_str}</tspan></text>
   </g>
-  <line x1="40" y1="145" x2="760" y2="145" stroke="{border}" stroke-width="1" />
+
+  <line x1="40" y1="140" x2="760" y2="140" stroke="{border}" stroke-width="1" />
+
+  <!-- Doğrulanmış İddialar -->
   {"".join(claim_svg_elements)}
-  <g transform="translate(40, {card_height - 35})">
-    <line x1="0" y1="-15" x2="720" y2="-15" stroke="{border}" stroke-width="1" />
-    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="{fg_subtle}">Kaynaklar: {src_str}</text>
-    <text x="720" y="0" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="{accent}">politikdesk.com</text>
+
+  <!-- Ek Bilgi (1:1 ise) -->
+  {extra_section}
+
+  <!-- Alt Bilgi / Provenance -->
+  <g transform="translate(40, {footer_y})">
+    <line x1="0" y1="-14" x2="720" y2="-14" stroke="{border}" stroke-width="1" />
+    <text font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="{fg_subtle}">Doğrulama İmzası: <tspan font-family="ui-monospace, monospace">{sha_fingerprint}</tspan> · Kaynak: {src_names[0] if src_names else 'Resmî'}</text>
+    <text x="720" y="0" text-anchor="end" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="{accent}">politikdesk.com</text>
   </g>
 </svg>"""
     return svg
 
 
 @router.get("/events/{event_id}/evidence-card.svg")
-def get_event_evidence_card_svg(event_id: int) -> Response:
-    """Olayın kanıt kartını doğrudan SVG görsel olarak döndürür."""
+def get_event_evidence_card_svg(event_id: int, ratio: str = "16:9") -> Response:
+    """Olayın kanıt kartını doğrudan SVG görsel olarak döndürür (ratio: 16:9 veya 1:1)."""
     user_id = current_user_id()
     data = repository.event_page(event_id, user_id)
     if data is None:
         raise HTTPException(status_code=404, detail="Olay bulunamadı.")
 
-    svg_content = render_evidence_card_svg(data["event"], data["claims"], data["articles"])
+    svg_content = render_evidence_card_svg(data["event"], data["claims"], data["articles"], ratio=ratio)
     return Response(content=svg_content, media_type="image/svg+xml; charset=utf-8")
 
 
@@ -589,6 +755,7 @@ def export_event_dossier(
         "mastodon",
         "newsletter",
     ] = "markdown",
+    ratio: str = "16:9",
 ) -> Any:
     """Olayı ve kanıt zincirini istenen formatta dışa aktarır."""
     from fastapi.responses import PlainTextResponse
@@ -613,7 +780,7 @@ def export_event_dossier(
     articles = data["articles"]
 
     if format == "svg":
-        svg_content = render_evidence_card_svg(ev, claims, articles)
+        svg_content = render_evidence_card_svg(ev, claims, articles, ratio=ratio)
         return Response(content=svg_content, media_type="image/svg+xml; charset=utf-8")
 
     if format == "json":
@@ -785,3 +952,67 @@ def test_dispatch_anomaly(payload: AnomalyDispatchTestRequest) -> dict[str, Any]
         target_alert, payload.webhook_url, format_type=payload.format_type
     )
     return {"success": ok, "alert": target_alert.as_dict()}
+
+
+
+
+
+# -------------------------------------------------------- omnichannel yayın
+@router.get("/events/{event_id}/omnichannel")
+def get_event_omnichannel(event_id: int) -> dict[str, Any]:
+    """Bir olay için 4 platformluk omnichannel yayın paketini döner."""
+    from politikdesk.editorial.omnichannel import build_omnichannel_package_from_event
+
+    pkg = build_omnichannel_package_from_event(event_id)
+    return pkg.to_dict()
+
+
+@router.get("/drafts/{draft_id}/omnichannel")
+def get_draft_omnichannel(draft_id: int) -> dict[str, Any]:
+    """Bir taslak için omnichannel yayın paketini döner."""
+    from politikdesk.editorial import repository as ed_repo
+    from politikdesk.editorial.omnichannel import build_omnichannel_package_from_event
+
+    draft = ed_repo.get_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Taslak bulunamadı.")
+
+    pkg = build_omnichannel_package_from_event(
+        event_id=draft["event_id"],
+        draft_id=draft_id,
+        custom_title=draft.get("title"),
+        custom_body=draft.get("body"),
+    )
+    return pkg.to_dict()
+
+
+# -------------------------------------------------------- Telegram ve Otomatik Taslak API Uçları
+class TelegramTestRequest(BaseModel):
+    bot_token: str | None = None
+    chat_id: str | None = None
+
+
+@router.post("/telegram/test")
+def test_telegram_endpoint(payload: TelegramTestRequest | None = None) -> dict[str, Any]:
+    """Telegram bot yapılandırmasını test etmek için örnek bildirim gönderir."""
+    from politikdesk.telegram_notifier import send_telegram_test_message
+
+    token = payload.bot_token if payload else None
+    chat_id = payload.chat_id if payload else None
+    return send_telegram_test_message(bot_token=token, chat_id=chat_id)
+
+
+class AutoDraftTriggerRequest(BaseModel):
+    limit: int = Field(default=5, ge=1, le=50)
+    angle: str | None = None
+
+
+@router.post("/drafts/auto-trigger")
+def trigger_auto_drafts_endpoint(payload: AutoDraftTriggerRequest | None = None) -> dict[str, Any]:
+    """Teyitli bekleyen olaylar için otomatik taslak üretim döngüsünü tetikler."""
+    from politikdesk.editorial.auto_draft import process_pending_auto_drafts
+
+    limit = payload.limit if payload else 5
+    angle = payload.angle if payload else None
+    return process_pending_auto_drafts(limit=limit, angle=angle)
+

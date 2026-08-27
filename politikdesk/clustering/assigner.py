@@ -27,12 +27,25 @@ from politikdesk.nlp.entities import jaccard
 
 Action = Literal["assign", "review", "create"]
 EntityVerdict = Literal["ok", "inconclusive", "reject"]
+CandidateOutcome = Literal[
+    "accepted",
+    "review",
+    "below_t_low",
+    "time_reject",
+    "entity_reject",
+    "entity_unverified",
+    "indicator_reject",
+]
 
 # Spec §11.4 varsayılanları. T_HIGH/T_LOW config'ten gelir (D20, F2-14).
 DEFAULT_TIME_WINDOW_HOURS = 72
 DEFAULT_JACCARD_MIN = 0.25
 DEFAULT_CANDIDATE_LIMIT = 20
 DEFAULT_CANDIDATE_WINDOW_HOURS = 96
+
+MACRO_ENTITIES: frozenset[str] = frozenset(
+    {"TÜİK", "TCMB", "SBB", "Merkez Bankası", "Hazine ve Maliye Bakanlığı"}
+)
 
 
 @dataclass(frozen=True)
@@ -88,15 +101,7 @@ class CandidateTrace:
     entity_verdict: EntityVerdict
     entity_jaccard: float
     shared_key_entities: tuple[str, ...]
-    outcome: Literal[
-        "accepted",
-        "review",
-        "below_t_low",
-        "time_reject",
-        "entity_reject",
-        "entity_unverified",
-        "indicator_reject",
-    ]
+    outcome: CandidateOutcome
     indicator_conflict: bool = False
 
     @property
@@ -119,6 +124,23 @@ class Assignment:
     @property
     def creates_event(self) -> bool:
         return self.action == "create"
+
+
+def _effective_time_window_hours(
+    article: ArticleFeatures,
+    cand: EventCandidate,
+    base_hours: int,
+) -> int:
+    """Makroekonomik ve resmî duyurularda zaman penceresini esnetir (Roadmap B6/B7).
+
+    Aylık bültenler ve medya yorumu 72 saate sığmayabilir. İki taraf da ortak
+    makro varlık taşıyorsa zaman penceresi 14 güne (336 saat) esnetilir.
+    """
+    if article.key_entities.intersection(MACRO_ENTITIES) and cand.key_entities.intersection(
+        MACRO_ENTITIES
+    ):
+        return max(base_hours, 336)
+    return base_hours
 
 
 def _time_ok(article: ArticleFeatures, cand: EventCandidate, hours: int) -> bool:
@@ -147,9 +169,8 @@ def _entity_check(
     (aynı olay) yalnızca bu yüzden ayrı düştü.
 
     Boş küme **çelişki kanıtı değil, kanıt yokluğudur.** Bu yüzden en az bir
-    taraf boşsa kısıt "uygulanamadı" sayılır. Precision önceliği korunur:
-    uygulanamayan kısıt, `decide()` içinde otomatik atama hakkı vermez —
-    yalnızca T_HIGH üstünde ve **insan denetimiyle** atama yapılır.
+    taraf varlıksızsa reddetmez, kararı `t_high`a ve insan denetimine
+    bırakır (`Assignment.needs_review = True`, `entity_unverified`).
     """
     score = jaccard(article.entities, cand.entities)
     shared_key = tuple(sorted(article.key_entities & cand.key_entities))
@@ -192,7 +213,8 @@ def decide(
     best_unverified: EventCandidate | None = None
 
     for cand in candidates:
-        time_ok = _time_ok(article, cand, th.time_window_hours)
+        eff_hours = _effective_time_window_hours(article, cand, th.time_window_hours)
+        time_ok = _time_ok(article, cand, eff_hours)
         verdict, score, shared_key = _entity_check(article, cand, th.jaccard_min)
         # B-62: aynı kurumun aynı gün yayımladığı FARKLI gösterge ayrı
         # olaydır. Bu bir benzerlik sorunu değil konu sorunudur; bu yüzden
@@ -200,7 +222,7 @@ def decide(
         indicator_clash = indicators_conflict(article.text, cand.text_sample)
 
         if not time_ok:
-            outcome: str = "time_reject"
+            outcome: CandidateOutcome = "time_reject"
         elif verdict == "reject":
             outcome = "entity_reject"
         elif indicator_clash:
@@ -232,7 +254,7 @@ def decide(
                 entity_verdict=verdict,
                 entity_jaccard=score,
                 shared_key_entities=shared_key,
-                outcome=outcome,  # type: ignore[arg-type]
+                outcome=outcome,
                 indicator_conflict=indicator_clash,
             )
         )

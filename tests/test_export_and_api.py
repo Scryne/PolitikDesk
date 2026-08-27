@@ -64,9 +64,7 @@ def test_export_event_text():
                 "claim_type": "number",
             }
         ],
-        "articles": [
-            {"source_name": "TÜİK", "tier": "T1", "kind": "official", "slug": "tuik"}
-        ],
+        "articles": [{"source_name": "TÜİK", "tier": "T1", "kind": "official", "slug": "tuik"}],
     }
 
     with patch("politikdesk.web.repository.event_page", return_value=mock_data):
@@ -117,7 +115,9 @@ def test_get_stance_shifts_api():
         }
     ]
 
-    with patch("politikdesk.political_memory.service.list_all_stance_shifts", return_value=mock_shifts):
+    with patch(
+        "politikdesk.political_memory.service.list_all_stance_shifts", return_value=mock_shifts
+    ):
         res = client.get("/api/memory/stance-shifts")
         assert res.status_code == 200
         data = res.json()
@@ -131,6 +131,7 @@ def test_export_event_svg_and_card_endpoint():
             "id": 5,
             "title": "TCMB Faiz Kararını Açıkladı",
             "salience_score": 88,
+            "independence_groups": 3,
         },
         "claims": [
             {
@@ -140,9 +141,7 @@ def test_export_event_svg_and_card_endpoint():
                 "claim_type": "number",
             }
         ],
-        "articles": [
-            {"source_name": "TCMB", "tier": "T1", "kind": "official", "slug": "tcmb"}
-        ],
+        "articles": [{"source_name": "TCMB", "tier": "T1", "kind": "official", "slug": "tcmb"}],
     }
 
     with patch("politikdesk.web.repository.event_page", return_value=mock_data):
@@ -154,10 +153,16 @@ def test_export_event_svg_and_card_endpoint():
         assert "POLİTİKDESK" in res_export.text
         assert "GÜÇLÜ TEYİTLİ" in res_export.text
 
-        # 2. /evidence-card.svg
+        # 2. /evidence-card.svg (16:9 landscape default)
         res_card = client.get("/api/events/5/evidence-card.svg")
         assert res_card.status_code == 200
         assert "image/svg+xml" in res_card.headers["content-type"]
         assert "<svg" in res_card.text
         assert "TCMB Faiz Kararını Açıkladı" in res_card.text
+        assert 'viewBox="0 0 800 450"' in res_card.text
 
+        # 3. /evidence-card.svg (1:1 square)
+        res_card_square = client.get("/api/events/5/evidence-card.svg?ratio=1:1")
+        assert res_card_square.status_code == 200
+        assert 'viewBox="0 0 800 800"' in res_card_square.text
+        assert "TEYİT HAVUZU VE METRİK DAĞILIMI" in res_card_square.text

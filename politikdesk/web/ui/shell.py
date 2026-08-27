@@ -28,6 +28,7 @@ from politikdesk.web.ui.components import esc, script_json
 from politikdesk.web.ui.css import stylesheet
 from politikdesk.web.ui.icons import icon
 from politikdesk.web.ui.nonce import nonce_attr
+from politikdesk.web.ui.tokens import DARK
 
 STATIC_BASE: Final[str] = "/static"
 
@@ -44,6 +45,8 @@ NAV: Final[tuple[tuple[str, tuple[tuple[str, str, str], ...]], ...]] = (
             ("/promises", "Vaat Takibi", "promise"),
             ("/accountability", "Hesap Sor", "accountability"),
             ("/memory", "Siyasi Hafıza", "clock"),
+            ("/memory/compare", "Söylem Karşılaştır", "filter"),
+            ("/graph", "İlişki Grafı", "graph"),
             ("/archive", "Yayın Arşivi", "archive"),
         ),
     ),
@@ -578,10 +581,16 @@ def page(
     # Kısayol tablosu (Faz 8.3) `active` rotasından OTOMATİK gelir. Sayfa
     # modülü kendi tablosunu yazmaz — yazabilseydi sözleşme yine ikiye
     # bölünürdü. Tablo dağıtıcıdan ÖNCE gelir; dağıtıcı onu okur.
+    _SW_REGISTER_JS = (
+        "if('serviceWorker' in navigator){window.addEventListener('load',function(){"
+        "navigator.serviceWorker.register('/static/sw.js').catch(function(){});});}"
+    )
+
     scripts = "\n".join(
         part
         for part in (
             _DISPATCH_JS,
+            _SW_REGISTER_JS,
             keys.keymap_js(active),
             keys.DISPATCH_JS,
             _THEME_JS,
@@ -605,6 +614,10 @@ def page(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="{DARK["color-bg"]}">
+<link rel="manifest" href="{STATIC_BASE}/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="{STATIC_BASE}/icon-192.svg">
+<link rel="apple-touch-icon" href="{STATIC_BASE}/icon-192.svg">
 <title>{esc(title)} · PolitikDesk</title>
 <script{nonce}>{_THEME_BOOT}</script>
 <style>{stylesheet(STATIC_BASE)}</style>

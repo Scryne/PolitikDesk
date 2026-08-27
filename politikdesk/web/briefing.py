@@ -163,6 +163,36 @@ def briefing_page(on: str, slot: generator.Slot = "morning") -> str:
         )
     )
 
+    # Seslendirme ve Podcast metni derleme
+    from politikdesk.briefing.audio_compiler import compile_audio_script
+
+    audio_script = None
+    try:
+        content_obj = generator.build_content(slot, on=on_date)
+        audio_script = compile_audio_script(content_obj)
+    except Exception:  # noqa: BLE001
+        audio_script = None
+
+    audio_panel = ""
+    if audio_script:
+        audio_actions = (
+            f'<button class="btn sm ghost" type="button"'
+            f'{action_attrs("copy", audio_script.full_narration, "Seslendirme metni")}>'
+            f'{icon("copy", 13)}<span>Seslendirme Metnini Kopyala</span></button>'
+        )
+        audio_panel = f"""
+<div style="margin-top:var(--space-6)">
+{
+            panel(
+                f"Sesli Bülten & Podcast Metni ({audio_script.total_estimated_seconds} sn tahmini süre)",
+                f'<div style="margin-bottom:var(--space-3)">{audio_actions}</div>'
+                f'<pre class="mono" style="white-space:pre-wrap;margin:0;background:var(--color-bg);padding:var(--space-4);border-radius:var(--radius-sm)">'
+                f"{esc(audio_script.full_narration)}</pre>",
+            )
+        }
+</div>
+"""
+
     actions_html = (
         f'<button class="btn sm ghost" type="button"'
         f'{action_attrs("copy", record.get("body_text", ""), "Brifing metni")}>'
@@ -197,6 +227,7 @@ def briefing_page(on: str, slot: generator.Slot = "morning") -> str:
             cls="flush",
         )
     }
+{audio_panel}
 <div style="margin-top:var(--space-6)">
 {
         panel(
@@ -213,3 +244,22 @@ def briefing_page(on: str, slot: generator.Slot = "morning") -> str:
         active="/briefing",
         crumbs=(("Brifingler", "/briefing"), (fmt.full_date(on_date), None)),
     )
+
+
+@router.get("/api/briefing/{on}/audio-script")
+def briefing_audio_script(
+    on: str,
+    slot: generator.Slot = "morning",
+) -> dict:
+    """Belirtilen tarih ve dilim için seslendirme/podcast metnini döner."""
+    from politikdesk.briefing.audio_compiler import compile_audio_script
+
+    try:
+        on_date = date.fromisoformat(on)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Tarih biçimi: YYYY-AA-GG") from exc
+
+    content_obj = generator.build_content(slot, on=on_date)
+    script = compile_audio_script(content_obj)
+    return script.as_dict()
+

@@ -186,6 +186,4 @@ def test_letter_shortcuts_declare_both_cases() -> None:
             for key in item.keys:
                 if len(key) == 1 and key.isalpha():
                     esi = key.upper() if key.islower() else key.lower()
-                    assert esi in item.keys, (
-                        f"{route}/{item.action}: '{key}' var ama '{esi}' yok."
-                    )
+                    assert esi in item.keys, f"{route}/{item.action}: '{key}' var ama '{esi}' yok."

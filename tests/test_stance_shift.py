@@ -35,7 +35,11 @@ def test_detect_shift_from_relation_chain():
                 "to_title": "TÜİK Yıl Sonu Enflasyonu %45 Açıkladı",
                 "relation": "fails",
                 "confidence": 0.95,
-                "evidence_payload": {"topic": "Enflasyon", "source_claim": "Hedef %20", "target_claim": "Gerçekleşen %45"},
+                "evidence_payload": {
+                    "topic": "Enflasyon",
+                    "source_claim": "Hedef %20",
+                    "target_claim": "Gerçekleşen %45",
+                },
             }
         ],
     )
@@ -231,9 +235,7 @@ def test_stance_sync_honours_the_search_actors_contract(monkeypatch) -> None:
         def __exit__(self, *_: object) -> None:
             return None
 
-    monkeypatch.setattr(
-        "politikdesk.political_memory.shift_store.connection", lambda: _SahteConn()
-    )
+    monkeypatch.setattr("politikdesk.political_memory.shift_store.connection", lambda: _SahteConn())
 
     from politikdesk.political_memory.shift_store import sync
 
@@ -404,5 +406,3 @@ def test_polarity_is_evaluated_once_per_entry_not_once_per_pair(monkeypatch) -> 
         f"yani {linear_budget} cagri beklenir. Cift basina hesaplanirsa "
         f"{pair_count * len(stance_shift.POLARITY_PAIRS)} cagriya cikar."
     )
-
-

@@ -377,8 +377,7 @@ def test_every_tracked_series_declares_measurement_semantics() -> None:
 
     for indicator in TRACKED:
         assert indicator.semantic == "measurement", (
-            f"{indicator.code}: ölçüm olmayan seri izleniyorsa "
-            "`semantic` açıkça beyan edilmeli"
+            f"{indicator.code}: ölçüm olmayan seri izleniyorsa `semantic` açıkça beyan edilmeli"
         )
 
 

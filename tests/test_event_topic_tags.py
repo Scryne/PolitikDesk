@@ -49,14 +49,12 @@ def test_all_three_event_write_paths_refresh_topic_tags() -> None:
 
     modul = inspect.getsource(repository)
     assert modul.count("refresh_topic_tags(cur") >= 2, (
-        "Uye ekleme yolu konu etiketini tazelemiyor: yeni makale yeni konu "
-        "getirebilir."
+        "Uye ekleme yolu konu etiketini tazelemiyor: yeni makale yeni konu getirebilir."
     )
 
     birlestir = inspect.getsource(merger._refresh_event)
     assert "refresh_topic_tags" in birlestir, (
-        "Birlestirme/bolme uyelik kumesini degistirir; konu kumesi de "
-        "yeniden kurulmali."
+        "Birlestirme/bolme uyelik kumesini degistirir; konu kumesi de yeniden kurulmali."
     )
 
 

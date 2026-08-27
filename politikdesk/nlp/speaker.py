@@ -160,6 +160,15 @@ def canonicalize_speaker(name: str, known_full_names: frozenset[str]) -> str:
     """
     ad = strip_title(name)
     if " " in ad:
+        from politikdesk.nlp.entities import resolve_entity
+
+        resolved = resolve_entity(name) or resolve_entity(ad)
+        if (
+            resolved
+            and resolved.entity_type == "person"
+            and (not known_full_names or resolved.canonical_name in known_full_names)
+        ):
+            return resolved.canonical_name
         return ad
 
     soyad = _fold(ad)
@@ -169,6 +178,19 @@ def canonicalize_speaker(name: str, known_full_names: frozenset[str]) -> str:
     }
     if len(adaylar) == 1:
         return next(iter(adaylar))
+    if len(adaylar) > 1:
+        return ad
+
+    from politikdesk.nlp.entities import resolve_entity
+
+    resolved = resolve_entity(name) or resolve_entity(ad)
+    if (
+        resolved
+        and resolved.entity_type == "person"
+        and (not known_full_names or resolved.canonical_name in known_full_names)
+    ):
+        return resolved.canonical_name
+
     return ad
 
 

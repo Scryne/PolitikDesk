@@ -449,5 +449,3 @@ def test_local_endpoint_works_without_api_key(
     assert json.loads(text) == {"claims": []}
     assert usage["input_tokens"] == 1000
     assert sent[0]["model"] == "llama3.2"
-
-

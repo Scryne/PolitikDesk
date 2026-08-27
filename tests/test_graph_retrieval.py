@@ -64,7 +64,7 @@ def test_result_is_a_citation_set_not_an_answer() -> None:
 
 # ═══════════════════════════════ 2. varlık çözümleme
 def test_stopwords_are_not_resolved_as_entities() -> None:
-    """"ne oldu" gibi bir soru rastgele varlıklara çarpmamalı."""
+    """ "ne oldu" gibi bir soru rastgele varlıklara çarpmamalı."""
     assert resolve_entities("ne oldu") == []
     assert resolve_entities("bu ve şu") == []
 
@@ -150,9 +150,17 @@ def test_citation_carries_full_provenance() -> None:
     from dataclasses import fields
 
     alanlar = {f.name for f in fields(Citation)}
-    for gerekli in ("claim_id", "event_id", "source_name", "source_slug",
-                    "independence_group", "article_url", "published_at",
-                    "evidence_status", "depth"):
+    for gerekli in (
+        "claim_id",
+        "event_id",
+        "source_name",
+        "source_slug",
+        "independence_group",
+        "article_url",
+        "published_at",
+        "evidence_status",
+        "depth",
+    ):
         assert gerekli in alanlar, gerekli
 
 

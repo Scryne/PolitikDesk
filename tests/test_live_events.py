@@ -119,4 +119,3 @@ def test_event_hub_in_memory_fallback() -> None:
 
     test_hub.unsubscribe(q)
     test_hub.close()
-

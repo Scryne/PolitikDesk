@@ -58,6 +58,7 @@ PAGES: tuple[tuple[str, str], ...] = (
     ("hafiza", "/memory"),
     ("vaatler", "/promises"),
     ("arsiv", "/archive"),
+    ("giris", "/login"),
 )
 
 # Taşmayı ÖLÇEN ve taşıran öğeyi BULAN betik. İkincisi olmadan bulgu
@@ -148,6 +149,14 @@ def main() -> int:
         pages = PAGES
     SHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    from politikdesk.config import get_settings
+
+    settings = get_settings()
+    extra_headers = {}
+    if settings.api_token:
+        extra_headers["Authorization"] = f"Bearer {settings.api_token}"
+        extra_headers["X-API-Token"] = settings.api_token
+
     problems: list[str] = []
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
@@ -157,6 +166,7 @@ def main() -> int:
                     viewport={"width": width, "height": height},
                     color_scheme=args.theme,
                     locale="tr-TR",
+                    extra_http_headers=extra_headers,
                 )
                 page = context.new_page()
 

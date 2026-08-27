@@ -102,7 +102,7 @@ def test_negative_delay_is_preserved_not_clamped() -> None:
 
 
 def test_unknown_delay_is_none_not_zero() -> None:
-    """"Ne kadar geciktiği bilinmiyor" ile "hiç gecikmedi" ayrı şeylerdir."""
+    """ "Ne kadar geciktiği bilinmiyor" ile "hiç gecikmedi" ayrı şeylerdir."""
     beklenen = datetime(2026, 8, 19, 10, 0, tzinfo=UTC)
     assert _delay_minutes(beklenen, None) is None
     assert _delay_minutes(None, beklenen) is None
@@ -150,9 +150,9 @@ def test_matching_is_deterministic_and_not_llm_based() -> None:
 
 
 def test_matching_uses_source_and_time_not_text_similarity() -> None:
-    kaynak = inspect.getsource(__import__(
-        "politikdesk.context.scheduler_match", fromlist=["match_pending"]
-    ).match_pending)
+    kaynak = inspect.getsource(
+        __import__("politikdesk.context.scheduler_match", fromlist=["match_pending"]).match_pending
+    )
     assert "a.source_id" in kaynak
     assert "first_reported_at BETWEEN" in kaynak
 
@@ -198,7 +198,7 @@ def test_each_query_declares_its_signal_type(fn: str, tur: str) -> None:
 
 # ═══════════════════════════════ 6. gözlem boşluğu
 def test_observation_gap_requires_published_without_a_linked_event() -> None:
-    """"Kurum yayımladı ama biz görmedik" tam olarak bu koşuldur."""
+    """ "Kurum yayımladı ama biz görmedik" tam olarak bu koşuldur."""
     kaynak = inspect.getsource(ee.observation_gaps)
     assert "se.status = 'published'" in kaynak
     assert "se.linked_event_id IS NULL" in kaynak
@@ -237,7 +237,12 @@ def test_queries_run_against_the_live_schema() -> None:
     for fn in (ee.upcoming, ee.delayed, ee.observation_gaps, ee.observed):
         for s in fn(limit=5):
             assert s.state in {
-                "expected", "delayed", "published", "occurred", "cancelled", "unavailable"
+                "expected",
+                "delayed",
+                "published",
+                "occurred",
+                "cancelled",
+                "unavailable",
             }
 
 

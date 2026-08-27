@@ -1,23 +1,26 @@
-"""Gündem ekranı ve X (Twitter) Yayın Merkezi (F3-02, F3-07, F3-18 · Spec §14.1 kalem 1).
+"""Gündem V2 — Live Intelligence Feed & X Yayın Merkezi (Faz 21 · Spec §14.1).
 
-F3-02 DoD: salience sıralı olay kartları; her kartta durum rozeti, kaynak
-sayısı kırılımı, son güncelleme; **30 sn'de bir sessiz yenileme** ve **entegre X yayın köprüsü**.
-
-### Bu sayfanın tek işi (BRIEF `birincil_is`)
-
-> "Şu an gündemde ne var, hangisi hakkında GÜVENLE yazabilirim ve X paylaşımım hazır mı?"
+Gündem V2 Özellikleri:
+  * Sıralama Modları: Önemli (Salience), En Yeni (Newest), Son Güncellenen (Updated)
+  * Canlı Gelişmeler Bildirimi: "↓ X Yeni Gelişme" banner'ı (scroll kayması yapmaz)
+  * Çok Boyutlu Filtreleme: Kategori, Bölge, Zaman, Kaynak, Durum
+  * URL Tabanlı Durum Saklama: /gundem?sort=newest&category=...
+  * Aktif Üretim Döngüsü İzolasyonu: Arşivlenmiş veriyi sızdırmaz
 """
 
 from __future__ import annotations
 
 import urllib.parse
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import APIRouter, Query
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse, StreamingResponse
 
+from politikdesk.analysis.taxonomy import CATEGORIES, CATEGORY_MAP, REGION_MAP, REGIONS
 from politikdesk.editorial.generator import ANGLES
 from politikdesk.evidence.explain import KIND_LABELS
+from politikdesk.ingestion.repository import list_sources
 from politikdesk.observability import get_logger
 from politikdesk.users import current_user_id, touch_last_seen
 from politikdesk.web import repository
@@ -68,6 +71,23 @@ FILTERS: tuple[tuple[str, str], ...] = (
     ("pending", "Teyit bekliyor"),
     ("review", "Denetimde"),
 )
+
+TIME_RANGES: tuple[tuple[str, str], ...] = (
+    ("all", "Tüm Zamanlar"),
+    ("15m", "Son 15 dakika"),
+    ("1h", "Son 1 saat"),
+    ("6h", "Son 6 saat"),
+    ("24h", "Son 24 saat"),
+    ("7d", "Son 7 gün"),
+)
+
+SORT_MODES: tuple[tuple[str, str, str, str], ...] = (
+    ("important", "Önemli", "shield", "Editoryal önem ve etki sıralaması (Salience Algoritması)"),
+    ("newest", "En Yeni", "clock", "İlk bildirilen son gelişmeler (Kronolojik Akış)"),
+    ("updated", "Son Güncellenen", "zap", "Son değişiklik ve güncelleme alan olaylar (Tazelik Akışı)"),
+)
+SORT_MODE_MAP = {k: (lbl, ic, desc) for k, lbl, ic, desc in SORT_MODES}
+
 
 
 def _is_ready(row: dict[str, Any]) -> bool:
@@ -193,13 +213,6 @@ def _tweet_module(row: dict[str, Any]) -> str:
 
         encoded_tweet = urllib.parse.quote(body_text)
         intent_url = f"https://x.com/intent/tweet?text={encoded_tweet}"
-        # `json.dumps` JS için doğru, HTML özniteliği için YETERSİZ: tek
-        # tırnağı kaçırmaz. Öznitelik tek tırnakla açıldığı için Türkçe
-        # metindeki her kesme işareti ("Silivri'deki", "Mahkemesi'nde")
-        # özniteliği erkenden kapatıyor ve kopyala düğmesini bozuyordu —
-        # üstelik kalan metin işaretleme olarak ayrıştırılıyordu.
-        # `esc` (`quote=True`) tek tırnağı `&#x27;` yapar; tarayıcı onu
-        # öznitelik değeri çözülürken geri açar, JS doğru JSON'ı görür.
 
         status_pill = (
             f'<span class="badge strong" style="font-size:11px;height:18px">{char_len}/280 X Uyumlu</span>'
@@ -216,6 +229,9 @@ def _tweet_module(row: dict[str, Any]) -> str:
               {status_pill}
             </div>
             <div class="row tight">
+              <a class="btn sm ghost" href="/api/events/{event_id}/card.svg" target="_blank" rel="noopener noreferrer" title="SVG İnfografik Kartını Gör / İndir">
+                {icon("download", 12)}<span>Görsel Kart</span>
+              </a>
               <button class="btn sm ghost" type="button"{action_attrs("copy", body_text, "X Tweeti")} title="Tweet metnini kopyala">
                 {icon("copy", 12)}<span>Kopyala</span>
               </button>
@@ -267,7 +283,7 @@ def _tweet_module(row: dict[str, Any]) -> str:
 
 
 def _card(row: dict[str, Any]) -> str:
-    """Gündem kartı — iki sütun: anlatı solda, KARAR ve X yayın modülü sağda/altta."""
+    """Gündem V2 Canlı İstihbarat Kartı."""
     ready = _is_ready(row)
     has_draft = bool(row.get("latest_draft"))
 
@@ -282,10 +298,18 @@ def _card(row: dict[str, Any]) -> str:
         else ""
     )
 
+    cat_label = CATEGORY_MAP.get(row.get("category", "ekonomi"), row.get("category", "Ekonomi"))
+    reg_label = REGION_MAP.get(row.get("region", "turkiye"), row.get("region", "Türkiye"))
+
+    new_badge = '<span class="badge-new">YENİ</span>' if row.get("is_new") else ""
+
     body = f"""
   <div class="feed-main">
-    <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle);justify-content:space-between">
-      <div class="row tight">
+    <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle);justify-content:space-between;margin-bottom:4px">
+      <div class="row tight" style="align-items:center">
+        {new_badge}
+        <span class="badge-category">{esc(cat_label)}</span>
+        <span class="badge-region">{esc(reg_label)}</span>
         {event_badge(row["status"])}
         <span>{esc(_breakdown_text(row.get("source_breakdown")))}</span>
         <span>· {esc(fmt.plural_count(int(row["article_count"] or 0), "makale"))}</span>
@@ -295,12 +319,7 @@ def _card(row: dict[str, Any]) -> str:
         {draft_badge}
       </div>
     </div>
-    <!-- `h2` + `.h3`: BAŞLIK SEVİYESİ semantik, BOYUT görsel karardır.
-         Kart başlıkları sayfanın `h1`inden sonraki ilk seviyedir; `h3`
-         yazmak `h2`yi atlıyordu (Lighthouse `heading-order` düştü, DESIGN.md
-         Bölüm 12: "başlık seviyeleri atlanmaz"). `.h3` sınıfı boyutu
-         değiştirmeden korur — özgüllüğü `h2` elementinden yüksektir. -->
-    <h2 class="h3" style="margin:8px 0 6px">
+    <h2 class="h3" style="margin:6px 0 6px">
       <a class="plain" href="/event/{row["id"]}">{esc(row["title"])}</a></h2>
     <p class="claim-text" style="margin:0 0 10px;font-size:var(--text-sm);
        color:var(--color-fg-muted)">{esc(_evidence_line(row))}</p>
@@ -317,7 +336,7 @@ def _card(row: dict[str, Any]) -> str:
     </a>
   </div>"""
 
-    search_blob = f"{row['title']} {_evidence_line(row)} {row['status']}".replace('"', "&quot;")
+    search_blob = f"{row['title']} {_evidence_line(row)} {cat_label} {reg_label} {row['status']}".replace('"', "&quot;")
     return (
         f'<div data-event-id="{row["id"]}" data-search="{esc(search_blob)}">'
         + ruled(_evidence_tone(row), f'<article class="card feed-card" id="event-card-{row["id"]}">{body}</article>', cls="feed-card-wrap")
@@ -332,7 +351,7 @@ def _summary_kpis(rows: list[dict[str, Any]]) -> str:
     weak_claims = sum(int(row.get("weak_claim_count") or 0) for row in rows)
     in_review = sum(1 for row in rows if row.get("review_flag") == "needs_review")
 
-    return f"""<div class="kpis" style="margin-bottom:var(--space-6)">
+    return f"""<div class="kpis" style="margin-bottom:var(--space-4)">
 <a href="/feed?f=ready" class="plain">{kpi("Yazıma hazır", fmt.number(ready), unit="olay", icon_name="shield")}</a>
 <a href="/feed?f=drafts" class="plain">{kpi("Tweeti hazır", fmt.number(with_drafts), unit="taslak", icon_name="share")}</a>
 <a href="/feed?f=pending" class="plain">{kpi("Teyit bekleyen", fmt.number(weak_claims), unit="iddia", icon_name="clock")}</a>
@@ -341,13 +360,13 @@ def _summary_kpis(rows: list[dict[str, Any]]) -> str:
 
 
 def _strip(summary: dict[str, Any]) -> str:
-    """ "Sen yokken ne oldu" şeridi (F3-18) — tek satır."""
+    """ "Sen yokken ne oldu" şeridi (F3-18)."""
     from politikdesk.web.ui import notice
 
     if not summary.get("available"):
         return notice(
-            "<p><b>İlk ziyaretin.</b> Gündem salience sırasına göre dizilidir; "
-            "skor önemi gösterir, doğruluğu değil.</p>"
+            "<p><b>PolitikDesk Gündem V2 Canlı İstihbarat Masası.</b> "
+            "Aktif döngüdeki gelişmeler anlık doğrulanır ve kanıta bağlanır.</p>"
         )
     total = summary.get("total", 0)
     if not total:
@@ -361,22 +380,22 @@ def _strip(summary: dict[str, Any]) -> str:
     )
 
 
-def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
+def _cards_html(rows: list[dict[str, Any]], selected_filter: str) -> str:
     """Kart listesi."""
     if not rows:
         from politikdesk.web.ui import empty_state
 
         return empty_state(
-            "Henüz olay yok",
-            "Boru hattı her 5 dakikada bir toplar. İlk turu hemen çalıştırmak "
+            "Henüz aktif döngüde olay yok",
+            "Boru hattı her 5 dakikada bir otomatik toplar. İlk turu başlatmak "
             "için terminalde `pd ingest` yaz; ardından `pd cluster` ile "
-            "haberler olaya dönüşür.",
+            "haberler doğrulanmış olaya dönüşür.",
             action=button("Boru hattını gör", href="/admin/", variant="primary"),
         )
 
-    visible = [row for row in rows if _matches(row, selected)]
+    visible = [row for row in rows if _matches(row, selected_filter)]
     if not visible:
-        label = dict(FILTERS).get(selected, selected)
+        label = dict(FILTERS).get(selected_filter, selected_filter)
         return filtered_empty_state(
             f"“{label}” filtresi {fmt.plural_count(len(rows), 'olayın')} hiçbiriyle "
             f"eşleşmedi. Gündem dolu — bu filtre şu an boş.",
@@ -385,9 +404,6 @@ def _cards_html(rows: list[dict[str, Any]], selected: str) -> str:
     return "".join(_card(row) for row in visible)
 
 
-# Pencerenin İÇERİĞİ elle yazılmaz — `ui/keys.py` sözleşmesinden gelir
-# (Faz 8.3). Eskiden buradaki yedi satır, otuz satır aşağıdaki `keydown`
-# dinleyicisinden bağımsızdı; ikisinin uyumu kimseye emanet değil artık.
 _SHORTCUTS_MODAL = f"""
 <div id="shortcuts-modal" class="shortcuts-backdrop"{action_attrs("shortcuts-backdrop")}>
   <div class="shortcuts-modal">
@@ -402,37 +418,260 @@ _SHORTCUTS_MODAL = f"""
 """
 
 
+def _build_feed_url(
+    *,
+    sort: str = "important",
+    f: str = "all",
+    category: str = "all",
+    region: str = "all",
+    range_: str = "all",
+    source: int | None = None,
+    q: str | None = None,
+    limit: int = 40,
+    keep_default_sort: bool = False,
+) -> str:
+    params: list[str] = []
+    if sort and (sort != "important" or keep_default_sort):
+        params.append(f"sort={sort}")
+    if f and f != "all":
+        params.append(f"f={f}")
+    if category and category != "all":
+        params.append(f"category={category}")
+    if region and region != "all":
+        params.append(f"region={region}")
+    if range_ and range_ != "all":
+        params.append(f"range={range_}")
+    if source:
+        params.append(f"source={source}")
+    if q and q.strip():
+        params.append(f"q={urllib.parse.quote(q.strip())}")
+    if limit != 40:
+        params.append(f"limit={limit}")
+    return "/feed" + ("?" + "&".join(params) if params else "")
+
+
+def _active_filters_tray(
+    selected_sort: str,
+    selected_f: str,
+    selected_cat: str,
+    selected_reg: str,
+    selected_range: str,
+    source: int | None,
+    sources_list: list[Any],
+    q: str | None,
+) -> str:
+    pills = []
+    close_ic = icon("close", 10)
+    if selected_cat != "all":
+        cat_label = CATEGORY_MAP.get(selected_cat, selected_cat)
+        remove_url = _build_feed_url(sort=selected_sort, f=selected_f, category="all", region=selected_reg, range_=selected_range, source=source, q=q)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Kategori: <b>{esc(cat_label)}</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Kategori filtresini kaldır">{close_ic}</a></span>'
+        )
+    if selected_reg != "all":
+        reg_label = REGION_MAP.get(selected_reg, selected_reg)
+        remove_url = _build_feed_url(sort=selected_sort, f=selected_f, category=selected_cat, region="all", range_=selected_range, source=source, q=q)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Bölge: <b>{esc(reg_label)}</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Bölge filtresini kaldır">{close_ic}</a></span>'
+        )
+    if selected_range != "all":
+        range_label = dict(TIME_RANGES).get(selected_range, selected_range)
+        remove_url = _build_feed_url(sort=selected_sort, f=selected_f, category=selected_cat, region=selected_reg, range_="all", source=source, q=q)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Zaman: <b>{esc(range_label)}</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Zaman filtresini kaldır">{close_ic}</a></span>'
+        )
+    if source is not None:
+        src_obj = next((s for s in sources_list if s.id == source), None)
+        src_name = src_obj.name if src_obj else f"Kaynak #{source}"
+        remove_url = _build_feed_url(sort=selected_sort, f=selected_f, category=selected_cat, region=selected_reg, range_=selected_range, source=None, q=q)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Kaynak: <b>{esc(src_name)}</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Kaynak filtresini kaldır">{close_ic}</a></span>'
+        )
+    if q and q.strip():
+        remove_url = _build_feed_url(sort=selected_sort, f=selected_f, category=selected_cat, region=selected_reg, range_=selected_range, source=source, q=None)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Arama: <b>"{esc(q.strip())}"</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Aramayı temizle">{close_ic}</a></span>'
+        )
+    if selected_f != "all":
+        f_label = dict(FILTERS).get(selected_f, selected_f)
+        remove_url = _build_feed_url(sort=selected_sort, f="all", category=selected_cat, region=selected_reg, range_=selected_range, source=source, q=q)
+        pills.append(
+            f'<span class="feed-active-pill"><span>Durum: <b>{esc(f_label)}</b></span>'
+            f'<a class="feed-active-pill-remove" href="{remove_url}" title="Durum filtresini kaldır">{close_ic}</a></span>'
+        )
+
+    if not pills:
+        return ""
+
+    clear_all_url = f"/feed?sort={selected_sort}" if selected_sort != "important" else "/feed"
+    return f"""
+    <div class="feed-active-tray" aria-label="Aktif Filtreler">
+      <span class="feed-active-tray-label">{icon("filter", 12)}Aktif Filtreler:</span>
+      {''.join(pills)}
+      <a class="btn sm ghost" href="{clear_all_url}" style="margin-left:auto;font-size:11px;height:22px;padding:0 8px" title="Tüm filtreleri sıfırla">
+        {icon("close", 11)}<span>Filtreleri Temizle</span>
+      </a>
+    </div>
+    """
+
+
+def _discovery_bar(
+    selected_sort: str,
+    selected_f: str,
+    selected_cat: str,
+    selected_reg: str,
+    selected_range: str,
+    source: int | None,
+    q: str | None,
+) -> str:
+    cat_chips = []
+    for k, lbl in CATEGORIES:
+        is_active = k == selected_cat
+        url = _build_feed_url(sort=selected_sort, f=selected_f, category=k, region=selected_reg, range_=selected_range, source=source, q=q)
+        active_attr = ' aria-current="true"' if is_active else ""
+        active_cls = " active" if is_active else ""
+        cat_chips.append(f'<a class="feed-chip{active_cls}" href="{url}"{active_attr}>{esc(lbl)}</a>')
+
+    reg_chips = []
+    for k, lbl in REGIONS:
+        is_active = k == selected_reg
+        url = _build_feed_url(sort=selected_sort, f=selected_f, category=selected_cat, region=k, range_=selected_range, source=source, q=q)
+        active_attr = ' aria-current="true"' if is_active else ""
+        active_cls = " active" if is_active else ""
+        reg_chips.append(f'<a class="feed-chip{active_cls}" href="{url}"{active_attr}>{esc(lbl)}</a>')
+
+    return f"""
+    <div class="feed-discovery-bar">
+      <div class="feed-discovery-section">
+        <span class="feed-discovery-label">{icon("grid", 11)}Kategori</span>
+        <div class="feed-chip-group" role="tablist" aria-label="Kategori Keşfi">
+          {''.join(cat_chips)}
+        </div>
+      </div>
+      <div class="feed-discovery-section">
+        <span class="feed-discovery-label">{icon("filter", 11)}Bölge</span>
+        <div class="feed-chip-group" role="tablist" aria-label="Bölge Keşfi">
+          {''.join(reg_chips)}
+        </div>
+      </div>
+    </div>
+    """
+
+
 @router.get("/", response_class=HTMLResponse)
 @router.get("/feed", response_class=HTMLResponse)
+@router.get("/gundem", response_class=HTMLResponse)
 def feed_page(
+    request: Request,
     limit: int = Query(default=40, ge=1, le=200),
     f: str = Query(default="all"),
+    sort: str = Query(default="important"),
+    category: str = Query(default="all"),
+    region: str = Query(default="all"),
+    range: str = Query(default="all"),
+    source: int | None = Query(default=None),
+    q: str | None = Query(default=None),
 ) -> str:
-    selected = f if f in dict(FILTERS) else "all"
+    selected_f = f if f in dict(FILTERS) else "all"
+    selected_sort = sort if sort in SORT_MODE_MAP else "important"
+    selected_cat = category if category in dict(CATEGORIES) else "all"
+    selected_reg = region if region in dict(REGIONS) else "all"
+    selected_range = range if range in dict(TIME_RANGES) else "all"
+
     try:
         user_id = current_user_id()
         previous_visit = touch_last_seen(user_id)
         summary = repository.since_last_visit(user_id, previous_visit)
-        rows = repository.feed(user_id, limit=limit)
+        rows = repository.feed(
+            user_id,
+            limit=limit,
+            sort=selected_sort,
+            category=selected_cat,
+            region=selected_reg,
+            time_range=selected_range,
+            source_id=source,
+            query=q,
+        )
+        sources_list = list_sources(only_active=True)
     except Exception as exc:  # noqa: BLE001
         log.warning("feed_db_unavailable", error=str(exc))
         summary = {}
         rows = []
+        sources_list = []
 
     counts = {key: sum(1 for row in rows if _matches(row, key)) for key, _ in FILTERS}
     tabs = segment(
         tuple(
             (
                 f"{label} · {fmt.number(counts[key])}",
-                f"/feed?f={key}" + (f"&limit={limit}" if limit != 40 else ""),
-                key == selected,
+                _build_feed_url(
+                    sort=selected_sort,
+                    f=key,
+                    category=selected_cat,
+                    region=selected_reg,
+                    range_=selected_range,
+                    source=source,
+                    q=q,
+                    limit=limit,
+                ),
+                key == selected_f,
             )
             for key, label in FILTERS
         )
     )
 
+    # Sıralama Düğmeleri & Açıklayıcı Tagline
+    sort_buttons_html = "".join(
+        f'<a class="feed-sort-btn" href="{_build_feed_url(sort=k, f=selected_f, category=selected_cat, region=selected_reg, range_=selected_range, source=source, q=q, limit=limit, keep_default_sort=True)}"'
+        f' {"aria-current=\"true\"" if k == selected_sort else ""}'
+        f' {action_attrs("save-sort-pref", k)}>'
+        f'{icon(ic, 13)}<span>{esc(lbl)}</span></a>'
+        for k, lbl, ic, _desc in SORT_MODES
+    )
+
+    active_sort_info = SORT_MODE_MAP.get(selected_sort, ("Önemli", "shield", "Editoryal önem ve etki sıralaması (Salience Algoritması)"))
+    mode_tagline_html = (
+        f'<div class="feed-mode-tagline">'
+        f'{icon(active_sort_info[1], 12)}<span>Sıralama Modu: <b>{esc(active_sort_info[0])}</b> — {esc(active_sort_info[2])}</span>'
+        f'</div>'
+    )
+
+    # Kategori Select
+    cat_options = "".join(
+        f'<option value="{k}" {"selected" if k == selected_cat else ""}>{esc(lbl)}</option>'
+        for k, lbl in CATEGORIES
+    )
+
+    # Bölge Select
+    reg_options = "".join(
+        f'<option value="{k}" {"selected" if k == selected_reg else ""}>{esc(lbl)}</option>'
+        for k, lbl in REGIONS
+    )
+
+    # Zaman Select
+    time_options = "".join(
+        f'<option value="{k}" {"selected" if k == selected_range else ""}>{esc(lbl)}</option>'
+        for k, lbl in TIME_RANGES
+    )
+
+    # Kaynak Select
+    src_options = '<option value="">Tüm Kaynaklar</option>' + "".join(
+        f'<option value="{s.id}" {"selected" if source == s.id else ""}>{esc(s.name)}</option>'
+        for s in sources_list
+    )
+
     actions_html = (
-        search_input("feed-search", "Gündemde ara… [/]", action="search-feed")
+        search_input(
+            "feed-search",
+            "Haber, olay, kişi veya konu ara… [/]",
+            value=q or "",
+            action="search-feed",
+        )
         + f'<button class="btn sm ghost" type="button"{action_attrs("toggle-view")} id="view-toggle" title="Görünüm değiştir">'
         f'{icon("grid", 13)}<span id="view-mode-label">Kompakt</span></button>'
         f'<button class="btn sm ghost" type="button"{action_attrs("toggle-shortcuts")} title="Klavye Kısayolları (?)">'
@@ -440,44 +679,144 @@ def feed_page(
         + button("Yenile", icon_name="refresh", action="refresh")
     )
 
+    top_timestamp = (
+        rows[0]["last_update_at"].isoformat()
+        if rows and "last_update_at" in rows[0] and hasattr(rows[0]["last_update_at"], "isoformat")
+        else datetime.now(UTC).isoformat()
+    )
+
+    active_tray_html = _active_filters_tray(
+        selected_sort=selected_sort,
+        selected_f=selected_f,
+        selected_cat=selected_cat,
+        selected_reg=selected_reg,
+        selected_range=selected_range,
+        source=source,
+        sources_list=sources_list,
+        q=q,
+    )
+
+    discovery_bar_html = _discovery_bar(
+        selected_sort=selected_sort,
+        selected_f=selected_f,
+        selected_cat=selected_cat,
+        selected_reg=selected_reg,
+        selected_range=selected_range,
+        source=source,
+        q=q,
+    )
+
     body = f"""
 {
         page_head(
-            "Gündem & X Yayın Merkezi",
-            lede="Makro ekonomi olayları, kanıt gücü ve hazır X (Twitter) yayın taslakları.",
+            "Gündem V2 — Live Intelligence Feed",
+            lede="Doğrulanmış canlı siyasi ve makro ekonomi istihbarat akışı.",
             actions=actions_html,
         )
     }
 <div class="stack">
   {_strip(summary)}
   {_summary_kpis(rows)}
-  <div class="row" style="justify-content:space-between;align-items:center">
-    <div class="row tight" style="align-items:center">
-      <span class="subtle" style="font-size:var(--text-xs);display:flex;align-items:center;gap:4px">
-        {icon("filter", 12)}Filtrele:
-      </span>
-      {tabs}
+
+  <!-- Gündem Toolbar -->
+  <div class="feed-toolbar">
+    <div class="feed-toolbar-row">
+      <div class="feed-sort-group" role="tablist" aria-label="Sıralama Modu">
+        {sort_buttons_html}
+      </div>
+      <div class="row tight" style="align-items:center">
+        {tabs}
+      </div>
     </div>
-    <span class="subtle row tight" style="font-size:var(--text-xs)"
-          id="pd-refreshed" aria-live="polite">
-      <span class="pulse-dot"></span>
-      <span>{esc(fmt.plural_count(REFRESH_SECONDS, "saniyede"))} bir sessizce yenilenir</span>
-    </span>
+
+    {mode_tagline_html}
+
+    {discovery_bar_html}
+
+    <div class="feed-toolbar-row" style="border-top:1px solid var(--color-border);padding-top:var(--space-3)">
+      <div class="feed-filter-bar">
+        <span class="subtle" style="font-size:var(--text-xs);display:flex;align-items:center;gap:4px">
+          {icon("filter", 12)}Filtrele:
+        </span>
+
+        <select id="filter-category" class="feed-select" aria-label="Kategori" {action_attrs("apply-filters")}>
+          {cat_options}
+        </select>
+
+        <select id="filter-region" class="feed-select" aria-label="Bölge" {action_attrs("apply-filters")}>
+          {reg_options}
+        </select>
+
+        <select id="filter-range" class="feed-select" aria-label="Zaman Aralığı" {action_attrs("apply-filters")}>
+          {time_options}
+        </select>
+
+        <select id="filter-source" class="feed-select" aria-label="Haber Kaynağı" {action_attrs("apply-filters")}>
+          {src_options}
+        </select>
+      </div>
+
+      <span class="subtle row tight" style="font-size:var(--text-xs)"
+            id="pd-refreshed" aria-live="polite">
+        <span class="pulse-dot"></span>
+        <span>{esc(fmt.plural_count(REFRESH_SECONDS, "saniyede"))} bir sessizce yenilenir</span>
+      </span>
+    </div>
   </div>
-  <div id="cards" class="stack-sm">{_cards_html(rows, selected)}</div>
+
+  {active_tray_html}
+
+  <!-- Canlı Gelişmeler Bildirim Banner'ı (Scroll jump engeller) -->
+  <button id="feed-new-banner" class="feed-new-banner" type="button" {action_attrs("load-new-items")}>
+    <span class="pulse-dot" style="background:var(--color-fg-on-accent)"></span>
+    <span id="feed-new-banner-text">↓ Yeni gelişmeler var</span>
+  </button>
+
+  <div id="cards" class="stack-sm">{_cards_html(rows, selected_f)}</div>
   <div id="feed-search-empty" style="display:none;padding:var(--space-12);text-align:center">
-    <p class="subtle">Arama kriterinize uygun gündem maddesi bulunamadı.</p>
+    <p class="subtle">Arama ve filtre kriterinize uygun canlı gündem maddesi bulunamadı.</p>
   </div>
 </div>
 {_SHORTCUTS_MODAL}
 """
 
+    current_query_encoded = urllib.parse.quote(q or "")
+
     js = (
         ACTIVITY_JS
         + f"""
-var PD_URL = '/feed/cards?limit={limit}&f={selected}';
+var PD_LIMIT = {limit};
+var PD_FILTER = '{selected_f}';
+var PD_SORT = '{selected_sort}';
+var PD_CAT = '{selected_cat}';
+var PD_REG = '{selected_reg}';
+var PD_RANGE = '{selected_range}';
+var PD_SOURCE = '{source or ""}';
+var PD_QUERY = '{current_query_encoded}';
+var PD_TOP_TS = '{top_timestamp}';
+
 var selectedIndex = -1;
 var isCompact = false;
+
+// ── Kullanıcı Tercihi Saklama (Sorting Preference) ──
+(function(){{
+  try {{
+    var urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.has('sort')) {{
+      var savedSort = localStorage.getItem('pd-feed-sort');
+      if (savedSort && savedSort !== PD_SORT && (savedSort === 'important' || savedSort === 'newest' || savedSort === 'updated')) {{
+        urlParams.set('sort', savedSort);
+        window.location.replace(window.location.pathname + '?' + urlParams.toString());
+      }}
+    }}
+  }} catch(e) {{}}
+}})();
+
+window.pdSaveSortPref = function(sortKey) {{
+  try {{
+    if (sortKey) localStorage.setItem('pd-feed-sort', sortKey);
+  }} catch(e) {{}}
+}};
 
 window.pdToggleView = function() {{
   isCompact = !isCompact;
@@ -499,7 +838,31 @@ window.pdToggleShortcuts = function() {{
   if (modal) modal.classList.toggle('open');
 }};
 
-// Dağıtıcı `input` olayında (öğe, olay) geçer; arama metni öğeden okunur.
+window.pdApplyFilters = function() {{
+  var catEl = document.getElementById('filter-category');
+  var regEl = document.getElementById('filter-region');
+  var rangeEl = document.getElementById('filter-range');
+  var srcEl = document.getElementById('filter-source');
+  var searchEl = document.getElementById('feed-search');
+
+  var cat = catEl ? catEl.value : PD_CAT || 'all';
+  var reg = regEl ? regEl.value : PD_REG || 'all';
+  var range = rangeEl ? rangeEl.value : 'all';
+  var src = srcEl ? srcEl.value : '';
+  var q = searchEl ? searchEl.value.trim() : '';
+
+  var params = new URLSearchParams();
+  if (PD_SORT && PD_SORT !== 'important') params.set('sort', PD_SORT);
+  if (PD_FILTER && PD_FILTER !== 'all') params.set('f', PD_FILTER);
+  if (cat && cat !== 'all') params.set('category', cat);
+  if (reg && reg !== 'all') params.set('region', reg);
+  if (range && range !== 'all') params.set('range', range);
+  if (src) params.set('source', src);
+  if (q) params.set('q', q);
+
+  window.location.href = '/feed?' + params.toString();
+}};
+
 window.pdSearchFeed = function(el) {{
   var val = (el.value || '').toLowerCase().trim();
   var cards = document.querySelectorAll('#cards [data-search]');
@@ -518,6 +881,16 @@ window.pdSearchFeed = function(el) {{
     emptyEl.style.display = (visible === 0 && cards.length > 0) ? '' : 'none';
   }}
 }};
+
+// Enter ile sunucu araması
+var searchInputEl = document.getElementById('feed-search');
+if (searchInputEl) {{
+  searchInputEl.addEventListener('keydown', function(e) {{
+    if (e.key === 'Enter') {{
+      window.pdApplyFilters();
+    }}
+  }});
+}}
 
 window.pdQuickDraft = async function(eventId, angle, btn) {{
   var box = document.getElementById('tweet-box-' + eventId);
@@ -544,16 +917,6 @@ window.pdQuickDraft = async function(eventId, angle, btn) {{
     var intentUrl = 'https://x.com/intent/tweet?text=' + encTweet;
     var isThread = body.length > 280;
 
-    // DİKKAT: Taslak gövdesi ŞABLONA GÖMÜLMEZ. İki ayrı arıza vardı:
-    //   1. Kopyala düğmesinin işleyicisi tek tırnaklı bir öznitelik olarak
-    //      yazılıyor ve gövde JSON kaçışıyla içine gömülüyordu. JSON kaçışı
-    //      tek tırnağı kaçırmaz; Türkçede kesme işareti kural olduğundan
-    //      ("TCMB'nin", "Türkiye'nin") düğme neredeyse HER taslakta
-    //      bozuluyordu.
-    //   2. Gövde metin alanının içine işaretleme olarak yazılıyordu; kapanış
-    //      etiketi geçen bir taslak alandan çıkıp HTML enjekte edebilirdi.
-    // Çözüm: metin DOM düğümüne değer olarak verilir, hiç ayrıştırılmaz.
-    // Regresyon koruması: tests/test_ui_charts_and_security.py
     box.replaceChildren();
 
     var head = document.createElement('div');
@@ -589,7 +952,7 @@ window.pdQuickDraft = async function(eventId, angle, btn) {{
     var copyBtn = document.createElement('button');
     copyBtn.className = 'btn sm ghost';
     copyBtn.type = 'button';
-    copyBtn.innerHTML = window.pdIconCopy;   // sunucu tarafı sabit ikon SVG'si
+    copyBtn.innerHTML = window.pdIconCopy;
     var copyLabel = document.createElement('span');
     copyLabel.textContent = 'Kopyala';
     copyBtn.appendChild(copyLabel);
@@ -640,12 +1003,47 @@ window.pdQuickDraft = async function(eventId, angle, btn) {{
 window.pdIconCopy = '{icon("copy", 12)}';
 window.pdIconShare = '{icon("share", 12)}';
 
-async function pdRefresh(){{
+// ── Canlı Gelişmeleri Denetleme & Bildirme (Banner) ──
+async function pdCheckNew() {{
+  if (!PD_TOP_TS) return;
+  try {{
+    var url = '/api/feed/check-new?since=' + encodeURIComponent(PD_TOP_TS)
+      + (PD_CAT && PD_CAT !== 'all' ? '&category=' + encodeURIComponent(PD_CAT) : '')
+      + (PD_REG && PD_REG !== 'all' ? '&region=' + encodeURIComponent(PD_REG) : '');
+    var r = await fetch(url);
+    if (!r.ok) return;
+    var data = await r.json();
+    var banner = document.getElementById('feed-new-banner');
+    var bannerText = document.getElementById('feed-new-banner-text');
+    if (banner && bannerText) {{
+      if (data.new_count > 0) {{
+        bannerText.textContent = '↓ ' + data.new_count + ' YENİ GELİŞME (Görmek için tıklayın)';
+        banner.style.display = 'flex';
+      }} else {{
+        banner.style.display = 'none';
+      }}
+    }}
+  }} catch (e) {{}}
+}}
+
+window.pdLoadNewItems = function() {{
+  var banner = document.getElementById('feed-new-banner');
+  if (banner) banner.style.display = 'none';
+  pdRefresh(true);
+}};
+
+async function pdRefresh(highlightNew) {{
   var box = document.getElementById('cards');
   var note = document.getElementById('pd-refreshed');
   try {{
-    var r = await fetch(PD_URL);
+    var fetchUrl = '/feed/cards?limit=' + PD_LIMIT + '&f=' + PD_FILTER
+      + '&sort=' + PD_SORT + '&category=' + PD_CAT + '&region=' + PD_REG + '&range=' + PD_RANGE
+      + (PD_SOURCE ? '&source=' + PD_SOURCE : '')
+      + (PD_QUERY ? '&q=' + PD_QUERY : '');
+
+    var r = await fetch(fetchUrl);
     if (!r.ok) throw new Error(r.status);
+    var existingIds = new Set([...box.querySelectorAll('[data-event-id]')].map(function(el){{ return el.dataset.eventId; }}));
     var open = new Set([...box.querySelectorAll('details[open]')]
                        .map(function(d){{ return d.closest('article')
                               .querySelector('a').getAttribute('href'); }}));
@@ -656,6 +1054,20 @@ async function pdRefresh(){{
       var panel = a.querySelector('details');
       if (link && panel && open.has(link.getAttribute('href'))) panel.open = true;
     }});
+
+    // Yeni gelen kartlara hafif vurgu efekti
+    if (highlightNew) {{
+      box.querySelectorAll('[data-event-id]').forEach(function(el){{
+        if (!existingIds.has(el.dataset.eventId)) {{
+          var art = el.querySelector('article');
+          if (art) art.classList.add('card-new-highlight');
+        }}
+      }});
+    }}
+
+    PD_TOP_TS = new Date().toISOString();
+    var banner = document.getElementById('feed-new-banner');
+    if (banner) banner.style.display = 'none';
     note.innerHTML = '<span class="pulse-dot"></span><span>' + new Date().toLocaleTimeString('tr-TR') + ' güncellendi</span>';
     var searchEl = document.getElementById('feed-search');
     if (searchEl && searchEl.value) window.pdSearchFeed(searchEl);
@@ -664,13 +1076,6 @@ async function pdRefresh(){{
   }}
 }}
 
-// ── Klavye kısayolları (Faz 8.3) ────────────────────────────────────
-//
-// Hangi TUŞUN hangi eylemi çağırdığı burada yazmaz; o `ui/keys.py`
-// sözleşmesinde ve kabuğun dağıtıcısında. Burada yalnızca eylemlerin
-// GÖVDESİ var. Ayrım bilinçli: tuş eşlemesi hem ekranda gösterilmesi
-// hem de testlerde ölçülmesi gereken bir sözleşme, gövde ise sayfanın
-// kendi işi.
 function pdCards() {{
   return Array.from(document.querySelectorAll('#cards .feed-card'));
 }}
@@ -741,30 +1146,69 @@ window.pdKey('toggle-shortcuts', window.pdToggleShortcuts);
 window.pdAction('toggle-view', window.pdToggleView);
 window.pdAction('toggle-shortcuts', window.pdToggleShortcuts);
 window.pdAction('search-feed', window.pdSearchFeed);
+window.pdAction('apply-filters', window.pdApplyFilters);
+window.pdAction('load-new-items', window.pdLoadNewItems);
+window.pdAction('save-sort-pref', function(sortKey){{ window.pdSaveSortPref(sortKey); }});
 window.pdAction('quick-draft', window.pdQuickDraft);
-window.pdAction('refresh', pdRefresh);
-// Arka plana tıklayınca kapanır, pencerenin İÇİNE tıklayınca kapanmaz.
-// Eskiden arka planın satır içi tıklama özniteliğindeydi; koşul aynen korundu.
+window.pdAction('refresh', function(){{ pdRefresh(false); }});
 window.pdAction('shortcuts-backdrop', function(el, ev){{
   if (ev.target === el) window.pdToggleShortcuts();
 }});
 
-setInterval(function(){{ if (!document.hidden) pdRefresh(); }},
-            {REFRESH_SECONDS * 1000});
+if (window.EventSource) {{
+  try {{
+    var es = new EventSource('/api/feed/stream');
+    es.addEventListener('feed_update', function() {{ if (!document.hidden) pdCheckNew(); }});
+    es.addEventListener('claims_update', function() {{ if (!document.hidden) pdCheckNew(); }});
+  }} catch (e) {{}}
+}}
+
+setInterval(function(){{ if (!document.hidden) pdCheckNew(); }}, {REFRESH_SECONDS * 1000});
 """
     )
-    return page("Gündem", body, active="/feed", crumbs=(("Gündem", None),), extra_js=js)
+    return page("Gündem V3", body, active="/feed", crumbs=(("Gündem", None),), extra_js=js)
+
+
+@router.get("/api/feed/stream")
+async def feed_stream_endpoint(request: Request) -> StreamingResponse:
+    """Canlı haber ve iddia güncellemeleri için Server-Sent Events (SSE) akışı."""
+    from politikdesk.events_stream import sse_event_stream
+
+    return StreamingResponse(
+        sse_event_stream(request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/feed/cards", response_class=HTMLResponse)
 def feed_cards(
     limit: int = Query(default=40, ge=1, le=200),
     f: str = Query(default="all"),
+    sort: str = Query(default="important"),
+    category: str = Query(default="all"),
+    region: str = Query(default="all"),
+    range: str = Query(default="all"),
+    source: int | None = Query(default=None),
+    q: str | None = Query(default=None),
 ) -> str:
     """Sessiz yenilemenin çektiği parça."""
     selected = f if f in dict(FILTERS) else "all"
     try:
-        rows = repository.feed(current_user_id(), limit=limit)
+        rows = repository.feed(
+            current_user_id(),
+            limit=limit,
+            sort=sort,
+            category=category,
+            region=region,
+            time_range=range,
+            source_id=source,
+            query=q,
+        )
     except Exception as exc:  # noqa: BLE001
         log.warning("feed_cards_db_unavailable", error=str(exc))
         rows = []

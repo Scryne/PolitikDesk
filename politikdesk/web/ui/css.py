@@ -908,6 +908,147 @@ input[type=checkbox],input[type=radio]{{
   .table-cards td{{padding:0 !important;border:0 !important}}
 }}
 
+/* ═══════════════════════════════════ GÜNDEM V3 — PRODUCTION UX & EDITORIAL INTELLIGENCE */
+.feed-toolbar{{
+  display:flex;flex-direction:column;gap:var(--space-3);margin-bottom:var(--space-4);
+  background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);padding:var(--space-4);
+}}
+.feed-toolbar-row{{
+  display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);flex-wrap:wrap;
+}}
+.feed-sort-group{{
+  display:inline-flex;background:var(--color-surface-sunken);border:1px solid var(--color-border);
+  border-radius:var(--radius-md);padding:2px;gap:2px;
+}}
+.feed-sort-btn{{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-sm);
+  border:0;background:transparent;color:var(--color-fg-muted);font-family:var(--font-body);
+  font-size:var(--text-xs);font-weight:var(--weight-medium);cursor:pointer;
+  transition:all var(--dur-hover) var(--ease-out);text-decoration:none;
+}}
+.feed-sort-btn:hover{{
+  color:var(--color-fg);background:var(--color-surface);
+}}
+.feed-sort-btn[aria-current="true"]{{
+  background:var(--color-surface);color:var(--color-accent);
+  font-weight:var(--weight-semibold);box-shadow:var(--shadow-sm);
+}}
+.feed-mode-tagline{{
+  display:flex;align-items:center;gap:6px;font-size:var(--text-xs);
+  color:var(--color-fg-subtle);background:var(--color-surface-sunken);
+  padding:4px 10px;border-radius:var(--radius-sm);border-left:3px solid var(--color-accent);
+}}
+.feed-discovery-bar{{
+  display:flex;flex-direction:column;gap:var(--space-2);width:100%;
+  border-top:1px solid var(--color-border);padding-top:var(--space-3);
+}}
+.feed-discovery-section{{
+  display:flex;align-items:center;gap:var(--space-2);width:100%;
+}}
+.feed-discovery-label{{
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);
+  color:var(--color-fg-subtle);letter-spacing:0.5px;
+  min-width:74px;flex-shrink:0;display:flex;align-items:center;gap:4px;
+}}
+.feed-chip-group{{
+  display:flex;align-items:center;gap:6px;overflow-x:auto;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:2px 0;width:100%;
+}}
+.feed-chip-group::-webkit-scrollbar{{
+  display:none;
+}}
+.feed-chip{{
+  display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
+  border-radius:var(--radius-full);border:1px solid var(--color-border);
+  background:var(--color-surface-sunken);color:var(--color-fg-muted);
+  font-family:var(--font-body);font-size:11px;font-weight:var(--weight-medium);
+  white-space:nowrap;cursor:pointer;text-decoration:none;flex-shrink:0;
+  transition:all var(--dur-hover) var(--ease-out);
+}}
+.feed-chip:hover{{
+  color:var(--color-fg);background:var(--color-surface);border-color:var(--color-border-strong);
+}}
+.feed-chip[aria-current="true"], .feed-chip.active{{
+  background:var(--color-accent);color:var(--color-fg-on-accent);
+  border-color:var(--color-accent);font-weight:var(--weight-semibold);
+  box-shadow:var(--shadow-sm);
+}}
+.feed-active-tray{{
+  display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;
+  background:var(--color-surface-sunken);border:1px solid var(--color-border);
+  border-radius:var(--radius-md);padding:6px 12px;margin-bottom:var(--space-3);
+}}
+.feed-active-tray-label{{
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);
+  color:var(--color-fg-subtle);display:inline-flex;align-items:center;gap:4px;
+}}
+.feed-active-pill{{
+  display:inline-flex;align-items:center;gap:6px;padding:2px 8px;
+  background:var(--color-surface);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-full);font-size:11px;color:var(--color-fg);
+  font-weight:var(--weight-medium);box-shadow:var(--shadow-xs);
+}}
+.feed-active-pill-remove{{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:transparent;border:0;padding:0;color:var(--color-fg-subtle);
+  cursor:pointer;border-radius:50%;width:14px;height:14px;
+  transition:color var(--dur-hover) var(--ease-out);
+}}
+.feed-active-pill-remove:hover{{
+  color:var(--color-contra);
+}}
+.feed-filter-bar{{
+  display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;
+}}
+.feed-select{{
+  background:var(--color-surface);border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-md);padding:5px 9px;font-family:var(--font-body);
+  font-size:var(--text-xs);color:var(--color-fg);outline:none;cursor:pointer;
+  transition:border-color var(--dur-hover) var(--ease-out);
+}}
+.feed-select:focus{{
+  border-color:var(--color-accent);box-shadow:0 0 0 2px var(--color-accent-subtle);
+}}
+.feed-new-banner{{
+  display:none;align-items:center;justify-content:center;gap:var(--space-2);
+  background:var(--color-accent);color:var(--color-fg-on-accent);
+  padding:var(--space-2) var(--space-4);border-radius:var(--radius-md);
+  font-size:var(--text-xs);font-weight:var(--weight-semibold);cursor:pointer;
+  box-shadow:var(--shadow-md);animation:bannerSlideDown var(--dur-pop) var(--ease-spring);
+  margin-bottom:var(--space-3);text-align:center;border:0;width:100%;
+}}
+@keyframes bannerSlideDown{{
+  from{{opacity:0;transform:translateY(-8px)}}
+  to{{opacity:1;transform:translateY(0)}}
+}}
+.feed-new-banner:hover{{
+  background:var(--color-accent-hover);
+}}
+.card-new-highlight{{
+  animation:newCardPulse 1.8s var(--ease-out);
+}}
+@keyframes newCardPulse{{
+  0%{{box-shadow:0 0 0 2px var(--color-accent), var(--shadow-md);transform:translateY(-2px)}}
+  50%{{box-shadow:0 0 0 1px var(--color-accent-subtle), var(--shadow-sm);transform:translateY(0)}}
+  100%{{box-shadow:none;transform:none}}
+}}
+.badge-new{{
+  background:var(--color-strong);color:var(--color-fg-on-accent);
+  font-size:10px;font-weight:var(--weight-bold);padding:1px 6px;
+  border-radius:var(--radius-sm);letter-spacing:0.5px;
+}}
+.badge-category{{
+  background:var(--color-surface-sunken);border:1px solid var(--color-border);
+  color:var(--color-fg-muted);font-size:11px;font-weight:var(--weight-medium);
+  padding:1px 6px;border-radius:var(--radius-sm);
+}}
+.badge-region{{
+  background:var(--color-accent-subtle);color:var(--color-accent);
+  font-size:11px;font-weight:var(--weight-semibold);padding:1px 6px;
+  border-radius:var(--radius-sm);
+}}
+
 /* ═══════════════════════════════════ hareket · Bölüm 11.4 */
 @media (prefers-reduced-motion:reduce){{
   *,*::before,*::after{{
@@ -923,4 +1064,5 @@ input[type=checkbox],input[type=radio]{{
   .card{{border:1px solid var(--color-border) !important;box-shadow:none !important}}
 }}
 """
+
     )

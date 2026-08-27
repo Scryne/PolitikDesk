@@ -112,6 +112,10 @@ PENDING_EVENTS_SQL = """
     WHERE e.merged_into_id IS NULL
       AND e.article_count > 0
       AND (
+            e.cycle_id = (SELECT id FROM publication_cycles WHERE status = 'active' LIMIT 1)
+         OR e.cycle_id IS NULL
+      )
+      AND (
             e.claims_attempted_at IS NULL
          OR e.last_update_at > e.claims_attempted_at
          OR (

@@ -501,6 +501,88 @@ def dashboard() -> str:
             + "</tr>"
         )
 
+    from politikdesk.sre_metrics import get_beat_schedule_summary
+
+    beat_summary = get_beat_schedule_summary()
+    beat_rows = []
+    for b in beat_summary:
+        q_badge = f'<span class="badge">{esc(b["queue"])}</span>'
+        beat_task_html = (
+            f'<b>{esc(b["name"])}</b>'
+            f'<div class="cell-sub mono">{esc(b["task"])}</div>'
+        )
+        expires_val = (
+            esc(fmt.number(b["expires"], 1))
+            if b["expires"]
+            else "-"
+        )
+        beat_rows.append(
+            "<tr>"
+            + cell(beat_task_html, label="Görev")
+            + cell(f'<span class="mono">{esc(b["schedule_desc"])}</span>', label="Çizelge")
+            + cell(q_badge, label="Kuyruk")
+            + cell(expires_val, label="Geçerlilik (sn)", cls="num")
+            + "</tr>"
+        )
+
+    from politikdesk.dlq import get_dlq_summary, list_dead_letter_tasks
+
+    dlq_summary = get_dlq_summary()
+    dlq_tasks = list_dead_letter_tasks(limit=10, status="pending")
+
+    if not dlq_tasks:
+        dlq_badge = '<span class="badge ok">0 Hata / Temiz</span>'
+        dlq_content = (
+            '<p class="subtle" style="margin:0;font-size:var(--text-xs)">'
+            "Kuyrukta düşen veya başarısız olan görev yok. "
+            "Tüm Celery işleri sağlıklı işleniyor.</p>"
+        )
+    else:
+        dlq_badge = f'<span class="badge bad">{dlq_summary["pending"]} Bekleyen Hata</span>'
+        dlq_rows = []
+        for t in dlq_tasks:
+            tid = t["id"]
+            exc_summary = (
+                f"<b>{esc(t['exception_type'])}</b>: {esc(t['exception_message'][:100])}"
+            )
+            retry_btn = (
+                f'<button class="btn sm primary" data-action="dlq-retry" data-id="{tid}" '
+                f'title="Görevi tekrar çalıştır">Yeniden Dene</button>'
+            )
+            discard_btn = (
+                f'<button class="btn sm ghost" data-action="dlq-discard" data-id="{tid}" '
+                f'title="Görevi yoksay / arşivle">Arşivle</button>'
+            )
+            actions_html = f'<div style="display:flex;gap:4px">{retry_btn}{discard_btn}</div>'
+            dlq_rows.append(
+                "<tr>"
+                + cell(f"<code>{esc(t['task_name'])}</code>", label="Görev")
+                + cell(exc_summary, label="Hata")
+                + cell(esc(str(t["created_at"])[:19]), label="Tarih")
+                + cell(actions_html, label="İşlem")
+                + "</tr>"
+            )
+        retry_all_html = (
+            '<button class="btn sm" data-action="dlq-retry-all">Tümünü Yeniden Dene</button>'
+            if len(dlq_tasks) > 1
+            else ""
+        )
+        dlq_content = table(
+            (
+                ("Görev Adı", ""),
+                ("Hata Detayı", ""),
+                ("Zaman", ""),
+                ("İşlem", ""),
+            ),
+            dlq_rows,
+        ) + (f'<div style="margin-top:8px">{retry_all_html}</div>' if retry_all_html else "")
+
+    dlq_card_html = card(
+        dlq_content,
+        title=f"Dead-Letter Queue (DLQ) & Kendini Onarma · {dlq_summary['pending']}",
+        actions=dlq_badge,
+    )
+
     body = f"""
 {
         page_head(
@@ -548,6 +630,8 @@ def dashboard() -> str:
         )
     }
 
+  {dlq_card_html}
+
   {
         card(
             table(
@@ -569,27 +653,55 @@ def dashboard() -> str:
         )
     }
 
-  {_source_quality_card()}
+  {
+        card(
+            table(
+                (
+                    ("Görev", ""),
+                    ("Çizelge", ""),
+                    ("Kuyruk", ""),
+                    ("Geçerlilik (sn)", "num"),
+                ),
+                beat_rows,
+            ),
+            title=f"Zamanlanmış Görev Çizelgesi (Beat) · {len(beat_summary)}",
+            actions='<span class="subtle" style="font-size:var(--text-xs)">'
+            "otomatik zamanlanmış işler</span>",
+        )
+    }
 
   {
         card(
             '<p class="subtle mono" style="margin:0;font-size:var(--text-xs)">'
             "/admin/sources · /admin/articles · /admin/health · "
             "/admin/pipeline-health · /admin/source-quality · "
-            "/admin/source-quality/attention · /admin/stats</p>",
+            "/admin/source-quality/attention · /admin/sre · "
+            "/admin/dlq · /admin/beat-schedule · /admin/stats</p>",
             title="JSON uçları",
         )
     }
 </div>
 """
     # Faz 7: eskiden `onclick` özniteliğine gömülü tek satırlık bir ifadeydi.
-    # Davranış birebir korundu — buton devre dışı bırakılır, metni değişir,
-    # istek biter bitmez sayfa yenilenir.
     drain_js = """
 window.pdAction('drain', function(el){
   el.disabled = true;
   el.innerText = 'İşleniyor...';
   fetch('/admin/drain', {method: 'POST'}).then(function(){ location.reload(); });
+});
+window.pdAction('dlq-retry', function(el){
+  var id = el.dataset.id;
+  el.disabled = true;
+  fetch('/admin/dlq/' + id + '/retry', {method: 'POST'}).then(function(){ location.reload(); });
+});
+window.pdAction('dlq-discard', function(el, ev){
+  var id = el.dataset.id;
+  el.disabled = true;
+  fetch('/admin/dlq/' + id + '/discard', {method: 'POST'}).then(function(){ location.reload(); });
+});
+window.pdAction('dlq-retry-all', function(el){
+  el.disabled = true;
+  fetch('/admin/dlq/retry-all', {method: 'POST'}).then(function(){ location.reload(); });
 });
 """
     return page(
@@ -599,3 +711,85 @@ window.pdAction('drain', function(el){
         crumbs=(("Denetim", None), ("Boru hattı", None)),
         extra_js=drain_js,
     )
+
+
+# ---------------------------------------------------------------- SRE & Observability
+@router.get("/sre")
+def sre_telemetry_endpoint() -> dict[str, Any]:
+    """Site Reliability Engineering (SRE) anlık telemetri ve sistem uyarıları."""
+    from politikdesk.sre_metrics import (
+        evaluate_alert_rules,
+        get_beat_schedule_summary,
+        get_sre_snapshot,
+    )
+
+    snapshot = get_sre_snapshot()
+    alerts = evaluate_alert_rules(snapshot)
+    beat_schedule = get_beat_schedule_summary()
+    return {
+        "snapshot": snapshot.to_dict(),
+        "alerts": [a.to_dict() for a in alerts],
+        "beat_schedule": beat_schedule,
+    }
+
+
+@router.get("/beat-schedule")
+def beat_schedule_endpoint() -> list[dict[str, Any]]:
+    """Celery Beat zamanlanmış görev çizelgesi listesi."""
+    from politikdesk.sre_metrics import get_beat_schedule_summary
+
+    return get_beat_schedule_summary()
+
+
+@router.get("/circuits")
+def circuits_endpoint() -> list[dict[str, Any]]:
+    """Dış kaynak devre kesicilerinin (Circuit Breaker) anlık durumları."""
+    from politikdesk.ingestion.circuit import get_all_circuit_metrics
+
+    return get_all_circuit_metrics()
+
+
+# ---------------------------------------------------------------- DLQ (Dead-Letter Queue)
+@router.get("/dlq")
+def dlq_list_endpoint(
+    limit: int = Query(default=50, ge=1, le=200),
+    status: str = Query(default="pending"),
+) -> dict[str, Any]:
+    """Dead-Letter Queue görev listesi ve durum özeti."""
+    from politikdesk.dlq import get_dlq_summary, list_dead_letter_tasks
+
+    return {
+        "summary": get_dlq_summary(),
+        "tasks": list_dead_letter_tasks(limit=limit, status=status),
+    }
+
+
+@router.post("/dlq/{task_id}/retry")
+def dlq_retry_endpoint(task_id: int) -> dict[str, Any]:
+    """Başarısız görevi Celery kuyruğuna yeniden iletir."""
+    from politikdesk.dlq import requeue_dead_letter_task
+
+    ok = requeue_dead_letter_task(task_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı veya beklemede değil.")
+    return {"status": "retried", "id": task_id}
+
+
+@router.post("/dlq/{task_id}/discard")
+def dlq_discard_endpoint(task_id: int) -> dict[str, Any]:
+    """Görevi arşivlendi olarak işaretler."""
+    from politikdesk.dlq import discard_dead_letter_task
+
+    ok = discard_dead_letter_task(task_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı.")
+    return {"status": "discarded", "id": task_id}
+
+
+@router.post("/dlq/retry-all")
+def dlq_retry_all_endpoint(limit: int = Query(default=50, ge=1, le=100)) -> dict[str, Any]:
+    """Tüm bekleyen DLQ görevlerini topluca yeniden kuyruğa atar."""
+    from politikdesk.dlq import retry_all_pending
+
+    requeued = retry_all_pending(limit=limit)
+    return {"status": "success", "requeued_count": requeued}

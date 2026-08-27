@@ -317,7 +317,9 @@ def test_merge_and_undo_reparents_claims(db_conn, fixtures) -> None:  # noqa: AN
         target_claims_after_merge = [r["id"] for r in cur.fetchall()]
 
     assert source_claims_after_merge == [], "Kaynak olayın iddiaları hedefe taşınmış olmalı"
-    assert set(target_claims_after_merge) == {src_claim_id, tgt_claim_id}, "Hedef olay hem kendi hem taşınan iddialara sahip olmalı"
+    assert set(target_claims_after_merge) == {src_claim_id, tgt_claim_id}, (
+        "Hedef olay hem kendi hem taşınan iddialara sahip olmalı"
+    )
 
     # 2. Undo işlemi
     undo_result = undo_merge(source)
@@ -331,6 +333,7 @@ def test_merge_and_undo_reparents_claims(db_conn, fixtures) -> None:  # noqa: AN
         cur.execute("SELECT id FROM claims WHERE event_id = %s ORDER BY id", (target,))
         target_claims_after_undo = [r["id"] for r in cur.fetchall()]
 
-    assert source_claims_after_undo == [src_claim_id], "Geri alma sonrası kaynak iddia kaynağa dönmeli"
+    assert source_claims_after_undo == [src_claim_id], (
+        "Geri alma sonrası kaynak iddia kaynağa dönmeli"
+    )
     assert target_claims_after_undo == [tgt_claim_id], "Hedefin orijinal iddiası bozulmamalı"
-

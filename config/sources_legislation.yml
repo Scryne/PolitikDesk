@@ -4,7 +4,7 @@
 
 version: 3
 vertical: legislation
-max_sources: 25
+max_sources: 30
 
 
 sources:
@@ -360,4 +360,131 @@ sources:
     produces_scheduled_events: false
     notes: "Muhalefet partileri, meclis grup toplantıları ve güncel siyaset yayıncılığı."
 
+  # ---------------------------------------------------------------- Uluslararası & Düşünce Kuruluşları & Sendikalar (Faz B)
+  - slug: un-news
+    name: "United Nations News"
+    tier: 2
+    kind: wire
+    vertical: legislation
+    independence_group: "official-un"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://news.un.org"
+    feed_url: "https://news.un.org/feed/subscribe/en/news/all/rss.xml"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 30 öğe, 628ms
+    topics: [dis_politika, insan_haklari]
+    produces_scheduled_events: false
+    notes: "Birleşmiş Milletler Güvenlik Konseyi, Genel Kurul kararları ve uluslararası diplomasi."
 
+  - slug: betam
+    name: "BETAM (Bahçeşehir Üni. Ekonomik ve Toplumsal Araştırmalar Merkezi)"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "thinktank-betam"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://betam.bahcesehir.edu.tr"
+    feed_url: "https://betam.bahcesehir.edu.tr/feed/"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 5 öğe, 2662ms
+    topics: [sendika_ve_emek, ekonomi_politigi, kamu_yonetimi]
+    produces_scheduled_events: false
+    notes: "Bağımsız akademik makro analiz, büyüme endeksleri ve konut/işgücü piyasası araştırmaları."
+
+  - slug: disk
+    name: "DİSK (Devrimci İşçi Sendikaları Konfederasyonu)"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "ngo-disk"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://disk.org.tr"
+    feed_url: "https://disk.org.tr/feed/"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 10 öğe, 1537ms
+    topics: [sendika_ve_emek, meclis_gundemi, insan_haklari]
+    produces_scheduled_events: false
+    notes: "Emek piyasası, asgari ücret araştırmaları ve sendikal haklar birincil beyanları."
+
+  - slug: agos
+    name: "Agos Gazetesi"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-agos"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.agos.com.tr"
+    feed_url: "https://www.agos.com.tr/rss/turkish"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 50 öğe, 369ms
+    topics: [insan_haklari, yargi_ve_hukuk, parti_ve_siyaset]
+    produces_scheduled_events: false
+    notes: "Azınlık hakları, kültürel miras ve çoğulcu demokratik haklar haberciliği."
+
+  - slug: guardian-world
+    name: "The Guardian — World & Diplomacy"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-guardian"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.theguardian.com"
+    feed_url: "https://www.theguardian.com/world/rss"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 45 öğe, 195ms
+    topics: [dis_politika, insan_haklari, secim_ve_anketler]
+    produces_scheduled_events: false
+    notes: "Küresel dış politika, diplomasi ve uluslararası insan hakları araştırmacı haberciliği."
+
+  - slug: aljazeera-en
+    name: "Al Jazeera English"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-aljazeera"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.aljazeera.com"
+    feed_url: "https://www.aljazeera.com/xml/rss/all.xml"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 25 öğe, 279ms
+    topics: [dis_politika, hukumet_ve_kabine]
+    produces_scheduled_events: false
+    notes: "Ortadoğu, Akdeniz ve küresel jeopolitik çerçeveleme."
+
+  - slug: france24-en
+    name: "France 24 English"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-france24"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.france24.com"
+    feed_url: "https://www.france24.com/en/rss"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 23 öğe, 142ms
+    topics: [dis_politika, meclis_gundemi]
+    produces_scheduled_events: false
+    notes: "Avrupa diplomasisi, Doğu Akdeniz ve uluslararası gelişmeler."
+
+  - slug: politico-eu
+    name: "Politico Europe"
+    tier: 3
+    kind: media
+    vertical: legislation
+    independence_group: "media-politico"
+    access_method: rss
+    tos_status: allowed
+    base_url: "https://www.politico.eu"
+    feed_url: "https://www.politico.eu/feed/"
+    adapter: rss
+    verified: true                      # ✅ 23 Ağu 2026, canlı: 10 öğe, 245ms
+    topics: [dis_politika, yasama_sureci, parti_ve_siyaset]
+    produces_scheduled_events: false
+    notes: "Brüksel AB kulisleri, Türkiye-AB ilişkileri ve jeopolitik analizler."

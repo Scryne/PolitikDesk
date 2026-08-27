@@ -66,10 +66,12 @@ def _reversals(mem: ActorMemory) -> list:
 
 # ═══════════════════════════ temel: üç kapıyı da geçen çift
 def test_valid_reversal_passes_all_gates() -> None:
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
+        ]
+    )
     kaymalar = _reversals(mem)
     assert len(kaymalar) == 1
     assert kaymalar[0].topic_or_metric == CONCEPT_LABELS[0]
@@ -81,28 +83,34 @@ def test_weak_attribution_is_rejected() -> None:
 
     "Aynı olayda adı geçiyor" bir beyanı o aktöre ait yapmaz.
     """
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", guclu=False),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", guclu=False),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
+        ]
+    )
     assert _reversals(mem) == []
 
 
 def test_both_sides_must_be_strongly_attributed() -> None:
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", guclu=False),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", guclu=False),
+        ]
+    )
     assert _reversals(mem) == []
 
 
 # ═══════════════════════════ KAPI 2 — konu örtüşmesi
 def test_different_topics_are_rejected() -> None:
     """Farklı konulardaki iki beyan "fikir değiştirdi" sayılamaz."""
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=("para_politikasi",)),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=("yargi_ve_hukuk",)),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=("para_politikasi",)),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=("yargi_ve_hukuk",)),
+        ]
+    )
     assert _reversals(mem) == []
 
 
@@ -114,38 +122,46 @@ def test_missing_topic_tags_are_not_treated_as_agreement() -> None:
     """
     assert _topic_overlap((), ()) == 0.0
     assert _topic_overlap(("a",), ()) == 0.0
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=()),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=()),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=()),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=()),
+        ]
+    )
     assert _reversals(mem) == []
 
 
 def test_partial_overlap_below_threshold_is_rejected() -> None:
     """1 ortak / 3 birleşim = 0,33 < 0,5."""
     assert _topic_overlap(("a", "b"), ("a", "c")) < MIN_TOPIC_OVERLAP
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=("a", "b")),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=("a", "c")),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00", konular=("a", "b")),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00", konular=("a", "c")),
+        ]
+    )
     assert _reversals(mem) == []
 
 
 # ═══════════════════════════ KAPI 3 — zaman
 def test_same_day_reversal_is_rejected() -> None:
     """Eski çıktıda 67 kaymanın 17'si aynı gün içindeydi."""
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T08:00:00+00:00"),
-        _kayit(2, _SONRA, "2026-01-01T18:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T08:00:00+00:00"),
+            _kayit(2, _SONRA, "2026-01-01T18:00:00+00:00"),
+        ]
+    )
     assert _reversals(mem) == []
 
 
 def test_just_below_temporal_threshold_is_rejected() -> None:
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
-        _kayit(2, _SONRA, f"2026-01-0{MIN_DAYS_FOR_REVERSAL}T00:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
+            _kayit(2, _SONRA, f"2026-01-0{MIN_DAYS_FOR_REVERSAL}T00:00:00+00:00"),
+        ]
+    )
     assert _reversals(mem) == []
 
 
@@ -165,7 +181,7 @@ def test_confidence_varies_with_input() -> None:
 
 
 def test_topical_concept_scores_above_generic_stance_verb() -> None:
-    """"Faiz artırımı ↔ indirimi" bir konudur; "destekliyoruz ↔ karşıyız" değil."""
+    """ "Faiz artırımı ↔ indirimi" bir konudur; "destekliyoruz ↔ karşıyız" değil."""
     assert _confidence(0, 1.0, 30) > _confidence(1, 1.0, 30)
 
 
@@ -176,10 +192,12 @@ def test_confidence_is_bounded() -> None:
 # ═══════════════════════════ konu artık kaydediliyor
 def test_matched_concept_is_recorded_not_a_constant() -> None:
     """⛔ Eskiden eşleşen kavram atılıp sabit "Politika / Tutum Beyanı" yazılıyordu."""
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
+        ]
+    )
     s = _reversals(mem)[0]
     assert s.topic_or_metric in CONCEPT_LABELS
     assert s.topic_or_metric != "Politika / Tutum Beyanı"
@@ -187,11 +205,18 @@ def test_matched_concept_is_recorded_not_a_constant() -> None:
 
 def test_shift_carries_auditable_evidence() -> None:
     """Bir isnadın sonradan açıklanabilmesi için dayanağı saklanmalı."""
-    mem = _hafiza([
-        _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
-        _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
-    ])
+    mem = _hafiza(
+        [
+            _kayit(1, _ONCE, "2026-01-01T00:00:00+00:00"),
+            _kayit(2, _SONRA, "2026-03-01T00:00:00+00:00"),
+        ]
+    )
     md = _reversals(mem)[0].metadata or {}
-    for alan in ("concept_index", "topic_overlap", "shared_topics",
-                 "earlier_speaker", "later_speaker"):
+    for alan in (
+        "concept_index",
+        "topic_overlap",
+        "shared_topics",
+        "earlier_speaker",
+        "later_speaker",
+    ):
         assert alan in md, alan

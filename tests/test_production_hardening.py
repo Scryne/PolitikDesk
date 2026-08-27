@@ -512,9 +512,16 @@ def test_ssrf_ipv4_mapped_ipv6_and_metadata_prevention() -> None:
         validate_url("http://2130706433/internal", resolve_dns=False)
 
     # 6. Geçerli genel internet URL'leri ve public IP'ler kabul edilmeli
-    assert validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False) == "https://evds2.tcmb.gov.tr/service"
-    assert validate_url("https://8.8.8.8/dns-query", resolve_dns=False) == "https://8.8.8.8/dns-query"
-    assert validate_url("https://1.1.1.1/dns-query", resolve_dns=False) == "https://1.1.1.1/dns-query"
+    assert (
+        validate_url("https://evds2.tcmb.gov.tr/service", resolve_dns=False)
+        == "https://evds2.tcmb.gov.tr/service"
+    )
+    assert (
+        validate_url("https://8.8.8.8/dns-query", resolve_dns=False) == "https://8.8.8.8/dns-query"
+    )
+    assert (
+        validate_url("https://1.1.1.1/dns-query", resolve_dns=False) == "https://1.1.1.1/dns-query"
+    )
 
 
 # =============================================================================

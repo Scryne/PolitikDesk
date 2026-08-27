@@ -29,10 +29,16 @@ from politikdesk.evidence.matrix import (
 
 def _kaynak(**over: object) -> dict[str, object]:
     temel: dict[str, object] = {
-        "slug": "dunya", "name": "Dünya", "tier": 3, "kind": "media",
-        "independence_group": "media-dunya", "stance": "supports",
-        "quote_span": "…", "canonical_url": "https://example.test/x",
-        "published_at": None, "has_official_value": False,
+        "slug": "dunya",
+        "name": "Dünya",
+        "tier": 3,
+        "kind": "media",
+        "independence_group": "media-dunya",
+        "stance": "supports",
+        "quote_span": "…",
+        "canonical_url": "https://example.test/x",
+        "published_at": None,
+        "has_official_value": False,
     }
     temel.update(over)
     return temel
@@ -62,8 +68,7 @@ def test_unavailable_dimension_explains_itself() -> None:
 
 def test_measured_dimensions_carry_real_counts() -> None:
     kaynaklar = [
-        _kaynak(slug="tuik", tier=1, independence_group="official-tuik",
-                has_official_value=True),
+        _kaynak(slug="tuik", tier=1, independence_group="official-tuik", has_official_value=True),
         _kaynak(slug="dunya", tier=3, independence_group="media-dunya"),
         _kaynak(slug="bloomberght", tier=3, independence_group="media-bloomberght"),
     ]
@@ -71,11 +76,18 @@ def test_measured_dimensions_carry_real_counts() -> None:
     assert b["supporting"].count == 3
     assert b["primary_source"].count == 1
     assert b["official_data"].count == 1
-    assert b["independent"].count == 2   # tuik resmî sayılır
+    assert b["independent"].count == 2  # tuik resmî sayılır
     assert b["independence_groups"].count == 3
-    assert all(b[k].state == "measured" for k in
-               ("supporting", "primary_source", "official_data",
-                "independent", "independence_groups"))
+    assert all(
+        b[k].state == "measured"
+        for k in (
+            "supporting",
+            "primary_source",
+            "official_data",
+            "independent",
+            "independence_groups",
+        )
+    )
 
 
 def test_dimension_dataclass_distinguishes_none_from_zero() -> None:
@@ -85,7 +97,7 @@ def test_dimension_dataclass_distinguishes_none_from_zero() -> None:
 
 # ═══════════════════════════════ 2. boyutlar çarpılmaz
 def test_matrix_has_no_single_opaque_confidence_number() -> None:
-    """"%78 güvenilir" yedi olguyu tek sayıya gömer."""
+    """ "%78 güvenilir" yedi olguyu tek sayıya gömer."""
     from dataclasses import fields
 
     from politikdesk.evidence.matrix import ClaimMatrix

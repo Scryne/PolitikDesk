@@ -196,6 +196,9 @@ def normalize(
     elif published is not None:
         published = published.astimezone(UTC)
 
+    if published is not None and published > now:
+        published = now
+
     return NormalizedArticle(
         source_slug=item.source_slug,
         canonical_url=canonicalize_url(item.url),

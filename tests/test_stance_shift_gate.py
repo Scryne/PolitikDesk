@@ -55,9 +55,7 @@ def test_memory_page_does_not_bypass_the_gate() -> None:
 
     kaynak = inspect.getsource(memory_view)
     assert "detect_stance_shifts_from_memory" in kaynak
-    assert "PUBLISH_GATE_OPEN" in kaynak, (
-        "Hafiza sayfasi dedektoru kapiya sormadan cagiriyor."
-    )
+    assert "PUBLISH_GATE_OPEN" in kaynak, "Hafiza sayfasi dedektoru kapiya sormadan cagiriyor."
 
 
 def test_withheld_records_are_not_deleted() -> None:
@@ -65,8 +63,10 @@ def test_withheld_records_are_not_deleted() -> None:
     kaynak = inspect.getsource(shift_store)
     agac = ast.parse(kaynak)
     silme = [
-        n.value for n in ast.walk(agac)
-        if isinstance(n, ast.Constant) and isinstance(n.value, str)
+        n.value
+        for n in ast.walk(agac)
+        if isinstance(n, ast.Constant)
+        and isinstance(n.value, str)
         and "DELETE FROM stance_shifts" in n.value.upper()
     ]
     assert not silme, "Kayitlar siliniyor; ADR-010 saklanmalarini sart kosuyor"
@@ -110,7 +110,8 @@ def test_migration_0019_widens_the_unique_index() -> None:
 
     yol = (
         pathlib.Path(shift_store.__file__).resolve().parents[2]
-        / "migrations" / "0019_stance_shift_withheld.sql"
+        / "migrations"
+        / "0019_stance_shift_withheld.sql"
     )
     sql = yol.read_text(encoding="utf-8")
     assert "uq_stance_shifts_signature" in sql

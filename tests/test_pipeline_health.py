@@ -39,7 +39,7 @@ def test_stages_and_heartbeats_completeness() -> None:
     assert stage_keys == expected_stages
 
     heartbeat_keys = [h.key for h in HEARTBEATS]
-    expected_heartbeats = ["ingest", "briefing", "metrics", "purge"]
+    expected_heartbeats = ["ingest", "briefing", "metrics", "purge", "backup", "recovery_drill"]
     assert heartbeat_keys == expected_heartbeats
 
 
@@ -276,6 +276,26 @@ def test_stages_without_a_limit_are_unaffected() -> None:
     assert _classify_backlog(10_000, None) == "green"
     for stage in STAGES:
         if stage.key != "claims":
-            assert stage.backlog_limit is None, (
-                f"{stage.key}: sayı eşiği ölçülmeden eklenmemeli"
-            )
+            assert stage.backlog_limit is None, f"{stage.key}: sayı eşiği ölçülmeden eklenmemeli"
+
+
+def test_stages_age_axis_tracks_ingestion_latency_not_historical_pub_dates() -> None:
+    """OPS-001 Regresyon Koruması:
+
+    Arşivden yüklenen belgeler (Sayıştay 2021, TBMM 2015) sisteme yeni
+    girmiş olsa bile `published_at` veya `e.last_update_at` yılları
+    bulabilir. Aşama monitörünün yaş ekseni, belgenin geçmiş yayın
+    tarihine DEĞİL, sistemdeki kuyruk bekleme süresine
+    (`first_seen_at` ve `created_at`) bakmalıdır.
+    """
+    cluster_stage = next(s for s in STAGES if s.key == "cluster")
+    assert "min(first_seen_at)" in cluster_stage.sql
+    assert "published_at" not in cluster_stage.sql
+
+    context_stage = next(s for s in STAGES if s.key == "context")
+    assert "min(e.created_at)" in context_stage.sql
+    assert "min(e.last_update_at)" not in context_stage.sql
+
+    political_stage = next(s for s in STAGES if s.key == "political_relations")
+    assert "min(e.created_at)" in political_stage.sql
+    assert "min(e.last_update_at)" not in political_stage.sql

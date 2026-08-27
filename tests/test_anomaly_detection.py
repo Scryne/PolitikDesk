@@ -68,7 +68,9 @@ def test_anomaly_result_is_reproducible_from_stored_inputs() -> None:
     a = detect(seri, RETURN_MAD)
     b = detect(seri, RETURN_MAD)
     assert (a.observed_value, a.deviation, a.deviation_ratio) == (
-        b.observed_value, b.deviation, b.deviation_ratio
+        b.observed_value,
+        b.deviation,
+        b.deviation_ratio,
     )
     for alan in (a.method, a.threshold, a.baseline_window, a.baseline_size, a.reason):
         assert alan not in (None, "")
@@ -218,8 +220,8 @@ def test_policy_rate_severity_discriminates_instead_of_always_critical() -> None
     çıkmasıydı — yani şiddet hiçbir şey ayırt etmiyordu. Ayrı
     `severity_scale` ile 50bp `low`, 500bp `critical` olur.
     """
-    kucuk = detect([40.0, 40.5], ABS_CHANGE)      # +50 bp
-    buyuk = detect([40.0, 47.5], ABS_CHANGE)      # +750 bp
+    kucuk = detect([40.0, 40.5], ABS_CHANGE)  # +50 bp
+    buyuk = detect([40.0, 47.5], ABS_CHANGE)  # +750 bp
     assert kucuk.is_anomaly and buyuk.is_anomaly
     assert kucuk.severity == "low"
     assert buyuk.severity == "critical"
@@ -411,7 +413,11 @@ def test_detect_all_runs_against_live_schema() -> None:
     stats = detect_all()
     assert stats.evaluated >= 0
     assert set(stats.by_state) <= {
-        "normal", "anomalous", "insufficient_history", "stale", "unavailable"
+        "normal",
+        "anomalous",
+        "insufficient_history",
+        "stale",
+        "unavailable",
     }
 
 
@@ -420,6 +426,13 @@ def test_persisted_anomalies_carry_full_provenance() -> None:
     from politikdesk.analysis.pipeline import open_anomalies
 
     for kayit in open_anomalies(limit=10):
-        for alan in ("series_code", "detection_method", "threshold", "baseline_size",
-                     "source_slug", "severity", "period"):
+        for alan in (
+            "series_code",
+            "detection_method",
+            "threshold",
+            "baseline_size",
+            "source_slug",
+            "severity",
+            "period",
+        ):
             assert kayit.get(alan) is not None, alan

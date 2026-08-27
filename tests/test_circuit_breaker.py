@@ -103,4 +103,3 @@ def test_global_get_circuit_helper() -> None:
     c = get_circuit("global.example.com")
     assert c.host == "global.example.com"
     assert c.state == CircuitState.CLOSED
-

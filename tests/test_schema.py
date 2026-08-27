@@ -43,10 +43,10 @@ EXPECTED_TABLES = {
     "llm_calls",
 }
 
-# Faz 3'te (0004) eklenen tablolar. 0001'de tanımlı olmadıkları için
+# Faz 3 ve sonrası eklenen tablolar. 0001'de tanımlı olmadıkları için
 # `test_all_expected_tables_are_defined` onları aramaz; canlı şema
 # testi ikisinin birleşimine bakar.
-PHASE3_TABLES = {"briefings", "event_feedback", "user_activity"}
+PHASE3_TABLES = {"briefings", "event_feedback", "user_activity", "publication_cycles"}
 
 # P6 / KVKK m.6 — bu sözcükleri içeren bir sütun editorial_profiles'ta olamaz.
 FORBIDDEN_PROFILE_TERMS = (

@@ -37,6 +37,9 @@ if not defined PD_GIT_SHA (
 if not defined PD_GIT_BRANCH (
     for /f "tokens=*" %%i in ('git branch --show-current 2^>nul') do set "PD_GIT_BRANCH=%%i"
 )
+if not defined PD_API_TOKEN (
+    for /f "usebackq tokens=1,* delims==" %%a in (`findstr /r "^PD_API_TOKEN=" "%ROOT%.env" 2^>nul`) do set "PD_API_TOKEN=%%b"
+)
 
 if "%~1"=="" goto :help
 goto :cmd_%~1 2>nul || goto :unknown
@@ -59,6 +62,8 @@ echo   pd open             Feed'i tarayicida ac
 echo.
 echo   -- saglik --
 echo   pd watchdog         Disaridan saglik nobeti
+echo   pd alert-test       Webhook alarm kanalina test pingi at
+echo   pd telegram-test    Telegram bot bildirim kanalini test et
 echo   pd pipeline-health  Hangi asamada birikme var?
 echo   pd health           Kaynak saglik raporu
 echo   pd verify-feeds     Tum canli RSS ve feed akislarini dogrula
@@ -76,6 +81,7 @@ echo.
 echo   -- boru hatti (elle) --
 echo   pd drain            Tum boru hattini kuyruklar sifirlanana kadar bosalt
 echo   pd ingest / embed / entities / cluster / claims / evidence / context
+echo   pd auto-draft       Teyitli olaylar icin otomatik tweet taslagi uret
 echo   pd briefing         Sabah brifingi uret
 echo   pd metrics          Urun metriklerini topla
 echo   pd sync             config/sources.yml -^> veritabani
@@ -103,9 +109,16 @@ docker compose --profile workers up -d --build || goto :fail
 "%PY%" -m scripts.check_deployment
 echo.
 echo PolitikDesk hazir:
-echo   Feed       http://localhost:8000/feed
-echo   Saglik     http://localhost:8000/admin/
-echo   Metrikler  http://localhost:8000/admin/metrics
+if defined PD_API_TOKEN (
+    echo   Feed       http://localhost:8000/feed?token=%PD_API_TOKEN%
+    echo   Giris      http://localhost:8000/login
+    echo   Saglik     http://localhost:8000/admin/
+    echo   Metrikler  http://localhost:8000/admin/metrics
+) else (
+    echo   Feed       http://localhost:8000/feed
+    echo   Saglik     http://localhost:8000/admin/
+    echo   Metrikler  http://localhost:8000/admin/metrics
+)
 goto :eof
 
 :cmd_stop
@@ -137,7 +150,11 @@ docker ps -a --filter "name=pd-" --format "table {{.Names}}\t{{.Status}}\t{{.Ima
 goto :eof
 
 :cmd_open
-start "" "http://localhost:8000/feed"
+if defined PD_API_TOKEN (
+    start "" "http://localhost:8000/feed?token=%PD_API_TOKEN%"
+) else (
+    start "" "http://localhost:8000/feed"
+)
 goto :eof
 
 :cmd_serve
@@ -164,6 +181,11 @@ goto :eof
 REM ------------------------------------------------------------------ saglik
 :cmd_watchdog
 "%PY%" -m scripts.watchdog
+goto :eof
+
+:cmd_alert-test
+:cmd_alert_test
+"%PY%" -m scripts.watchdog --test-alert
 goto :eof
 
 :cmd_pipeline-health
@@ -229,6 +251,12 @@ goto :eof
 goto :eof
 :cmd_context
 "%PY%" -m scripts.ingest context
+goto :eof
+:cmd_auto-draft
+"%PY%" -c "from politikdesk.editorial.auto_draft import process_pending_auto_drafts; r = process_pending_auto_drafts(); print(f'Otomatik taslak uretim sonucu: {r}')"
+goto :eof
+:cmd_telegram-test
+"%PY%" scripts/test_telegram_alert.py %2 %3 %4 %5
 goto :eof
 :cmd_briefing
 "%PY%" -m scripts.ingest briefing --slot morning --send

@@ -263,7 +263,10 @@ def _emerging_events(events: list[dict[str, Any]]) -> str:
                 "Henüz olay yok",
                 "Boru hattı her 5 dakikada bir toplar. İlk turu hemen "
                 "çalıştırmak için terminalde `pd ingest` yazın.",
-            ),
+            )
+            + '<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
+            "Önem skoru bir <b>doğruluk</b> ölçüsü değildir: yayılma hızını ve "
+            "genişliğini ölçer, iddiaların doğruluğunu değil.</p>",
             title="Yükselen olaylar",
         )
 

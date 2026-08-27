@@ -7,13 +7,14 @@ Spec §11.1: Redis + Celery. Ingestion, embedding, kümeleme ve LLM
 from __future__ import annotations
 
 from celery import Celery
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.signals import task_failure, worker_process_init, worker_process_shutdown
 
 from politikdesk.config import get_settings
-from politikdesk.observability import configure_logging
+from politikdesk.observability import configure_logging, get_logger
 
 settings = get_settings()
 configure_logging(settings)
+log = get_logger(__name__)
 
 app = Celery(
     "politikdesk",
@@ -103,4 +104,47 @@ def on_worker_process_shutdown(**kwargs: object) -> None:
     from politikdesk.db import reset_db_pool
 
     reset_db_pool()
+
+
+@task_failure.connect
+def on_task_failure(
+    sender: object = None,
+    task_id: str | None = None,
+    exception: BaseException | None = None,
+    args: tuple[object, ...] | None = None,
+    kwargs: dict[str, object] | None = None,
+    traceback: object = None,
+    einfo: object = None,
+    **other: object,
+) -> None:
+    """Celery görevi başarısız olduğunda DLQ tablosuna kaydeder ve SRE uyarısı gönderir."""
+    task_name = getattr(sender, "name", str(sender))
+    tb_str = str(getattr(einfo, "traceback", None) or traceback or "")
+
+    try:
+        from politikdesk.dlq import record_dead_letter_task
+
+        record_dead_letter_task(
+            task_id=task_id or "unknown",
+            task_name=task_name,
+            args=list(args or ()),
+            kwargs=dict(kwargs or {}),
+            exception=exception,
+            traceback_str=tb_str,
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning("dlq_recording_failed", error=str(exc))
+
+    try:
+        from politikdesk.sre_alerts import send_alert_notification
+
+        send_alert_notification(
+            title=f"Celery Görev Hatası: {task_name}",
+            detail=f"Görev hatası: {str(exception)[:300]}",
+            severity="CRITICAL",
+            source="celery_worker",
+            action="/admin/ üzerinden DLQ inceleyin veya loglara bakın",
+        )
+    except Exception:
+        pass
 

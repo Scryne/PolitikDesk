@@ -192,7 +192,7 @@ def test_quick_draft_never_interpolates_draft_body_into_markup() -> None:
     assert "JSON.stringify(body)" not in html
     # Metin alanı işaretleme olarak KURULMAZ; gövde ona değer olarak verilir.
     assert "feed-tweet-textarea" in html
-    assert "<textarea class=\\\"feed-tweet-textarea" not in html
+    assert '<textarea class=\\"feed-tweet-textarea' not in html
     assert "area.value = body" in html
     assert "box.replaceChildren()" in html
 
@@ -282,5 +282,3 @@ def test_security_headers_present_on_short_circuited_auth_and_csrf_rejections(
     assert resp_403_csrf.status_code == 403
     assert resp_403_csrf.headers.get("X-Content-Type-Options") == "nosniff"
     assert resp_403_csrf.headers.get("X-Frame-Options") == "SAMEORIGIN"
-
-
