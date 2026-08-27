@@ -147,6 +147,7 @@ Veritabanında hiçbir yetim (orphan) yabancı anahtar, NULL bozulması, zaman a
 
 if __name__ == "__main__":
     content = run_forensic_audit()
-    out_path = Path(__file__).resolve().parent.parent / "PHASE_26_DATABASE_FORENSIC_REPORT.md"
+    out_path = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08" / "PHASE_26_DATABASE_FORENSIC_REPORT.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print(f"[OK] Database Forensic Report oluşturuldu: {out_path}")

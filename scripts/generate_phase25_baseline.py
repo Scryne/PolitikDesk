@@ -166,6 +166,7 @@ Tüm 8 canlı HTTP uç noktası 200 OK ile doğrulanmıştır.
 
 if __name__ == "__main__":
     content = generate_baseline()
-    out_path = Path(__file__).resolve().parent.parent / "PHASE_25_BASELINE.md"
+    out_path = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08" / "PHASE_25_BASELINE.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print(f"[OK] Baseline oluşturuldu: {out_path}")

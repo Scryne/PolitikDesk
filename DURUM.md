@@ -25,9 +25,13 @@
 
 ## Ne yarım
 
-- **Kökte ~170 sertifikasyon dokümanı var** (`FAZ_15…FAZ_24`, `PHASE_C…PHASE_J`,
-  `FINAL_*`, `PRODUCTION_*`). Vault'un kuralı bunu adıyla anıyor: sertifika döngüsü
-  ilerleme hissi verir, ilerleme vermez. Proje hâlâ yayında değil.
+- ~~Kökte ~170 sertifikasyon dokümanı var~~ ✅ **çözüldü 2026-08-27:** kökteki 179
+  markdown dosyasının **163'ü** `docs/arsiv/sertifikasyon-2026-08/` altına taşındı.
+  Kökte 16 referans/işletim dokümanı kaldı. Hiçbir dosya silinmedi.
+  **Yan bulgu:** altı betik bu raporları yeniden üretip **köke yazıyordu** — çıktı
+  yolları arşive yönlendirildi, yoksa kök yeniden dolacaktı. Taşımadan sonra
+  **2711 test hâlâ geçiyor**, altı betik de derleniyor.
+  Ama sertifika döngüsünün kendisi kapanmadı: proje hâlâ yayında değil.
 - Bu denetimde commit edilen 359 dosyanın 269'u yeni: 48 test, 22 script, 21 kaynak,
   8 doküman, 3 migration ve ~165 kök seviyesinde rapor.
 

@@ -134,6 +134,7 @@ Her adaptör tipi için 5 adımlı zincir doğrulanmıştır:
 
 if __name__ == "__main__":
     content = run_source_validation()
-    out_path = Path(__file__).resolve().parent.parent / "PHASE_26_SOURCE_VALIDATION_REPORT.md"
+    out_path = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08" / "PHASE_26_SOURCE_VALIDATION_REPORT.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print(f"[OK] Source Validation Report oluşturuldu: {out_path}")

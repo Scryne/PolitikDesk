@@ -148,7 +148,8 @@ def run_load_and_soak_audit() -> tuple[str, str]:
 
 if __name__ == "__main__":
     load_content, soak_content = run_load_and_soak_audit()
-    root = Path(__file__).resolve().parent.parent
+    root = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08"
+    root.mkdir(parents=True, exist_ok=True)
     (root / "PHASE_26_LOAD_TEST_REPORT.md").write_text(load_content, encoding="utf-8")
     (root / "PHASE_26_SOAK_TEST_REPORT.md").write_text(soak_content, encoding="utf-8")
     print("[OK] Load ve Soak Test raporları başarıyla oluşturuldu.")

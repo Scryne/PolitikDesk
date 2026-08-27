@@ -175,6 +175,7 @@ def run_taxonomy_redteam() -> str:
 
 if __name__ == "__main__":
     content = run_taxonomy_redteam()
-    out_path = Path(__file__).resolve().parent.parent / "PHASE_26_TAXONOMY_REDTEAM_REPORT.md"
+    out_path = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08" / "PHASE_26_TAXONOMY_REDTEAM_REPORT.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print(f"[OK] Taxonomy Red Team Report oluşturuldu: {out_path}")

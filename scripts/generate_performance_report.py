@@ -129,6 +129,7 @@ def run_benchmark(iterations: int = 60) -> str:
 
 if __name__ == "__main__":
     content = run_benchmark()
-    out_path = Path(__file__).resolve().parent.parent / "PHASE_25_PERFORMANCE_REPORT.md"
+    out_path = Path(__file__).resolve().parent.parent / "docs" / "arsiv" / "sertifikasyon-2026-08" / "PHASE_25_PERFORMANCE_REPORT.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(content, encoding="utf-8")
     print(f"[OK] Performance Report oluşturuldu: {out_path}")
