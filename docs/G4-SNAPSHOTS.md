@@ -31,3 +31,4 @@
 | Gün 10 | 2026-08-25 20:55 UTC | `8dd21ec200d2` | 94/101 aktif | 🟡 7 kaynakta hata | %16.62 (15391/92580) | 12775 art / 3687 evt | 21/27 | `0024_trgm_search_indexes` | Unclustered: 1, Pending Drafts: 2 |
 | Gün 11 | 2026-08-26 20:55 UTC | `828aaae06379` | 94/101 aktif | 🟡 7 kaynakta hata | %14.56 (15871/109031) | 14384 art / 4074 evt | 23/29 | `0025_dead_letter_queue` | Unclustered: 0, Pending Drafts: 2 |
 | Gün 12 | 2026-08-27 20:55 UTC | `828aaae06379` | 94/101 aktif | 🟡 7 kaynakta hata | %14.06 (16954/120579) | 15562 art / 4375 evt | 25/31 | `0025_dead_letter_queue` | Unclustered: 1, Pending Drafts: 2 |
+| Gün 13 | 2026-08-29 09:41 UTC | `828aaae06379` | 94/101 aktif | 🟡 7 kaynakta hata | %13.13 (18011/137209) | 17432 art / 4777 evt | 28/34 | `0025_dead_letter_queue` | Unclustered: 135, Pending Drafts: 2 |
