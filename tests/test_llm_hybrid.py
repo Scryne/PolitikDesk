@@ -22,6 +22,17 @@ from politikdesk.llm.client import (
 from politikdesk.llm.errors import LLMHTTPError
 from politikdesk.llm.pricing import estimate_cost_usd
 
+
+@pytest.fixture(autouse=True)
+def _fake_generation_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bulut backend'i kurulurken anahtarın VARLIĞI denetlenir; istekler ise MockTransport'a gider.
+
+    Bu testler yalnız geliştiricinin `.env`'inde gerçek anahtar olduğu için yeşildi; CI'da
+    (anahtarsız) `LLMNotConfigured` ile düşüyordu. Gerçek anahtar hiçbir zaman gerekmez.
+    """
+    monkeypatch.setenv("NVIDIA_API_KEY", "test-anahtari-ag-yok")
+
+
 EXTRACTION_MODEL = "qwen2.5:7b-instruct-q5_K_M"
 GENERATION_MODEL = "meta/llama-3.3-70b-instruct"
 SCHEMA = {"type": "object", "properties": {"claims": {"type": "array"}}}

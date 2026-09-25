@@ -89,6 +89,34 @@ def _get_test_dsn() -> str | None:
     return None
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _baseline_sources() -> None:
+    """Kaynak tablosu boşsa `config/sources*.yml`'den bir kez senkronlar (`pd seed` eşdeğeri).
+
+    Olay/makale tohumlayan testler "en az iki aktif kaynak" varsayar. Bu varsayım yalnız
+    geliştiricinin dolu veritabanında tutuyordu; CI'ın taze veritabanında (yalnız migration)
+    `IndexError` ile düşüyordu. Kaynaklar üretim verisi değil yapılandırmadır: tohumlamak
+    testi hermetik yapar, canlı veriye bağımlılık eklemez.
+    """
+    dsn = _get_test_dsn()
+    if not dsn:
+        return
+    try:
+        import psycopg
+
+        with psycopg.connect(dsn, autocommit=True) as conn, conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM sources")
+            row = cur.fetchone()
+            if row is not None and int(row[0]) > 0:
+                return
+    except Exception:  # noqa: BLE001 — DB yoksa DB testleri zaten kendi atlanır
+        return
+
+    from politikdesk.ingestion.sources import load_all_configs, sync_to_database
+
+    sync_to_database(load_all_configs())
+
+
 @pytest.fixture
 def db_conn():
     """Migration'ları uygulanmış bir veritabanına bağlantı."""

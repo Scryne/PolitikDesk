@@ -90,7 +90,11 @@ testpaths = ["tests"]
 markers = [
     "db: Postgres bağlantısı gerektiren testler (DATABASE_URL ayarlı olmalı)",
     "security: Güvenlik ve red-team testleri",
+    "live_data: dolu (üretim benzeri) veritabanına karşı kabul testleri; varsayılan koşuda atlanır, `pd test-live` ile koşulur",
 ]
+# Kabul testleri gerçek haber derlemi ister (ör. arşivde >3000 olay); CI'ın taze veritabanında
+# anlamsızdır. `pytest -m live_data` sonraki -m olduğu için bu filtreyi geçersiz kılar.
+addopts = "-m 'not live_data'"
 filterwarnings = [
     "error::DeprecationWarning",
     "ignore::starlette.exceptions.StarletteDeprecationWarning",

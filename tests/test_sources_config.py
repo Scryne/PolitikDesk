@@ -353,13 +353,60 @@ def test_legislation_sources_configured() -> None:
     assert len(set(groups)) == len(groups)
 
 
-def test_verify_feeds_runner() -> None:
-    """verify_feeds aracı yapılandırma dosyalarını başarıyla denetlemeli."""
-    from scripts.verify_feeds import verify_all_feeds
+class _FakeFeedResponse:
+    def __init__(self, status_code: int, text: str) -> None:
+        self.status_code = status_code
+        self.text = text
 
-    # Mock/hızlı çalıştırma testi
-    code = verify_all_feeds(config_file="config/sources_legislation.yml", timeout=3.0, strict=False)
+
+def _fake_http_client(failing_slug: str | None = None):  # noqa: ANN202
+    """`HttpClient` yerine geçen ağsız istemci.
+
+    Önceki test gerçek kaynaklara bağlanıyordu: `timeout` yalnız HTTP isteğine
+    uygulanıyor, `validate_url`in DNS çözümlemesi (`getaddrinfo`) süresiz. Yavaş
+    DNS'li bir makinede tüm test paketi burada asılı kalıyordu. Canlı kaynak
+    denetimi test değil operasyon işidir: `pd verify-feeds`.
+    """
+    rss = "<rss><channel><item><title>x</title></item></channel></rss>"
+
+    class _Client:
+        def __init__(self, timeout: float = 0.0) -> None:
+            self.timeout = timeout
+
+        def get(self, url: str, source_slug: str = "") -> _FakeFeedResponse:
+            if source_slug == failing_slug:
+                return _FakeFeedResponse(500, "")
+            if "/portal/v2/posts" in url:
+                return _FakeFeedResponse(200, '[{"id": 1}]')
+            return _FakeFeedResponse(200, rss)
+
+    return _Client
+
+
+def test_verify_feeds_runner_passes_when_all_feeds_healthy(monkeypatch) -> None:  # noqa: ANN001
+    """Tüm kaynaklar öğe döndürürse katı kipte bile çıkış kodu 0 olmalı."""
+    import scripts.verify_feeds as verify_feeds
+
+    monkeypatch.setattr(verify_feeds, "HttpClient", _fake_http_client())
+    code = verify_feeds.verify_all_feeds(
+        config_file="config/sources_legislation.yml", timeout=3.0, strict=True
+    )
     assert code == 0
+
+
+def test_verify_feeds_runner_strict_fails_on_broken_feed(monkeypatch) -> None:  # noqa: ANN001
+    """Tek bir kaynak HTTP 500 verirse katı kip 1, gevşek kip 0 döndürmeli."""
+    from pathlib import Path
+
+    import scripts.verify_feeds as verify_feeds
+    from politikdesk.ingestion.sources import load_config
+
+    configs, _ = load_config(Path("config/sources_legislation.yml"))
+    broken = next(c.slug for c in configs if c.adapter == "rss" and c.feed_url)
+    monkeypatch.setattr(verify_feeds, "HttpClient", _fake_http_client(failing_slug=broken))
+    config = "config/sources_legislation.yml"
+    assert verify_feeds.verify_all_feeds(config_file=config, timeout=3.0, strict=True) == 1
+    assert verify_feeds.verify_all_feeds(config_file=config, timeout=3.0, strict=False) == 0
 
 
 def test_sync_to_database_deactivates_obsolete_sources(monkeypatch) -> None:  # noqa: ANN001

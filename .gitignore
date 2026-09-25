@@ -53,3 +53,4 @@ design/shots/
 .env.claude
 *.local.json
 
+.venv-ci/

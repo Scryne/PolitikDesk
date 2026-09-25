@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ctypes
 import gc
+import sys
 import time
 import tracemalloc
 from ctypes import wintypes
@@ -23,28 +24,33 @@ from politikdesk.db import get_pool
 
 def get_current_process_rss_mb() -> float:
     """Returns current process Working Set (RSS) in Megabytes via Windows API."""
-    try:
-        class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
-            _fields_ = [
-                ("cb", wintypes.DWORD),
-                ("PageFaultCount", wintypes.DWORD),
-                ("PeakWorkingSetSize", ctypes.c_size_t),
-                ("WorkingSetSize", ctypes.c_size_t),
-                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
-                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
-                ("PagefileUsage", ctypes.c_size_t),
-                ("PeakPagefileUsage", ctypes.c_size_t),
-            ]
+    # Windows API yalnız Windows'ta vardır; mypy bu koşulla Linux'ta dalı denetlemez.
+    if sys.platform == "win32":
+        try:
 
-        counters = PROCESS_MEMORY_COUNTERS()
-        counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
-        handle = ctypes.windll.kernel32.GetCurrentProcess()
-        if ctypes.windll.psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.cb):
-            return counters.WorkingSetSize / (1024.0 * 1024.0)
-    except Exception:
-        pass
+            class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+                _fields_ = [
+                    ("cb", wintypes.DWORD),
+                    ("PageFaultCount", wintypes.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            counters = PROCESS_MEMORY_COUNTERS()
+            counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS)
+            handle = ctypes.windll.kernel32.GetCurrentProcess()
+            if ctypes.windll.psapi.GetProcessMemoryInfo(
+                handle, ctypes.byref(counters), counters.cb
+            ):
+                return counters.WorkingSetSize / (1024.0 * 1024.0)
+        except Exception:
+            pass
     current, peak = tracemalloc.get_traced_memory()
     return current / (1024.0 * 1024.0)
 
@@ -74,7 +80,9 @@ def run_soak_benchmark(iterations: int = 150) -> dict[str, float]:
         "/static/manifest.webmanifest",
     ]
 
-    print(f"[*] Starting Soak Run: {iterations} cycles across {len(endpoints)} endpoints ({iterations * len(endpoints)} requests)...")
+    print(
+        f"[*] Starting Soak Run: {iterations} cycles across {len(endpoints)} endpoints ({iterations * len(endpoints)} requests)..."
+    )
     print(f"    Initial RSS Memory: {initial_rss:.2f} MB")
 
     total_requests = 0
@@ -89,7 +97,9 @@ def run_soak_benchmark(iterations: int = 150) -> dict[str, float]:
             peak_rss = current_rss
 
         if (i + 1) % 50 == 0:
-            print(f"    Cycle {i + 1}/{iterations} completed. Current RSS: {current_rss:.2f} MB | Peak: {peak_rss:.2f} MB")
+            print(
+                f"    Cycle {i + 1}/{iterations} completed. Current RSS: {current_rss:.2f} MB | Peak: {peak_rss:.2f} MB"
+            )
 
     t1 = time.perf_counter()
     duration_sec = t1 - t0
@@ -105,8 +115,12 @@ def run_soak_benchmark(iterations: int = 150) -> dict[str, float]:
     pool_stats = pool.get_stats()
 
     print("\n[*] Soak Test Completed:")
-    print(f"    Duration: {duration_sec:.2f}s | Total Requests: {total_requests:,} | Throughput: {rps:.1f} RPS")
-    print(f"    Initial RSS: {initial_rss:.2f} MB | Peak RSS: {peak_rss:.2f} MB | Final RSS: {final_rss:.2f} MB")
+    print(
+        f"    Duration: {duration_sec:.2f}s | Total Requests: {total_requests:,} | Throughput: {rps:.1f} RPS"
+    )
+    print(
+        f"    Initial RSS: {initial_rss:.2f} MB | Peak RSS: {peak_rss:.2f} MB | Final RSS: {final_rss:.2f} MB"
+    )
     print(f"    Net Memory Growth: {growth_mb:+.2f} MB ({leak_rate_kb_per_req:.3f} KB/request)")
     print(f"    Pool Stats: {pool_stats}")
 

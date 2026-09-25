@@ -1,4 +1,4 @@
-.PHONY: help setup up workers start stop restart update down migrate test lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
+.PHONY: help setup up workers start stop restart update down migrate test test-live lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
 
 export PD_GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null)
 export PD_GIT_BRANCH ?= $(shell git branch --show-current 2>/dev/null)
@@ -101,6 +101,10 @@ seed:
 
 test:
 	pytest -v
+
+# Kabul testleri: dolu veritabanı ister (make update sonrası). CI bunları koşmaz.
+test-live:
+	pytest -v -m live_data
 
 lint:
 	ruff check .

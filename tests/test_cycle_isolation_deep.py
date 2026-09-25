@@ -13,6 +13,7 @@ client = TestClient(app)
 AUTH_HEADERS = {"Authorization": "Bearer pd_sec_token_9876543210abcdef12345678"}
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_feed_and_summary_strictly_isolated_from_legacy_cycle(db_conn) -> None:
     """Aktif feed ve sen yokken özeti sorgularının arşivlenmiş döngüden tamamen izole olduğunu doğrular."""
@@ -33,6 +34,7 @@ def test_feed_and_summary_strictly_isolated_from_legacy_cycle(db_conn) -> None:
             assert c_id != legacy_id, f"Arşivlenmiş olay #{r['id']} aktif feed'e sızdı!"
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_search_can_find_historical_knowledge_via_omnibar(db_conn) -> None:
     """Arama motorunun (Omnibar / Ctrl+K) tarihsel arşiv kayıtlarına güvenle erişebildiğini doğrular."""

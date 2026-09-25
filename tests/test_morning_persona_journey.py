@@ -19,6 +19,7 @@ client = TestClient(app)
 AUTH_HEADERS = {"Authorization": "Bearer pd_sec_token_9876543210abcdef12345678"}
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_complete_morning_journalist_persona_journey(db_conn) -> None:
     """Kullanıcının sabah masaya oturup Gündem V2'yi kullandığı 18 adımlı gerçek senaryo testi."""

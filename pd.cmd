@@ -58,6 +58,7 @@ echo   pd beat             Yerel Celery beat zamanlayiciyi baslat
 echo   pd seed             Kaynaklari ve baslangic verilerini DB'ye yukle
 echo   pd update           Tum dikey kaynaklarini senkronize et ve verileri isle
 echo   pd status           Konteyner ve servis durumu
+echo   pd test-live        Kabul testleri (dolu veritabanina karsi)
 echo   pd open             Feed'i tarayicida ac
 echo.
 echo   -- saglik --
@@ -289,6 +290,11 @@ goto :eof
 
 :cmd_test
 "%PY%" -m pytest -v
+goto :eof
+
+:cmd_test-live
+REM Kabul testleri: dolu veritabani ister (pd update sonrasi). CI bunlari kosmaz.
+"%PY%" -m pytest -v -m live_data
 goto :eof
 
 :cmd_lint

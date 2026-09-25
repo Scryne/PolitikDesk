@@ -187,6 +187,7 @@ def test_single_group_result_is_flagged() -> None:
 
 
 # ═══════════════════════════════ 5. canlı veri
+@pytest.mark.live_data
 @pytest.mark.db
 def test_retrieval_runs_against_live_graph() -> None:
     sonuc = retrieve("Devlet Bahçeli")
@@ -206,6 +207,7 @@ def test_unknown_question_returns_empty_set_with_a_note() -> None:
     assert sonuc.notes
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_alias_query_resolves_the_canonical_institution() -> None:
     sonuc = retrieve("SPK")

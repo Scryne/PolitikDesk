@@ -31,6 +31,7 @@ def test_publication_cycles_schema_and_active_constraint(db_conn) -> None:
         db_conn.rollback()
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_archived_data_isolation_in_default_feed(db_conn) -> None:
     """Arşivlenmiş döngüdeki olayların varsayılan Gündem sorgusunda görünmediğini doğrular."""

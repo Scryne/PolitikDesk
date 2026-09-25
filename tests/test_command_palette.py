@@ -42,6 +42,7 @@ def test_search_response_shape() -> None:
     assert isinstance(payload["results"], list)
 
 
+@pytest.mark.live_data
 def test_every_result_carries_the_full_contract() -> None:
     """Her sonuç AYNI anahtarları taşır — tür fark etmez.
 
@@ -129,6 +130,7 @@ def test_roadmap_kinds_are_all_searchable() -> None:
         ("şimşek", "actor"),
     ],
 )
+@pytest.mark.live_data
 def test_each_kind_is_reachable_on_live_data(query: str, kind: str) -> None:
     """Tür TANIMLI değil, ULAŞILABİLİR olmalı.
 

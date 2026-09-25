@@ -174,6 +174,7 @@ def test_official_slug_set_matches_the_rules_engine() -> None:
 
 
 # ═══════════════════════════════ 5. canlı veri
+@pytest.mark.live_data
 @pytest.mark.db
 def test_coverage_report_exposes_the_dead_contradiction_path() -> None:
     """Rapor, karşı kanıt yolunun canlı olup olmadığını AÇIKÇA söylemeli."""
@@ -188,6 +189,7 @@ def test_coverage_report_exposes_the_dead_contradiction_path() -> None:
         )
 
 
+@pytest.mark.live_data
 @pytest.mark.db
 def test_build_returns_a_full_matrix_for_a_real_claim() -> None:
     from politikdesk.db import connection
