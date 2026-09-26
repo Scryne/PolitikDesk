@@ -143,7 +143,9 @@ def clean_text(raw: str | None) -> str:
 def clean_title(raw: str) -> str:
     """Başlıktan kaynak ekini temizler ("... - Dünya", "... | BloombergHT")."""
     title = clean_text(raw)
-    title = re.sub(r"\s*[|\-–—]\s*[^|\-–—]{2,30}$", "", title) if len(title) > 40 else title
+    # Ayırıcının İKİ yanında boşluk şart: "(2026-42)" ve "2026-III" gibi resmî
+    # numaralardaki tire site eki değildir; boşluksuz kalıp onları kesiyordu.
+    title = re.sub(r"\s+[|\-–—]\s+[^|\-–—]{2,30}$", "", title) if len(title) > 40 else title
     return title.strip()
 
 

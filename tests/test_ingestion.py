@@ -48,6 +48,7 @@ from politikdesk.ingestion.normalizer import (
     RAW_RETENTION_DAYS,
     canonicalize_url,
     clean_text,
+    clean_title,
     content_hash,
     make_excerpt,
     normalize,
@@ -939,3 +940,26 @@ def test_wp_rest_date_is_utc_aware() -> None:
 
 def test_strip_html_removes_tags_and_entities() -> None:
     assert strip_html("<p>Faiz &amp; kur   raporu</p>") == "Faiz & kur raporu"
+
+# --- clean_title: kaynak eki temizliği resmî numaraları kesmemeli -------------
+# TCMB/Hazine duyuruları "... (2026-42)" biçiminde numaralanır. Ayırıcıdan önce ve
+# sonra boşluk aranmadığı için "-42)" site eki sanılıyor, olay başlığı "(2026"
+# diye kesik kalıyordu (5 resmî olayda ölçüldü, 2026-09-26).
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            "Para Politikası Kurulu Toplantı Özeti (2026-42)",
+            "Para Politikası Kurulu Toplantı Özeti (2026-42)",
+        ),
+        (
+            "13 Ağustos 2026 Tarihli Enflasyon Raporu 2026-III Bilgilendirme Toplantısı",
+            "13 Ağustos 2026 Tarihli Enflasyon Raporu 2026-III Bilgilendirme Toplantısı",
+        ),
+        ("Merkez Bankası faiz kararını açıkladı, piyasalar tepki verdi - Dünya", "Merkez Bankası faiz kararını açıkladı, piyasalar tepki verdi"),
+        ("Hazine iç borçlanma ihalesinde faiz yüzde 38'e geriledi | BloombergHT", "Hazine iç borçlanma ihalesinde faiz yüzde 38'e geriledi"),
+        ("Kısa başlık - Dünya", "Kısa başlık - Dünya"),
+    ],
+)
+def test_clean_title_strips_site_suffix_but_keeps_official_numbers(raw: str, expected: str) -> None:
+    assert clean_title(raw) == expected
