@@ -959,6 +959,10 @@ def test_strip_html_removes_tags_and_entities() -> None:
         ("Merkez Bankası faiz kararını açıkladı, piyasalar tepki verdi - Dünya", "Merkez Bankası faiz kararını açıkladı, piyasalar tepki verdi"),
         ("Hazine iç borçlanma ihalesinde faiz yüzde 38'e geriledi | BloombergHT", "Hazine iç borçlanma ihalesinde faiz yüzde 38'e geriledi"),
         ("Kısa başlık - Dünya", "Kısa başlık - Dünya"),
+        (
+            "Orta Vadeli Program (2027 – 2029) Üzerine Düşünceler",
+            "Orta Vadeli Program (2027 – 2029) Üzerine Düşünceler",
+        ),
     ],
 )
 def test_clean_title_strips_site_suffix_but_keeps_official_numbers(raw: str, expected: str) -> None:

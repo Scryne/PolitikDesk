@@ -145,7 +145,12 @@ def clean_title(raw: str) -> str:
     title = clean_text(raw)
     # Ayırıcının İKİ yanında boşluk şart: "(2026-42)" ve "2026-III" gibi resmî
     # numaralardaki tire site eki değildir; boşluksuz kalıp onları kesiyordu.
-    title = re.sub(r"\s+[|\-–—]\s+[^|\-–—]{2,30}$", "", title) if len(title) > 40 else title
+    if len(title) > 40:
+        stripped = re.sub(r"\s+[|\-–—]\s+[^|\-–—]{2,30}$", "", title)
+        # Parantez içindeki aralık ("(2027 – 2029) Üzerine") ek değildir: kırpma
+        # parantezi açık bırakıyorsa başlığa dokunulmaz.
+        if stripped.count("(") == stripped.count(")"):
+            title = stripped
     return title.strip()
 
 
