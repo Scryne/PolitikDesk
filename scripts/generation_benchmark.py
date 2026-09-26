@@ -55,11 +55,12 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 # Aday havuzu. D17'nin hayatta kalanları + Claude (B-67 karşılaştırması).
 # Üretim görevi çıkarımdan farklıdır (uzun metin, üslup, tutarlılık), o
 # yüzden D17'nin sıralaması buraya devredilmez.
+# 2026-09-26: gpt-oss-120b, llama-3.x ve glm-5.2 NIM'den kalktı (410 Gone).
 DEFAULT_CANDIDATES: tuple[str, ...] = (
+    "nvidia/nemotron-3-ultra-550b-a55b",
     "nvidia/nemotron-3-super-120b-a12b",
-    "deepseek-ai/deepseek-v4-flash-0731",
-    "openai/gpt-oss-120b",
-    "z-ai/glm-5.2",
+    "deepseek-ai/deepseek-v4.1-flash",
+    "z-ai/glm-5.3",
 )
 
 

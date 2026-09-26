@@ -66,6 +66,12 @@ PRICES: Final[dict[str, ModelPrice]] = {
     # Liste, anahtara açık modeller `/v1/models` ile doğrulanarak yazıldı
     # (13 Ağu 2026). Katalog kartında görünen her model her anahtara açık
     # değildir; tahmin yerine uç noktaya sorulmuştur.
+    # 2026-09-26 yeniden doğrulama: aşağıdakiler /v1/models ile açık görüldü; emekliye
+    # ayrılanlar (410 Gone) geçmiş kayıtların maliyet hesabı için listede tutuluyor.
+    "deepseek-ai/deepseek-v4.1-flash": FREE_TIER,
+    "z-ai/glm-5.3": FREE_TIER,
+    "openai/gpt-oss-20b": FREE_TIER,
+    "mistralai/mistral-nemotron": FREE_TIER,
     "moonshotai/kimi-k2.6": FREE_TIER,
     "nvidia/nemotron-3-ultra-550b-a55b": FREE_TIER,
     "nvidia/nemotron-3-super-120b-a12b": FREE_TIER,

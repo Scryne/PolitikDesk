@@ -49,15 +49,14 @@ NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1"
 # Aday havuzu: anahtara açık, metin üreten, yeterince büyük modeller.
 # Gömme (embedding), güvenlik sınıflandırıcısı, görüntü ve kod modelleri
 # bu görevle ilgisiz olduğu için havuzda yok.
+# 2026-09-26: gpt-oss-120b, llama-3.x, glm-5.2, kimi ve minimax artık açık değil (410/404).
 DEFAULT_CANDIDATES: tuple[str, ...] = (
-    "moonshotai/kimi-k2.6",
     "nvidia/nemotron-3-ultra-550b-a55b",
     "nvidia/nemotron-3-super-120b-a12b",
-    "deepseek-ai/deepseek-v4-flash-0731",
-    "z-ai/glm-5.2",
-    "minimaxai/minimax-m3",
-    "openai/gpt-oss-120b",
-    "meta/llama-3.3-70b-instruct",
+    "deepseek-ai/deepseek-v4.1-flash",
+    "z-ai/glm-5.3",
+    "openai/gpt-oss-20b",
+    "mistralai/mistral-nemotron",
 )
 
 
