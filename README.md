@@ -13,7 +13,7 @@
 [![Architecture Guard](https://img.shields.io/badge/Architecture_Guard-100%25_Deterministic-brightgreen?style=for-the-badge&logo=shield&logoColor=white)](docs/guvenlik-notu.md)
 
 <p align="center">
-  <b>Makro ekonomi, yasama, siyaset ve sosyal medya gündemini 88 yapılandırılmış resmî ve bağımsız kaynaktan toplayan; haberleri olaya çeviren, her iddiayı deterministik kurallarla kanıta bağlayan ve kaynaklı editoryal taslak üreten kişisel istihbarat terminali.</b>
+  <b>Makro ekonomi, yasama, siyaset ve sosyal medya gündemini 101 yapılandırılmış kaynaktan (55 resmî ve haber, 46 X) toplayan; haberleri olaya çeviren, her iddiayı deterministik kurallarla kanıta bağlayan ve kaynaklı editoryal taslak üreten kişisel istihbarat terminali.</b>
 </p>
 
 ---
@@ -27,6 +27,10 @@
 > 1. **Kanıt motoru LLM'i import edemez.** Bir iddianın doğruluk durumuna yapay zekâ karar veremez; `evidence_status` yalnızca deterministik kuralların çıktısıdır.
 > 2. **Kanıtsız olayda taslak üretimi başlamaz.** (HTTP 409 sert kapı).
 > 3. **İnsan onayı olmadan otomatik yayın kod yolu yoktur.** Nihai editoryal irade daima kullanıcıdadır.
+
+---
+
+![Olay sayfası: ne biliyoruz, ne bilmiyoruz ve her iddianın kanıt durumu](docs/screenshots/olay.webp)
 
 ---
 
@@ -50,7 +54,7 @@
 ### 1. 🔍 Çoklu Dikey İstihbarat & Çapraz Teyit
 * **Makro Ekonomi & Para Politikası (D4):** TCMB faiz kararları ve duyuruları, TÜİK SDMX göstergeleri, Hazine ve Maliye Bakanlığı bültenleri, Resmî Gazete günlük fihristi.
 * **Yasama, Siyaset & Denetim (S3/S4):** TBMM kanun teklifleri, Sayıştay denetim bulguları, Cumhurbaşkanlığı Kararnameleri ve siyasi aktör beyanları.
-* **Sosyal Medya & X (Twitter) Radarı:** 6 tematik liste üzerinden 500+ canlı aktör akışı, **R7/R8 Epistemik Tavan** kuralı ve **TCK 217/A & Hakaret Önleme Çift Güvenlik Kapısı** (`SocialSecurityGate`).
+* **Sosyal Medya & X (Twitter) Radarı:** 9 tematik liste ve 37 kurum/aktör hesabı, **R7/R8 Epistemik Tavan** kuralı ve **TCK 217/A & Hakaret Önleme Çift Güvenlik Kapısı** (`SocialSecurityGate`).
 
 ### 2. 🧠 Deterministik Kanıt Motoru (R0–R8 Rules)
 * İddialar **R0–R8** matematiksel kurallarıyla bağımsız teyit havuzlarında sınanır.
@@ -82,12 +86,12 @@ Sistem her 5 dakikada bir otomatik olarak şu döngüyü işletir:
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
 │   1. TOPLA   │ ──▶ │  2. KÜMELE   │ ──▶ │  3. KANITLA  │ ──▶ │ 4. BAĞLAMLAMA│ ──▶ │  5. TASLAK   │
 └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
-  88 Kaynak            multilingual-e5      R0–R8 Kuralları       Political Memory     4 Editoryal Açı
+  101 Kaynak           multilingual-e5      R0–R8 Kuralları       Political Memory     4 Editoryal Açı
   RSS / SDMX / WP      Artımlı Centroid     ⛔ LLM Yasak          İlişki Grafı         Grounding Check
   TBMM / X Listeleri   Sayısal Muhafız      Bağımsız Sayım        Vaat & Denetim       İsnat Denetimi
 ```
 
-1. **Topla (Ingestion):** Kibar bot ilkeleri (Rate limiting, robots.txt, Exponential Backoff, CA demeti) ile 88 yapılandırılmış kaynaktan veri çeker. İçerik hash'i ve SimHash ile tekilleştirir.
+1. **Topla (Ingestion):** Kibar bot ilkeleri (Rate limiting, robots.txt, Exponential Backoff, CA demeti) ile 101 yapılandırılmış kaynaktan veri çeker (X akışı 30 dakikada bir). İçerik hash'i ve SimHash ile tekilleştirir.
 2. **Kümele (Clustering):** `multilingual-e5-large` embedding vektörleriyle haberleri olaylara bağlar. Aynı kurumun farklı göstergeleri ayrı olayda tutulur; sayısal çelişkiler `needs_review` bayrağı alır.
 3. **Kanıtla (Evidence):** Deterministik kurallarla iddiaları kanıt durumuna (`verified`, `partially_verified`, `disputed`, `unverified`, `prediction`) bağlar.
 4. **Bağlamlandır (Context & Memory):** Yeni olayı geçmiş Sayıştay raporları, TBMM oylamaları, vaatler ve aktör siciliyle (`fulfils`, `fails`, `contradicts`, `updates`) bağlar.
@@ -248,11 +252,12 @@ pd ci                         :: Tüm denetimleri tek seferde koşturur
 
 `pd ci` şu adımları eksiksiz doğrular:
 1. **Linter & Formatter:** `ruff check .` (0 hata)
-2. **Statik Tip Güvenliği:** `mypy politikdesk scripts config` (156 dosya, 0 hata, strict mode)
+2. **Statik Tip Güvenliği:** `mypy` (215 dosya, 0 hata; CI Linux'ta koşar)
 3. **Bağımsızlık Güvenlik Taraması:** `pip-audit` (0 bilinen zafiyet)
 4. **Mimari İzolasyon:** `check_architecture.py` (`evidence/` ➔ `llm/` ihlal denetimi)
 5. **Veritabanı Dayanıklılığı:** Çift yönlü migration & idempotency testi
-6. **Otomasyon Testleri:** **1087 Pytest** testi (Canlı DB, NLP, kural motoru, güvenlik kapıları)
+6. **Otomasyon Testleri:** **2701 pytest** testi, gerçek Postgres + Redis ile, ağa çıkmadan ~50 sn.
+   Dolu veritabanı isteyen 16 kabul testi (`live_data`) ayrı koşulur: `pd test-live`.
 
 ---
 
@@ -264,6 +269,32 @@ pd ci                         :: Tüm denetimleri tek seferde koşturur
 * **Vektör Temsili (Embedding):** `multilingual-e5-large` (Self-hosted)
 * **Arayüz:** Server-side Vanilla HTML5, Özel CSS Tasarım Sistemi (Tokens & Shell), Lucide Inline SVG
 * **Telemetri & Güvenlik:** Structlog, Sentry SDK, Tenacity, Pip-audit, Playwright UI Checker
+
+---
+
+## 🤖 Yapay Zekâ ile Nasıl Geliştirildi
+
+PolitikDesk tek geliştirici tarafından Claude Code ile eşli çalışılarak geliştirildi (144 commit'in
+66'sı ortak yazarlı). Ürünün kendisi "AI senin yerine konuşmaz" sözleşmesi üzerine kurulu; aynı
+disiplin geliştirme sürecine de uygulandı:
+
+- **Kararlar ölçümle verilir.** LLM seçimi tahminle değil projenin kendi kıyaslama betikleriyle
+  yapılır (`scripts/llm_benchmark.py`, `scripts/generation_benchmark.py`): alıntı sadakati,
+  şema uyumu ve taslakta kanıt dışı sayı oranı. NIM modelleri emekliye ayrıldığında (Eylül 2026)
+  halef aynı ölçütle seçildi.
+- **Sınırlar kodda kilitli.** Kanıt motorunun LLM'i import edememesi bir kural değil, CI adımıdır
+  (`scripts/check_architecture.py` + denetleyicinin kendisini sınayan `verify_arch_guard.py`).
+- **Kalıcı bağlam.** `CLAUDE.md` pazarlıksız kısıtları, `DESIGN.md` tasarım sözleşmesini,
+  `design/decisions.md` her UI turunun gerekçesini taşır; 11 ADR mimari kararları kaydeder.
+- **Görsel doğrulama döngüsü.** Arayüz işleri `scripts/ui_check.py` ile dört ekran genişliğinde
+  çekilip yatay taşma ve konsol hatası ölçülerek kapatılır.
+
+## 🖼️ Ekranlar
+
+| | |
+|---|---|
+| ![Gündem](docs/screenshots/gundem.webp) | ![Olay ve kanıt](docs/screenshots/olay.webp) |
+| ![Kumanda odası](docs/screenshots/kumanda.webp) | ![Siyasi hafıza](docs/screenshots/hafiza.webp) |
 
 ---
 

@@ -799,3 +799,32 @@ ama arada Faz 8 kumanda odası eklendi, kenar çubuğu daraltma davranışı
 geldi ve skor sessizce düştü. Rapora yazılan sayı regresyonu durdurmaz.
 Bu yüzden skorun dayandığı özellikler artık testle kilitli:
 `tests/test_accessibility_20260820.py` (15 test).
+
+---
+
+## 2026-09-26 · denetim turu · gündem kartı, filtre tekrarı, boş durumlar
+
+**Bağlam.** Portfolyo öncesi tam denetim; taze veritabanı gerçek boru hattıyla dolduruldu, 14 ekran
+1440 + 390'da önce/sonra çekildi (konsol hatası 0, yatay taşma 0).
+
+**Gündem kartı iki sütun değildi.** `css.py` `.feed-card>.card` hedefliyordu; Faz 21 işaretlemesi
+`div.feed-card-wrap > article.card.feed-card`. Seçici hiçbir öğeyle eşleşmediği için "anlatı solda,
+KARAR sağda" ızgarası hiç uygulanmıyor, kartlar uzun ve tek sütun kalıyordu → `.card.feed-card`.
+Sağ sütun zaten "kanıt bekliyor" dediği için sol taraftaki ikinci rozet kaldırıldı.
+
+**Filtreler iki kez vardı.** Kategori/bölge hem çip hem tam genişlik açılır menüydü; menüler global
+`select{width:100%}` kuralını miras alıyordu. Çipler kaldı (pdApplyFilters zaten PD_CAT/PD_REG'e
+düşüyor), zaman ve kaynak `width:auto` kompakt. Çip satırı masaüstünde gizli yatay kaydırma yerine
+kırılıyor (fare kullanıcısı kaydırılabildiğini görmüyordu).
+
+**Kullanıcı metni.** "Gündem V2 — Live Intelligence Feed", "(Salience Algoritması)" ve on ekranda
+"(Spec §…)" parantezleri kaldırıldı; referanslar kod yorumlarında duruyor. Alt başlık "Doğrulanmış …
+akış" yerine "her olay önemi ve kanıt durumuyla" (akışın çoğu doğrulanmış değil).
+
+**Boş ve ölçülemeyen durumlar.** Arşiv 0 metinde grounding "%100" gösteriyordu → "—" (bu depodaki
+ilke: ölçülemeyen değer boştur). Vaat tablosu ve ilişki grafı boşken neden boş olduğunu yazıyor.
+Hafıza kartlarındaki sabit davet cümlesi yerine "N olayda geçti · son …", sıralama gündem ağırlığına
+göre. Olay sayfasında iddia türü İngilizce enum yerine `TYPE_LABELS` (sayısal, olgu…).
+
+**Giriş sayfası** `data-theme="dark"` sabitiyle her zaman koyuydu ve farklı bir logo taşıyordu;
+sistem temasını izliyor, marka işareti kenar çubuğuyla aynı.

@@ -1,40 +1,35 @@
-# DURUM — PolitikDesk — politik istihbarat + deterministik kanıt motoru
+# DURUM — PolitikDesk
 
-> **Ne bu dosya:** sertifika değil **envanter**. 2026-08-27 denetiminde ölçülen gerçek durum.
-> "Çalışmıyor" yazan satır kusur değil, kayıt. Kapanış standardı:
-> `ScryneOS/🎯 100-Command-Center/Kapanis-Standardi.md`
+> Envanter, sertifika değil. Ölçüm tarihi: 2026-09-26.
 
-**Ölçüm tarihi:** 2026-08-27
-**Tek cümle:** **2711 test geçiyor ve tüm Docker yığını şu anda ayakta ve sağlıklı.** 359 dosya yıllardır commit edilmemişti.
+**Tek cümle:** Uçtan uca çalışıyor. Taze bir veritabanıyla 101 kaynaklık yapılandırmadan 492 makale
+toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta bağlandı, sabah brifingi
+üretildi; testler, tip denetimi, mimari kural ve CI yeşil.
 
-## Ne çalışıyor
+## Ne çalışıyor (ölçüldü)
 
-- **Test paketi: 2711 test geçti**, 0 başarısız, 53,85 sn. Depodaki en büyük test kütlesi.
-- **Docker yığını canlı ölçüldü** — 7 konteyner çalışıyor:
-  `pd-api` (healthy, 127.0.0.1:8000) · `pd-db` (healthy, 5432) · `pd-redis` (healthy, 6379) ·
-  `pd-worker` · `pd-worker-llm` · `pd-beat` · `pd-rsshub` (1200). Hepsi ~1 saattir ayakta.
-- **Kimlik doğrulama kapısı gerçekten çalışıyor:** `/`, `/docs`, `/web`, `/ui`, `/gundem`
-  isteklerinin tümü **401** döndü, Türkçe hata mesajıyla:
-  "Kimlik doğrulama gerekli. Authorization: Bearer <token> veya X-API-Token başlığı ekleyin."
-- Web arayüzü kodda var (`politikdesk/web/ui`, `politikdesk/web/static`).
+- **Testler:** 2701 geçti, boş veritabanıyla ve `.env` olmadan (CI ile aynı koşul), ~50 sn.
+- **Kabul testleri** (`pd test-live`, dolu veritabanına karşı): 16'nın 11'i geçti. Kalan 5'i önceki
+  yayın döngüsünden arşivlenmiş binlerce olay ister (ör. "arşivde >3000 olay"); bu yalnız aylarca
+  işletimle oluşur, yeni kurulumda beklenmez.
+- **CI:** yeşil. 2026-08-17'den beri kırmızıydı (Linux'ta mypy, kilitsiz kurulum, ağa çıkan ve
+  geliştirici verisine bağımlı testler); 2026-09-26'da düzeltildi.
+- **Boru hattı:** toplama → embedding → varlık → kümeleme → iddia (LLM) → kanıt → bağlam → hafıza →
+  gösterge serileri (6 seri, 1807 gözlem) → brifing.
+- **LLM:** `nvidia/nemotron-3-ultra-550b-a55b`, projenin kıyaslama betikleriyle seçildi
+  (çıkarım 10/10, alıntı sadakati %100; taslak grounding 7/8). Önceki modeller NIM'den kalktı.
 
-## Ne çalışmıyor / doğrulanmadı
+## Bilinen sınırlar
 
-- **Ekran hiç görülmedi.** Tüm uçlar auth arkasında; token olmadan arayüz doğrulanamadı.
-- Bu denetimde giriş yapılmadı, yani "arayüz çalışıyor" **iddia edilemez**.
+- **Resmî Gazete, Cumhurbaşkanlığı, Sayıştay** bu ağdan TLS el sıkışmasında bağlantıyı reddediyor
+  (gerçek tarayıcı dahil); kumanda odasının "Olmayanlar" paneli bunu doğru gösteriyor.
+- **NIM ücretsiz katmanı yavaş ve değişken:** iddia çıkarımı ~2 dk/olay. Modeller haber vermeden
+  emekliye ayrılıyor; `scripts/llm_benchmark.py` ayda bir yeniden koşulmalı.
+- **Operasyonel kapılar** (`yol-haritasi.md`: 34 olay incelemesi, 7 günlük temiz pencere, diversity
+  oranı) kod değil süre ve insan incelemesi ister; açık.
 
-## Ne yarım
+## Yerel çalıştırma notu
 
-- ~~Kökte ~170 sertifikasyon dokümanı var~~ ✅ **çözüldü 2026-08-27:** kökteki 179
-  markdown dosyasının **163'ü** `docs/arsiv/sertifikasyon-2026-08/` altına taşındı.
-  Kökte 16 referans/işletim dokümanı kaldı. Hiçbir dosya silinmedi.
-  **Yan bulgu:** altı betik bu raporları yeniden üretip **köke yazıyordu** — çıktı
-  yolları arşive yönlendirildi, yoksa kök yeniden dolacaktı. Taşımadan sonra
-  **2711 test hâlâ geçiyor**, altı betik de derleniyor.
-  Ama sertifika döngüsünün kendisi kapanmadı: proje hâlâ yayında değil.
-- Bu denetimde commit edilen 359 dosyanın 269'u yeni: 48 test, 22 script, 21 kaynak,
-  8 doküman, 3 migration ve ~165 kök seviyesinde rapor.
-
-## Sonraki adım
-
-Bir token al, arayüzü aç ve gerçekten baktığını buraya yaz. Sertifika dosyası yazma.
+Gerçek `.env` Telegram, SMTP ve X oturum bilgisi taşır. Denemelerde
+`PD_TWITTER_INGESTION_ENABLED=false PD_AUTO_DRAFT_ENABLED=false PD_TELEGRAM_NOTIFY_DRAFTS=false`
+verin; brifingi `--send` olmadan üretin.
