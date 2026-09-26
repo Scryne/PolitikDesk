@@ -41,7 +41,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import HTMLResponse
 
-from politikdesk.editorial.generator import ANGLES
+from politikdesk.editorial.generator import ANGLES, TYPE_LABELS
 from politikdesk.editorial.service import can_generate
 from politikdesk.evidence.explain import KIND_LABELS, explain, explain_event_status
 from politikdesk.users import current_user_id
@@ -121,7 +121,7 @@ def _claim_row(claim: dict[str, Any]) -> str:
         f"{esc(claim['claim_text'])}</div>"
         f'<div class="row tight subtle" style="margin-top:6px;'
         f'font-size:var(--text-xs)">{status_badge(claim["evidence_status"])}'
-        f"<span>· {esc(claim['claim_type'])}</span>"
+        f"<span>· {esc(TYPE_LABELS.get(claim['claim_type'], claim['claim_type']))}</span>"
         f"<span>· {esc(fmt.plural_count(int(claim['evidence_count'] or 0), 'kanıt bağı'))}"
         f"</span></div>"
     )
