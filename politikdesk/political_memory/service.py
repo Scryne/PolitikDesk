@@ -334,10 +334,15 @@ def list_tracked_actors(limit: int = 50) -> list[dict[str, Any]]:
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
-            SELECT canonical_name as name, entity_type, is_key_entity
-            FROM entities
-            WHERE entity_type IN ('person', 'institution')
-            ORDER BY is_key_entity DESC, canonical_name ASC
+            SELECT e.canonical_name AS name, e.entity_type, e.is_key_entity,
+                   count(DISTINCT ee.event_id) AS event_count,
+                   max(ev.last_update_at) AS last_seen_at
+            FROM entities e
+            LEFT JOIN event_entities ee ON ee.entity_id = e.id
+            LEFT JOIN events ev ON ev.id = ee.event_id
+            WHERE e.entity_type IN ('person', 'institution')
+            GROUP BY e.id, e.canonical_name, e.entity_type, e.is_key_entity
+            ORDER BY e.is_key_entity DESC, count(DISTINCT ee.event_id) DESC, e.canonical_name ASC
             LIMIT %s;
             """,
             (limit,),
