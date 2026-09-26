@@ -77,7 +77,7 @@ def test_live_feed_ui_components_and_script_elements() -> None:
     html = resp.text
 
     # 1. Başlık ve Canlı Masa Göstergeleri
-    assert "Gündem V2 — Live Intelligence Feed" in html
+    assert "<h1 class=\"page-title\">Gündem</h1>" in html or ">Gündem</h1>" in html
     assert "feed-new-banner" in html
     assert "feed-toolbar" in html
 
@@ -85,8 +85,9 @@ def test_live_feed_ui_components_and_script_elements() -> None:
     assert "sort=newest" in html
     assert "sort=important" in html
     assert "sort=updated" in html
-    assert 'id="filter-category"' in html
-    assert 'id="filter-region"' in html
+    # Kategori/bölge çip olarak (tekrarlanan açılır menü kaldırıldı)
+    assert "category=" in html
+    assert 'id="filter-category"' not in html
     assert 'id="filter-range"' in html
 
     # 3. Canlı Polling ve Sıçramasız Ekleme Betiği

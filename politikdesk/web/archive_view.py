@@ -92,18 +92,22 @@ def archive_page() -> HTMLResponse:
 
     total_records = len(records)
     grounded_count = sum(1 for r in records if r.get("is_grounded"))
-    grounded_rate = round(grounded_count / total_records * 100) if total_records > 0 else 100
+    # Hiç metin yokken oran ÖLÇÜLEMEZ: %100 göstermek olmayan bir başarıyı iddia ederdi.
+    # Bu depodaki ilke: ölçülemeyen değer sıfır ya da tam değil, boştur (—).
+    grounded_label = (
+        f"%{round(grounded_count / total_records * 100)}" if total_records > 0 else "—"
+    )
     avg_claims = (
         round(sum(len(r.get("cited_claim_ids") or []) for r in records) / total_records, 1)
         if total_records > 0
-        else 0
+        else None
     )
 
     kpis_html = f"""
     <div class="kpis" style="margin-bottom:var(--space-6)">
       {kpi("Yayınlanan İçerik", fmt.number(total_records), unit="metin", icon_name="archive")}
-      {kpi("Doğrulanmış Grounding", f"%{grounded_rate}", unit="oran", icon_name="check")}
-      {kpi("Ortalama Dayanak", str(avg_claims), unit="iddia / metin", icon_name="shield")}
+      {kpi("Doğrulanmış Grounding", grounded_label, unit="oran", icon_name="check")}
+      {kpi("Ortalama Dayanak", "—" if avg_claims is None else str(avg_claims), unit="iddia / metin", icon_name="shield")}
       {kpi("Editoryal Süreç", fmt.number(total_records), unit="kayıt", icon_name="edit")}
     </div>
     """
@@ -191,7 +195,7 @@ def archive_page() -> HTMLResponse:
     body = f"""
     {page_head(
         "Editoryal Yayın ve Kanıt Arşivi",
-        lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü (Spec §14.4).",
+        lede="Yayınlanan her metnin zaman damgası, model sürümü ve dayandığı birincil kanıt kütüğü.",
         actions=search_input("archive-search", "Arşivde veya metinde ara…", action="search-archive"),
     )}
 

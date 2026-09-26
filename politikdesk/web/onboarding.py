@@ -148,7 +148,7 @@ def profile_form() -> str:
         notice(
             "<p><b>Burada ideolojik soru yoktur ve olmayacaktır.</b></p>"
             "<p>Siyasi düşünce KVKK m.6 uyarınca özel nitelikli kişisel veridir; "
-            "sistemde onu kodlayacak bir alan bulunmaz (Spec §10.1, P6). Toplanan "
+            "sistemde onu kodlayacak bir alan bulunmaz. Toplanan "
             "her şey <b>editoryal ve biçimseldir</b>: ton, cümle yapısı, biçimsellik, "
             "kaynak politikası, alıntı ve belirsizlik yönetimi. Sen ne düşündüğünü değil, "
             "nasıl yazdığını ve bilgiyi nasıl sunduğunu anlatıyorsun.</p>"

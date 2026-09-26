@@ -82,7 +82,7 @@ TIME_RANGES: tuple[tuple[str, str], ...] = (
 )
 
 SORT_MODES: tuple[tuple[str, str, str, str], ...] = (
-    ("important", "Önemli", "shield", "Editoryal önem ve etki sıralaması (Salience Algoritması)"),
+    ("important", "Önemli", "shield", "Editoryal önem ve etki sıralaması"),
     ("newest", "En Yeni", "clock", "İlk bildirilen son gelişmeler (Kronolojik Akış)"),
     ("updated", "Son Güncellenen", "zap", "Son değişiklik ve güncelleme alan olaylar (Tazelik Akışı)"),
 )
@@ -251,10 +251,9 @@ def _tweet_module(row: dict[str, Any]) -> str:
         """
 
     if not ready:
-        return f"""
+        return """
         <div class="row tight" style="margin-top:var(--space-2);font-size:var(--text-xs);color:var(--color-fg-subtle)">
-          <span class="badge neutral" style="font-size:11px;height:18px">{icon("clock", 11)}Kanıt bekleniyor</span>
-          <span class="subtle">Yeterli kanıt oluşmadan tweet üretimi kapalıdır (Spec §12.1).</span>
+          <span class="subtle">Yeterli kanıt oluşmadan paylaşım taslağı üretilmez.</span>
         </div>
         """
 
@@ -365,7 +364,7 @@ def _strip(summary: dict[str, Any]) -> str:
 
     if not summary.get("available"):
         return notice(
-            "<p><b>PolitikDesk Gündem V2 Canlı İstihbarat Masası.</b> "
+            "<p><b>PolitikDesk gündem masası.</b> "
             "Aktif döngüdeki gelişmeler anlık doğrulanır ve kanıta bağlanır.</p>"
         )
     total = summary.get("total", 0)
@@ -634,23 +633,11 @@ def feed_page(
         for k, lbl, ic, _desc in SORT_MODES
     )
 
-    active_sort_info = SORT_MODE_MAP.get(selected_sort, ("Önemli", "shield", "Editoryal önem ve etki sıralaması (Salience Algoritması)"))
+    active_sort_info = SORT_MODE_MAP.get(selected_sort, ("Önemli", "shield", "Editoryal önem ve etki sıralaması"))
     mode_tagline_html = (
         f'<div class="feed-mode-tagline">'
         f'{icon(active_sort_info[1], 12)}<span>Sıralama Modu: <b>{esc(active_sort_info[0])}</b> — {esc(active_sort_info[2])}</span>'
         f'</div>'
-    )
-
-    # Kategori Select
-    cat_options = "".join(
-        f'<option value="{k}" {"selected" if k == selected_cat else ""}>{esc(lbl)}</option>'
-        for k, lbl in CATEGORIES
-    )
-
-    # Bölge Select
-    reg_options = "".join(
-        f'<option value="{k}" {"selected" if k == selected_reg else ""}>{esc(lbl)}</option>'
-        for k, lbl in REGIONS
     )
 
     # Zaman Select
@@ -709,8 +696,8 @@ def feed_page(
     body = f"""
 {
         page_head(
-            "Gündem V2 — Live Intelligence Feed",
-            lede="Doğrulanmış canlı siyasi ve makro ekonomi istihbarat akışı.",
+            "Gündem",
+            lede="Makro ekonomi ve siyaset gündemi. Her olay önemi ve kanıt durumuyla birlikte.",
             actions=actions_html,
         )
     }
@@ -739,14 +726,7 @@ def feed_page(
           {icon("filter", 12)}Filtrele:
         </span>
 
-        <select id="filter-category" class="feed-select" aria-label="Kategori" {action_attrs("apply-filters")}>
-          {cat_options}
-        </select>
-
-        <select id="filter-region" class="feed-select" aria-label="Bölge" {action_attrs("apply-filters")}>
-          {reg_options}
-        </select>
-
+        <!-- Kategori ve bölge yukarıdaki çiplerde; ikinci kez açılır menüyle sunulmaz. -->
         <select id="filter-range" class="feed-select" aria-label="Zaman Aralığı" {action_attrs("apply-filters")}>
           {time_options}
         </select>

@@ -290,7 +290,7 @@ def _sources_table(data: dict[str, Any]) -> str:
     return card(
         '<p class="subtle" style="margin:0 0 var(--space-4);font-size:var(--text-xs)">'
         "Başlıklar yan yana durur; farkı sen değerlendirirsin. Sistem hiçbir "
-        "yayına siyasi konum etiketi vermez (Spec §8.5).</p>"
+        "yayına siyasi konum etiketi vermez.</p>"
         + table(
             (("Kaynak", ""), ("Başlık", ""), ("Saat", ""), ("", "")),
             rows,
@@ -531,8 +531,8 @@ def _editorial_panel(event_id: int) -> str:
             f'<div class="btn-row">{buttons}</div>'
             f'<div style="margin-top:var(--space-4)">{reason}</div>'
             f'<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
-            f"Bu bir arayüz kısıtı değil: API doğrudan çağrılsa da "
-            f'<span class="mono">409</span> döner (Spec §14.1 kalem 15, P1).</p>',
+            f"Kural sunucuda uygulanır: arayüz atlanıp API doğrudan çağrılsa da "
+            f"kanıtsız olaydan taslak üretilmez.</p>",
             title="Editoryal fırsatlar",
         )
 

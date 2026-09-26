@@ -19,12 +19,13 @@ def test_gundem_v2_html_endpoint_and_toolbar(db_conn) -> None:
     assert resp.status_code == 200
     html = resp.text
 
-    assert "Gündem V2 — Live Intelligence Feed" in html
+    assert ">Gündem</h1>" in html
     assert "feed-toolbar" in html
     assert "feed-sort-group" in html
     assert "feed-select" in html
-    assert "filter-category" in html
-    assert "filter-region" in html
+    # kategori/bölge çip; zaman ve kaynak açılır menü
+    assert "filter-range" in html
+    assert "filter-source" in html
     assert "filter-range" in html
     assert "feed-new-banner" in html
 

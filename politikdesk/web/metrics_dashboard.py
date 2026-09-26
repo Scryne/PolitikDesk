@@ -144,7 +144,7 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
     cards = "".join(_metric_card(d, past.get(d["name"], [])) for d in ordered)
 
     lede = (
-        "Spec §13.3'ün sekiz metriği. Oran metrikleri 7 günlük kayan pencerede "
+        "Ürünün sekiz sağlık metriği. Oran metrikleri 7 günlük kayan pencerede "
         "hesaplanır; hedef dışı olanlar listenin başında durur."
     )
 
@@ -177,7 +177,7 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
         notice(
             "<p><b>Daily active minutes'ın düşük olması hedeftir.</b></p>"
             "<p>Ürünün vaadi zaman tasarrufudur, etkileşim değil; bu metriği yukarı "
-            "çekmeye çalışan hiçbir özellik kabul edilmez (Spec §13.3).</p>"
+            "çekmeye çalışan hiçbir özellik kabul edilmez.</p>"
         )
     }
 

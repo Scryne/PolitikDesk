@@ -456,15 +456,31 @@ _GRAPH_JS = """
     var rel = selectEl.value;
     var url = '/api/graph/data' + (rel ? '?relation=' + rel : '');
     fetch(url).then(function(r){ return r.json(); }).then(function(data){
-      initSimulation(data);
+      showGraph(data, rel);
     });
   };
 
   window.pdAction('reset-graph', window.pdResetGraph);
   window.pdAction('filter-graph', window.pdFilterGraph);
 
+  // Boş ağda gri, sessiz bir tuval kullanıcıya hiçbir şey söylemiyordu: neden boş olduğu
+  // ve ne zaman dolacağı yazılır. Filtreli görünümde boşluk başka bir anlam taşır.
+  function showGraph(data, rel) {
+    var empty = document.getElementById('pd-graph-empty');
+    var none = !data || !data.nodes || data.nodes.length === 0;
+    if (empty) {
+      empty.hidden = !none;
+      var msg = empty.querySelector('[data-empty-msg]');
+      if (msg) msg.textContent = rel
+        ? 'Bu ilişki türünde henüz bağlantı yok. Filtreyi "Tüm İlişkiler" yapın.'
+        : 'Henüz ilişki kurulmadı. Siyasi hafıza adımı aktörleri, beyanları ve olayları bağladığında ağ burada görünür.';
+    }
+    if (canvas) canvas.style.display = none ? 'none' : 'block';
+    if (!none) initSimulation(data);
+  }
+
   fetch('/api/graph/data').then(function(r){ return r.json(); }).then(function(data){
-    initSimulation(data);
+    showGraph(data, '');
   });
 })();
 """
@@ -509,6 +525,10 @@ def graph_page() -> HTMLResponse:
       </div>
 
       <canvas id="pd-graph-canvas" width="960" height="580" style="display:block;width:100%;height:auto;cursor:grab;background:var(--color-surface-sunken)"></canvas>
+      <div id="pd-graph-empty" hidden style="padding:var(--space-8) var(--space-6);text-align:center;background:var(--color-surface-sunken)">
+        <p style="margin:0 0 var(--space-2);font-weight:var(--weight-semibold);color:var(--color-fg)">{icon("graph", 16)} İlişki ağı boş</p>
+        <p class="subtle" data-empty-msg style="margin:0 auto;max-width:52ch;font-size:var(--text-sm)"></p>
+      </div>
     </div>
     <p class="subtle" style="margin:var(--space-2) 0 0;font-size:var(--text-xs)">
       {icon("info", 12)} Sürükleyerek gezinebilir, tekerlek ile yakınlaştırabilir ve detayını görmek için düğümlere tıklayabilirsiniz.
@@ -526,7 +546,7 @@ def graph_page() -> HTMLResponse:
 
     {
         card(
-            '<ul style="margin:0;padding-left:18px;font-size:var(--text-xs);line-height:1.8">'
+            '<ul style="margin:0;padding:0;list-style:none;font-size:var(--text-xs);line-height:1.8">'
             '<li><span style="color:var(--color-chart-1)">●</span> <b>Mavi:</b> Siyasi Aktör (Bakan / Lider)</li>'
             '<li><span style="color:var(--color-chart-2)">●</span> <b>Mor:</b> Geçmiş Beyan / Vaat</li>'
             '<li><span style="color:var(--color-chart-3)">●</span> <b>Açık Mavi:</b> Güncel İcraat / Olay</li>'

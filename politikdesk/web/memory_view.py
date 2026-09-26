@@ -94,6 +94,16 @@ _ACTOR_TIMELINE_JS = """
 """
 
 
+def _presence_line(actor: dict[str, object]) -> str:
+    """Karttaki tek satır: aktörün gündemdeki gerçek izi (sabit bir davet cümlesi değil)."""
+    count = int(actor.get("event_count") or 0)  # type: ignore[call-overload]
+    if count == 0:
+        return "Bu dönemde gündemde geçmedi"
+    seen = actor.get("last_seen_at")
+    last = f" · son {fmt.relative(seen)}" if seen else ""
+    return f"{fmt.plural_count(count, 'olayda')} geçti{last}"
+
+
 @router.get("/memory", response_class=HTMLResponse)
 @router.get("/hafiza", response_class=HTMLResponse)
 def memory_directory_page() -> HTMLResponse:
@@ -157,7 +167,7 @@ def memory_directory_page() -> HTMLResponse:
               {name_esc}
             </h2>
             <p class="subtle" style="margin:0;font-size:var(--text-sm)">
-              Geçmiş beyanları, vaatleri ve teyit ağlarını incele
+              {esc(_presence_line(a))}
             </p>
           </div>
           <div style="margin-top:var(--space-4);display:flex;align-items:center;justify-content:flex-end">

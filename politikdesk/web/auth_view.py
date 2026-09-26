@@ -43,7 +43,7 @@ def _render_login_page(
     clean_next = esc(next_url) if next_url and next_url.startswith("/") else "/feed"
 
     return f"""<!doctype html>
-<html lang="tr" data-theme="dark">
+<html lang="tr">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -175,7 +175,7 @@ def _render_login_page(
 <main class="login-wrap">
   <div class="login-card">
     <div class="login-brand">
-      <div class="login-logo">{icon('shield', 20)}</div>
+      <div class="login-logo brand-mark" aria-hidden="true">P</div>
       <h1 class="login-title">PolitikDesk</h1>
     </div>
     <div class="login-sub">Editoryal Çalışma Masası — Oturum Aç</div>

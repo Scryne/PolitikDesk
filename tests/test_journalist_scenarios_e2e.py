@@ -139,7 +139,7 @@ def test_scenario_6_editorial_salience_mode(sample_editorial_events) -> None:
     html = resp.text
 
     assert "Önemli" in html
-    assert "Salience Algoritması" in html
+    assert "Editoryal önem ve etki sıralaması" in html
 
 
 @pytest.mark.db

@@ -94,6 +94,17 @@ _PROMISES_JS = """
 """
 
 
+def _empty_row(colspan: int) -> str:
+    """Kayıt yokken başlık satırı tek başına kalmasın: neden boş ve ne zaman dolacağı yazılır."""
+    return (
+        f'<tr><td colspan="{colspan}" class="subtle" '
+        'style="padding:var(--space-8) var(--space-4);text-align:center">'
+        "Henüz takip edilen vaat yok. Siyasi hafıza adımı bir aktörün taahhüdünü "
+        "kanun, karar ya da oylamayla eşleştirdiğinde burada listelenir."
+        "</td></tr>"
+    )
+
+
 @router.get("/promises", response_class=HTMLResponse)
 @router.get("/vaatler", response_class=HTMLResponse)
 def promises_page() -> HTMLResponse:
@@ -209,7 +220,7 @@ def promises_page() -> HTMLResponse:
             <tr>{''.join(f'<th class="{cls}">{esc(h)}</th>' for h, cls in headers)}</tr>
           </thead>
           <tbody id="promises-table-body">
-            {''.join(rows_html)}
+            {''.join(rows_html) or _empty_row(len(headers))}
           </tbody>
         </table>
       </div>

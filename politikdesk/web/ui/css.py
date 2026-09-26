@@ -279,14 +279,14 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 /* Gündem kartı standarttan YOĞUN: kullanıcı burada 40 kartı TARIYOR, bir
    kartı okumuyor. Tarama ekranı ile okuma ekranı aynı yoğunlukta olamaz —
    Bölüm 9.2'nin yoğunluk modu sayfa başına değil GÖREV başına sabittir. */
-.feed-card>.card{{padding:var(--space-4)}}
-.feed-card+.feed-card{{margin-top:var(--space-2)}}
+.card.feed-card{{padding:var(--space-4)}}
+[data-event-id]+[data-event-id]{{margin-top:var(--space-2)}}
 
 /* İki sütun: anlatı solda, KARAR sağda.
    Sağ sütun sabit genişliktedir ve bu kasıtlıdır — 40 kartın "yazılabilir
    mi?" cevabı aynı dikey çizgide durur, göz yatay sıçrama yapmaz. Metin
    uzunluğuna göre kayan bir rozet, tarama ekranını okuma ekranına çevirir. */
-.feed-card>.card{{display:grid;
+.card.feed-card{{display:grid;
   grid-template-columns:minmax(0,1fr) 148px;gap:var(--space-6)}}
 .feed-main{{min-width:0}}
 .feed-aside{{display:flex;flex-direction:column;align-items:flex-start;
@@ -295,7 +295,7 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 /* Kartın kendi ızgarası dar ekranda tek sütuna döner: 172px'lik bir yan
    sütun 375px'te anlatıyı 130px'e sıkıştırırdı. */
 @media (max-width:900px){{
-  .feed-card>.card{{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}}
+  .card.feed-card{{grid-template-columns:minmax(0,1fr);gap:var(--space-3)}}
   .feed-aside{{flex-direction:row;align-items:center;flex-wrap:wrap;
     padding-left:0;border-left:0;padding-top:var(--space-3);
     border-top:1px solid var(--color-border)}}
@@ -958,6 +958,11 @@ input[type=checkbox],input[type=radio]{{
 .feed-chip-group::-webkit-scrollbar{{
   display:none;
 }}
+/* Masaüstünde gizli yatay kaydırma, sağdaki kategorileri görünmez bırakıyordu:
+   fare kullanıcısı kaydırılabildiğini fark etmez. Geniş ekranda satır kırılır. */
+@media (min-width:900px){{
+  .feed-chip-group{{flex-wrap:wrap;overflow-x:visible}}
+}}
 .feed-chip{{
   display:inline-flex;align-items:center;gap:4px;padding:3px 9px;
   border-radius:var(--radius-full);border:1px solid var(--color-border);
@@ -1002,6 +1007,7 @@ input[type=checkbox],input[type=radio]{{
   display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;
 }}
 .feed-select{{
+  width:auto;min-width:11rem;font-weight:var(--weight-medium);
   background:var(--color-surface);border:1px solid var(--color-border-strong);
   border-radius:var(--radius-md);padding:5px 9px;font-family:var(--font-body);
   font-size:var(--text-xs);color:var(--color-fg);outline:none;cursor:pointer;

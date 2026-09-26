@@ -169,7 +169,7 @@ def _check_panel(check: dict[str, Any] | None) -> str:
             notice(
                 "<p><b>Engelleyici:</b> kanıta bağlanamayan sayısal iddia var. Devam "
                 "etmek için aşağıdaki kutuyu işaretlemen gerekir — bu, TCK m. 217/A "
-                "riskinin arayüz karşılığıdır (Spec §12.1, §14.4).</p>",
+                "riskinin arayüz karşılığıdır.</p>",
                 tone="bad",
             )
         }
@@ -287,7 +287,7 @@ def draft_page(draft_id: int) -> str:
             '<p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">'
             "Yeni sekmede X açılır ve metin hazır gelir; <b>gönder tuşuna sen "
             "basarsın.</b> Ürün otomatik yayın yapmaz ve böyle bir kod yolu "
-            "bulunmaz (Spec §15 madde 6).</p>",
+            "bulunmaz.</p>",
             title="Yayın köprüsü",
         )
     }
