@@ -274,6 +274,7 @@ goto :eof
 "%PY%" -m scripts.ingest claims || goto :fail
 "%PY%" -m scripts.ingest evidence || goto :fail
 "%PY%" -m scripts.ingest context || goto :fail
+"%PY%" -m scripts.ingest indicators || goto :fail
 goto :eof
 :cmd_verify-feeds
 "%PY%" -m scripts.verify_feeds

@@ -1,4 +1,4 @@
-.PHONY: help setup up workers start stop restart update down migrate test test-live lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
+.PHONY: help setup up workers start stop restart update down migrate test test-live indicators lint audit fmt arch verify-arch deploy-check verify-deploy-check cost ci clean sync ingest embed entities cluster claims reclaim evidence context calendar eval health pipeline-health watchdog backup backup-list backup-verify backup-restore feeds briefing metrics genbench
 
 export PD_GIT_SHA ?= $(shell git rev-parse HEAD 2>/dev/null)
 export PD_GIT_BRANCH ?= $(shell git branch --show-current 2>/dev/null)
@@ -82,7 +82,7 @@ stop:
 # tekrarına yol açar.
 restart: stop start
 
-update: sync ingest embed entities cluster claims evidence context
+update: sync ingest embed entities cluster claims evidence context indicators
 
 migrate:
 	docker compose run --rm migrate
@@ -155,6 +155,9 @@ evidence:
 
 context:
 	python -m scripts.ingest context
+
+indicators:
+	python -m scripts.ingest indicators
 
 calendar:
 	python -m scripts.calendar_tool list

@@ -308,6 +308,23 @@ def cmd_memory(limit: int) -> int:
     return 0
 
 
+def cmd_indicators() -> int:
+    """EVDS gösterge serilerini zaman serisine yazar ve anomalileri tespit eder (Faz 3.1).
+
+    Celery'de `indicator_anomaly_task` günde iki kez yapar; yerel `pd update` zinciri bu adımı
+    hiç çağırmıyordu: indicator_series boş kalıyor, komut paletinde gösterge ve kumanda
+    odasında "açık sapma" hiç görünmüyordu.
+    """
+    from politikdesk.analysis.pipeline import detect_all, sync_series
+
+    senkron = sync_series()
+    tespit = detect_all()
+    print("Gosterge serileri ve anomali turu tamamlandi:")
+    for key, value in {**senkron.as_dict(), **tespit.as_dict()}.items():
+        print(f"  {key:20s}: {value}")
+    return 0
+
+
 def main() -> int:
     # Sağlayıcı anahtarları (`ANTHROPIC_API_KEY`, `NVIDIA_API_KEY`…) `PD_`
     # önekli olmadığı için `Settings` onları okumaz; yerel koşumda ortama
@@ -365,6 +382,7 @@ def main() -> int:
     memory = sub.add_parser("memory", help="Siyasi hafiza ve olay iliskileri (S3)")
     memory.add_argument("--limit", type=int, default=50)
 
+    sub.add_parser("indicators", help="Gosterge serileri + anomali tespiti (EVDS)")
     sub.add_parser("health", help="Kaynak saglik raporu")
     sub.add_parser("purge", help="Suresi gecmis govdeleri sil")
 
@@ -396,6 +414,8 @@ def main() -> int:
         return cmd_context(args.limit)
     if args.command == "memory":
         return cmd_memory(args.limit)
+    if args.command == "indicators":
+        return cmd_indicators()
     if args.command == "health":
         return cmd_health()
     if args.command == "purge":
