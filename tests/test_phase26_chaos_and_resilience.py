@@ -179,6 +179,7 @@ def test_chaos_08_invalid_character_encoding() -> None:
     assert isinstance(items, list)
 
 
+@pytest.mark.db
 def test_chaos_09_redis_disconnect_graceful_handling() -> None:
     """Redis geçici olarak erişilemez olduğunda sistem fail-safe modda çalışır."""
     from politikdesk.web.repository import feed

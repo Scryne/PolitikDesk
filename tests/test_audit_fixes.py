@@ -231,6 +231,7 @@ def test_multi_vertical_ingestion_preserves_legislation_articles() -> None:
 # ===========================================================================
 # DEF-02 — Clustering Repository Vertical Loading
 # ===========================================================================
+@pytest.mark.db
 def test_clustering_load_features_preserves_vertical() -> None:
     """DEF-02: load_features makalenin vertical alanını ArticleFeatures'a aktarır."""
     from datetime import UTC, datetime

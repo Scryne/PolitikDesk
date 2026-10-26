@@ -162,6 +162,7 @@ def test_relations_respect_the_publication_gate() -> None:
         assert "relation" not in kinds, f"Kapı kapalıyken ilişki sonucu sızdı: {query}"
 
 
+@pytest.mark.db
 def test_source_results_carry_no_political_label() -> None:
     """Spec §8.5: kaynak yalnızca ad + katman + yayın grubu ile anılır.
 
@@ -229,6 +230,7 @@ def test_embedded_json_cannot_close_the_script_tag() -> None:
 # ═══════════════════════════════════════════════ D-02 kilidi
 
 
+@pytest.mark.db
 def test_memory_actors_contract_is_unchanged() -> None:
     """`/api/memory/actors` sözleşmesi yerinde duruyor.
 

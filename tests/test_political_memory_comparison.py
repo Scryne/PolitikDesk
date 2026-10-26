@@ -263,6 +263,7 @@ def test_true_semantic_parity_html_vs_json_api() -> None:
         assert "Ayrışma" in html_text or "Savunma" in html_text
 
 
+@pytest.mark.db
 def test_api_turkish_characters_and_encoding() -> None:
     """Türkçe karakter içeren sorgularda (Mehmet Şimşek, Özgür Özel) UTF-8 güvenliği."""
     for actor in ("Mehmet Şimşek", "Özgür Özel", "Fatih Karahan"):

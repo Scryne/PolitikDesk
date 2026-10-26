@@ -10,6 +10,9 @@ from politikdesk.config import get_settings
 from politikdesk.db import connection
 from politikdesk.dlq import record_dead_letter_task
 
+# Modüldeki her test DLQ tablosuna yazar: veritabanı yoksa hepsi atlanır.
+pytestmark = pytest.mark.db
+
 
 @pytest.fixture(autouse=True)
 def _clean_dlq_records():

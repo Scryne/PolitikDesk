@@ -48,6 +48,13 @@ HTML_PAGES: tuple[str, ...] = (
     "/war-room",
 )
 
+# Veritabanı olmadan açılmayan ekranlar (öbürleri boş veriyle de çizilir). Parametrede `db`
+# işareti taşırlar: veritabanına erişilemeyen yerel koşuda atlanırlar, CI'da hep koşarlar.
+DB_PAGES = frozenset({"/onboarding/profile", "/admin/calendar/"})
+HTML_PAGE_PARAMS = [
+    pytest.param(p, marks=pytest.mark.db) if p in DB_PAGES else p for p in HTML_PAGES
+]
+
 # Yasak satır içi işleyiciler. Liste HTML'in tamamı değil; gerçekten
 # kullanılmış olan ve kullanılması muhtemel olan olaylar.
 INLINE_HANDLER_RE = re.compile(
@@ -103,7 +110,7 @@ def test_nonce_tahmin_edilemez_uzunlukta(client: TestClient) -> None:
     assert re.fullmatch(r"[A-Za-z0-9_-]+", nonce), f"Nonce beklenmedik alfabede: {nonce!r}"
 
 
-@pytest.mark.parametrize("path", HTML_PAGES)
+@pytest.mark.parametrize("path", HTML_PAGE_PARAMS)
 def test_csp_nonce_ile_html_nonce_ayni_yanitta_eslesir(client: TestClient, path: str) -> None:
     """§8.2: aynı yanıtın başlığındaki ve HTML'indeki nonce aynı olmalı.
 
@@ -203,6 +210,7 @@ def test_csp_nin_diger_guvenlik_direktifleri_korunuyor(client: TestClient) -> No
         assert directive in csp, f"Direktif kaybolmuş veya değişmiş: {directive}"
 
 
+@pytest.mark.db
 def test_csp_her_yanit_turunde_nonce_tasir(client: TestClient) -> None:
     """§2: hata, JSON, sağlık ve yönlendirme yollarında da başlık tam olmalı."""
     responses = {
@@ -218,7 +226,7 @@ def test_csp_her_yanit_turunde_nonce_tasir(client: TestClient) -> None:
 
 
 # ─────────────────────────────────────────── 3. yüzey kapıları
-@pytest.mark.parametrize("path", HTML_PAGES)
+@pytest.mark.parametrize("path", HTML_PAGE_PARAMS)
 def test_uretilen_html_satir_ici_olay_isleyicisi_icermez(client: TestClient, path: str) -> None:
     """§17: inline event handler sayısı 0.
 
@@ -231,14 +239,14 @@ def test_uretilen_html_satir_ici_olay_isleyicisi_icermez(client: TestClient, pat
     assert not hits, f"{path}: satır içi olay işleyici(leri) geri gelmiş: {sorted(set(hits))}"
 
 
-@pytest.mark.parametrize("path", HTML_PAGES)
+@pytest.mark.parametrize("path", HTML_PAGE_PARAMS)
 def test_uretilen_html_javascript_url_icermez(client: TestClient, path: str) -> None:
     """`javascript:` URL'leri de script-src tarafından reddedilir."""
     markup = client.get(path).text.lower()
     assert "javascript:" not in markup, f"{path}: `javascript:` URL'i kalmış."
 
 
-@pytest.mark.parametrize("path", HTML_PAGES)
+@pytest.mark.parametrize("path", HTML_PAGE_PARAMS)
 def test_uretilen_html_de_nonce_suz_calisan_betik_yoktur(client: TestClient, path: str) -> None:
     """§17: nonce'suz executable inline script sayısı 0."""
     assert None not in _script_nonces(client.get(path).text), f"{path}: nonce'suz betik var."
@@ -313,6 +321,7 @@ def test_buton_hem_href_hem_eylem_alamaz() -> None:
         button("Test", href="/feed", action="copy")
 
 
+@pytest.mark.db
 def test_her_kullanilan_eylem_kayitlidir(client: TestClient) -> None:
     """İşaretlemedeki her eylem adının bir `pdAction(...)` kaydı olmalı.
 

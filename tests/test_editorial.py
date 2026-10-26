@@ -736,6 +736,7 @@ def test_compile_profile_does_not_contain_editorial_stance(
     assert "USER EDITORIAL STANCE" not in compiled
 
 
+@pytest.mark.db
 def test_compile_and_store_keeps_stance_out_of_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -771,6 +772,7 @@ def test_compile_and_store_keeps_stance_out_of_database(
     assert "USER EDITORIAL STANCE" not in (stored.get("compiled_prompt") or "")
 
 
+@pytest.mark.db
 def test_generation_composes_runtime_stance_at_generation_time(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -809,6 +811,7 @@ def test_generation_composes_runtime_stance_at_generation_time(
     assert "COMPILED_PROFILE_PART" in user_prompt
 
 
+@pytest.mark.db
 def test_stance_change_reflects_immediately_without_profile_resave(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -882,6 +885,7 @@ def test_normalize_answers_hashtag_emoji_independence() -> None:
         normalize_answers({"hashtag_usage": "invalid_val"})
 
 
+@pytest.mark.db
 def test_compile_and_store_with_necessary_emoji_persists_to_db() -> None:
     """L3: emoji_usage=necessary ve hashtag_usage=None ile DB INSERT hatasız çalışır."""
     import os

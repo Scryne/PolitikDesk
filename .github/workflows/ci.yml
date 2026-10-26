@@ -11,6 +11,8 @@ env:
   PD_LOG_FORMAT: console
   PD_DATABASE_URL: postgresql://politikdesk:politikdesk@127.0.0.1:5432/politikdesk
   PD_REDIS_URL: redis://127.0.0.1:6379/0
+  # Veritabanına ulaşılamazsa DB testleri atlanmaz, düşer (tests/conftest.py, B-89).
+  PD_CI_REQUIRE_DB: "1"
 
 jobs:
   quality:

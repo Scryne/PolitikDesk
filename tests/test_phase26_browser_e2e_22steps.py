@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from starlette.testclient import TestClient
 
 from politikdesk.api.main import app
@@ -97,6 +98,7 @@ def test_step_12_active_filters_tray_clear_all_chip() -> None:
     assert "feed-active-tray" in resp.text or "feed-active-pill" in resp.text or "Filtreler" in resp.text
 
 
+@pytest.mark.db
 def test_step_13_event_drawer_card_selection() -> None:
     """Adım 13: Olay kartı seçimi ve detay görünümü."""
     items = repository.feed(user_id=1, limit=1)
@@ -106,6 +108,7 @@ def test_step_13_event_drawer_card_selection() -> None:
         assert resp.status_code == 200
 
 
+@pytest.mark.db
 def test_step_14_event_detail_endpoint() -> None:
     """Adım 14: Bağımsız olay detay sayfası / drawer içeriği."""
     items = repository.feed(user_id=1, limit=1)
@@ -115,6 +118,7 @@ def test_step_14_event_detail_endpoint() -> None:
         assert resp.status_code == 200
 
 
+@pytest.mark.db
 def test_step_15_api_feed_check_new_live_banner() -> None:
     """Adım 15: /api/feed/check-new canlı yeni haber yoklama endpointi."""
     resp = client.get("/api/feed/check-new?since=2026-08-24T00:00:00Z", headers=AUTH)

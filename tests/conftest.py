@@ -39,6 +39,48 @@ from politikdesk.config import load_env_file  # noqa: E402
 
 load_env_file()
 
+# Postgres ayarlı ama kapalıysa (yerelde `docker compose up -d db` unutulmuş), web katmanından
+# veritabanına dokunan her istek havuzda 10 sn bekliyordu: tam koşu saatler sürüyor, pytest-timeout
+# ortada kesiyordu (2026-10-26 denetimi, `test_csp_nonce_rotation_and_entropy`). Erişilemeyen
+# veritabanı artık "veritabanı yok" sayılır: uygulama bağlantıda havuzu beklemeden hata verir, `db`
+# işaretli ve `db_conn` kullanan testler atlanır, oturum sonunda uyarı bandı basılır. Ortam
+# değişkenlerine dokunulmaz (`.env` yükleme testleri onları okur). CI bu gevşetmeyi yapmaz
+# (`PD_CI_REQUIRE_DB=1`): orada veritabanı yoksa testler düşmeli (B-89).
+
+
+def _veritabani_erisimini_dene() -> str | None:
+    """Etkin DSN'e 2 sn içinde bağlanılamıyorsa nedenini döner; bağlanılıyorsa ya da denenmemeliyse None."""
+    if os.environ.get("PD_CI_REQUIRE_DB") == "1":
+        return None
+    dsn = (
+        os.environ.get("PD_TEST_DATABASE_URL")
+        or os.environ.get("PD_DATABASE_URL")
+        or Settings.model_fields["database_url"].default
+    )
+    if not dsn or any(k in dsn.lower() for k in ("prod", "production", "live", "primary")):
+        return None  # üretim DSN'i denenmez; `_get_test_dsn` fail-closed ile durdurur
+    try:
+        import psycopg
+
+        with psycopg.connect(dsn, connect_timeout=2):
+            return None
+    except Exception as exc:  # noqa: BLE001 — her bağlantı hatası "erişilemiyor" demektir
+        return (
+            f"{type(exc).__name__}: {str(exc).strip().splitlines()[0] if str(exc).strip() else '-'}"
+        )
+
+
+def _veritabani_yapilandirilmamis() -> bool:
+    return False
+
+
+_VERITABANI_ERISILEMEDI = _veritabani_erisimini_dene()
+if _VERITABANI_ERISILEMEDI:
+    import politikdesk.db as _pd_db
+
+    # `db.connection()` bu kontrolü modül üzerinden çağırır: havuz hiç açılmaz, hata anında gelir.
+    _pd_db.is_db_configured = _veritabani_yapilandirilmamis
+
 # Test ortamında varsayılan olarak API kimlik doğrulaması kapalıdır (boş);
 # ilgili güvenlik testleri monkeypatch ile token enjekte eder.
 os.environ["PD_API_TOKEN"] = ""
@@ -99,7 +141,7 @@ def _baseline_sources() -> None:
     testi hermetik yapar, canlı veriye bağımlılık eklemez.
     """
     dsn = _get_test_dsn()
-    if not dsn:
+    if not dsn or _VERITABANI_ERISILEMEDI:
         return
     try:
         import psycopg
@@ -213,11 +255,25 @@ def isolate_database_state(request: pytest.FixtureRequest) -> Generator[None, No
         pass
 
 
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Veritabanına erişilemeyen oturumda `db` işaretli ya da `db_conn` isteyen testler koşmaz, atlanır."""
+    needs_db = item.get_closest_marker("db") or "db_conn" in getattr(item, "fixturenames", ())
+    if _VERITABANI_ERISILEMEDI and needs_db:
+        pytest.skip(
+            f"Veritabanına erişilemedi, veritabanı testi atlandı ({_VERITABANI_ERISILEMEDI})."
+        )
+
+
 def pytest_sessionfinish(session, exitstatus):  # noqa: ANN001
     """Veritabanı testleri atlandığında oturum sonunda görünür uyarı bandı basar (B-89)."""
     import sys
 
-    if not _get_test_dsn() and os.environ.get("PD_CI_REQUIRE_DB") != "1":
+    if _VERITABANI_ERISILEMEDI:
+        sys.stderr.write(
+            "\n[UYARI] Veritabanina erisilemedi — veritabani testleri ATLANDI "
+            "(Postgres kapali mi? `docker compose up -d db`).\n"
+        )
+    elif not _get_test_dsn() and os.environ.get("PD_CI_REQUIRE_DB") != "1":
         sys.stderr.write(
             "\n[UYARI] PD_DATABASE_URL tanimsiz — veritabani testleri ATLANDI (B-89).\n"
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
 from starlette.testclient import TestClient
 
 from politikdesk.api.main import app
@@ -58,6 +59,7 @@ def test_shell_html_includes_pwa_tags() -> None:
     assert "navigator.serviceWorker.register('/static/sw.js')" in html
 
 
+@pytest.mark.db
 def test_pg_trgm_indexes_exist() -> None:
     """PostgreSQL pg_trgm extension and GIN indexes must exist in database."""
     with connection() as conn, conn.cursor() as cur:
@@ -135,6 +137,7 @@ def test_audio_script_compiler() -> None:
     assert "Türkiye İstatistik Kurumu" in d["full_narration"] or "TÜİK" in d["full_narration"]
 
 
+@pytest.mark.db
 def test_briefing_audio_script_endpoint() -> None:
     """GET /api/briefing/{date}/audio-script must return 200 OK and valid json."""
     client = TestClient(app)

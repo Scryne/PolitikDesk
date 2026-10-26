@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from politikdesk.api.main import app
@@ -10,6 +11,7 @@ from politikdesk.api.metrics_exporter import generate_prometheus_metrics
 client = TestClient(app)
 
 
+@pytest.mark.db
 def test_generate_prometheus_metrics_format() -> None:
     """Prometheus metrik metin formatı doğrulaması."""
     output = generate_prometheus_metrics()

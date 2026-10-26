@@ -21,6 +21,7 @@ def test_production_cycle_get_active_and_counts(db_conn) -> None:
     assert "evidence" in counts
 
 
+@pytest.mark.db
 def test_production_cycle_cli_status(capsys) -> None:
     """'python -m scripts.production_cycle status' komutunu test eder."""
     code = main(["status"])
@@ -30,6 +31,7 @@ def test_production_cycle_cli_status(capsys) -> None:
     assert "AKTİF DÖNGÜ:" in captured
 
 
+@pytest.mark.db
 def test_production_cycle_cli_list(capsys) -> None:
     """'python -m scripts.production_cycle list' komutunu test eder."""
     code = main(["list"])
@@ -38,6 +40,7 @@ def test_production_cycle_cli_list(capsys) -> None:
     assert "ACTIVE" in captured or "ARCHIVED" in captured
 
 
+@pytest.mark.db
 def test_production_cycle_cli_create_dry_run(capsys) -> None:
     """'python -m scripts.production_cycle create --name ... --dry-run' komutunu test eder."""
     code = main(["create", "--name", "Test Döngüsü", "--dry-run"])

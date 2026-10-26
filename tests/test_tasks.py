@@ -18,6 +18,8 @@ konteynerin eski kodu taşıması) testler yakalayamaz; onun denetleyicisi
 
 from __future__ import annotations
 
+import pytest
+
 from politikdesk.tasks import app
 
 # `ping` bilerek zamanlanmaz: worker'ın ayakta olduğunu elle doğrulamaya
@@ -239,6 +241,7 @@ def test_worker_ping_task_executes_synchronously() -> None:
     assert res.get() == "pong"
 
 
+@pytest.mark.db
 def test_daily_rollup_uses_application_timezone_date(monkeypatch) -> None:
     """L1: daily_rollup timezone'a duyarlı gün belirler."""
     import zoneinfo

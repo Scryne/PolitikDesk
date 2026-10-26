@@ -14,6 +14,9 @@ from politikdesk.dlq import (
     retry_all_pending,
 )
 
+# Modüldeki her test DLQ tablosuna yazar: veritabanı yoksa hepsi atlanır.
+pytestmark = pytest.mark.db
+
 
 @pytest.fixture(autouse=True)
 def _clean_dlq():
