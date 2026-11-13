@@ -456,6 +456,15 @@ def _error_page(status: int, detail: str) -> HTMLResponse:
     from politikdesk.web.ui import button, error_state, page
 
     title, body = _ERROR_COPY.get(status, ("İstek tamamlanamadı", "Beklenmeyen bir durum oluştu."))
+    # Starlette'in İngilizce standart ifadesi ("Not Found") Türkçe sayfada bilgi
+    # taşımıyor (Ek B.2); yalnız uygulamanın kendi ayrıntısı gösterilir.
+    from http import HTTPStatus
+
+    try:
+        if detail == HTTPStatus(status).phrase:
+            detail = ""
+    except ValueError:
+        pass
     html = page(
         title,
         error_state(

@@ -183,7 +183,7 @@ def _why_panel(claim: dict[str, Any]) -> str:
 </tbody></table>
 <p class="subtle" style="margin:12px 0 0;font-size:var(--text-xs)">
   Kural motoru <span class="mono">{esc(detail["engine_version"] or "—")}</span> ·
-  hesaplandı {esc(detail["computed_at"] or "—")} ·
+  hesaplandı {esc(fmt.precise(detail["computed_at"]) if detail["computed_at"] else "—")} ·
   <b>bu durum bir LLM çıktısı DEĞİLDİR</b> (Spec §8.1).</p>"""
     return panel(summary, body)
 

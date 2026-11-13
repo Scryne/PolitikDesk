@@ -78,6 +78,20 @@ _ARCHIVE_JS = """
 """
 
 
+_ACTION_LABELS = {
+    "accepted": "kabul edildi",
+    "edited": "düzenlenerek kabul edildi",
+    "published": "yayınlandı",
+}
+
+
+def _angle_label(angle: str) -> str:
+    """Taslak açısının arayüz adı (`editorial.generator.ANGLES`)."""
+    from politikdesk.editorial.generator import ANGLES
+
+    return ANGLES[angle][0] if angle in ANGLES else angle
+
+
 @router.get("/archive", response_class=HTMLResponse)
 @router.get("/arsiv", response_class=HTMLResponse)
 def archive_page() -> HTMLResponse:
@@ -106,8 +120,8 @@ def archive_page() -> HTMLResponse:
     kpis_html = f"""
     <div class="kpis" style="margin-bottom:var(--space-6)">
       {kpi("Yayınlanan İçerik", fmt.number(total_records), unit="metin", icon_name="archive")}
-      {kpi("Doğrulanmış Grounding", grounded_label, unit="oran", icon_name="check")}
-      {kpi("Ortalama Dayanak", "—" if avg_claims is None else str(avg_claims), unit="iddia / metin", icon_name="shield")}
+      {kpi("Kanıta bağlı metin", grounded_label, unit="oran", icon_name="check")}
+      {kpi("Ortalama dayanak", fmt.EMPTY if avg_claims is None else fmt.number(avg_claims, 1), unit="iddia / metin", icon_name="shield")}
       {kpi("Editoryal Süreç", fmt.number(total_records), unit="kayıt", icon_name="edit")}
     </div>
     """
@@ -124,19 +138,20 @@ def archive_page() -> HTMLResponse:
         tone = "strong" if is_grounded else "contra"
 
         grounded_badge = (
-            f'<span class="badge strong">{icon("check", 12)}Grounding Doğrulandı</span>'
+            f'<span class="badge strong">{icon("check", 12)}Kanıta bağlı</span>'
             if is_grounded
-            else f'<span class="badge contra">{icon("close", 12)}Grounding Uyarılı</span>'
+            else f'<span class="badge contra">{icon("close", 12)}Kanıt uyarısı</span>'
         )
 
-        created_raw = r.get("created_at") or ""
-        created_str = (
-            esc(created_raw[:19].replace("T", " ")) if created_raw else "Tarihsiz"
-        )
+        # Ham ISO zaman damgası ve İngilizce enum'lar basılıyordu; "Kayıt No"
+        # olmayan `id` alanını okuyup "#None" yazıyordu (2026-11-13 denetimi).
+        created_raw = r.get("created_at")
+        created_str = esc(fmt.date_time(created_raw)) if created_raw else "Tarihsiz"
         title_esc = esc(r.get("event_title") or "Olay")
         body_text = r.get("body") or ""
         body_esc = esc(body_text)
-        action_esc = esc(r.get("user_action") or "üretildi")
+        action_raw = str(r.get("user_action") or "")
+        action_esc = esc(_ACTION_LABELS.get(action_raw, action_raw or "üretildi"))
         cited_len = len(r.get("cited_claim_ids") or [])
         event_id = r.get("event_id")
 
@@ -149,8 +164,8 @@ def archive_page() -> HTMLResponse:
         <div class="card" style="padding:var(--space-4)">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-3)">
             <div class="row tight">
-              <span class="badge neutral" style="font-weight:var(--weight-semibold)">Açı: {esc(angle_raw.upper())}</span>
-              <span class="mono subtle" style="font-size:var(--text-xs)">{created_str}</span>
+              <span class="badge neutral" style="font-weight:var(--weight-semibold)">Açı: {esc(_angle_label(angle_raw))}</span>
+              <span class="num subtle" style="font-size:var(--text-xs)">{created_str}</span>
               {grounded_badge}
             </div>
             <div class="row tight">
@@ -167,14 +182,12 @@ def archive_page() -> HTMLResponse:
             <a class="plain" href="/event/{event_id}">{title_esc}</a>
           </h2>
 
-          <div style="background:var(--color-surface-sunken);border:1px solid var(--color-border);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);margin-bottom:var(--space-3);font-family:var(--font-body);font-size:var(--text-sm);line-height:1.6;white-space:pre-wrap">
-{body_esc}
-          </div>
+          <div style="background:var(--color-surface-sunken);border:1px solid var(--color-border);padding:var(--space-3) var(--space-4);border-radius:var(--radius-md);margin-bottom:var(--space-3);font-family:var(--font-body);font-size:var(--text-sm);line-height:1.6;white-space:pre-wrap">{body_esc}</div>
 
           <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle)">
             <span>Kanıt Dayanağı: <b>{cited_len} iddia</b></span>
-            <span>· Editoryal Aksiyon: <b class="mono">{action_esc}</b></span>
-            <span>· Kayıt No: <span class="mono">#{r.get("id")}</span></span>
+            <span>· Editoryal karar: <b>{action_esc}</b></span>
+            <span>· Taslak <a class="num" href="/draft/{int(r.get("draft_id") or 0)}">#{esc(str(r.get("draft_id") or fmt.EMPTY))}</a></span>
           </div>
         </div>
         """
@@ -185,7 +198,7 @@ def archive_page() -> HTMLResponse:
             + "</div>"
         )
 
-    tabs_items = [('Tümü', 'all')] + [(a.upper(), a) for a in sorted(angles_present)]
+    tabs_items = [('Tümü', 'all')] + [(_angle_label(a), a) for a in sorted(angles_present)]
     filter_tabs_html = '<div id="archive-tabs" class="segment">' + "".join(
         f'<button type="button"{" aria-current=\"true\"" if key == "all" else ""}'
         f"{action_attrs('filter-archive', key)}>{esc(lbl)}</button>"

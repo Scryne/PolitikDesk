@@ -295,7 +295,8 @@ _GRAPH_JS = """
 
   function stepPhysics() {
     var k = 0.05;
-    var repulse = 3500;
+    // Etiketli düğümler 120 px yayla üst üste biniyordu; yay ve itme açıldı.
+    var repulse = 6000;
     for (var i = 0; i < simNodes.length; i++) {
       for (var j = i + 1; j < simNodes.length; j++) {
         var dx = simNodes[j].x - simNodes[i].x;
@@ -318,7 +319,7 @@ _GRAPH_JS = """
       var ldx = t.x - s.x;
       var ldy = t.y - s.y;
       var ldist = Math.sqrt(ldx*ldx + ldy*ldy) || 1;
-      var spring = (ldist - 120) * k;
+      var spring = (ldist - 170) * k;
       var sfx = (ldx / ldist) * spring;
       var sfy = (ldy / ldist) * spring;
       s.x += sfx;
@@ -332,8 +333,20 @@ _GRAPH_JS = """
     }
   }
 
+  // Canvas `var(--x)` anlamaz: geçersiz renk sessizce yok sayılır ve bir önceki
+  // renk kalır. Düğüm adları bu yüzden düğümün mavisiyle çiziliyor, koyu temada
+  // zemine gömülüyordu (2026-11-13 denetimi). Değişken çizim anında çözülür.
+  function cssColor(value) {
+    if (!value || value.indexOf('var(') !== 0) return value;
+    var name = value.slice(4, -1).trim();
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || 'gray';
+  }
+
   function render() {
     if (!ctx) return;
+    var fg = cssColor('var(--color-fg)');
+    var fgMuted = cssColor('var(--color-fg-muted)');
+    var halo = cssColor('var(--color-surface-sunken)');
     ctx.clearRect(0, 0, width, height);
     ctx.save();
     ctx.translate(panX, panY);
@@ -343,7 +356,7 @@ _GRAPH_JS = """
     for (var i = 0; i < simLinks.length; i++) {
       var link = simLinks[i];
       ctx.beginPath();
-      ctx.strokeStyle = link.color;
+      ctx.strokeStyle = cssColor(link.color);
       ctx.lineWidth = (link.relation === 'reversal' || link.relation === 'contradicts') ? 2 : 1.2;
       if (link.dashed) {
         ctx.setLineDash([4, 4]);
@@ -358,7 +371,11 @@ _GRAPH_JS = """
         var mx = (link.source.x + link.target.x) / 2;
         var my = (link.source.y + link.target.y) / 2;
         ctx.font = '10px system-ui, sans-serif';
-        ctx.fillStyle = link.color;
+        ctx.setLineDash([]);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = halo;
+        ctx.strokeText(link.label, mx + 4, my - 4);
+        ctx.fillStyle = fgMuted;
         ctx.fillText(link.label, mx + 4, my - 4);
       }
     }
@@ -369,14 +386,17 @@ _GRAPH_JS = """
       var isSel = selectedNode && selectedNode.id === n.id;
       ctx.beginPath();
       ctx.arc(n.x, n.y, n.size + (isSel ? 4 : 0), 0, 2 * Math.PI);
-      ctx.fillStyle = n.color;
+      ctx.fillStyle = cssColor(n.color);
       ctx.fill();
       ctx.lineWidth = isSel ? 3 : 1.5;
-      ctx.strokeStyle = isSel ? 'var(--color-fg)' : 'var(--color-bg)';
+      ctx.strokeStyle = isSel ? fg : halo;
       ctx.stroke();
 
-      ctx.font = (n.type === 'actor' ? 'bold 12px' : '11px') + ' system-ui, sans-serif';
-      ctx.fillStyle = 'var(--color-fg)';
+      ctx.font = (n.type === 'actor' ? '600 12px' : '11px') + ' system-ui, sans-serif';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = halo;
+      ctx.strokeText(n.label, n.x + n.size + 4, n.y + 4);
+      ctx.fillStyle = fg;
       ctx.fillText(n.label, n.x + n.size + 4, n.y + 4);
     }
     ctx.restore();

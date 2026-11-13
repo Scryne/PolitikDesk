@@ -325,6 +325,11 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 .halves>*{{height:100%}}
 .kpis{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
   gap:var(--space-4);align-items:stretch}}
+/* Telefonda dört KPI alt alta dört tam ekran kart ediyordu (390 px gezintisi);
+   iki sütun, sayı ilk ekranda kalır. */
+@media (max-width:640px){{
+  .kpis{{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--space-3)}}
+}}
 
 /* ─── KPI kartı · Bölüm 8.1 varyant A (sade) ───
    Sıra HER ZAMAN: etiket → değer → delta. Tek varyant kullanılır;
@@ -1014,9 +1019,12 @@ input[type=checkbox],input[type=radio]{{
 }}
 .feed-filter-bar{{
   display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;
+  /* Esnek öğe `min-width:auto` ile en uzun kaynak adına kadar büyüyüp 390 px'te
+     kartın dışına taşıyordu (2026-11-13 gezintisi). */
+  min-width:0;max-width:100%;
 }}
 .feed-select{{
-  width:auto;min-width:11rem;font-weight:var(--weight-medium);
+  width:auto;min-width:11rem;max-width:100%;font-weight:var(--weight-medium);
   background:var(--color-surface);border:1px solid var(--color-border-strong);
   border-radius:var(--radius-md);padding:5px 9px;font-family:var(--font-body);
   font-size:var(--text-xs);color:var(--color-fg);outline:none;cursor:pointer;
