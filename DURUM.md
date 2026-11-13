@@ -30,7 +30,9 @@ toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta b
   390/1440 × açık/koyu ve 768/1280 açık: taşma 0, konsol hatası 0. Gözle bulunan kusurlar düzeltildi:
   İngilizce/ham etiketler, tanımsız rozet sınıfları, ondalık nokta, arşivde `#None`, graf renkleri ve
   etiket çakışması, 404 metni, telefonda KPI düzeni (`cac1bba`, `ee3d4db`); beyansız dönemde sahte
-  "%100" tutarlılık skoru → "—" (`66b02db`); dört KPI'lı satırın 960 px'te 3+1 kırılması (`8109fad`).
+  "%100" tutarlılık skoru → "—" (`66b02db`); dört KPI'lı satırın 960 px'te 3+1 kırılması (`8109fad`); kumanda odasındaki
+  dört seri gösterge şeridinin 1280+ px'te 3+1 kırılması düzeltildi (telefonda tek sütun, üstünde 2×2;
+  dört sütunda grafik kartı sığmıyordu).
 - **Olay ekranı veriyle tutarlı:** makale/bağımsız kaynak sayıları, "Ne biliyoruz / Ne bilmiyoruz"
   ayrımı ve TL;DR veritabanındaki iddia durumlarıyla birebir; her kanıt alıntısı makale metninde geçiyor.
 
@@ -49,8 +51,6 @@ toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta b
   görülmedi (1,000) ve demodaki örnek büyük olasılıkla kısa, aynı kalıpta (Meclis/TBMM/teklif)
   yazılmış demo metinlerinin sonucu; ama 55 makalelik set bunu dışlamaya yetmiyor. Açık soru:
   300 makalelik altın set (F2-20) ve varlık sözlüğü kapsamı (B-56) öne çekilsin mi.
-- **Kumanda odası gösterge şeridi** dört seriyle 1280+ px'te 3+1 diziliyor (son kart tam genişlik);
-  KPI satırından ayrı ızgara, düzeltilmedi.
 
 - **Resmî Gazete, Cumhurbaşkanlığı, Sayıştay** bu ağdan TLS el sıkışmasında bağlantıyı reddediyor
   (gerçek tarayıcı dahil); kumanda odasının "Olmayanlar" paneli bunu doğru gösteriyor.

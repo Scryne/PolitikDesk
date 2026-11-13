@@ -742,6 +742,16 @@ input[type=checkbox],input[type=radio]{{
    ölçekteki altı göstergeden biri, sırf sona düştüğü için daha önemli
    görünüyordu. */
 .indicator-strip>*{{flex:1 1 280px;min-width:0}}
+/* Tam dört seri: flex 1280+'da 3+1 diziyor, dördüncü grafik satırın tamamına
+   yayılıyordu (13 Kasım). KPI satırıyla aynı kural: dört öğe ya 2×2 ya 4.
+   Grafik kartı KPI'dan geniş içerik taşır (değer + çizgi + kaynak): içerik
+   genişliği sınırlı olduğundan 1920'de bile dört sütunda ilk kartın çizgisi
+   alta kayıyordu. Bu yüzden telefondan büyük her ekranda 2×2; telefonda
+   tek sütun (yan yana iki grafik okunmaz). */
+@media (min-width:641px){{
+  .indicator-strip:has(> :nth-child(4):last-child){{display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr))}}
+}}
 
 /* "Olmayanlar" — ekranın imza öğesi. Diğer kartlardan AYRIŞMASI gerekir
    çünkü tek "yokluk" panelidir; ayrım gölgeyle değil (Bölüm 5.5) sol
