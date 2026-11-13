@@ -29,6 +29,7 @@ from politikdesk.web.ui import (
     status_badge,
 )
 from politikdesk.web.ui import format as fmt
+from politikdesk.web.ui.components import relation_label
 
 router = APIRouter(tags=["web"])
 
@@ -150,10 +151,13 @@ def memory_directory_page() -> HTMLResponse:
         is_inst = a.get("entity_type") == "institution"
         type_label = "Kurum / Parti" if is_inst else "Siyasi Aktör"
 
+        # Yeşil `strong` kanıt skalasının rengidir ("güçlü teyitli"); bir aktörün
+        # önemini o renkle göstermek kanıt anlamı taşıyordu. Kilit olmayan kartta
+        # tür etiketi zaten solda yazıyor, sağda tekrar edilmez.
         badge_html = (
-            f'<span class="badge strong">{icon("shield", 12)}Kilit Aktör</span>'
+            f'<span class="badge accent">{icon("shield", 12)}Kilit aktör</span>'
             if is_key
-            else f'<span class="badge neutral">{type_label}</span>'
+            else ""
         )
 
         card_html = f"""
@@ -231,11 +235,16 @@ def actor_memory_page(actor: str) -> HTMLResponse:
         1 for p in memory.promises if p.relation_to_current in ("contradicts", "fails")
     )
     pending_count = p_count - (fulfilled_count + contra_count)
-    fulfil_rate = round(fulfilled_count / p_count * 100) if p_count > 0 else 0
+    # Oran, SONUÇLANMIŞ vaatler üzerinden hesaplanır. Takipteki vaat ne tutulmuş ne
+    # tutulmamıştır; paydaya girince tek bekleyen vaatli aktör "%0" görünüyordu.
+    resolved_count = fulfilled_count + contra_count
+    fulfil_rate_text = (
+        fmt.percent(fulfilled_count / resolved_count * 100) if resolved_count else fmt.EMPTY
+    )
 
     head = page_head(
         f"Siyasi Hafıza: {decoded_actor}",
-        lede=f"Toplam {memory.total_claims} kayıtlı iddia · {p_count} vaat · %{fulfil_rate} gerçekleşme oranı · {r_count} ilişki bağı.",
+        lede=f"{len(memory.promises) + len(memory.attributions)} beyan ve vaat · {p_count} vaat · gerçekleşme {fulfil_rate_text} · {r_count} ilişki bağı.",
         actions=button("Tüm Aktörler", href="/memory", icon_name="identity"),
     )
 
@@ -250,7 +259,7 @@ def actor_memory_page(actor: str) -> HTMLResponse:
 
     kpis_html = f"""
     <div class="kpis" style="margin-bottom:var(--space-6)">
-      {kpi("Gerçekleşme Oranı", f"%{fulfil_rate}", unit="vaat uyumu", icon_name="promise")}
+      {kpi("Gerçekleşme oranı", fulfil_rate_text, unit="sonuçlanan vaatlerde", icon_name="promise")}
       {kpi("Gerçekleşen Vaat", fmt.number(fulfilled_count), unit="icraat", icon_name="check")}
       {kpi("Çelişen / Gerçekleşmeyen", fmt.number(contra_count), unit="kayıt", icon_name="warning", higher_is_better=False)}
       {kpi("Takipteki Süreç", fmt.number(pending_count), unit="vaat", icon_name="clock")}
@@ -274,29 +283,32 @@ def actor_memory_page(actor: str) -> HTMLResponse:
 
         st_badge = status_badge(entry.evidence_status)
         rel = entry.relation_to_current or ""
+        rel_text = relation_label("fulfils" if rel == "fulfilled" else rel) if rel else ""
         rel_badge = (
-            f'<span class="badge contra">{icon("warning", 12)}{esc(rel)}</span>'
+            f'<span class="badge contra">{icon("warning", 12)}{esc(rel_text)}</span>'
             if rel in ("contradicts", "fails")
             else (
-                f'<span class="badge strong">{icon("check", 12)}{esc(rel)}</span>'
+                f'<span class="badge strong">{icon("check", 12)}{esc(rel_text)}</span>'
                 if rel in ("fulfils", "fulfilled")
-                else (f'<span class="badge outline">{esc(rel)}</span>' if rel else "")
+                else (f'<span class="badge outline">{esc(rel_text)}</span>' if rel else "")
             )
         )
 
         date_str = (
-            esc(entry.first_reported_at[:10])
+            esc(fmt.full_date(entry.first_reported_at))
             if entry.first_reported_at
             else "Tarihsiz"
         )
-        feed_link = f"/feed?q={urllib.parse.quote(entry.event_title)}"
+        # Kart olayın kendisine gider; gündem araması başlığı bulamayabiliyordu
+        # (arşivlenmiş ya da süzgeç dışı olay).
+        feed_link = f"/event/{int(entry.event_id)}"
         tone = "contra" if rel in ("contradicts", "fails") else ("strong" if rel in ("fulfils", "fulfilled") else "unverified")
 
         item_body = f"""
         <div class="card" style="padding:var(--space-3) var(--space-4);margin-bottom:var(--space-3)">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:var(--space-2)">
             <div class="row tight">
-              <span class="mono subtle" style="font-size:var(--text-xs)">{date_str}</span>
+              <span class="subtle num" style="font-size:var(--text-xs)">{date_str}</span>
               {type_badge}
               {st_badge}
               {rel_badge}
@@ -337,9 +349,9 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     for r in memory.relation_chains:
         rel_str = r.get("relation", "ilişkili")
         badge = (
-            f'<span class="badge contra">{esc(rel_str)}</span>'
+            f'<span class="badge contra">{esc(relation_label(rel_str))}</span>'
             if rel_str in ("contradicts", "fails")
-            else f'<span class="badge strong">{esc(rel_str)}</span>'
+            else f'<span class="badge neutral">{esc(relation_label(rel_str))}</span>'
         )
         relations_rows.append(
             f'<li style="margin-bottom:var(--space-3);font-size:var(--text-sm);list-style:none">'
@@ -365,13 +377,13 @@ def actor_memory_page(actor: str) -> HTMLResponse:
     for i, rel_item in enumerate(memory.relation_chains[:8]):
         to_id = f"ev_{rel_item.get('to_event_id', i)}"
         to_title = str(rel_item.get("to_title", f"Olay #{i}"))
-        graph_nodes.append({"id": to_id, "label": to_title[:18], "type": "event"})
+        graph_nodes.append({"id": to_id, "label": fmt.shorten(to_title, 30), "type": "event"})
         graph_links.append(
             {
                 "source": "main_actor",
                 "target": to_id,
                 "relation": str(rel_item.get("relation", "precedes")),
-                "label": str(rel_item.get("relation", "")),
+                "label": relation_label(str(rel_item.get("relation") or "")) if rel_item.get("relation") else "",
             }
         )
 

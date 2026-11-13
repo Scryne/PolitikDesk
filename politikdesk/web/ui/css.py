@@ -379,6 +379,15 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 .badge.unverified{{background:var(--color-unverified-subtle);
   color:var(--color-unverified)}}
 .badge.accent{{background:var(--color-accent-subtle);color:var(--color-accent)}}
+/* Durum rozeti (kapsam kör noktası, gösterge sapması, canlı ağ): kanıt
+   skalasından ayrı eksen, bu yüzden dolgu değil KENARLIK taşır. Kodda
+   kullanılıyor ama tanımsızdı; rozet düz metin gibi görünüyordu
+   (2026-11-13 denetimi). */
+.badge.ok,.badge.warn,.badge.bad{{background:transparent;border:1px solid currentColor}}
+.badge.ok{{color:var(--color-strong)}}
+.badge.warn{{color:var(--color-partial)}}
+.badge.bad{{color:var(--color-contra)}}
+.badge.sm{{height:20px;padding:0 6px}}
 
 /* Tier etiketi — kaynağın KATMANI (T1 resmî · T2 ajans · T3 yayın).
    Spec §8.5: bu bir siyasi konum göstergesi DEĞİLDİR ve olamaz. Katman,

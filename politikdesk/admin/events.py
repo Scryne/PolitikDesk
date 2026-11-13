@@ -225,8 +225,21 @@ _REASON_LABELS = {
 
 
 def _reason_of(row: dict[str, Any]) -> str:
+    """Kuyruk sebebinin Türkçe adı.
+
+    Atayıcı (`clustering/assigner.py`) sebepleri `similarity_between_thresholds(0.88<=sim<0.92)`
+    ve `entity_constraint_unverifiable` adlarıyla yazıyor; sözlük eski adları
+    (`low_confidence`, `entity_mismatch`) tanıdığı için ekrana ham kod düşüyordu
+    (2026-11-13 denetimi). Eşik parantezi bilgi taşır, korunur.
+    """
     payload = row.get("flag_payload") or {}
     raw = str(payload.get("reason", ""))
+    if raw.startswith("similarity_between_thresholds"):
+        aralik = raw[len("similarity_between_thresholds") :].strip("()")
+        etiket = _REASON_LABELS["low_confidence"]
+        return f"{etiket} ({aralik.replace('sim', 'benzerlik')})" if aralik else etiket
+    if raw == "entity_constraint_unverifiable":
+        return _REASON_LABELS["entity_mismatch"]
     return _REASON_LABELS.get(raw, raw or "—")
 
 
@@ -351,10 +364,8 @@ def review_dashboard() -> str:
 
     merge_card = card(
         notice(
-            "<p>Kaynak olay hedefe taşınır. <b>Kaynak silinmez</b> — "
-            "<span class='mono'>merged_into_id</span> ile işaretlenir ve işlem "
-            "%100 geri alınabilir (<span class='mono'>/admin/events/"
-            "{id}/undo-merge</span>).</p>"
+            "<p>Kaynak olayın makaleleri hedefe taşınır. <b>Kaynak silinmez</b>: "
+            "birleştirildi diye işaretlenir ve işlem tamamen geri alınabilir.</p>"
         )
         + '<div class="row" style="margin-top:var(--space-4);'
         'align-items:flex-end">' + '<div class="field" style="max-width:120px">'

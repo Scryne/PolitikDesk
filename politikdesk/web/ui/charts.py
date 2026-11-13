@@ -269,10 +269,14 @@ def render_knowledge_graph(
     if actor_nodes:
         pos[actor_nodes[0]["id"]] = (cx, cy)
 
-    radius = min(width, height) * 0.38
+    # Elips yörünge: tuval geniş ve alçak (560×240). Daire yarıçapı kısa kenara
+    # bağlıyken kenarlar kısa kalıyor, kenar etiketleri merkezdeki aktör adının
+    # üstüne biniyordu (2026-11-13 denetimi).
+    radius_x = width * 0.34
+    radius_y = height * 0.36
     for i, n in enumerate(other_nodes):
         angle = (2 * math.pi * i) / max(len(other_nodes), 1) - (math.pi / 2)
-        pos[n["id"]] = (cx + radius * math.cos(angle), cy + radius * math.sin(angle))
+        pos[n["id"]] = (cx + radius_x * math.cos(angle), cy + radius_y * math.sin(angle))
 
     for lk in links:
         src = pos.get(lk["source"])
@@ -285,11 +289,16 @@ def render_knowledge_graph(
                 f'<line x1="{src[0]:.1f}" y1="{src[1]:.1f}" x2="{tgt[0]:.1f}" y2="{tgt[1]:.1f}" '
                 f'stroke="{stroke_color}" stroke-width="1.5" stroke-opacity="0.6"{dash_attr}/>'
             )
-            mid_x = (src[0] + tgt[0]) / 2
-            mid_y = (src[1] + tgt[1]) / 2
+            # Etiket kenarın hedef tarafında (%62): ortası merkez düğümün adına çok yakın.
+            mid_x = src[0] + (tgt[0] - src[0]) * 0.62
+            mid_y = src[1] + (tgt[1] - src[1]) * 0.62 - 4
+            # Kenar etiketi: çağıranın Türkçe `label`'ı; yoksa ham ilişki adı.
+            # Zemin rengiyle çizilen kontur (`paint-order: stroke`) çizgiyle
+            # kesişen metni okunur tutar.
             link_elements.append(
-                f'<text x="{mid_x:.1f}" y="{mid_y:.1f}" font-size="9" fill="var(--color-fg-subtle)" '
-                f'text-anchor="middle">{esc(rel)}</text>'
+                f'<text x="{mid_x:.1f}" y="{mid_y:.1f}" font-size="10" fill="var(--color-fg-muted)" '
+                f'text-anchor="middle" stroke="var(--color-surface)" stroke-width="3" '
+                f'paint-order="stroke">{esc(lk.get("label") or rel)}</text>'
             )
 
     for nd in nodes:
@@ -303,8 +312,14 @@ def render_knowledge_graph(
         node_elements.append(
             f'<g class="graph-node">'
             f'<circle cx="{p[0]:.1f}" cy="{p[1]:.1f}" r="{r}" fill="{color}" stroke="{stroke}" stroke-width="1.5"/>'
-            f'<text x="{p[0]:.1f}" y="{(p[1] + 26 if not is_actor else p[1] + 4):.1f}" font-size="11" '
-            f'fill="var(--color-fg)" text-anchor="middle" font-weight="{"bold" if is_actor else "normal"}">{esc(lbl)}</text>'
+            # Aktör adı düğümün ALTINDA: merkezde, koyu aksan dairesinin üstünde
+            # koyu metin okunmuyordu (2026-11-13 denetimi).
+            # Merkezin üstündeki düğümün adı düğümün üstüne yazılır: altında kenar
+            # etiketiyle çakışıyordu.
+            f'<text x="{p[0]:.1f}" y="{(p[1] - r - 6 if p[1] < cy - 1 else p[1] + r + 14):.1f}" font-size="11" '
+            f'fill="var(--color-fg)" text-anchor="middle" stroke="var(--color-surface)" '
+            f'stroke-width="3" paint-order="stroke" '
+            f'font-weight="{"600" if is_actor else "400"}">{esc(lbl)}</text>'
             f'</g>'
         )
 

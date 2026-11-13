@@ -55,10 +55,12 @@ from politikdesk.web.ui import format as fmt
 from politikdesk.web.ui import keys
 from politikdesk.web.ui.charts import economic_indicator_card
 from politikdesk.web.ui.components import (
+    SEVERITY_LABELS,
     card,
     distribution,
     esc,
     event_badge,
+    evidence_tone,
     kpi,
     page_head,
     status_badge,
@@ -207,10 +209,15 @@ def _anomaly_panel(kayitlar: list[dict[str, Any]]) -> str:
             title="Gösterge sapmaları",
         )
 
+    from politikdesk.analysis.anomaly import METHODS
+
     tonlar = {"critical": "bad", "high": "bad", "medium": "warn", "low": ""}
     satirlar = []
     for k in kayitlar:
         ton = tonlar.get(str(k["severity"]), "")
+        siddet = SEVERITY_LABELS.get(str(k["severity"]), str(k["severity"]))
+        yontem = METHODS.get(str(k["detection_method"]))
+        yontem_adi = yontem.label if yontem else str(k["detection_method"])
         birim = f" {k['unit']}" if k.get("unit") else ""
         oran = k.get("deviation_ratio")
         satirlar.append(
@@ -218,15 +225,15 @@ def _anomaly_panel(kayitlar: list[dict[str, Any]]) -> str:
             f'<div class="row tight" style="justify-content:space-between;align-items:baseline">'
             f'<span style="font-size:var(--text-sm);font-weight:var(--weight-semibold)">'
             f"{esc(k['label'])}</span>"
-            f'<span class="badge sm {ton}">sapma · {esc(str(k["severity"]))}</span></div>'
+            f'<span class="badge sm {ton}">sapma · {esc(siddet)}</span></div>'
             f'<div class="mono" style="font-size:var(--text-xs);margin-top:2px">'
             f"{esc(fmt.period_label(k['period']))} · "
             f"{esc(fmt.number(float(k['observed_value']), 2))}{esc(birim)}"
-            + (f" · {oran:+.1f}σ" if oran is not None else "")
+            + (f" · {oran:+.1f}σ".replace(".", ",") if oran is not None else "")
             + "</div>"
             f'<div class="subtle" style="font-size:var(--text-xs)">'
             f"{esc(k['source_name'])} · {esc(k['series_code'])} · "
-            f"yöntem {esc(k['detection_method'])}, eşik {esc(str(k['threshold']))}, "
+            f"yöntem: {esc(yontem_adi)}, eşik {esc(fmt.number(float(k['threshold']), 2))}, "
             f"{esc(fmt.plural_count(int(k['baseline_size']), 'gözlem'))}</div>"
             f"</div>"
         )
@@ -286,10 +293,13 @@ def _emerging_events(events: list[dict[str, Any]]) -> str:
             f'<a href="/event/{int(ev["id"])}" class="plain" '
             f'style="font-weight:var(--weight-medium)">{esc(ev["title"])}</a>'
             f'<div class="subtle" style="font-size:var(--text-xs);margin-top:2px">'
-            f"{esc(fmt.plural_count(int(ev.get('article_count') or 0), 'kaynak'))} · "
+            f"{esc(fmt.plural_count(int(ev.get('article_count') or 0), 'makale'))} · "
             f"{bagimsiz} bağımsız grup · "
             f"{esc(fmt.plural_count(int(ev.get('claim_count') or 0), 'iddia'))}</div></td>"
-            f'<td data-label="Kanıt">{status_badge(ev.get("top_claim_status", "unverified"))}</td>'
+            # Akış satırında `top_claim_status` yok; okunan varsayılan yüzünden her
+            # olay "doğrulanmamış" görünüyordu. Gündem kartının kanıt cetveliyle
+            # aynı hesap kullanılır (2026-11-13 denetimi).
+            f'<td data-label="Kanıt">{status_badge(evidence_tone(ev))}</td>'
             f'<td data-label="Aşama">{event_badge(ev.get("status", "developing"))}</td>'
             f"</tr>"
         )
@@ -475,15 +485,22 @@ def _relations_panel(ozet: dict[str, Any] | None) -> str:
         )
 
     cekilen = int((ozet or {}).get("withheld", 0))
+    # Sıfır kayıtta "0 kayıt üretti, ama bu kayıtlar…" cümlesi kendi kendini
+    # yalanlıyordu; kapının nedeni sayıdan bağımsız anlatılır.
+    durum = (
+        f"Dedektör çalışıyor; şu an {esc(fmt.plural_count(cekilen, 'kayıt'))} "
+        "yayından çekilmiş durumda."
+        if cekilen
+        else "Dedektör çalışıyor; şu an yayından çekilmiş kayıt yok."
+    )
     return card(
         '<div class="notice warn" style="margin:0">'
         f'<span class="ic">{icon("warning", 16)}</span>'
-        "<div><p><b>Yayın kapısı kapalı.</b> Söylem değişikliği dedektörü "
-        f"çalışıyor ve {esc(fmt.plural_count(cekilen, 'kayıt'))} üretti, ama "
-        "bu kayıtlar denetlendiğinde yanlış siyasi isnat ürettiği görüldü: "
-        "konu eşleştirmesi yok ve güven skoru sabit.</p>"
-        "<p>Kayıtlar silinmedi — dedektör düzeltildiğinde aynı veriyle "
-        "yeniden ölçülebilsin diye saklanıyor. Okuma yolundan geçmiyor.</p>"
+        "<div><p><b>Yayın kapısı kapalı.</b> Söylem değişikliği dedektörünün "
+        "kayıtları denetlendiğinde yanlış siyasi isnat ürettiği görüldü: konu "
+        f"eşleştirmesi yok ve güven skoru sabit. {durum}</p>"
+        "<p>Kayıtlar silinmez — dedektör düzeltildiğinde aynı veriyle "
+        "yeniden ölçülebilsin diye saklanır. Okuma yolundan geçmez.</p>"
         "</div></div>"
         '<p class="subtle" style="margin:var(--space-3) 0 0;font-size:var(--text-xs)">'
         "Bu sayı <b>bulunan kayma sayısı değildir</b>; yayına uygun "

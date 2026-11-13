@@ -127,6 +127,13 @@ def _as_datetime(value: Any) -> datetime | None:
         return value
     if isinstance(value, date):
         return datetime(value.year, value.month, value.day)
+    if isinstance(value, str) and value.strip():
+        # Servis katmanı bazı tarihleri `isoformat()` dizesi olarak taşır (vaat kütüğü);
+        # onlar `2026-11-10` diye ham ISO basılıyordu (Ek B.1: `10 Kas 2026`).
+        try:
+            return datetime.fromisoformat(value.strip())
+        except ValueError:
+            return None
     return None
 
 

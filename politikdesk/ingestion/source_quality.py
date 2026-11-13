@@ -208,7 +208,8 @@ def _freshness(row: dict[str, Any]) -> QualityComponent:
         "freshness",
         "Tazelik",
         round(oran * 100, 1),
-        f"{yas:.1f} sa önce · bütçe {butce:.0f} sa",
+        # Ondalık virgül (Ek B.1): ekranda "7.3 sa" değil "7,3 sa".
+        f"{yas:.1f} sa önce · bütçe {butce:.0f} sa".replace(".", ","),
     )
 
 

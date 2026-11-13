@@ -25,6 +25,7 @@ from politikdesk.web.ui import (
     page_head,
 )
 from politikdesk.web.ui import format as fmt
+from politikdesk.web.ui.components import relation_label
 from politikdesk.web.ui.tokens import DARK
 
 log = get_logger(__name__)
@@ -204,7 +205,7 @@ def get_graph_data(
                 "source": e_from,
                 "target": e_to,
                 "relation": r["relation"],
-                "label": r["relation"],
+                "label": relation_label(r["relation"]),
                 "color": rel_color,
                 "dashed": False,
                 "confidence": float(r["similarity"] or 0.75),

@@ -257,6 +257,24 @@ def get_actor_memory(actor_name: str) -> ActorMemory:
     return build_actor_memory(actor_name, entries, chains)
 
 
+def _promise_speaker(column: Any, status_reason: Any) -> str | None:
+    """Vaadin sahibi: `claims.speaker` sütunu, yoksa eski kayıtlardaki `status_reason.speaker`.
+
+    Konuşan, çıkarım anında DETERMİNİSTİK olarak `claims.speaker`'a yazılır (ADR-010 §6);
+    `status_reason` kanıt motorunun malıdır ve her puanlamada üzerine yazılır. Bu sorgu
+    yalnız `status_reason`'a baktığı için her vaat "Bilinmeyen Aktör" görünüyordu
+    (2026-11-13 denetimi). Bilinmiyorsa None döner: arayüz uydurma bir ada profil
+    bağlantısı kurmaz.
+    """
+    if isinstance(column, str) and column.strip():
+        return column.strip()
+    if isinstance(status_reason, dict):
+        legacy = status_reason.get("speaker")
+        if isinstance(legacy, str) and legacy.strip():
+            return legacy.strip()
+    return None
+
+
 def get_promise_tracker(limit: int = 50) -> list[dict[str, Any]]:
     """Tüm vaat (promise) türündeki iddiaları ve gerçekleşme durumlarını listeler."""
     with connection() as conn, conn.cursor() as cur:
@@ -264,14 +282,15 @@ def get_promise_tracker(limit: int = 50) -> list[dict[str, Any]]:
             """
             SELECT c.id as claim_id, c.claim_text, c.evidence_status, c.event_id,
                    e.title as event_title, e.first_reported_at,
-                   c.status_reason,
+                   c.status_reason, c.speaker,
                    rel.relation as outcome_relation,
                    rel.status as relation_status,
-                   rel.evidence_payload
+                   rel.evidence_payload,
+                   rel.confidence as relation_confidence
             FROM claims c
             JOIN events e ON e.id = c.event_id
             LEFT JOIN LATERAL (
-                SELECT r.relation, r.status, r.evidence_payload
+                SELECT r.relation, r.status, r.evidence_payload, r.confidence
                 FROM event_relations r
                 WHERE r.from_event_id = e.id
                   AND r.relation IN ('fulfils', 'fails', 'contradicts')
@@ -296,11 +315,11 @@ def get_promise_tracker(limit: int = 50) -> list[dict[str, Any]]:
                     "event_id": r["event_id"],
                     "event_title": r["event_title"],
                     "first_reported_at": reported,
-                    "speaker": status_reason.get("speaker", "Bilinmeyen Aktör")
-                    if isinstance(status_reason, dict)
-                    else "Bilinmeyen Aktör",
+                    "speaker": _promise_speaker(r.get("speaker"), status_reason),
                     "outcome_relation": r["outcome_relation"] or "pending",
                     "relation_status": r.get("relation_status") or "unresolved",
+                    "relation_confidence": r.get("relation_confidence"),
+                    "has_relation": r["outcome_relation"] is not None,
                     "evidence_payload": r.get("evidence_payload") or {},
                 }
             )
@@ -321,6 +340,11 @@ def get_accountability_digest(limit: int = 50) -> list[dict[str, Any]]:
                 "speaker": p["speaker"],
                 "reported_at": p["first_reported_at"],
                 "status": p["outcome_relation"],
+                # Ekran bu üç alanı okur. Eskiden okuduğu `relation` ve `confidence`
+                # hiç yoktu: eşleşmesi olmayan her vaat "İlişki türü: fulfils" ve
+                # "Güven %100" görünüyordu (2026-11-13 denetimi).
+                "relation": p["outcome_relation"] if p["has_relation"] else None,
+                "confidence": p["relation_confidence"],
                 "relation_status": p["relation_status"],
                 "evidence_status": p["evidence_status"],
                 "evidence_payload": p["evidence_payload"],
@@ -427,7 +451,7 @@ def search_accountability(
         data_sql = f"""
             SELECT c.id as claim_id, c.claim_text, c.evidence_status, c.event_id,
                    e.title as event_title, e.first_reported_at,
-                   c.status_reason,
+                   c.status_reason, c.speaker,
                    r.relation as outcome_relation,
                    r.status as relation_status,
                    r.evidence_payload as evidence_payload
@@ -451,9 +475,7 @@ def search_accountability(
                     "claim_id": r["claim_id"],
                     "event_title": r["event_title"],
                     "promise_text": r["claim_text"],
-                    "speaker": status_reason.get("speaker", "Bilinmeyen Aktör")
-                    if isinstance(status_reason, dict)
-                    else "Bilinmeyen Aktör",
+                    "speaker": _promise_speaker(r.get("speaker"), status_reason),
                     "reported_at": reported,
                     "status": r["outcome_relation"] or "pending",
                     "relation_status": r.get("relation_status") or "unresolved",

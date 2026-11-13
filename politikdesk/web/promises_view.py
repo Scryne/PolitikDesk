@@ -143,10 +143,19 @@ def promises_page() -> HTMLResponse:
     for p in promises:
         outcome = p.get("outcome_relation") or "pending"
         badge = _outcome_badge(outcome)
-        reported_date = esc(p.get("first_reported_at", "")[:10])
-        speaker_raw = p.get("speaker") or "Belirtilmedi"
+        reported_date = esc(fmt.full_date(p.get("first_reported_at")))
+        speaker_known = p.get("speaker")
+        speaker_raw = speaker_known or "Belirtilmedi"
         speaker_esc = esc(speaker_raw)
         speaker_encoded = urllib.parse.quote(speaker_raw)
+        # Konuşanı bilinmeyen vaatte profil bağlantısı "/memory/Belirtilmedi"
+        # adında var olmayan bir aktöre gidiyordu.
+        profile_link = (
+            f'<a href="/memory/{speaker_encoded}" class="subtle" style="font-size:var(--text-xs);display:inline-flex;align-items:center;gap:4px;margin-top:4px">'
+            f'{icon("clock", 12)}Hafıza profili &rarr;</a>'
+            if speaker_known
+            else '<div class="subtle" style="font-size:var(--text-xs);margin-top:4px">konuşan cümlede açık değil</div>'
+        )
         title_esc = esc(p.get("event_title") or "Olay")
         claim_esc = esc(p.get("claim_text") or "")
         event_id = p.get("event_id")
@@ -159,8 +168,7 @@ def promises_page() -> HTMLResponse:
             f'<tr data-outcome="{esc(outcome)}" data-search="{esc(search_blob)}">'
             + cell(
                 f'<div style="font-weight:var(--weight-medium)">{speaker_esc}</div>'
-                f'<a href="/memory/{speaker_encoded}" class="subtle" style="font-size:var(--text-xs);display:inline-flex;align-items:center;gap:4px;margin-top:4px">'
-                f'{icon("clock", 12)}Hafıza Profili &rarr;</a>',
+                + profile_link,
                 label="Aktör",
             )
             + cell(
@@ -170,7 +178,7 @@ def promises_page() -> HTMLResponse:
                 label="Vaat / Taahhüt",
             )
             + cell(badge, label="Durum")
-            + cell(f'<span class="subtle mono">{reported_date}</span>', label="Tarih")
+            + cell(f'<span class="subtle num">{reported_date}</span>', label="Tarih")
             + cell(
                 f'<a class="btn sm ghost" href="/event/{event_id}">{icon("arrow-right", 14)}Olay</a>',
                 label="İşlem",

@@ -108,18 +108,10 @@ def _matches(row: dict[str, Any], selected: str) -> bool:
 
 
 def _evidence_tone(row: dict[str, Any]) -> str:
-    """Kanıt cetvelinin durumu."""
-    claims = int(row.get("claim_count") or 0)
-    weak = int(row.get("weak_claim_count") or 0)
-    if int(row.get("contradicted_count") or 0):
-        return "contradicted"
-    if not claims:
-        return "unverified"
-    if weak == 0:
-        return "strongly_corroborated"
-    if weak < claims:
-        return "partially_corroborated"
-    return "single_source"
+    """Kanıt cetvelinin durumu (kumanda odasıyla ortak hesap)."""
+    from politikdesk.web.ui.components import evidence_tone
+
+    return evidence_tone(row)
 
 
 def _breakdown_text(raw: dict[str, Any] | None) -> str:

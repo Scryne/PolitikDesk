@@ -212,6 +212,51 @@ STATUS_LABELS: dict[str, str] = {
     "attribution_verified": "beyan sabit",
 }
 
+# Olay ilişkisi türü (`event_relations.relation`). Ekranlar enum'u ham basıyordu
+# ("same_thread", "fulfils"); Ek B.2: sistem dili yasak.
+RELATION_LABELS: dict[str, str] = {
+    "same_thread": "aynı gelişme akışı",
+    "precedes": "öncesi",
+    "updates": "güncelleme",
+    "contradicts": "çelişki",
+    "fulfils": "vaadi karşılıyor",
+    "fails": "vaadi karşılamıyor",
+}
+
+# Gösterge sapmasının şiddeti (`indicator_anomalies.severity`).
+SEVERITY_LABELS: dict[str, str] = {
+    "low": "düşük",
+    "medium": "orta",
+    "high": "yüksek",
+    "critical": "kritik",
+}
+
+
+def evidence_tone(row: dict[str, Any]) -> str:
+    """Bir olayın kanıt cetveli durumu, akış satırının sayaçlarından.
+
+    Gündem kartı ve kumanda odası AYNI hesabı kullanır; iki ekranda aynı olay
+    farklı kanıt durumuyla görünmemeli.
+    """
+    claims = int(row.get("claim_count") or 0)
+    weak = int(row.get("weak_claim_count") or 0)
+    if int(row.get("contradicted_count") or 0):
+        return "contradicted"
+    if not claims:
+        return "unverified"
+    if weak == 0:
+        return "strongly_corroborated"
+    if weak < claims:
+        return "partially_corroborated"
+    return "single_source"
+
+
+def relation_label(relation: str | None) -> str:
+    """İlişki türünün Türkçe adı; bilinmeyen değer olduğu gibi döner."""
+    if not relation:
+        return "eşleşme yok"
+    return RELATION_LABELS.get(relation, relation)
+
 # Olay durumu (Spec §8.6) — iddia durumundan AYRI BİR EKSEN.
 #
 # Kanıt skalasının renklerini KULLANMAZ. İlk turda "gelişiyor" amber,

@@ -69,6 +69,7 @@ from politikdesk.web.ui import (
     timeline,
 )
 from politikdesk.web.ui import format as fmt
+from politikdesk.web.ui.components import relation_label
 
 router = APIRouter(tags=["web"])
 
@@ -483,8 +484,8 @@ def _related(data: dict[str, Any]) -> str:
         f'<li style="margin-bottom:10px">'
         f'<a href="/event/{r["id"]}">{esc(r["title"])}</a>'
         f'<div class="subtle" style="font-size:var(--text-xs)">'
-        f"{esc(fmt.full_date(r['first_reported_at']))} · {esc(r['relation'])} · "
-        f'benzerlik <span class="mono">{esc(fmt.number(float(r["similarity"] or 0) * 100, 1))}'
+        f"{esc(fmt.full_date(r['first_reported_at']))} · {esc(relation_label(r['relation']))} · "
+        f'benzerlik <span class="num">{esc(fmt.percent(float(r["similarity"] or 0) * 100))}'
         f"</span></div></li>"
         for r in related
     )

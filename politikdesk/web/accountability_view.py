@@ -8,6 +8,7 @@ editoryal hesap verebilirlik analiz masası.
 from __future__ import annotations
 
 import urllib.parse
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -30,8 +31,10 @@ from politikdesk.web.ui import (
     panel,
     ruled,
     search_input,
+    status_badge,
 )
 from politikdesk.web.ui import format as fmt
+from politikdesk.web.ui.components import relation_label
 
 router = APIRouter(tags=["web"])
 
@@ -40,6 +43,7 @@ EPISTEMIC_BADGES: dict[str, tuple[str, str]] = {
     "supported": ("Kanıtla Desteklenen", "partial"),
     "inferred": ("Olası İlişki", "neutral"),
     "unresolved": ("Belirsiz", "unverified"),
+    "unmatched": ("Eşleşme bekliyor", "neutral"),
 }
 
 
@@ -71,7 +75,8 @@ _ACCOUNTABILITY_JS = """
         (currentFilter === 'verified' && status === 'verified') ||
         (currentFilter === 'supported' && status === 'supported') ||
         (currentFilter === 'contra' && (rel === 'contradicts' || rel === 'fails')) ||
-        (currentFilter === 'inferred' && (status === 'inferred' || status === 'unresolved'));
+        (currentFilter === 'inferred' && (status === 'inferred' || status === 'unresolved')) ||
+        (currentFilter === 'unmatched' && status === 'unmatched');
       var matchesText = !q || text.indexOf(q) !== -1;
 
       if (matchesFilter && matchesText) {
@@ -120,17 +125,28 @@ def accountability_page() -> HTMLResponse:
         digest = []
 
 
+    # Epistemik durum İLİŞKİNİN durumudur (`event_relations.status`); ilişkisi
+    # olmayan vaat "eşleşme bekliyor"dur, doğrulanmış/desteklenen sayılmaz.
+    def _epistemic(item: dict[str, Any]) -> str:
+        if not item.get("relation"):
+            return "unmatched"
+        return str(item.get("relation_status") or "unresolved")
+
     total_count = len(digest)
-    verified_count = sum(1 for item in digest if item.get("status") == "verified")
-    supported_count = sum(1 for item in digest if item.get("status") == "supported")
+    matched_count = sum(1 for item in digest if item.get("relation"))
+    verified_count = sum(1 for item in digest if _epistemic(item) == "verified")
+    supported_count = sum(1 for item in digest if _epistemic(item) == "supported")
     contra_count = sum(
         1 for item in digest if item.get("relation") in ("contradicts", "fails")
     )
-    inferred_count = total_count - (verified_count + supported_count)
+    inferred_count = sum(
+        1 for item in digest if _epistemic(item) in ("inferred", "unresolved")
+    )
+    unmatched_count = total_count - matched_count
 
     kpis_html = f"""
     <div class="kpis" style="margin-bottom:var(--space-6)">
-      {kpi("Çapraz Eşleşmeler", fmt.number(total_count), unit="vaka", icon_name="accountability")}
+      {kpi("Çapraz eşleşme", fmt.number(matched_count), unit=f"/ {fmt.number(total_count)} vaat", icon_name="accountability")}
       {kpi("Doğrulanmış Atıf", fmt.number(verified_count), unit="vaka", icon_name="check")}
       {kpi("Desteklenen Kanıt", fmt.number(supported_count), unit="kayıt", icon_name="shield")}
       {kpi("Tespit Edilen Çelişki", fmt.number(contra_count), unit="olay", icon_name="warning", higher_is_better=False)}
@@ -167,11 +183,14 @@ def accountability_page() -> HTMLResponse:
 
     cards_html = []
     for item in digest:
-        status_key = item.get("status", "inferred")
+        status_key = _epistemic(item)
         badge_label, badge_token = EPISTEMIC_BADGES.get(
             status_key, (status_key, "neutral")
         )
-        conf_pct = int(item.get("confidence", 1.0) * 100)
+        confidence = item.get("confidence")
+        conf_text = (
+            fmt.percent(float(confidence) * 100) if isinstance(confidence, int | float) else fmt.EMPTY
+        )
         payload = item.get("evidence_payload") or {}
         breakdown = payload.get("score_breakdown") or {}
         target_inst_or_actor = (
@@ -179,15 +198,22 @@ def accountability_page() -> HTMLResponse:
         )
         target_title_esc = esc(payload.get("target_title", "Belirtilmedi"))
 
-        rel = item.get("relation", "fulfils")
+        rel = item.get("relation") or ""
         tone = _relation_tone(rel, status_key)
-        reported_date = esc(item.get("reported_at", "")[:10])
-        speaker_raw = item.get("speaker") or "Belirtilmedi"
+        reported_date = esc(fmt.full_date(item.get("reported_at")))
+        speaker_known = item.get("speaker")
+        speaker_raw = speaker_known or "Konuşan belirtilmedi"
         speaker_esc = esc(speaker_raw)
         speaker_encoded = urllib.parse.quote(speaker_raw)
         event_title_esc = esc(item.get("event_title") or "Olay")
         promise_text_esc = esc(item.get("promise_text") or "")
-        ev_status = esc(item.get("evidence_status") or "")
+        ev_status_html = status_badge(str(item.get("evidence_status") or "unverified"), size=12)
+        profile_btn = (
+            f'<a class="btn sm ghost" href="/memory/{speaker_encoded}">'
+            f'{icon("clock", 14)}Aktör profili &rarr;</a>'
+            if speaker_known
+            else ""
+        )
 
         drawer_body = f"""
         <table style="margin-top:var(--space-2)">
@@ -203,11 +229,17 @@ def accountability_page() -> HTMLResponse:
         </table>
         """
         drawer_summary = (
-            f'{icon("shield", 14)}<span>Deterministik Kanıt & Skor Kırılımı '
-            f'<b class="num">(Güven: %{conf_pct})</b></span>'
-            f'<span class="subtle">— detayları gör</span>'
+            f'{icon("shield", 14)}<span>Eşleme skorunun kırılımı '
+            f'<b class="num">(güven {esc(conf_text)})</b></span>'
+            f'<span class="subtle">— ayrıntı</span>'
         )
-        drawer_panel = panel(drawer_summary, drawer_body, cls="quiet")
+        drawer_panel = (
+            panel(drawer_summary, drawer_body, cls="quiet")
+            if rel
+            else '<p class="subtle" style="margin:0;font-size:var(--text-xs)">'
+            "Bu vaat henüz bir oylama, karar ya da denetim bulgusuyla eşleşmedi; "
+            "eşleşme kurulduğunda skor kırılımı burada görünür.</p>"
+        )
 
         search_blob = f"{speaker_raw} {event_title_esc} {promise_text_esc} {target_inst_or_actor} {target_title_esc}".replace(
             '"', "&quot;"
@@ -219,11 +251,9 @@ def accountability_page() -> HTMLResponse:
             <div class="row tight">
               <span class="badge neutral" style="font-weight:var(--weight-semibold)">{speaker_esc}</span>
               <span class="badge {badge_token}">{esc(badge_label)}</span>
-              <span class="badge outline mono">{reported_date}</span>
+              <span class="badge outline">{reported_date}</span>
             </div>
-            <a class="btn sm ghost" href="/memory/{speaker_encoded}">
-              {icon("clock", 14)}Aktör Profili &rarr;
-            </a>
+            {profile_btn}
           </div>
           <h2 class="h3" style="margin:var(--space-3) 0 var(--space-2);font-size:var(--text-lg)">
             {event_title_esc}
@@ -232,9 +262,9 @@ def accountability_page() -> HTMLResponse:
             “{promise_text_esc}”
           </p>
           <div class="row" style="font-size:var(--text-xs);color:var(--color-fg-subtle);margin-bottom:var(--space-3)">
-            <span>İlişki Türü: <b>{esc(rel)}</b></span>
-            <span>· Kanıt Durumu: <b>{ev_status}</b></span>
-            <span>· Eşleşen Güven Skoru: <b class="mono">%{conf_pct}</b></span>
+            <span>İlişki: <b>{esc(relation_label(rel or None))}</b></span>
+            <span>· Vaadin kanıt durumu: {ev_status_html}</span>
+            <span>· Eşleme güveni: <b class="num">{esc(conf_text)}</b></span>
           </div>
           {drawer_panel}
         </div>
@@ -252,7 +282,8 @@ def accountability_page() -> HTMLResponse:
       <button type="button"{action_attrs("filter-acc", "verified")}>Doğrulanmış ({verified_count})</button>
       <button type="button"{action_attrs("filter-acc", "supported")}>Desteklenen ({supported_count})</button>
       <button type="button"{action_attrs("filter-acc", "contra")}>Çelişkiler ({contra_count})</button>
-      <button type="button"{action_attrs("filter-acc", "inferred")}>Olası İlişki ({inferred_count})</button>
+      <button type="button"{action_attrs("filter-acc", "inferred")}>Olası ilişki ({inferred_count})</button>
+      <button type="button"{action_attrs("filter-acc", "unmatched")}>Eşleşme bekleyen ({unmatched_count})</button>
     </div>
     """
 
