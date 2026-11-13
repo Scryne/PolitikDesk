@@ -39,6 +39,21 @@ from politikdesk.config import load_env_file  # noqa: E402
 
 load_env_file()
 
+# Test veritabanı verildiyse uygulama da ONA bağlanır, ve bu hemen olur.
+#
+# Önceden `PD_DATABASE_URL` yalnız `_get_test_dsn()` çağrıldığında (bir `db_conn`
+# fikstüründe) test DSN'ine çevriliyordu. O ana kadar `.env`'den gelen ÜRETİM DSN'i
+# süreçte duruyordu ve veritabanı fikstürü kullanmayan `client` testleri (ekran
+# testleri) uygulama havuzunu onunla açıyordu: tam koşuda `/admin/` üretim
+# veritabanına bağlanmaya çalışıp takıldı, tek dosyalık koşuda geçti (sıra
+# bağımlılığı, 2026-11-13 denetimi). Docker yığını açık olsaydı ekran testleri
+# üretim verisini okuyacaktı. Yasaklı anahtar kelime denetimi `_get_test_dsn`'de.
+_TEST_DSN_ENV = os.environ.get("PD_TEST_DATABASE_URL")
+if _TEST_DSN_ENV and not any(
+    k in _TEST_DSN_ENV.lower() for k in ("prod", "production", "live", "primary")
+):
+    os.environ["PD_DATABASE_URL"] = _TEST_DSN_ENV
+
 # Postgres ayarlı ama kapalıysa (yerelde `docker compose up -d db` unutulmuş), web katmanından
 # veritabanına dokunan her istek havuzda 10 sn bekliyordu: tam koşu saatler sürüyor, pytest-timeout
 # ortada kesiyordu (2026-10-26 denetimi, `test_csp_nonce_rotation_and_entropy`). Erişilemeyen
