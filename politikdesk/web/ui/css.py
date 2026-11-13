@@ -325,6 +325,12 @@ h3,.h3{{font-size:var(--text-lg);line-height:var(--text-lg-lh);
 .halves>*{{height:100%}}
 .kpis{{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
   gap:var(--space-4);align-items:stretch}}
+/* Dört KPI'lı satır auto-fit ile 960 px'te 3+1 kırılıyor, dördüncü kart tek
+   başına kalıyordu (kumanda odası, 13 Kasım). Dar ekranda 2×2, genişte 4. */
+.kpis:has(> :nth-child(4):last-child){{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1200px){{
+  .kpis:has(> :nth-child(4):last-child){{grid-template-columns:repeat(4,minmax(0,1fr))}}
+}}
 /* Telefonda dört KPI alt alta dört tam ekran kart ediyordu (390 px gezintisi);
    iki sütun, sayı ilk ekranda kalır. */
 @media (max-width:640px){{
