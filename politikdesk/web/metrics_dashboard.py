@@ -175,7 +175,7 @@ def metrics_dashboard(days: int = Query(default=30, ge=1, le=365)) -> HTMLRespon
 
   {
         notice(
-            "<p><b>Daily active minutes'ın düşük olması hedeftir.</b></p>"
+            "<p><b>Günlük aktif dakikanın düşük olması hedeftir.</b></p>"
             "<p>Ürünün vaadi zaman tasarrufudur, etkileşim değil; bu metriği yukarı "
             "çekmeye çalışan hiçbir özellik kabul edilmez.</p>"
         )

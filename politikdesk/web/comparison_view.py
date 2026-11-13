@@ -96,18 +96,26 @@ def statement_comparison_page(
 
     filter_card = card(filter_form_html, title="Karşılaştırma Parametreleri")
 
+    # İki dönemde de beyan yokken skor ölçülemez; "%100" olmayan bir tutarlılığı
+    # iddia ediyordu (2026-11-13 gezintisi). Ölçülemeyen değer "—"dir.
+    score_text = (
+        f"%{int(result.consistency_score * 100)}"
+        if result.earlier_statements and result.later_statements
+        else "—"
+    )
+
     kpi_grid = f"""
     <div class="kpis" style="margin-bottom:var(--space-4)">
       {kpi("Seçilen Aktör", actor, icon_name="identity")}
       {kpi(f"{result.earlier_period} Beyan", str(len(result.earlier_statements)), icon_name="clock")}
       {kpi(f"{result.later_period} Beyan", str(len(result.later_statements)), icon_name="zap")}
-      {kpi("Tutarlılık Skoru", f"%{int(result.consistency_score * 100)}", icon_name="check")}
+      {kpi("Tutarlılık skoru", score_text, icon_name="check")}
     </div>
     """
 
     summary_notice = notice(
         f"<b>Analitik Değerlendirme:</b> {esc(result.shift_summary)}",
-        tone="warn" if result.shift_detected else "ok",
+        tone="warn" if result.shift_detected else ("ok" if score_text != "—" else ""),
     )
 
     # 3. İki Zaman Kolonu: Yan Yana Beyan Karşılaştırması
