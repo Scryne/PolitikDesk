@@ -93,3 +93,34 @@ def test_actor_freshness_validator() -> None:
 
     exit_code = validate_freshness(max_age_days=90, strict=True)
     assert exit_code == 0
+
+
+def test_institution_with_bare_turkish_case_suffix_is_recognised() -> None:
+    """Kurum adları kesmesiz çekimlenir; 2026-11-14 Golden Set teşhisi."""
+    from politikdesk.nlp.entities import extract_institutions
+
+    names = {
+        e.canonical_name
+        for e in extract_institutions(
+            "Ulaştırma ve Altyapı Bakanlığının yatırım projeleri; Rekabet Kurulunca izin verildi"
+        )
+    }
+    assert "Ulaştırma ve Altyapı Bakanlığı" in names
+    assert "Rekabet Kurumu" in names
+
+
+def test_short_alias_does_not_take_a_bare_suffix() -> None:
+    """Kısaltmalar kesmeyle çekimlenir; "fed" + "ex" bir kurum değildir."""
+    from politikdesk.nlp.entities import extract_institutions
+
+    names = {e.canonical_name for e in extract_institutions("Fedex kargo ve spklar")}
+    assert "Federal Rezerv" not in names
+    assert "Sermaye Piyasası Kurulu" not in names
+    assert {e.canonical_name for e in extract_institutions("Fed'in kararı")} == {"Federal Rezerv"}
+
+
+def test_minister_title_resolves_to_the_ministry() -> None:
+    from politikdesk.nlp.entities import extract_institutions
+
+    names = {e.canonical_name for e in extract_institutions("Ticaret Bakanı ihracatı açıkladı")}
+    assert "Ticaret Bakanlığı" in names

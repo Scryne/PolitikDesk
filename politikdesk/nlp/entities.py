@@ -181,11 +181,49 @@ _DEFAULT_INDEX = EntityIndex.build(INSTITUTIONS)
 _POLITICAL_ACTORS_INDEX = EntityIndex.build(POLITICAL_ACTORS)
 
 
+# Kesmesiz yazılan Türkçe hâl ekleri (fold edilmiş). Kurum adları basında çoğu
+# kez kesmesiz çekimlenir: "Ulaştırma ve Altyapı Bakanlığının", "Sayıştayın",
+# "Rekabet Kurulunca". Sözcük sınırı şartı (`(?!\w)`) bunları kaçırıyordu;
+# 2026-11-14 Golden Set teşhisi. Liste kapalıdır: yalnız hâl, ilgi ve vasıta
+# ekleri; yeni bir kök üretebilecek yapım ekleri yok.
+_CASE_SUFFIXES: Final[tuple[str, ...]] = (
+    "ndaki", "ndeki", "ndan", "nden", "daki", "deki", "taki", "teki",
+    "nın", "nin", "nun", "nün", "nda", "nde", "nca", "nce", "yla", "yle",
+    "dan", "den", "tan", "ten",
+    "ın", "in", "un", "ün", "na", "ne", "ya", "ye", "nı", "ni", "nu", "nü",
+    "yı", "yi", "yu", "yü", "da", "de", "ta", "te", "ca", "ce", "la", "le",
+    "a", "e", "ı", "i", "u", "ü",
+)  # fmt: skip
+_SUFFIX_ALT = "|".join(sorted(_CASE_SUFFIXES, key=len, reverse=True))
+
+
+def _takes_bare_suffix(alias: str) -> bool:
+    """Kesmesiz ek yalnız uzun/çok sözcüklü alias'a eklenir.
+
+    Kısaltmalar ("fed", "hmb", "spk") Türkçede kesmeyle çekimlenir
+    ("TCMB'nin") ve kısa köke ek izni "fed" + "eral" gibi yanlış eşleşme
+    doğurur; bu yüzden 8 karakterin altındaki tek sözcüklü alias'lar katıdır.
+    """
+    return " " in alias or len(alias) >= 8
+
+
 def _alias_pattern(index: EntityIndex) -> re.Pattern[str]:
     # Uzun alias'lar önce denenmeli ("merkez bankası" > "merkez")
     alternatives = sorted(index.aliases, key=len, reverse=True)
-    escaped = "|".join(re.escape(a) for a in alternatives)
-    return re.compile(rf"(?<!\w)({escaped})(?!\w)")
+    flexible = "|".join(re.escape(a) for a in alternatives if _takes_bare_suffix(a))
+    strict = "|".join(re.escape(a) for a in alternatives if not _takes_bare_suffix(a))
+    parts = []
+    if flexible:
+        parts.append(rf"({flexible})(?:{_SUFFIX_ALT})?")
+    if strict:
+        parts.append(rf"({strict})")
+    if not parts:
+        return re.compile(r"(?!x)x")
+    return re.compile(rf"(?<!\w)(?:{'|'.join(parts)})(?!\w)")
+
+
+def _matched_alias(match: re.Match[str]) -> str:
+    return next(g for g in match.groups() if g)
 
 
 _ALIAS_RE = _alias_pattern(_DEFAULT_INDEX)
@@ -201,13 +239,13 @@ def extract_institutions(text: str, index: EntityIndex | None = None) -> list[Ex
     found: dict[str, ExtractedEntity] = {}
 
     for match in pattern.finditer(folded):
-        canonical = index.resolve(match.group(1))
+        canonical = index.resolve(_matched_alias(match))
         if not canonical or canonical in found:
             continue
         found[canonical] = ExtractedEntity(
             canonical_name=canonical,
             entity_type="institution",
-            matched_text=match.group(1),
+            matched_text=_matched_alias(match),
             is_key_entity=canonical in KEY_ENTITIES or canonical in POLITICAL_KEY_ENTITIES,
         )
     return list(found.values())
@@ -222,13 +260,13 @@ def extract_political_actors(text: str, index: EntityIndex | None = None) -> lis
     found: dict[str, ExtractedEntity] = {}
 
     for match in pattern.finditer(folded):
-        canonical = index.resolve(match.group(1))
+        canonical = index.resolve(_matched_alias(match))
         if not canonical or canonical in found:
             continue
         found[canonical] = ExtractedEntity(
             canonical_name=canonical,
             entity_type="person",
-            matched_text=match.group(1),
+            matched_text=_matched_alias(match),
             is_key_entity=canonical in POLITICAL_KEY_ENTITIES,
         )
     return list(found.values())

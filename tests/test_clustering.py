@@ -517,3 +517,76 @@ def test_same_indicator_still_assigns_at_high_similarity() -> None:
 def test_indicator_detection_is_case_and_diacritic_aware() -> None:
     """Türkçe tuzağı: 'İŞSİZLİK' ile 'işsizlik' aynı köke inmeli."""
     assert detect_indicators("İŞSİZLİK ORANI") == detect_indicators("issizlik orani")
+
+
+# ==========================================================================
+# 2026-11-14 — Golden Set (90) ve demo derlemi teşhisi
+# ==========================================================================
+def test_services_ppi_written_as_inflation_is_the_same_indicator() -> None:
+    """evt-046: "H-ÜFE" ile "hizmet üretici enflasyonu" aynı göstergedir."""
+    assert not indicators_conflict(
+        "Hizmet Üretici Fiyat Endeksi (H-ÜFE) Haziran 2026",
+        "Hizmet üretici enflasyonu haziranda yüzde 46,12 oldu",
+    )
+
+
+def test_agricultural_input_prices_are_not_industrial_production() -> None:
+    """evt-028 + evt-045: aynı sabah yayımlanan iki TÜİK bülteni."""
+    assert indicators_conflict(
+        "Sanayi üretimi haziranda yıllık yüzde 1,4 azaldı",
+        "Tarımsal girdi fiyatları haziranda aylık yüzde 0,9 arttı",
+    )
+
+
+def test_weekly_reserves_are_not_the_inflation_report() -> None:
+    """evt-029 + evt-043: TCMB'nin aynı haftaki iki ayrı yayını."""
+    assert indicators_conflict(
+        "13 Ağustos 2026 Tarihli Enflasyon Raporu 2026-III",
+        "Merkez Bankası toplam rezervleri 153,8 milyar dolara yükseldi",
+    )
+
+
+SAYISTAY = (
+    "2025 Yılı Sayıştay Denetim Raporları TBMM'ye sunuldu. Sayıştay, 2025 yılına ait "
+    "214 kamu idaresinin denetim raporunu TBMM Başkanlığına sundu."
+)
+VERGI_TEKLIFI = (
+    "Vergi Kanunları ile Bazı Kanunlarda Değişiklik Yapılmasına Dair Kanun Teklifi "
+    "TBMM Başkanlığına sunuldu. Teklif 34 maddeden oluşuyor."
+)
+
+
+def test_audit_report_and_tax_bill_are_different_documents() -> None:
+    assert indicators_conflict(SAYISTAY, VERGI_TEKLIFI)
+    assert indicators_conflict(SAYISTAY, "Bütçe teklifi Plan ve Bütçe Komisyonunda kabul edildi")
+    # Aynı teklif farklı adlarla: ayrılmaz.
+    assert not indicators_conflict(
+        "Mülakatın kaldırılmasına dair yasa teklifi hazırlığı sürüyor",
+        "Mülakatın kaldırılmasına ilişkin kanun teklifi Meclis gündeminde",
+    )
+
+
+def test_demo_false_merge_sayistay_report_and_tax_bill_is_rejected() -> None:
+    """13 Kasım demo derlemi: vergi teklifi Sayıştay olayına otomatik birleşmişti.
+
+    Varlık kısıtı bunu yakalayamaz ve yakalamamalıdır: iki haber de TBMM'yi
+    anar, TBMM ortak anahtar varlıktır (jaccard 0,5). Ayırıcı konu belge
+    türüdür; benzerlik T_HIGH üstünde bile olsa olay ayrı kalmalı.
+    """
+    tbmm = "Türkiye Büyük Millet Meclisi"
+    article = _article(
+        entities=frozenset({tbmm}),
+        key_entities=frozenset({tbmm}),
+        text=VERGI_TEKLIFI,
+    )
+    candidate = _candidate(
+        similarity=0.929,
+        entities=frozenset({"Sayıştay", tbmm}),
+        key_entities=frozenset({"Sayıştay", tbmm}),
+        text_sample=SAYISTAY,
+    )
+    result = decide(article, [candidate])
+    assert result.action == "create"
+    (trace,) = result.trace
+    assert trace.entity_verdict == "ok"
+    assert trace.outcome == "indicator_reject"

@@ -15,6 +15,7 @@ institutions:
   - istatistik kurumu
   - turkstat
   Hazine ve Maliye Bakanlığı:
+  - hazine ve maliye bakanı
   - hazine ve maliye bakanlığı
   - hazine ve maliye bakanligi
   - hazine bakanlığı
@@ -81,23 +82,29 @@ institutions:
   - cumhurbaşkanlığı
   - cumhurbaskanligi
   Ticaret Bakanlığı:
+  - ticaret bakanı
   - ticaret bakanlığı
   - ticaret bakanligi
   Ulaştırma ve Altyapı Bakanlığı:
+  - ulaştırma ve altyapı bakanı
   - ulaştırma ve altyapı bakanlığı
   - ulastirma ve altyapi bakanligi
   - ulaştırma bakanlığı
   Tarım ve Orman Bakanlığı:
+  - tarım ve orman bakanı
   - tarım ve orman bakanlığı
   - tarim ve orman bakanligi
   - tarım bakanlığı
   Sanayi ve Teknoloji Bakanlığı:
+  - sanayi ve teknoloji bakanı
   - sanayi ve teknoloji bakanlığı
   - sanayi ve teknoloji bakanligi
   Enerji ve Tabii Kaynaklar Bakanlığı:
+  - enerji ve tabii kaynaklar bakanı
   - enerji ve tabii kaynaklar bakanlığı
   - enerji bakanlığı
   Çalışma ve Sosyal Güvenlik Bakanlığı:
+  - çalışma ve sosyal güvenlik bakanı
   - çalışma ve sosyal güvenlik bakanlığı
   - çalışma bakanlığı
   Vergi Denetim Kurulu:
@@ -188,35 +195,45 @@ institutions:
   - yüksek seçim kurulu
   - yuksek secim kurulu
   Adalet Bakanlığı:
+  - adalet bakanı
   - adalet bakanlığı
   - adalet bakanligi
   İçişleri Bakanlığı:
+  - içişleri bakanı
   - içişleri bakanlığı
   - icisleri bakanligi
   Dışişleri Bakanlığı:
+  - dışişleri bakanı
   - dışişleri bakanlığı
   - disisleri bakanligi
   Millî Savunma Bakanlığı:
+  - millî savunma bakanı
   - millî savunma bakanlığı
   - milli savunma bakanlığı
   - msb
   Millî Eğitim Bakanlığı:
+  - millî eğitim bakanı
   - millî eğitim bakanlığı
   - milli egitim bakanligi
   - meb
   Sağlık Bakanlığı:
+  - sağlık bakanı
   - sağlık bakanlığı
   - saglik bakanligi
   Kültür ve Turizm Bakanlığı:
+  - kültür ve turizm bakanı
   - kültür ve turizm bakanlığı
   - kultur ve turizm bakanligi
   Aile ve Sosyal Hizmetler Bakanlığı:
+  - aile ve sosyal hizmetler bakanı
   - aile ve sosyal hizmetler bakanlığı
   - aile bakanlığı
   Gençlik ve Spor Bakanlığı:
+  - gençlik ve spor bakanı
   - gençlik ve spor bakanlığı
   - genclik ve spor bakanligi
   Çevre, Şehircilik ve İklim Değişikliği Bakanlığı:
+  - çevre, şehircilik ve iklim değişikliği bakanı
   - çevre, şehircilik ve iklim değişikliği bakanlığı
   - çevre ve şehircilik bakanlığı
   - çevre bakanlığı

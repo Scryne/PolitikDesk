@@ -59,6 +59,23 @@ INDICATOR_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
     "confidence_index": ("guven endeksi",),
     "budget_balance": ("butce dengesi", "butce acigi", "merkezi yonetim butce"),
     "debt_stock": ("borc stoku",),
+    # 2026-11-14 Golden Set (90) teşhisi. Hizmet ÜFE'si "hizmet üretici
+    # enflasyonu" diye de yazılır; ortak aile olmadan "enflasyon" (cpi) ile
+    # "üfe" (ppi) aynı haberi ikiye bölüyordu (evt-046).
+    "services_ppi": ("hizmet uretici", "h-ufe"),
+    # Tarım-GFE sanayi üretimiyle aynı sabah yayımlanır ve gösterge sözlüğünde
+    # yoktu; iki olay tek kümeye düşüyordu (evt-028 + evt-045).
+    "agri_input_prices": ("tarimsal girdi", "tarim-gfe"),
+    # Haftalık para ve banka istatistikleri (rezervler) Enflasyon Raporu'yla
+    # aynı kurumdan, aynı hafta çıkar; birleşiyordu (evt-029 + evt-043).
+    "money_banking": ("para ve banka istatistik", "rezerv"),
+    # Belge türü aileleri (2026-11-14, demo derlemi). Yasama haberlerinin hepsi
+    # "TBMM'ye sunuldu" der; TBMM ortak anahtar varlık olduğu için varlık
+    # kısıtı Sayıştay denetim raporuyla vergi kanun teklifini ayıramıyordu ve
+    # ikisi tek olayda birleşti. Konu belge türüdür, kurum değil.
+    "audit_report": ("sayistay rapor", "denetim rapor"),
+    "bill": ("kanun teklif", "yasa teklif", "vergi teklif", "vergi paket", "yargi paket"),
+    "budget_bill": ("butce teklif",),
 }
 
 
