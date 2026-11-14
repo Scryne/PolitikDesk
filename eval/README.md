@@ -7,7 +7,8 @@ Spec §13'ün (Ölçüm ve Değerlendirme) veri ve araç dizini. P7'nin uygulama
 |---|---|---|
 | `pairs_tr.jsonl` | F0-13 — embedding benchmark çift seti (60 çift) | ✅ **kuruldu** — tamamı gerçek yayınlardan verbatim |
 | `embedding_benchmark.py` | F0-13 — koşucu | ✅ hazır |
-| `golden_set_v1.jsonl` | F0-14 → F2-20 — altın makale seti | 🟡 **55/300** — gerçek veri, hedefin altında (B-57) |
+| `golden_set_v1.jsonl` | F0-14 → F2-20 — altın makale seti | 🟡 **55/300 insan etiketli** (`label_source: human_v1`) + 35 W1 makalesi (`w1_unverified`, insan onayı yok); hedef ölçüt yalnız `human_v1` üzerinden |
+| `etiketleme/` | F2-20 — v2 örneklem + iki etiketleyici birleştirme araçları | ✅ hazır, **insan etiketi bekliyor** (kim ne yapar: `etiketleme/README.md`) |
 | `golden_claims_v1.jsonl` | F2-20 — altın iddia seti | 🟡 **24/150** — beklenen durumlar Spec §8.3 elle uygulanarak verildi |
 | `golden_set_tools.py` | doğrulayıcı + istatistik | ✅ hazır |
 | `run.py` | F2-16 — eval koşucusu | ✅ hazır ve koşuldu |
