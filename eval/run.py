@@ -171,6 +171,31 @@ def replay_clustering(
     return assignment, reviewed
 
 
+def with_live_entities(articles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Varlıkları güncel çıkarıcıyla yeniden hesaplar.
+
+    Setteki `entities` alanı etiketleme anındaki çıkarıcının donmuş çıktısıdır;
+    sözlük genişledikçe eskir ve sözlük değişikliğinin etkisini ölçülemez
+    kılar (2026-11-14: 55 makalenin 21'i donmuş alanda varlıksız, güncel
+    çıkarıcıda 14). Üretim, kaynak slug'ını da verir (B-63); eski satırlarda
+    yalnız `source` alanı var, o kullanılır.
+    """
+    from politikdesk.nlp.entities import extract
+
+    out = []
+    for article in articles:
+        found = extract(
+            article["title"],
+            article.get("excerpt"),
+            article.get("source_slug") or article.get("source"),
+        )
+        row = dict(article)
+        row["entities"] = sorted({e.canonical_name for e in found})
+        row["key_entities"] = sorted({e.canonical_name for e in found if e.is_key_entity})
+        out.append(row)
+    return out
+
+
 def _as_datetime(value: str) -> Any:
     from datetime import UTC, datetime
 
@@ -481,6 +506,18 @@ def main(argv: list[str] | None = None) -> int:
         "--sweep", action="store_true", help="Esik taramasi (F2-14): T_HIGH icin egri cikarir"
     )
     parser.add_argument("--out", type=Path, help="Rapor markdown ciktisi")
+    parser.add_argument(
+        "--live-entities",
+        action="store_true",
+        help=(
+            "Varliklari setteki donmus alandan degil, guncel cikariciyla "
+            "(config/entities.yml) yeniden cikar; uretimin yaptigi budur"
+        ),
+    )
+    parser.add_argument(
+        "--label-source",
+        help="Yalniz bu etiket kaynagindaki makaleleri olc (or. human_v1)",
+    )
     args = parser.parse_args(argv)
 
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[union-attr]
@@ -495,6 +532,10 @@ def main(argv: list[str] | None = None) -> int:
 
     articles = load_jsonl(args.articles)
     claims = load_jsonl(args.claims)
+    if args.label_source:
+        articles = [a for a in articles if a.get("label_source") == args.label_source]
+    if args.live_entities:
+        articles = with_live_entities(articles)
 
     if not articles and not claims:
         print(
