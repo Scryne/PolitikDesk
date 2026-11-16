@@ -357,11 +357,13 @@ def test_resolve_entity_with_titles_and_aliases() -> None:
     assert e_karahan.canonical_name == "Fatih Karahan"
     assert e_karahan.entity_type == "person"
 
-    # 3. Parti Lideri
-    e_ozel = resolve_entity("CHP Lideri")
+    # 3. Parti Lideri. Özel Temmuz 2026'dan beri YENİ Parti genel başkanı; CHP genel başkanlığı mahkeme
+    # kararıyla tartışmalı, rolsüz "CHP lideri" kimseye çözülmez (katalog doğrulaması 2026-11-16).
+    e_ozel = resolve_entity("YENİ Parti Genel Başkanı")
     assert e_ozel is not None
     assert e_ozel.canonical_name == "Özgür Özel"
     assert e_ozel.entity_type == "person"
+    assert resolve_entity("CHP Lideri") is None
 
     # 4. Kurum Kısaltması
     e_tcmb = resolve_entity("TCMB")

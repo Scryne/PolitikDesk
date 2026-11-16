@@ -339,6 +339,12 @@ institutions:
   - memleket partisi
   Vatan Partisi:
   - vatan partisi
+  YENİ Parti:
+  - yeni parti grubu
+  - yeni parti grup başkanvekili
+  - yeni parti milletvekili
+  - yeni parti sözcüsü
+  - yeni parti kurultayı
 political_actors:
   Recep Tayyip Erdoğan:
   - recep tayyip erdoğan
@@ -354,26 +360,12 @@ political_actors:
   Özgür Özel:
   - özgür özel
   - ozgur ozel
+  - yeni parti genel başkanı özgür özel
+  - yeni parti genel başkanı
   - chp genel başkanı özgür özel
-  - chp genel başkanı
-  - chp lideri
   - chp lideri özel
   - chp lideri ozgur ozel
   - özgür özel'in
-  Ekrem İmamoğlu:
-  - ekrem i̇mamoğlu
-  - ekrem imamoglu
-  - i̇mamoğlu
-  - imamoglu
-  - ibb başkanı
-  - ibb başkanı ekrem i̇mamoğlu
-  - i̇stanbul büyükşehir belediye başkanı ekrem i̇mamoğlu
-  Mansur Yavaş:
-  - mansur yavaş
-  - mansur yavas
-  - abb başkanı
-  - abb başkanı mansur yavaş
-  - ankara büyükşehir belediye başkanı mansur yavaş
   Fatih Karahan:
   - fatih karahan
   - dr. fatih karahan
@@ -473,6 +465,14 @@ political_actors:
   - yılmaz tunç
   - yilmaz tunc
   - adalet bakanı yılmaz tunç
+  Akın Gürlek:
+  - akın gürlek
+  - akin gurlek
+  - adalet bakanı akın gürlek
+  Mustafa Çiftçi:
+  - mustafa çiftçi
+  - mustafa ciftci
+  - içişleri bakanı mustafa çiftçi
   Yaşar Güler:
   - yaşar güler
   - yasar guler
@@ -534,6 +534,17 @@ political_actors:
   Fahrettin Altun:
   - fahrettin altun
   - iletişim başkanı fahrettin altun
+  Burhanettin Duran:
+  - burhanettin duran
+  - iletişim başkanı burhanettin duran
+  Faik Öztrak:
+  - faik öztrak
+  - faik oztrak
+  - chp grup başkanı faik öztrak
+  Uğur Poyraz:
+  - uğur poyraz
+  - ugur poyraz
+  - iyi parti grup başkanvekili uğur poyraz
   İbrahim Kalın:
   - ibrahim kalın
   - ibrahim kalin
@@ -639,25 +650,41 @@ political_actors:
   - istanbul büyükşehir belediye başkanı ekrem imamoğlu
   - ibb başkanı ekrem imamoğlu
   - imamoğlu
+  - imamoglu
+  Nuri Aslan:
+  - nuri aslan
+  - ibb başkanvekili nuri aslan
   Mansur Yavaş:
   - mansur yavaş
   - mansur yavas
   - ankara büyükşehir belediye başkanı mansur yavaş
   - abb başkanı mansur yavaş
-  - mansur yavas
+  - abb başkanı
   Cemil Tugay:
   - cemil tugay
   - izmir büyükşehir belediye başkanı cemil tugay
   Mustafa Bozbey:
   - mustafa bozbey
   - bursa büyükşehir belediye başkanı mustafa bozbey
+  Şahin Biba:
+  - şahin biba
+  - sahin biba
+  - bursa büyükşehir belediye başkanvekili şahin biba
   Vahap Seçer:
   - vahap seçer
   - vahap secer
   - mersin büyükşehir belediye başkanı vahap seçer
+  Gülşah Yıldırım Genç:
+  - gülşah yıldırım genç
+  - gulsah yildirim genc
+  - mersin büyükşehir belediye başkanvekili gülşah yıldırım genç
   Zeydan Karalar:
   - zeydan karalar
   - adana büyükşehir belediye başkanı zeydan karalar
+  Güngör Geçer:
+  - güngör geçer
+  - gungor gecer
+  - adana büyükşehir belediye başkanvekili güngör geçer
   Uğur İbrahim Altay:
   - uğur ibrahim altay
   - ugur ibrahim altay
@@ -678,6 +705,9 @@ political_actors:
   - muhittin böcek
   - muhittin bocek
   - antalya büyükşehir belediye başkanı muhittin böcek
+  Büşra Özdemir:
+  - antalya büyükşehir belediye başkanvekili büşra özdemir
+  - başkanvekili büşra özdemir
   Ahmet Akın:
   - ahmet akın
   - ahmet akin
@@ -697,6 +727,9 @@ political_actors:
   Ferdi Zeyrek:
   - ferdi zeyrek
   - manisa büyükşehir belediye başkanı ferdi zeyrek
+  Besim Dutlulu:
+  - besim dutlulu
+  - manisa büyükşehir belediye başkanı besim dutlulu
   Candan Yüceer:
   - candan yüceer
   - candan yuceer
@@ -737,6 +770,10 @@ political_actors:
   Abdullah Zeydan:
   - abdullah zeydan
   - van büyükşehir belediye başkanı abdullah zeydan
+  Ozan Balcı:
+  - ozan balcı
+  - ozan balci
+  - van valisi ozan balcı
   Ayşe Serra Bucak Küçük:
   - ayşe serra bucak
   - serra bucak
@@ -772,6 +809,8 @@ political_actors:
   Mehmet Akarca:
   - mehmet akarca
   - yargıtay onursal başkanı mehmet akarca
+  - kamu başdenetçisi mehmet akarca
+  - başdenetçi mehmet akarca
   Zeki Yiğit:
   - zeki yiğit
   - zeki yigit
@@ -780,6 +819,10 @@ political_actors:
   - ahmet yener
   - yüksek seçim kurulu başkanı ahmet yener
   - ysk başkanı ahmet yener
+  Serdar Mutta:
+  - serdar mutta
+  - yüksek seçim kurulu başkanı serdar mutta
+  - ysk başkanı serdar mutta
   Metin Yener:
   - metin yener
   - sayıştay başkanı metin yener
@@ -787,10 +830,18 @@ political_actors:
   - ebubekir şahin
   - ebubekir sahin
   - rtük başkanı ebubekir şahin
+  Mehmet Daniş:
+  - mehmet daniş
+  - mehmet danis
+  - rtük başkanı mehmet daniş
   Ömer Abdullah Karagözoğlu:
   - ömer abdullah karagözoğlu
   - omer abdullah karagozoglu
   - btk başkanı ömer abdullah karagözoğlu
+  Mehmet Koçyiğit:
+  - mehmet koçyiğit
+  - mehmet kocyigit
+  - btk başkanı mehmet koçyiğit
   Şeref Malkoç:
   - şeref malkoç
   - seref malkoc

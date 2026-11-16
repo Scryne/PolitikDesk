@@ -1,6 +1,6 @@
 # DURUM — PolitikDesk
 
-> Envanter, sertifika değil. Ölçüm tarihi: 2026-11-13 (önceki: 2026-09-26).
+> Envanter, sertifika değil. Ölçüm tarihi: 2026-11-16 (önceki: 2026-11-13).
 
 **Tek cümle:** Uçtan uca çalışıyor. Taze bir veritabanıyla 101 kaynaklık yapılandırmadan 492 makale
 toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta bağlandı, sabah brifingi
@@ -18,6 +18,20 @@ toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta b
   gösterge serileri (6 seri, 1807 gözlem) → brifing.
 - **LLM:** `nvidia/nemotron-3-ultra-550b-a55b`, projenin kıyaslama betikleriyle seçildi
   (çıkarım 10/10, alıntı sadakati %100; taslak grounding 7/8). Önceki modeller NIM'den kalktı.
+
+## 2026-11-16
+
+- **Aktör kataloğu yeniden doğrulandı** (`docs/SIYASI-AKTORLER-VE-KAYNAK-ENVANTERI.md` 3.6.0, `config/entities.yml`):
+  15 Ağustos sürümündeki ~31 kişi–görev satırı değişmişti (Şubat 2026 kabine değişikliği, YSK/RTÜK/BTK/Kamu
+  Başdenetçisi, YENİ Parti ve CHP grubu, tutuklanan başkanların başkanvekilleri). 16 yeni kişi, YENİ Parti kurumu;
+  rolsüz "chp genel başkanı / chp lideri" artık Özel'e çözülmüyor (dava sürüyor, kimseye bağlanmadı). İmamoğlu ve
+  Yavaş yml'de iki kez tanımlıydı, ilk blok sessizce düşüyordu; birleşti. Tazelik doğrulayıcısı yeniden yeşil.
+  Belirsizler belgenin 3. bölümünde (AYM başkanlık seçimi Aralık 2026).
+- **Kümeleme:** vergi / bütçe / yargı teklifi alt türleri ve Hazine ihalesi ayrı aile; ortak "kanun teklifi" iki
+  farklı teklifi aynı olay yapmıyor.
+- **Heartbeat testi:** Windows zamanlayıcı çözünürlüğünde 0,047 > 0,045 ile düşüyordu; gecikme 0,25 sn, eşik 0,10 sn
+  (bloklanan döngüyle arada 2,5 kat pay).
+- **Testler:** 2715 geçti / 1 atlandı (`PD_ENV=test`, yerel PG 55432).
 
 ## 2026-11-13 denetimi
 
