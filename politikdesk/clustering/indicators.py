@@ -74,8 +74,22 @@ INDICATOR_PATTERNS: Final[dict[str, tuple[str, ...]]] = {
     # kısıtı Sayıştay denetim raporuyla vergi kanun teklifini ayıramıyordu ve
     # ikisi tek olayda birleşti. Konu belge türüdür, kurum değil.
     "audit_report": ("sayistay rapor", "denetim rapor"),
-    "bill": ("kanun teklif", "yasa teklif", "vergi teklif", "vergi paket", "yargi paket"),
-    "budget_bill": ("butce teklif",),
+    "bill": ("kanun teklif", "yasa teklif"),
+    # Teklif alt türleri: bkz. SUBTYPES. "Merkezi Yönetim Bütçe Kanun Teklifi"
+    # hem genel `bill` hem `budget_bill`dır; genel aile ortak diye vergi
+    # teklifiyle birleşmemeli (demo derlemi, 2026-11-15).
+    "tax_bill": ("vergi kanun", "vergi teklif", "vergi paket"),
+    "budget_bill": ("butce teklif", "butce kanun"),
+    "judicial_bill": ("yargi paket",),
+    # Hazine ihaleleri bütçe gerçekleşmesiyle aynı gün, aynı kurumdan çıkar.
+    "debt_auction": ("tahvil ihale", "bono ihale", "hazine ihale", "borclanma ihale"),
+}
+
+# Genel aile -> alt türler. İki taraf da bir alt tür içeriyorsa karşılaştırma
+# alt tür düzeyinde yapılır: ortak genel aile ("kanun teklifi") farklı iki
+# teklifi aynı olay yapmaz. Bir taraf alt türsüzse genel kural geçerlidir.
+SUBTYPES: Final[dict[str, frozenset[str]]] = {
+    "bill": frozenset({"tax_bill", "budget_bill", "judicial_bill"}),
 }
 
 
@@ -120,4 +134,8 @@ def indicators_conflict(left_text: str, right_text: str) -> bool:
     right = detect_indicators(right_text)
     if not left or not right:
         return False
+    for kinds in SUBTYPES.values():
+        left_kind, right_kind = left & kinds, right & kinds
+        if left_kind and right_kind and not (left_kind & right_kind):
+            return True
     return not (left & right)

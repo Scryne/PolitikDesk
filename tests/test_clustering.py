@@ -590,3 +590,20 @@ def test_demo_false_merge_sayistay_report_and_tax_bill_is_rejected() -> None:
     (trace,) = result.trace
     assert trace.entity_verdict == "ok"
     assert trace.outcome == "indicator_reject"
+
+
+def test_budget_bill_and_tax_bill_differ_despite_shared_generic_bill() -> None:
+    """Demo derlemi (2026-11-15): ikisi de "kanun teklifi" der, farklı tekliflerdir."""
+    assert indicators_conflict(
+        "TBMM Plan ve Bütçe Komisyonu, 2027 Yılı Merkezi Yönetim Bütçe Kanun Teklifi'ni kabul etti",
+        VERGI_TEKLIFI,
+    )
+    # Alt türsüz genel haber, alt türlü haberden ayrılmaz.
+    assert not indicators_conflict("Kanun teklifi TBMM Başkanlığına sunuldu", VERGI_TEKLIFI)
+
+
+def test_bond_auction_is_not_budget_realisation() -> None:
+    assert indicators_conflict(
+        "Merkezi Yönetim Bütçe Gerçekleşmeleri, Ekim 2026",
+        "Hazine 2 yıl vadeli sabit kuponlu tahvil ihalesi sonuçları",
+    )

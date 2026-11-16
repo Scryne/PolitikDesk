@@ -115,7 +115,7 @@ async def test_async_activity_event_loop_heartbeat_isolation() -> None:
                 heartbeat_ticks += 1
 
         def slow_db_record(*args: object, **kwargs: object) -> None:
-            time.sleep(0.08)  # 80ms senkron DB gecikmesi
+            time.sleep(0.25)  # 250ms senkron DB gecikmesi
 
         hb_task = asyncio.create_task(heartbeat())
         try:
@@ -132,9 +132,10 @@ async def test_async_activity_event_loop_heartbeat_isolation() -> None:
             running = False
             await hb_task
 
-        # Eğer event loop 80ms boyunca bloklansaydı max_gap >= 0.08s olurdu.
-        # Threadpool izolasyonu sayesinde event loop serbest kalır ve max_gap < 0.045s kalır!
-        assert max_gap < 0.045
+        # Event loop bloklansaydı max_gap >= 0.25s olurdu. Threadpool izolasyonuyla döngü serbest
+        # kalır; Windows zamanlayıcı çözünürlüğü (~15,6 ms) ve iş parçacığı geçişi boşluğu birkaç
+        # tik büyütebildiği için eşik 0,10 s: iki durum arasında hâlâ 2,5 kat pay var.
+        assert max_gap < 0.10
         assert heartbeat_ticks >= 10
 
 
