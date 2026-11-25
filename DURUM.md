@@ -1,6 +1,13 @@
 # DURUM — PolitikDesk
 
-> Envanter, sertifika değil. Ölçüm tarihi: 2026-11-16 (önceki: 2026-11-13).
+> Envanter, sertifika değil. Ölçüm tarihi: 2026-11-25 (önceki: 2026-11-16).
+
+**Yayına hazır karnesi (2026-11-25):** Kod ✅ · Ürün ✅ (11-16'da taze veritabanıyla 101 kaynaktan brifinge uçtan uca; bu turda kod
+değişmedi) · Ön yüz ✅ (vitrin: siniyor) · Belge ✅ · Kapı ✅ · Dış: operasyonel kapılar (34 olay insan incelemesi, 7 günlük temiz
+pencere). **11-25 ölçümü:** pytest 2.715 (+1 atlanan; DB testleri yerel PG ile koştu), ruff, mypy 215 dosya, iki mimari kural
+(evidence → llm yasağı + korumanın canlı doğrulaması), pip-audit 0 açık; CI main yeşil, açık PR yok.
+**Takvim:** aktör kataloğu 2027-02-14'te 90 günü doldurur; AYM başkanı Aralık 2026'da değişir (katalog güncellemesi).
+**v2 fikirleri:** (yok; bulunan buraya)
 
 **Tek cümle:** Uçtan uca çalışıyor. Taze bir veritabanıyla 101 kaynaklık yapılandırmadan 492 makale
 toplandı, 336 olaya kümelendi, 28 olaydan 178 iddia çıkarıldı ve kanıta bağlandı, sabah brifingi
